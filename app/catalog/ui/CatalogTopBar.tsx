@@ -53,7 +53,7 @@ export default function CatalogTopBar({
   doorItems: Array<{ label: string; value: string }>;
   facadeItems: Array<{ label: string; value: string }>;
 
-  // ✅ делаем optional, чтобы TS не валился если сверху не передали
+  // ✅ optional
   moduleItemsForCollection?: Array<{ label: string; value: string }>;
 
   onPickRoom: (v: string) => void;
@@ -77,18 +77,19 @@ export default function CatalogTopBar({
     });
   })();
 
+  // ✅ нормальный фолбэк без any
+  const moduleItemsForUI =
+    moduleItemsForCollection && moduleItemsForCollection.length
+      ? moduleItemsForCollection
+      : MODULE_ITEMS;
+
   return (
     <>
       <CatalogTopFilters
         roomItems={roomItemsSorted as any}
         brands={BRANDS as any}
         moduleItems={MODULE_ITEMS as any}
-        // ✅ fallback на MODULE_ITEMS, чтобы не передать undefined
-        moduleItemsForCollection={
-          (moduleItemsForCollection?.length
-            ? moduleItemsForCollection
-            : (MODULE_ITEMS as any)) as any
-        }
+        moduleItemsForCollection={moduleItemsForUI}
         activeRoom={activeRoom}
         activeCollection={activeCollection}
         activeModule={activeModule}
