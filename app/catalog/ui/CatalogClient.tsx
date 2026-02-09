@@ -168,9 +168,10 @@ export default function CatalogClient({
       }
     }
 
-    const known = (MODULE_ITEMS as any[]).filter((m) =>
+    const known = Array.from(MODULE_ITEMS).filter((m) =>
       set.has(String(m.value)),
     );
+
     const knownSet = new Set(known.map((m) => String(m.value)));
     const unknown = Array.from(set)
       .filter((v) => !knownSet.has(v))
