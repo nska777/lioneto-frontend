@@ -89,7 +89,6 @@ export default function CatalogTopBar({
         roomItems={roomItemsSorted as any}
         brands={BRANDS as any}
         moduleItems={MODULE_ITEMS as any}
-        moduleItemsForCollection={moduleItemsForUI}
         activeRoom={activeRoom}
         activeCollection={activeCollection}
         activeModule={activeModule}
