@@ -26,7 +26,7 @@ export default function CatalogTopBar({
   doorItems,
   facadeItems,
 
-  moduleItemsForCollection, // ✅ NEW
+  moduleItemsForCollection, // ✅ NEW (optional)
 
   onPickRoom,
   onPickCollection,
@@ -53,7 +53,8 @@ export default function CatalogTopBar({
   doorItems: Array<{ label: string; value: string }>;
   facadeItems: Array<{ label: string; value: string }>;
 
-  moduleItemsForCollection: Array<{ label: string; value: string }>; // ✅ NEW
+  // ✅ делаем optional, чтобы TS не валился если сверху не передали
+  moduleItemsForCollection?: Array<{ label: string; value: string }>;
 
   onPickRoom: (v: string) => void;
   onPickCollection: (v: string) => void;
@@ -82,7 +83,12 @@ export default function CatalogTopBar({
         roomItems={roomItemsSorted as any}
         brands={BRANDS as any}
         moduleItems={MODULE_ITEMS as any}
-        moduleItemsForCollection={moduleItemsForCollection as any} // ✅ NEW
+        // ✅ fallback на MODULE_ITEMS, чтобы не передать undefined
+        moduleItemsForCollection={
+          (moduleItemsForCollection?.length
+            ? moduleItemsForCollection
+            : (MODULE_ITEMS as any)) as any
+        }
         activeRoom={activeRoom}
         activeCollection={activeCollection}
         activeModule={activeModule}
