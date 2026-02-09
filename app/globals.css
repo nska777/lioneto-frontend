@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* ===== SATOSHI (PREMIUM) ===== */
+@font-face {
+  font-family: "Satoshi";
+  src: url("/fonts/satoshi/Satoshi-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("/fonts/satoshi/Satoshi-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("/fonts/satoshi/Satoshi-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ===== BASE ===== */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Satoshi", system-ui, -apple-system, Segoe UI, Roboto, Arial,
+    sans-serif;
+  font-weight: 500;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* ===== HEADINGS ===== */
+h1,
+h2,
+h3,
+.heading {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ===== BUTTONS / NAV ===== */
+button,
+.nav-item {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
