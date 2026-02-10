@@ -17,6 +17,13 @@ console.log("ENV STRAPI URL:", process.env.NEXT_PUBLIC_STRAPI_URL);
 export const metadata: Metadata = {
   title: "Lioneto",
   description: "Lioneto furniture",
+
+  // ✅ ДОБАВЬ ЭТО:
+  icons: {
+    icon: [{ url: "/favicon.ico" }, { url: "/icon.png", type: "image/png" }],
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",
+  },
 };
 
 export default async function RootLayout({
