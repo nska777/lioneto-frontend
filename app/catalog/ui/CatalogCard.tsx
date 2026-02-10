@@ -159,10 +159,6 @@ export default function CatalogCard({
 
   const STRAPI = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 
-  // fallback (локальная картинка)
-  const imgSrcFallback =
-    String(p.image ?? p.cover ?? "").trim() || "/placeholder.png";
-
   // ✅ Strapi cardImage
   const strapiImg =
     (p.cardImage?.formats?.small?.url as string | undefined) ??
@@ -175,14 +171,21 @@ export default function CatalogCard({
       : `${STRAPI}${strapiImg}`
     : "";
 
-  // ✅ эвристика: модуль/предметка vs интерьер/сцена
-  // (если у тебя есть свой флаг — просто подставь его сюда)
-  const isModuleCard = Boolean(
-    (p as any).isModule ||
-    (p as any).module ||
-    (p as any).moduleId ||
-    (p as any).kind === "module",
-  );
+  // ✅ Fallback: cover/image/gallery[0]/images[0]/photos[0]
+  const firstGallery =
+    (Array.isArray(p.gallery) && p.gallery[0]) ||
+    (Array.isArray(p.images) && p.images[0]) ||
+    (Array.isArray(p.photos) && p.photos[0]) ||
+    "";
+
+  const imgSrcFallback =
+    String(firstGallery ?? "").trim() ||
+    String(p.image ?? p.cover ?? "").trim() ||
+    "/placeholder.png";
+
+  // ✅ модуль/предметка определяем стабильно (в проде и локале одинаково)
+  // сейчас: если есть Strapi-картинка для карточки — это “модульная/предметная” карточка
+  const isModuleCard = Boolean(strapiSrc);
 
   const added = isInCart(String(p.id));
 
@@ -198,41 +201,27 @@ export default function CatalogCard({
       <Link href={href} className="flex h-full flex-col">
         {/* IMAGE */}
         <div className="relative aspect-[13/11] overflow-hidden bg-white">
-          {/* ✅ Интерьеры/сцены: всегда cover на всю область (без “вставок”) */}
+          {/* ✅ Интерьеры/сцены: cover, но если нет cardImage — берём imgSrcFallback (gallery[0]/image/cover) */}
           {!isModuleCard ? (
             <>
-              {strapiSrc ? (
-                <img
-                  src={strapiSrc}
-                  alt={title}
-                  className={cn(
-                    "absolute inset-0 h-full w-full",
-                    "object-cover object-center",
-                    "transition-transform duration-500",
-                    "group-hover:scale-[1.02]",
-                  )}
-                  loading={idx < 6 ? "eager" : "lazy"}
-                />
-              ) : (
-                <Image
-                  key={imgSrcFallback}
-                  src={imgSrcFallback}
-                  alt={title}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                  className={cn(
-                    "object-cover object-center",
-                    "transition-transform duration-500",
-                    "group-hover:scale-[1.02]",
-                  )}
-                  priority={idx < 6}
-                />
-              )}
+              <Image
+                key={imgSrcFallback}
+                src={imgSrcFallback}
+                alt={title}
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                className={cn(
+                  "object-cover object-center",
+                  "transition-transform duration-500",
+                  "group-hover:scale-[1.02]",
+                )}
+                priority={idx < 6}
+              />
             </>
           ) : (
-            /* ✅ Модули/предметка: contain + “пол” + лёгкая тень */
-            <div className="absolute inset-0 flex items-end justify-center pb-4 bg-black/[0.03]">
-              <div className="pointer-events-none absolute inset-x-6 bottom-4 h-px bg-black/8" />
+            /* ✅ Модули/предметка: contain + “пол” + воздух сверху (чтобы не прижимало) */
+            <div className="absolute inset-0 flex items-end justify-center bg-black/[0.03] pt-6 pb-5">
+              <div className="pointer-events-none absolute inset-x-8 bottom-5 h-px bg-black/8" />
 
               {strapiSrc ? (
                 <img
@@ -240,7 +229,7 @@ export default function CatalogCard({
                   alt={title}
                   className={cn(
                     "h-auto w-auto",
-                    "max-h-[92%] max-w-[92%]",
+                    "max-h-[78%] max-w-[92%]",
                     "object-contain object-bottom",
                     "transition-transform duration-500",
                     "group-hover:scale-[1.02]",
@@ -257,7 +246,7 @@ export default function CatalogCard({
                   height={700}
                   className={cn(
                     "h-auto w-auto",
-                    "max-h-[92%] max-w-[92%]",
+                    "max-h-[78%] max-w-[92%]",
                     "object-contain object-bottom",
                     "transition-transform duration-500",
                     "group-hover:scale-[1.02]",
@@ -269,7 +258,7 @@ export default function CatalogCard({
             </div>
           )}
 
-          {/* ✅ BADGES: в одну строку слева (скидка + хит + collectionBadge) */}
+          {/* ✅ BADGES */}
           {hasDiscount || badgeMain || collectionBadge ? (
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               {hasDiscount ? (
@@ -284,7 +273,7 @@ export default function CatalogCard({
             </div>
           ) : null}
 
-          {/* ✅ ACTION ICONS: вертикально справа */}
+          {/* ✅ ACTION ICONS */}
           <div className="absolute right-3 top-3 z-10 flex flex-col gap-2 translate-y-[-4px] opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
             <div
               onClick={(e) => {
