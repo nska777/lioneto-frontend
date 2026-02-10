@@ -31,98 +31,100 @@ export default function ProductLightbox({
 
   return (
     <div className="fixed inset-0 z-[100]">
-      {/* ✅ лёгкий затемнённый фон, но без “чёрных полос” внутри модалки */}
+      {/* фон */}
       <button
-        className="absolute inset-0 bg-black/30 backdrop-blur-[2px] cursor-zoom-out"
+        className="absolute inset-0 bg-black/70 backdrop-blur-[2px] cursor-zoom-out"
         onClick={onClose}
         aria-label="Закрыть"
         type="button"
       />
 
-      {/* ✅ центр-карточка */}
-      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-8">
-        <div
+      {/* FULLSCREEN viewport */}
+      <div
+        className="absolute inset-0"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
+        {/* крестик */}
+        <button
+          onClick={onClose}
           className={cn(
-            "relative w-full bg-white",
-            "rounded-3xl border border-black/10",
-            "shadow-[0_40px_140px_-60px_rgba(0,0,0,0.45)]",
-            // ✅ НЕ на весь экран:
-            // максимум 1100px по ширине и 82vh по высоте
-            "max-w-[1100px] max-h-[82vh] overflow-hidden",
+            "absolute right-5 top-5 z-20",
+            "h-10 w-10 rounded-full bg-white/90 border border-black/10",
+            "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.18)]",
+            "hover:bg-white transition cursor-pointer",
           )}
-          role="dialog"
-          aria-modal="true"
+          aria-label="Закрыть"
+          type="button"
         >
-          {/* крестик */}
-          <button
-            onClick={onClose}
+          <X className="h-5 w-5 text-black/70" />
+        </button>
+
+        {/* стрелки */}
+        {hasNav && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrev();
+              }}
+              className={cn(
+                "absolute left-5 top-1/2 -translate-y-1/2 z-20",
+                "h-12 w-12 rounded-full bg-white/90 border border-black/10",
+                "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.18)]",
+                "hover:bg-white transition cursor-pointer",
+              )}
+              aria-label="Предыдущее фото"
+              type="button"
+            >
+              <ChevronLeft className="h-6 w-6 text-black/70" />
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNext();
+              }}
+              className={cn(
+                "absolute right-5 top-1/2 -translate-y-1/2 z-20",
+                "h-12 w-12 rounded-full bg-white/90 border border-black/10",
+                "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.18)]",
+                "hover:bg-white transition cursor-pointer",
+              )}
+              aria-label="Следующее фото"
+              type="button"
+            >
+              <ChevronRight className="h-6 w-6 text-black/70" />
+            </button>
+          </>
+        )}
+
+        {/* изображение на весь экран */}
+        <div className="absolute inset-0 z-10">
+          <Image
+            src={gallery[idx]}
+            alt={title}
+            fill
+            priority
+            sizes="100vw"
+            className="object-contain"
+          />
+        </div>
+
+        {/* нижняя плашка (не мешает картинке) */}
+        <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2">
+          <div
             className={cn(
-              "absolute right-4 top-4 z-10",
-              "h-10 w-10 rounded-full bg-white/90 border border-black/10",
-              "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.12)]",
-              "hover:bg-white transition cursor-pointer",
+              "flex items-center gap-3",
+              "rounded-full border border-white/20 bg-black/35 backdrop-blur",
+              "px-4 py-2",
             )}
-            aria-label="Закрыть"
-            type="button"
           >
-            <X className="h-5 w-5 text-black/70" />
-          </button>
-
-          {/* стрелки */}
-          {hasNav && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPrev();
-                }}
-                className={cn(
-                  "absolute left-4 top-1/2 -translate-y-1/2 z-10",
-                  "h-11 w-11 rounded-full bg-white/90 border border-black/10",
-                  "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.12)]",
-                  "hover:bg-white transition cursor-pointer",
-                )}
-                aria-label="Предыдущее фото"
-                type="button"
-              >
-                <ChevronLeft className="h-6 w-6 text-black/70" />
-              </button>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNext();
-                }}
-                className={cn(
-                  "absolute right-4 top-1/2 -translate-y-1/2 z-10",
-                  "h-11 w-11 rounded-full bg-white/90 border border-black/10",
-                  "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.12)]",
-                  "hover:bg-white transition cursor-pointer",
-                )}
-                aria-label="Следующее фото"
-                type="button"
-              >
-                <ChevronRight className="h-6 w-6 text-black/70" />
-              </button>
-            </>
-          )}
-
-          {/* картинка (внутри карточки) */}
-          <div className="relative w-full h-[82vh] max-h-[82vh]">
-            <Image
-              src={gallery[idx]}
-              alt={title}
-              fill
-              priority
-              sizes="(max-width: 768px) 92vw, 1100px"
-              className="object-contain"
-            />
-          </div>
-
-          {/* мини подпись снизу (по желанию) */}
-          <div className="flex items-center justify-between px-5 py-3 border-t border-black/10">
-            <div className="text-[12px] text-black/55 truncate">{title}</div>
-            <div className="text-[12px] text-black/45">
+            <div className="max-w-[60vw] truncate text-[12px] text-white/85">
+              {title}
+            </div>
+            <div className="text-[12px] text-white/70">
               {idx + 1} / {Math.max(1, gallery.length)}
             </div>
           </div>

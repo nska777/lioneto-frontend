@@ -23,7 +23,6 @@ export default function ProductGallery({
   onNext: () => void;
   onOpenLightbox: (idx: number) => void;
 }) {
-  // ✅ защита
   const safeGallery = gallery?.length ? gallery : [];
   const safeIdx =
     safeGallery.length > 0
@@ -56,7 +55,7 @@ export default function ProductGallery({
               alt={title}
               fill
               priority
-              className="object-contain"
+              className="object-cover"
               sizes="(max-width: 1024px) 100vw, 520px"
             />
 
@@ -142,7 +141,7 @@ export default function ProductGallery({
                   src={src}
                   alt={`${title} ${i + 1}`}
                   fill
-                  className="object-contain"
+                  className="object-cover"
                   sizes="120px"
                 />
               </button>

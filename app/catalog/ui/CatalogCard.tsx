@@ -6,8 +6,8 @@ import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import ProductActions from "../ProductActions";
-import { useShopState } from "@/app/context/shop-state"; // ⚠️ проверь путь
-import { useRegionLang } from "@/app/context/region-lang"; // ✅ нужно для корректного % в текущей валюте
+import { useShopState } from "@/app/context/shop-state";
+import { useRegionLang } from "@/app/context/region-lang";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
@@ -125,31 +125,11 @@ export default function CatalogCard({
   const title = String(p.title ?? "").trim() || "Товар";
 
   // ✅ цены: Strapi (priceUZS/priceRUB) + fallback на старые поля
-  const curRub = n(
-    p.priceRUB ??
-      p.price_rub ??
-      p.priceRUB ??
-      p.priceRUB ??
-      p.priceRUB ??
-      p.priceRUB ??
-      0,
-  );
-  const curUzs = n(
-    p.priceUZS ??
-      p.price_uzs ??
-      p.priceUZS ??
-      p.priceUZS ??
-      p.priceUZS ??
-      p.priceUZS ??
-      0,
-  );
+  const curRub = n(p.priceRUB ?? p.price_rub ?? 0);
+  const curUzs = n(p.priceUZS ?? p.price_uzs ?? 0);
 
-  const oldRub = n(
-    p.oldPriceRUB ?? p.old_price_rub ?? p.oldPriceRUB ?? p.oldPriceRUB ?? 0,
-  );
-  const oldUzs = n(
-    p.oldPriceUZS ?? p.old_price_uzs ?? p.oldPriceUZS ?? p.oldPriceUZS ?? 0,
-  );
+  const oldRub = n(p.oldPriceRUB ?? p.old_price_rub ?? 0);
+  const oldUzs = n(p.oldPriceUZS ?? p.old_price_uzs ?? 0);
 
   // ✅ скидка считается по ТЕКУЩЕЙ валюте (RU=RUB, UZ=UZS), с фолбэком на другую валюту
   const cur = currency === "RUB" ? curRub || curUzs : curUzs || curRub;
@@ -161,6 +141,7 @@ export default function CatalogCard({
     ? Math.max(1, Math.min(99, Math.round((1 - cur / old) * 100)))
     : 0;
 
+  // оставляем (может использоваться где-то ещё)
   const discountPct = n(p.discountPct ?? computedPct);
 
   // ✅ бейджи
@@ -194,6 +175,15 @@ export default function CatalogCard({
       : `${STRAPI}${strapiImg}`
     : "";
 
+  // ✅ эвристика: модуль/предметка vs интерьер/сцена
+  // (если у тебя есть свой флаг — просто подставь его сюда)
+  const isModuleCard = Boolean(
+    (p as any).isModule ||
+    (p as any).module ||
+    (p as any).moduleId ||
+    (p as any).kind === "module",
+  );
+
   const added = isInCart(String(p.id));
 
   return (
@@ -207,34 +197,76 @@ export default function CatalogCard({
     >
       <Link href={href} className="flex h-full flex-col">
         {/* IMAGE */}
-        <div className="relative aspect-[16/11] overflow-hidden bg-white px-3 py-2">
-          {/* ✅ Strapi картинка — через <img> (без next/image host/private-ip проблем) */}
-          {strapiSrc ? (
-            <img
-              src={strapiSrc}
-              alt={title}
-              className={cn(
-                "absolute inset-0 h-full w-full",
-                "object-contain object-center",
-                "transition-transform duration-500",
-                "group-hover:scale-[1.02]",
+        <div className="relative aspect-[13/11] overflow-hidden bg-white">
+          {/* ✅ Интерьеры/сцены: всегда cover на всю область (без “вставок”) */}
+          {!isModuleCard ? (
+            <>
+              {strapiSrc ? (
+                <img
+                  src={strapiSrc}
+                  alt={title}
+                  className={cn(
+                    "absolute inset-0 h-full w-full",
+                    "object-cover object-center",
+                    "transition-transform duration-500",
+                    "group-hover:scale-[1.02]",
+                  )}
+                  loading={idx < 6 ? "eager" : "lazy"}
+                />
+              ) : (
+                <Image
+                  key={imgSrcFallback}
+                  src={imgSrcFallback}
+                  alt={title}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                  className={cn(
+                    "object-cover object-center",
+                    "transition-transform duration-500",
+                    "group-hover:scale-[1.02]",
+                  )}
+                  priority={idx < 6}
+                />
               )}
-              loading={idx < 6 ? "eager" : "lazy"}
-            />
+            </>
           ) : (
-            <Image
-              key={imgSrcFallback}
-              src={imgSrcFallback}
-              alt={title}
-              fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-              className={cn(
-                "object-contain object-center",
-                "transition-transform duration-500",
-                "group-hover:scale-[1.02]",
+            /* ✅ Модули/предметка: contain + “пол” + лёгкая тень */
+            <div className="absolute inset-0 flex items-end justify-center pb-4 bg-black/[0.03]">
+              <div className="pointer-events-none absolute inset-x-6 bottom-4 h-px bg-black/8" />
+
+              {strapiSrc ? (
+                <img
+                  src={strapiSrc}
+                  alt={title}
+                  className={cn(
+                    "h-auto w-auto",
+                    "max-h-[92%] max-w-[92%]",
+                    "object-contain object-bottom",
+                    "transition-transform duration-500",
+                    "group-hover:scale-[1.02]",
+                    "drop-shadow-[0_14px_18px_rgba(0,0,0,0.14)]",
+                  )}
+                  loading={idx < 6 ? "eager" : "lazy"}
+                />
+              ) : (
+                <Image
+                  key={imgSrcFallback}
+                  src={imgSrcFallback}
+                  alt={title}
+                  width={900}
+                  height={700}
+                  className={cn(
+                    "h-auto w-auto",
+                    "max-h-[92%] max-w-[92%]",
+                    "object-contain object-bottom",
+                    "transition-transform duration-500",
+                    "group-hover:scale-[1.02]",
+                    "drop-shadow-[0_14px_18px_rgba(0,0,0,0.14)]",
+                  )}
+                  priority={idx < 6}
+                />
               )}
-              priority={idx < 6}
-            />
+            </div>
           )}
 
           {/* ✅ BADGES: в одну строку слева (скидка + хит + collectionBadge) */}

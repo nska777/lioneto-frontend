@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title: "Lioneto",
   description: "Lioneto furniture",
 
-  // ✅ ДОБАВЬ ЭТО:
+  //  ДОБАВЬ ЭТО:
   icons: {
     icon: [{ url: "/favicon.ico" }, { url: "/icon.png", type: "image/png" }],
     shortcut: "/favicon.ico",
