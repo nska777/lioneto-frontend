@@ -92,7 +92,6 @@ function BadgePill({
   const isGreen = variant === "green";
 
   return (
-    // ✅ ты поставил h-5 — оставляю. Если захочешь больше, поменяешь тут.
     <span className="relative inline-flex h-5 items-center overflow-hidden rounded-[12px] px-3">
       <span
         className="absolute inset-0 rounded-[12px]"
@@ -215,6 +214,7 @@ export default function BestSellers({
           price_rub: Number(entry.priceRUB ?? 0),
           price_uzs: Number(entry.priceUZS ?? 0),
 
+          // ✅ ОСТАВЛЯЕМ "Хит продаж" как бейдж секции
           badge: entry.collectionBadge ?? "Хит продаж",
           skuLabel: `ID: ${product.id}`,
           brandLabel,
@@ -440,7 +440,7 @@ export default function BestSellers({
     return () => cleanups.forEach((fn) => fn());
   }, [list.length, reducedMotion, isTouchMode]);
 
-  // reveal (оставляем как есть)
+  // reveal
   useLayoutEffect(() => {
     if (!rootRef.current) return;
     if (reducedMotion) return;
@@ -652,9 +652,7 @@ export default function BestSellers({
                       "group-hover:shadow-[0_20px_60px_rgba(0,0,0,0.10)]",
                     )}
                   >
-                    {/* ✅ FIX: внешний контейнер НЕ клипает бейдж */}
                     <div className="relative overflow-visible rounded-t-[22px] bg-white">
-                      {/* ✅ бейдж прижат к верхнему краю и НЕ обрезается */}
                       <div className="absolute left-3 top-0.5 z-20">
                         <BadgePill text={p.badge} variant={badgeVariant} />
                       </div>
@@ -676,15 +674,14 @@ export default function BestSellers({
                         />
                       </div>
 
-                      {/* ✅ клипуем ТОЛЬКО картинку, чтобы бейдж мог жить сверху */}
                       <div className="relative overflow-hidden rounded-t-[22px]">
-                        <div className="relative aspect-[4/3] bg-white px-3 py-2">
+                        <div className="relative aspect-[4/3] bg-white">
                           <Image
                             src={p.image}
                             alt={p.title}
                             fill
                             className={cn(
-                              "object-contain object-center",
+                              "object-cover object-center",
                               "transition-transform duration-500",
                               "group-hover:scale-[1.03]",
                             )}
@@ -699,7 +696,6 @@ export default function BestSellers({
                         {formatPrice(value, currency)}
                       </div>
 
-                      {/* ✅ FIX: title аккуратно в 2 строки, приоритет Strapi */}
                       <div
                         className={cn(
                           "mt-1 text-[14px] leading-snug text-black/70",

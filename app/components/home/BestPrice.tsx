@@ -234,6 +234,7 @@ export default function BestPrice({
     return items.slice(0, Math.min(10, items.length));
   }, [priceEntries, currency]);
 
+  // touch mode
   useLayoutEffect(() => {
     const calc = () => {
       const w = window.innerWidth;
@@ -248,6 +249,7 @@ export default function BestPrice({
     return () => window.removeEventListener("resize", calc);
   }, []);
 
+  // pages
   useLayoutEffect(() => {
     const calcPages = () => {
       const w = window.innerWidth;
@@ -262,6 +264,7 @@ export default function BestPrice({
     return () => window.removeEventListener("resize", calcPages);
   }, [list.length]);
 
+  // desktop slide
   useLayoutEffect(() => {
     if (isTouchMode) return;
     if (!rootRef.current || !trackRef.current) return;
@@ -286,6 +289,7 @@ export default function BestPrice({
     gsap.to(trackRef.current, { x: -shift, duration: 0.9, ease: "expo.out" });
   }, [page, reducedMotion, list.length, isTouchMode]);
 
+  // mobile scroll sync
   useLayoutEffect(() => {
     if (!isTouchMode) return;
     const vp = viewportRef.current;
@@ -371,6 +375,79 @@ export default function BestPrice({
 
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
+
+  // ✅ HOVER ACTIONS (как в BestSellers): на десктопе показывать только при наведении
+  useLayoutEffect(() => {
+    if (!rootRef.current) return;
+    if (isTouchMode) return;
+
+    const root = rootRef.current;
+    const cards = Array.from(
+      root.querySelectorAll("[data-card]"),
+    ) as HTMLElement[];
+
+    const cleanups: Array<() => void> = [];
+
+    cards.forEach((card) => {
+      const actions = card.querySelector(
+        "[data-actions]",
+      ) as HTMLElement | null;
+      if (!actions) return;
+
+      gsap.set(actions, {
+        autoAlpha: 0,
+        y: 10,
+        filter: "blur(8px)",
+        pointerEvents: "none",
+      });
+
+      const enter = () => {
+        if (reducedMotion) {
+          gsap.set(actions, { autoAlpha: 1, y: 0, filter: "blur(0px)" });
+          actions.style.pointerEvents = "auto";
+          return;
+        }
+        gsap.to(actions, {
+          autoAlpha: 1,
+          y: 0,
+          filter: "blur(0px)",
+          duration: 0.28,
+          ease: "power3.out",
+          onStart: () => {
+            actions.style.pointerEvents = "auto";
+          },
+        });
+      };
+
+      const leave = () => {
+        if (reducedMotion) {
+          gsap.set(actions, { autoAlpha: 0, y: 10, filter: "blur(8px)" });
+          actions.style.pointerEvents = "none";
+          return;
+        }
+        gsap.to(actions, {
+          autoAlpha: 0,
+          y: 10,
+          filter: "blur(8px)",
+          duration: 0.22,
+          ease: "power2.out",
+          onComplete: () => {
+            actions.style.pointerEvents = "none";
+          },
+        });
+      };
+
+      card.addEventListener("mouseenter", enter);
+      card.addEventListener("mouseleave", leave);
+
+      cleanups.push(() => {
+        card.removeEventListener("mouseenter", enter);
+        card.removeEventListener("mouseleave", leave);
+      });
+    });
+
+    return () => cleanups.forEach((fn) => fn());
+  }, [list.length, reducedMotion, isTouchMode]);
 
   return (
     <section ref={rootRef} className="w-full bg-white relative overflow-hidden">
@@ -464,16 +541,16 @@ export default function BestPrice({
                     className={cn(
                       "flex flex-col h-full",
                       "border border-black/10 bg-white",
-                      "rounded-[22px]",
+                      "rounded-[18px]", // ✅ меньше округление
                       "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                       "transition",
                       "group-hover:-translate-y-[2px]",
                       "group-hover:shadow-[0_18px_50px_rgba(0,0,0,0.10)]",
                     )}
                   >
-                    {/* ✅ обратно overflow-hidden: бейдж больше не режется внешними контейнерами */}
-                    <div className="relative overflow-hidden rounded-[22px]">
-                      <div className="absolute left-3 top-0 z-10">
+                    {/* ✅ TOP: как в Hit продаж — снизу у картинки НЕ закругляем */}
+                    <div className="relative overflow-visible rounded-t-[18px] bg-white">
+                      <div className="absolute left-3 top-0.5 z-20">
                         <BestPriceBadge
                           text={p.badge}
                           discountPercent={p.discountPercent}
@@ -481,7 +558,8 @@ export default function BestPrice({
                       </div>
 
                       <div
-                        className="absolute right-2 top-2 z-10"
+                        data-actions
+                        className="absolute right-2 top-2 z-20"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -496,20 +574,23 @@ export default function BestPrice({
                         />
                       </div>
 
-                      <div className="relative aspect-[4/3] bg-white px-3 py-2">
-                        <Image
-                          src={p.image}
-                          alt={p.title}
-                          fill
-                          className="object-contain transition-transform duration-500 group-hover:scale-[1.03]"
-                          priority={idx < 6}
-                        />
+                      {/*  клипуем ТОЛЬКО картинку, и только сверху */}
+                      <div className="relative overflow-hidden rounded-t-[18px]">
+                        <div className="relative aspect-[4/3] bg-white">
+                          <Image
+                            src={p.image}
+                            alt={p.title}
+                            fill
+                            className="object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
+                            priority={idx < 6}
+                          />
+                        </div>
                       </div>
                     </div>
 
                     <div className="px-5 pt-3 pb-3 min-h-[112px]">
                       <div className="flex items-baseline gap-3">
-                        <div className="text-[18px] font-semibold tracking-[-0.01em] text-black">
+                        <div className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black">
                           {formatPrice(price, currency)}
                         </div>
                         {old && old > price ? (
@@ -521,7 +602,7 @@ export default function BestPrice({
 
                       <div
                         className={cn(
-                          "mt-1.5 text-[13px] leading-snug text-black/70",
+                          "mt-2 text-[15px] md:text-[16px] leading-snug text-black/80",
                           "whitespace-normal break-words",
                           "line-clamp-2",
                           "min-h-[36px]",
@@ -531,7 +612,7 @@ export default function BestPrice({
                         {p.title}
                       </div>
 
-                      <div className="mt-2 text-[10px] tracking-[0.18em] uppercase text-black/40">
+                      <div className="mt-3 text-[11px] tracking-[0.18em] uppercase text-black/45">
                         {p.brandLine ?? "—"}
                       </div>
                     </div>
