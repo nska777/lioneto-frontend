@@ -229,9 +229,6 @@ export default function SupplyNewsSection({
 
         {/* Track */}
         <div className="relative mt-7">
-          {/*<div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-[linear-gradient(90deg,rgba(255,255,255,1),rgba(255,255,255,0))]" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-[linear-gradient(270deg,rgba(255,255,255,1),rgba(255,255,255,0))]" /> */}
-
           <div
             ref={trackRef}
             className="flex gap-4 overflow-x-auto pb-2 pr-2 scrollbar-hide snap-x snap-mandatory"
@@ -254,6 +251,8 @@ export default function SupplyNewsSection({
                     "overflow-hidden rounded-[28px] border border-black/10 bg-white",
                     "transition hover:border-black/20",
                     "md:min-w-[360px] md:max-w-[360px]",
+                    // ✅ важно: чтобы низ прижался — делаем flex-col
+                    "flex flex-col",
                   )}
                 >
                   <div className="relative h-[170px] w-full overflow-hidden md:h-[190px]">
@@ -267,22 +266,54 @@ export default function SupplyNewsSection({
                       priority={i < 2}
                     />
 
+                    {/* ✅ лёгкий подложечный градиент под бейджи */}
+                    <div
+                      className="pointer-events-none absolute inset-x-0 top-0 h-20"
+                      style={{
+                        background:
+                          "linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.00) 100%)",
+                      }}
+                    />
+
                     <div className="absolute left-4 top-4 z-20 flex items-center gap-2">
                       {tag && (
-                        <div className="rounded-full border border-white/60 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-black/80 backdrop-blur-md">
+                        <div
+                          className={cn(
+                            "rounded-full px-3 py-1 text-[11px] font-medium tracking-[0.18em]",
+                            "text-black/90 backdrop-blur-md",
+                          )}
+                          style={{
+                            background: "rgba(255,255,255,0.82)",
+                            border: "1px solid rgba(255,255,255,0.75)",
+                            boxShadow:
+                              "0 10px 26px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.65)",
+                          }}
+                        >
                           {tag}
                         </div>
                       )}
 
                       {n.dateLabel && (
-                        <div className="rounded-full border border-white/50 bg-white/55 px-3 py-1 text-[11px] font-medium tracking-[0.18em] text-black/75 backdrop-blur-md">
+                        <div
+                          className={cn(
+                            "rounded-full px-3 py-1 text-[11px] font-medium tracking-[0.18em]",
+                            "text-black/85 backdrop-blur-md",
+                          )}
+                          style={{
+                            background: "rgba(255,255,255,0.74)",
+                            border: "1px solid rgba(255,255,255,0.65)",
+                            boxShadow:
+                              "0 10px 26px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.6)",
+                          }}
+                        >
                           {n.dateLabel}
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="p-5">
+                  {/* ✅ контент делаем flex-колонкой, чтобы футер ушёл вниз */}
+                  <div className="flex flex-1 flex-col p-5">
                     <div className="text-[11px] tracking-[0.18em] text-black/45">
                       НОВОСТЬ {String(i + 1).padStart(2, "0")}
                     </div>
@@ -297,7 +328,8 @@ export default function SupplyNewsSection({
                       </p>
                     )}
 
-                    <div className="mt-5 flex items-center justify-between">
+                    {/* ✅ всегда прижато к низу */}
+                    <div className="mt-auto pt-5 flex items-center justify-between">
                       <div className="text-[12px] tracking-[0.18em] text-black/45">
                         ОТКРЫТЬ
                       </div>
