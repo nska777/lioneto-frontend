@@ -6,7 +6,6 @@ declare global {
   interface Window {
     jivo_api?: any;
     jivo_onLoadCallback?: () => void;
-    jivo_onChangeState?: (state: string) => void;
     __lionetoJivoReady?: boolean;
   }
 }
@@ -14,7 +13,7 @@ declare global {
 export default function JivoProvider({ widgetId }: { widgetId: string }) {
   return (
     <>
-      {/* ✅ Точно прячем только кнопку/лейбл Jivo (launcher) */}
+      {/* базовый CSS на всякий случай */}
       <style>{`
         #jcont { display: none !important; }
       `}</style>
@@ -22,16 +21,28 @@ export default function JivoProvider({ widgetId }: { widgetId: string }) {
       <Script id="jivo-bridge" strategy="afterInteractive">
         {`
           (function () {
+            function removeLauncher() {
+              var el = document.getElementById('jcont');
+              if (el) el.remove();
+            }
+
+            // сразу пробуем удалить
+            removeLauncher();
+
+            // наблюдаем за DOM и удаляем каждый раз, когда Jivo добавляет launcher
+            var observer = new MutationObserver(function () {
+              removeLauncher();
+            });
+
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true
+            });
+
+            // отмечаем готовность API
             window.jivo_onLoadCallback = function () {
               window.__lionetoJivoReady = true;
-
-              // на всякий случай повторно скрываем launcher после инициализации
-              var el = document.getElementById('jcont');
-              if (el) el.style.display = 'none';
-            };
-
-            window.jivo_onChangeState = function () {
-              // ничего не делаем
+              removeLauncher();
             };
           })();
         `}
@@ -40,7 +51,7 @@ export default function JivoProvider({ widgetId }: { widgetId: string }) {
       <Script
         id="jivo-widget"
         strategy="afterInteractive"
-        src={`//code.jivo.ru/widget/${widgetId}`}
+        src={"//code.jivo.ru/widget/" + widgetId}
       />
     </>
   );
