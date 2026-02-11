@@ -221,12 +221,16 @@ export default function ProductClient({
         / <span className="text-black/60">{product.title}</span>
       </div>
 
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap sm:gap-3">
         <button
           onClick={() => router.back()}
           className={cn(
-            "cursor-pointer inline-flex items-center gap-2 rounded-full border px-4 py-2",
-            "border-black/10 bg-white text-[12px] tracking-[0.16em] uppercase text-black/70",
+            "cursor-pointer inline-flex items-center gap-2 rounded-full border",
+            // ✅ mobile compact
+            "h-9 px-3 text-[11px] tracking-[0.16em] uppercase",
+            // ✅ desktop as before
+            "sm:h-11 sm:px-4 sm:py-2 sm:text-[12px]",
+            "border-black/10 bg-white text-black/70",
             "hover:border-black/20 hover:text-black transition",
           )}
           type="button"
@@ -234,17 +238,26 @@ export default function ProductClient({
           ← НАЗАД
         </button>
 
-        <div className="flex items-center gap-2">
+        {/* ✅ right actions: on mobile can wrap and stay neat */}
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           <button
             onClick={() => toggleFav(product.id, vk)}
             className={cn(
-              "cursor-pointer inline-flex items-center gap-2 rounded-full border px-4 py-2",
-              "border-black/10 bg-white text-[13px] text-black/75 hover:border-black/20 hover:text-black transition",
+              "cursor-pointer inline-flex items-center gap-2 rounded-full border",
+              // ✅ mobile compact
+              "h-9 px-3 text-[11px]",
+              // ✅ desktop
+              "sm:h-11 sm:px-4 sm:py-2 sm:text-[13px]",
+              "border-black/10 bg-white text-black/75",
+              "hover:border-black/20 hover:text-black transition",
             )}
             type="button"
           >
             <Heart
-              className={cn("h-4 w-4", fav && "fill-current text-rose-600")}
+              className={cn(
+                "h-4 w-4 sm:h-4 sm:w-4",
+                fav && "fill-current text-rose-600",
+              )}
             />
             В избранное
           </button>
@@ -252,8 +265,12 @@ export default function ProductClient({
           <button
             onClick={toggleMainCart}
             className={cn(
-              "cursor-pointer inline-flex items-center gap-2 rounded-full px-4 py-2",
-              "text-[13px] text-white transition bg-black hover:bg-black/90",
+              "cursor-pointer inline-flex items-center gap-2 rounded-full",
+              // ✅ mobile compact
+              "h-9 px-3 text-[11px]",
+              // ✅ desktop
+              "sm:h-11 sm:px-4 sm:py-2 sm:text-[13px]",
+              "text-white transition bg-black hover:bg-black/90",
             )}
             type="button"
           >
