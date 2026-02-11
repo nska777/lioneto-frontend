@@ -14,39 +14,29 @@ declare global {
 export default function JivoProvider({ widgetId }: { widgetId: string }) {
   return (
     <>
-      {/* ✅ ЖЕЛЕЗОБЕТОН: скрываем стандартную кнопку/лейбл Jivo через CSS */}
+      {/* ✅ Точно прячем только кнопку/лейбл Jivo (launcher) */}
       <style>{`
-        /* чаще всего */
-        #jivo-iframe-container { display: none !important; }
-
-        /* частые варианты контейнеров */
-        [id^="jivo"] { }
-        #jivo_container, #jivo-container, .jivo-widget, .jivo_widget, .jivo__widget,
-        .jivo-btn, .jivo-btn-wrapper, .jivo_btn, .jivo_button, .jivo__button,
-        .jivosite, .jivosite-btn, .jivo-chat, .jivo_chat, .jivo__chat {
-          display: none !important;
-        }
-
-        /* иногда badge/branding отдельно */
-        .jivo-branding, .jivo-brand, .jivo__branding {
-          display: none !important;
-        }
+        #jcont { display: none !important; }
       `}</style>
 
-      {/* Колбэки */}
       <Script id="jivo-bridge" strategy="afterInteractive">
         {`
           (function () {
             window.jivo_onLoadCallback = function () {
               window.__lionetoJivoReady = true;
+
+              // на всякий случай повторно скрываем launcher после инициализации
+              var el = document.getElementById('jcont');
+              if (el) el.style.display = 'none';
             };
 
-            window.jivo_onChangeState = function () {};
+            window.jivo_onChangeState = function () {
+              // ничего не делаем
+            };
           })();
         `}
       </Script>
 
-      {/* сам виджет */}
       <Script
         id="jivo-widget"
         strategy="afterInteractive"
