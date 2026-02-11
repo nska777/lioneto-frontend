@@ -63,17 +63,17 @@ export default function BackToTop({ showAfter = 700 }: { showAfter?: number }) {
       aria-label="Наверх"
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       className="
-        fixed z-[60]
-        bottom-4 right-4 md:bottom-6 md:right-6
-        h-13 w-13
-        rounded-full
-        border border-black/10
-        bg-white
-        shadow-[0_6px_20px_rgba(0,0,0,0.12)]
-        grid place-items-center
-        cursor-pointer
-        active:scale-[0.96]
-      "
+    fixed z-[2147483647]
+    bottom-4 right-[92px] md:bottom-6 md:right-[108px]
+    h-13 w-13
+    rounded-full
+    border border-black/10
+    bg-white
+    shadow-[0_6px_20px_rgba(0,0,0,0.12)]
+    grid place-items-center
+    cursor-pointer
+    active:scale-[0.96]
+  "
     >
       <ArrowUp className="h-4 w-4 text-black/70" />
     </button>
