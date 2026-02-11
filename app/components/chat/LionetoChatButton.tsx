@@ -6,40 +6,58 @@ import { MessageCircle, Sparkles } from "lucide-react";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
+function waitForJivo(timeoutMs = 8000) {
+  return new Promise<any>((resolve, reject) => {
+    const start = Date.now();
+
+    const tick = () => {
+      const w = window as any;
+      if (w?.jivo_api?.open) return resolve(w.jivo_api);
+
+      if (Date.now() - start > timeoutMs)
+        return reject(new Error("Jivo not ready"));
+
+      setTimeout(tick, 120);
+    };
+
+    tick();
+  });
+}
+
 export default function LionetoChatButton() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const t = window.setInterval(() => {
-      if ((window as any).__lionetoJivoReady && (window as any).jivo_api) {
-        setReady(true);
-        window.clearInterval(t);
-      }
-    }, 150);
+    let alive = true;
 
-    return () => window.clearInterval(t);
+    waitForJivo(8000)
+      .then(() => {
+        if (alive) setReady(true);
+      })
+      .catch(() => {
+        if (alive) setReady(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const label = useMemo(
-    () => (ready ? "Написать в чат" : "Чат загружается…"),
+    () => (ready ? "Написать в чат" : "Подключаем чат…"),
     [ready],
   );
 
-  const tryOpen = useCallback(() => {
-    const w = window as any;
-    if (!w?.jivo_api?.open) return false;
-
-    w.jivo_api.open({ start: "chat" });
-    return true;
+  const onOpen = useCallback(async () => {
+    try {
+      const api = await waitForJivo(8000);
+      api.open({ start: "chat" });
+    } catch {
+      // если вдруг не успело подгрузиться — просто обнови страницу/проверь сеть
+      // (мы не спамим alert’ами)
+      console.warn("Jivo API not ready");
+    }
   }, []);
-
-  const onOpen = useCallback(() => {
-    // пробуем сразу, и ещё раз чуть позже (если API только инициализируется)
-    if (tryOpen()) return;
-    window.setTimeout(() => {
-      tryOpen();
-    }, 300);
-  }, [tryOpen]);
 
   return (
     <div className="fixed bottom-5 right-5 z-[9999]">
