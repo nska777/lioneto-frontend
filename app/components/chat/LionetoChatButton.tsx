@@ -6,20 +6,17 @@ import { MessageCircle, Sparkles } from "lucide-react";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-function waitForJivo(timeoutMs = 8000) {
-  return new Promise<any>((resolve, reject) => {
+function waitForOpenFn(timeoutMs = 8000) {
+  return new Promise<() => boolean>((resolve, reject) => {
     const start = Date.now();
-
     const tick = () => {
       const w = window as any;
-      if (w?.jivo_api?.open) return resolve(w.jivo_api);
-
+      if (typeof w.__lionetoOpenJivo === "function")
+        return resolve(w.__lionetoOpenJivo);
       if (Date.now() - start > timeoutMs)
-        return reject(new Error("Jivo not ready"));
-
+        return reject(new Error("Open fn not ready"));
       setTimeout(tick, 120);
     };
-
     tick();
   });
 }
@@ -29,15 +26,9 @@ export default function LionetoChatButton() {
 
   useEffect(() => {
     let alive = true;
-
-    waitForJivo(8000)
-      .then(() => {
-        if (alive) setReady(true);
-      })
-      .catch(() => {
-        if (alive) setReady(false);
-      });
-
+    waitForOpenFn(8000)
+      .then(() => alive && setReady(true))
+      .catch(() => alive && setReady(false));
     return () => {
       alive = false;
     };
@@ -50,12 +41,15 @@ export default function LionetoChatButton() {
 
   const onOpen = useCallback(async () => {
     try {
-      const api = await waitForJivo(8000);
-      api.open({ start: "chat" });
+      const openFn = await waitForOpenFn(8000);
+      const ok = openFn();
+      if (!ok) {
+        // последняя попытка через прямой API
+        const w = window as any;
+        w?.jivo_api?.open?.({ start: "chat" });
+      }
     } catch {
-      // если вдруг не успело подгрузиться — просто обнови страницу/проверь сеть
-      // (мы не спамим alert’ами)
-      console.warn("Jivo API not ready");
+      console.warn("Jivo not ready");
     }
   }, []);
 
