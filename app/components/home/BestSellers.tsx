@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import gsap from "gsap";
@@ -182,7 +188,12 @@ export default function BestSellers({
     return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   }, []);
 
-  const list = useMemo<HitUIItem[]>(() => {
+  /**
+   * ✅ ВАЖНО ДЛЯ HYDRATION:
+   * baseList — ДЕТЕРМИНИРОВАННЫЙ (без Math.random / sessionStorage)
+   * чтобы серверный HTML и первый клиентский рендер совпали.
+   */
+  const baseList = useMemo<HitUIItem[]>(() => {
     if (!priceEntries.length) return [];
 
     const hits = priceEntries.filter(
@@ -214,7 +225,6 @@ export default function BestSellers({
           price_rub: Number(entry.priceRUB ?? 0),
           price_uzs: Number(entry.priceUZS ?? 0),
 
-          // ✅ ОСТАВЛЯЕМ "Хит продаж" как бейдж секции
           badge: entry.collectionBadge ?? "Хит продаж",
           skuLabel: `ID: ${product.id}`,
           brandLabel,
@@ -222,9 +232,42 @@ export default function BestSellers({
       })
       .filter(Boolean) as HitUIItem[];
 
-    const seed = getSeedEveryLoad();
-    return shuffleSeeded(items, seed).slice(0, Math.min(12, items.length));
+    // ✅ Детерминируем порядок (важно для SSR -> hydration)
+    // (чтобы не прыгали href/карточки между сервером и клиентом)
+    items.sort((a, b) => a.id.localeCompare(b.id));
+
+    return items.slice(0, Math.min(12, items.length));
   }, [priceEntries]);
+
+  /**
+   * ✅ Реальный "рандом" — только после mount (клиент),
+   * и один раз на сессию (sessionStorage), чтобы:
+   * - не было hydration mismatch
+   * - рандом был стабильный в рамках одной сессии
+   */
+  const [list, setList] = useState<HitUIItem[]>(() => baseList);
+
+  useEffect(() => {
+    setList(baseList);
+
+    if (!baseList.length) return;
+    if (typeof window === "undefined") return;
+
+    const key = "lioneto_best_sellers_seed_v1";
+    let seed = Number(sessionStorage.getItem(key));
+
+    if (!Number.isFinite(seed) || seed <= 0) {
+      seed = getSeedEveryLoad();
+      sessionStorage.setItem(key, String(seed));
+    }
+
+    const shuffled = shuffleSeeded(baseList, seed).slice(
+      0,
+      Math.min(12, baseList.length),
+    );
+    setList(shuffled);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseList.length, priceEntries]);
 
   // touch mode
   useLayoutEffect(() => {
@@ -573,6 +616,7 @@ export default function BestSellers({
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Назад"
+              type="button"
             >
               <ChevronLeft className="h-5 w-5 text-black/70" />
             </button>
@@ -590,6 +634,7 @@ export default function BestSellers({
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Вперёд"
+              type="button"
             >
               <ChevronRight className="h-5 w-5 text-black/70" />
             </button>
@@ -742,6 +787,7 @@ export default function BestSellers({
                   : "bg-black/15 hover:bg-black/30",
               )}
               aria-label={`Страница ${i + 1}`}
+              type="button"
             />
           ))}
         </div>

@@ -12,13 +12,16 @@ import Header from "./components/Header";
 import Footer from "./components/sections/Footer";
 
 import { getGlobal } from "./lib/strapi";
+
+// ✅ Jivo
+import JivoProvider from "./components/chat/JivoProvider";
+import LionetoChatButton from "./components/chat/LionetoChatButton";
+
 console.log("ENV STRAPI URL:", process.env.NEXT_PUBLIC_STRAPI_URL);
 
 export const metadata: Metadata = {
   title: "Lioneto",
   description: "Lioneto furniture",
-
-  //  ДОБАВЬ ЭТО:
   icons: {
     icon: [{ url: "/favicon.ico" }, { url: "/icon.png", type: "image/png" }],
     shortcut: "/favicon.ico",
@@ -32,21 +35,29 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const global = await getGlobal();
-
   console.log("GLOBAL:", global?.topLinks?.length, global?.updatedAt);
+
+  const jivoId = process.env.NEXT_PUBLIC_JIVO_WIDGET_ID || "";
 
   return (
     <html lang="ru">
-      <body className="antialiased bg-white text-black">
+      <body className="min-h-screen antialiased bg-white text-black flex flex-col">
         <RegionLangProvider>
           <ShopStateProvider>
             <Header global={global} />
-            {children}
+
+            {/*  ВАЖНО: контент растягивает страницу */}
+            <main className="flex-1">{children}</main>
+
             <Footer />
           </ShopStateProvider>
         </RegionLangProvider>
 
         <BackToTop />
+
+        {/*  Jivo подключение + кастомная кнопка (стандартную кнопку прячем внутри JivoProvider) */}
+        {jivoId ? <JivoProvider widgetId={jivoId} /> : null}
+        {jivoId ? <LionetoChatButton /> : null}
       </body>
     </html>
   );
