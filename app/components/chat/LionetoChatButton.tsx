@@ -6,20 +6,6 @@ import { MessageCircle, Sparkles } from "lucide-react";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-function showJivoContainerTemporarily() {
-  const el = document.getElementById("jivo-iframe-container");
-  if (!el) return;
-
-  // на время открытия разрешаем показывать контейнер
-  const prev = el.style.display;
-  el.style.display = "block";
-
-  // через 1.5 сек можно снова скрыть (если Jivo свернется)
-  window.setTimeout(() => {
-    el.style.display = prev || "none";
-  }, 1500);
-}
-
 export default function LionetoChatButton() {
   const [ready, setReady] = useState(false);
 
@@ -39,15 +25,21 @@ export default function LionetoChatButton() {
     [ready],
   );
 
-  const onOpen = useCallback(() => {
+  const tryOpen = useCallback(() => {
     const w = window as any;
-    if (!w.jivo_api) return;
-
-    // если контейнер скрыт CSS-ом — на секунду покажем, чтобы чат открылся
-    showJivoContainerTemporarily();
+    if (!w?.jivo_api?.open) return false;
 
     w.jivo_api.open({ start: "chat" });
+    return true;
   }, []);
+
+  const onOpen = useCallback(() => {
+    // пробуем сразу, и ещё раз чуть позже (если API только инициализируется)
+    if (tryOpen()) return;
+    window.setTimeout(() => {
+      tryOpen();
+    }, 300);
+  }, [tryOpen]);
 
   return (
     <div className="fixed bottom-5 right-5 z-[9999]">

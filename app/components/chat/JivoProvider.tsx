@@ -13,36 +13,39 @@ declare global {
 export default function JivoProvider({ widgetId }: { widgetId: string }) {
   return (
     <>
-      {/* базовый CSS на всякий случай */}
+      {/* Базово прячем launcher */}
       <style>{`
-        #jcont { display: none !important; }
+        #jcont { display: none !important; pointer-events: none !important; }
       `}</style>
 
       <Script id="jivo-bridge" strategy="afterInteractive">
         {`
           (function () {
-            function removeLauncher() {
+            function muteLauncher() {
               var el = document.getElementById('jcont');
-              if (el) el.remove();
+              if (!el) return;
+
+              // ✅ НЕ удаляем! Только глушим.
+              el.style.setProperty('display', 'none', 'important');
+              el.style.setProperty('pointer-events', 'none', 'important');
+              el.style.setProperty('opacity', '0', 'important');
             }
 
-            // сразу пробуем удалить
-            removeLauncher();
+            // сразу пробуем
+            muteLauncher();
 
-            // наблюдаем за DOM и удаляем каждый раз, когда Jivo добавляет launcher
+            // если Jivo пересоздает launcher — снова глушим
             var observer = new MutationObserver(function () {
-              removeLauncher();
+              muteLauncher();
             });
 
-            observer.observe(document.body, {
-              childList: true,
-              subtree: true
-            });
+            observer.observe(document.documentElement, { childList: true, subtree: true });
 
-            // отмечаем готовность API
             window.jivo_onLoadCallback = function () {
               window.__lionetoJivoReady = true;
-              removeLauncher();
+              muteLauncher();
+              setTimeout(muteLauncher, 300);
+              setTimeout(muteLauncher, 1200);
             };
           })();
         `}
