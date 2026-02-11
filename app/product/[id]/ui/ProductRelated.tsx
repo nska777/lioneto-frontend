@@ -42,30 +42,41 @@ function seededShuffle<T>(arr: T[], seed: number) {
   return a;
 }
 
-/* ================= Badge (reuse style from CatalogCard) ================= */
+/* ================= Badge (SAME as BestSellers) ================= */
 
-function GreenPremiumBadge({ text }: { text: string }) {
+function BadgePill({
+  text,
+  variant,
+}: {
+  text: string;
+  variant: "gold" | "green";
+}) {
+  const isGreen = variant === "green";
+
   return (
-    <span className="relative inline-flex h-7 items-center overflow-hidden rounded-[12px] px-3">
+    <span className="relative inline-flex h-5 items-center overflow-hidden rounded-[12px] px-3">
       <span
         className="absolute inset-0 rounded-[12px]"
         style={{
-          background:
-            "radial-gradient(120% 140% at 30% 20%, #E8FFF2 0%, #BFF7D6 28%, #57E39A 55%, #17B868 78%, #0C7F45 100%)",
+          background: isGreen
+            ? "radial-gradient(120% 140% at 30% 20%, #E8FFF2 0%, #BFF7D6 28%, #57E39A 55%, #17B868 78%, #0C7F45 100%)"
+            : "radial-gradient(120% 140% at 30% 20%, #FFF1B8 0%, #FFD36A 35%, #E6A93C 65%, #C98A1A 100%)",
         }}
       />
       <span
         className="absolute inset-[1px] rounded-[11px]"
         style={{
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.10))",
+          background: isGreen
+            ? "linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.10))"
+            : "linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.12))",
         }}
       />
       <span
         className="absolute inset-0 rounded-[12px]"
         style={{
-          boxShadow:
-            "0 0 0 1px rgba(120,255,190,0.85), 0 10px 28px rgba(12,127,69,0.22)",
+          boxShadow: isGreen
+            ? "0 0 0 1px rgba(120, 255, 190, 0.85), 0 10px 28px rgba(12, 127, 69, 0.28)"
+            : "0 0 0 1px rgba(255,215,130,0.85), 0 10px 28px rgba(201,138,26,0.35)",
         }}
       />
       <span
@@ -76,7 +87,12 @@ function GreenPremiumBadge({ text }: { text: string }) {
           transform: "skewX(-20deg)",
         }}
       />
-      <span className="relative z-10 text-[12px] font-semibold tracking-[0.04em] text-[#064B2A]">
+      <span
+        className={cn(
+          "relative z-10 text-[12px] font-semibold tracking-[0.04em]",
+          isGreen ? "text-[#064B2A]" : "text-[#5A3A00]",
+        )}
+      >
         {text}
       </span>
     </span>
@@ -167,7 +183,8 @@ export default function ProductRelated({
     <section className="mt-12">
       <h2 className="text-[20px] font-semibold text-black">{title}</h2>
 
-      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ✅ сетка плотнее и ближе к ощущениям BestSellers */}
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {orderedItems.map((p, idx) => {
           const v = currency === "RUB" ? p.price_rub : p.price_uzs;
 
@@ -195,42 +212,45 @@ export default function ProductRelated({
           const added = isInCart(String(p.id));
           const liked = isFav(String(p.id), "base");
 
+          // ✅ как в BestSellers: у хитов — gold; тут по умолчанию gold если badge есть
+          const badgeVariant: "gold" | "green" = "gold";
+
           return (
-            <article
-              key={p.id}
-              data-card
-              className={cn(
-                "group h-full overflow-hidden rounded-2xl",
-                "border border-black/10 bg-white",
-                "shadow-[0_10px_30px_rgba(0,0,0,0.06)]",
-              )}
-            >
-              <Link href={hrefWithFrom} className="flex h-full flex-col">
-                {/* IMAGE (like CatalogCard) */}
-                <div className="relative aspect-[16/11] overflow-hidden bg-white px-3 py-2">
-                  <Image
-                    key={imgSrc}
-                    src={imgSrc}
-                    alt={String(p.title ?? "")}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                    className={cn(
-                      "object-contain object-center",
-                      "transition-transform duration-500",
-                      "group-hover:scale-[1.02]",
-                    )}
-                    priority={idx < 6}
-                  />
+            <article key={p.id} data-card className="group h-full">
+              <Link href={hrefWithFrom} className="block h-full">
+                {/* ✅ CARD оболочка 1-в-1 по классу как в BestSellers */}
+                <div
+                  className={cn(
+                    "relative flex h-full flex-col",
+                    "rounded-[22px]",
+                    "border border-black/10 bg-white",
+                    "shadow-[0_14px_40px_rgba(0,0,0,0.07)]",
+                    "transition-transform duration-300",
+                    "group-hover:-translate-y-[2px]",
+                    "group-hover:shadow-[0_20px_60px_rgba(0,0,0,0.10)]",
+                    "overflow-hidden",
+                  )}
+                >
+                  {/* TOP (badge + actions + image) */}
+                  <div className="relative overflow-visible rounded-t-[22px] bg-white">
+                    {p.badge ? (
+                      <div className="absolute left-3 top-0.5 z-20">
+                        <BadgePill
+                          text={String(p.badge)}
+                          variant={badgeVariant}
+                        />
+                      </div>
+                    ) : null}
 
-                  {p.badge ? (
-                    <div className="absolute left-3 top-3 z-10">
-                      <GreenPremiumBadge text={String(p.badge)} />
-                    </div>
-                  ) : null}
-
-                  {/* Hover actions: reuse ProductActions (fav + cart) */}
-                  <div className="absolute right-3 top-3 z-10 flex translate-y-[-6px] gap-2 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                    {/* actions — как в BestSellers (data-actions + stopPropagation) */}
                     <div
+                      data-actions
+                      className={cn(
+                        "absolute right-3 top-3 z-20",
+                        "opacity-0 translate-y-2 pointer-events-none",
+                        "transition-all duration-300 ease-out",
+                        "group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto",
+                      )}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -244,29 +264,51 @@ export default function ProductRelated({
                         }}
                       />
                     </div>
-                  </div>
-                </div>
 
-                {/* CONTENT */}
-                <div className="flex flex-1 flex-col px-4 pt-3 pb-3">
-                  <div
-                    className="overflow-hidden text-[14px] font-medium leading-[20px] text-black/90"
-                    style={{
-                      display: "-webkit-box",
-                      WebkitBoxOrient: "vertical" as any,
-                      WebkitLineClamp: 2,
-                      maxHeight: 40,
-                    }}
-                  >
-                    {p.title}
+                    <div className="relative overflow-hidden rounded-t-[22px]">
+                      <div className="relative aspect-[4/3] bg-white">
+                        <Image
+                          key={imgSrc}
+                          src={imgSrc}
+                          alt={String(p.title ?? "")}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
+                          className={cn(
+                            // ✅ ВАЖНО: как в BestSellers
+                            "object-cover object-center",
+                            "transition-transform duration-500",
+                            "group-hover:scale-[1.03]",
+                          )}
+                          priority={idx < 6}
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="mt-2 text-[15px] font-semibold text-black">
-                    {formatPrice(Number(v ?? 0), currency)}
+                  {/* CONTENT — ближе к BestSellers: price -> title -> spacer */}
+                  <div className="px-5 pt-3 pb-3">
+                    <div className="text-[20px] font-semibold tracking-[-0.01em] text-black">
+                      {formatPrice(Number(v ?? 0), currency)}
+                    </div>
+
+                    <div
+                      className={cn(
+                        "mt-1 text-[14px] leading-snug text-black/70",
+                        "whitespace-normal break-words",
+                        "line-clamp-2",
+                        "min-h-[40px]",
+                      )}
+                      title={p.title}
+                    >
+                      {p.title}
+                    </div>
+
+                    {/* ✅ как в BestSellers: если нет лейбла — оставляем пустое место */}
+                    <div className="mt-1.5 h-[12px]" />
                   </div>
 
-                  {/* BUTTON (same as CatalogCard) */}
-                  <div className="mt-auto pt-3">
+                  {/* ✅ ТВОЯ КНОПКА (логика не меняется) */}
+                  <div className="mt-auto px-5 pb-4">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -411,6 +453,14 @@ export default function ProductRelated({
                       ></button>
                     ) : null}
                   </div>
+
+                  {/* ✅ как в BestSellers: внутренний inset highlight */}
+                  <div
+                    className="pointer-events-none absolute inset-0 rounded-[22px]"
+                    style={{
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
+                    }}
+                  />
                 </div>
               </Link>
             </article>

@@ -93,6 +93,26 @@ async function getPriceEntryByProductId(
   }
 }
 
+// ✅ related: подтягиваем price-entry для нескольких товаров (до 4) через Promise.all
+async function getPriceEntriesByProductIds(
+  ids: string[],
+): Promise<Record<string, StrapiPriceEntry>> {
+  const map: Record<string, StrapiPriceEntry> = {};
+  const unique = Array.from(new Set(ids.map(String))).filter(Boolean);
+  if (!unique.length) return map;
+
+  const entries = await Promise.all(
+    unique.map((pid) => getPriceEntryByProductId(String(pid))),
+  );
+
+  unique.forEach((pid, i) => {
+    const e = entries[i];
+    if (e) map[String(pid)] = e;
+  });
+
+  return map;
+}
+
 /** ================= Page ================= */
 
 export default async function ProductPage({
@@ -183,6 +203,12 @@ export default async function ProductPage({
     picked = [...picked, ...pickRandomUnique(rest, 4 - picked.length)];
   }
 
+  // ✅ подтягиваем Strapi для related (до 4 товаров)
+  const relatedIds = picked.map((x) => String(x.id));
+  const relatedPriceMap = await getPriceEntriesByProductIds(relatedIds).catch(
+    () => ({}) as Record<string, StrapiPriceEntry>,
+  );
+
   const fallbackSku = p.sku || `T${String(p.id).padStart(4, "0")}`;
 
   // ✅ финальная модель: база из моков + price-entry из Strapi
@@ -231,15 +257,37 @@ export default async function ProductPage({
       material: String(p.material ?? "мдф, шпон ясень, массив ясень"),
     },
 
-    related: picked.map((x) => ({
-      id: String(x.id),
-      title: x.title,
-      image: x.image,
-      price_rub: Number(x.price_rub ?? x.priceRUB ?? 0),
-      price_uzs: Number(x.price_uzs ?? x.priceUZS ?? 0),
-      href: `/product/${x.id}`,
-      badge: x.badge || "",
-    })),
+    // ✅ related теперь: title/price/badge приоритет Strapi -> fallback мок
+    related: picked.map((x) => {
+      const rid = String(x.id);
+      const re = relatedPriceMap[rid];
+
+      // если entry явно неактивен — не используем Strapi
+      const useStrapi = re?.isActive !== false;
+
+      const titleFromStrapi = String(re?.title ?? "").trim();
+      const badgeFromStrapi = String(re?.collectionBadge ?? "").trim();
+
+      const price_rub =
+        useStrapi && typeof re?.priceRUB === "number"
+          ? re.priceRUB
+          : Number(x.price_rub ?? x.priceRUB ?? 0);
+
+      const price_uzs =
+        useStrapi && typeof re?.priceUZS === "number"
+          ? re.priceUZS
+          : Number(x.price_uzs ?? x.priceUZS ?? 0);
+
+      return {
+        id: rid,
+        title: titleFromStrapi || String(x.title ?? "—"),
+        image: String(x.image ?? ""),
+        price_rub,
+        price_uzs,
+        href: `/product/${rid}`,
+        badge: badgeFromStrapi || String(x.badge ?? ""),
+      };
+    }),
   };
 
   return <ProductClient product={product} />;
