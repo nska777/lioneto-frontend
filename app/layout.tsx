@@ -15,7 +15,6 @@ import { getGlobal } from "./lib/strapi";
 
 // ✅ Jivo
 import JivoProvider from "./components/chat/JivoProvider";
-import LionetoChatButton from "./components/chat/LionetoChatButton";
 
 console.log("ENV STRAPI URL:", process.env.NEXT_PUBLIC_STRAPI_URL);
 
@@ -46,7 +45,6 @@ export default async function RootLayout({
           <ShopStateProvider>
             <Header global={global} />
 
-            {/*  ВАЖНО: контент растягивает страницу */}
             <main className="flex-1">{children}</main>
 
             <Footer />
@@ -55,9 +53,8 @@ export default async function RootLayout({
 
         <BackToTop />
 
-        {/*  Jivo подключение + кастомная кнопка (стандартную кнопку прячем внутри JivoProvider) */}
+        {/* ✅ Jivo подключение (только дефолтный, ничего не прячем) */}
         {jivoId ? <JivoProvider widgetId={jivoId} /> : null}
-        {jivoId ? <LionetoChatButton /> : null}
       </body>
     </html>
   );
