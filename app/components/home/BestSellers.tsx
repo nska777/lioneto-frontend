@@ -65,8 +65,8 @@ function mapBrandLabel(brand: string) {
 }
 
 type PriceEntry = {
-  productId: string | number; // ✅ slug или number
-  title?: string; // ✅ берём название из Strapi (приоритет)
+  productId: string | number;
+  title?: string;
   priceUZS: number;
   priceRUB: number;
   collectionBadge?: string;
@@ -84,7 +84,6 @@ type HitUIItem = {
 
   badge: string;
   skuLabel?: string;
-
   brandLabel?: string;
 };
 
@@ -143,19 +142,16 @@ function BadgePill({
   );
 }
 
-// ✅ главное: найти товар по id ИЛИ по slug/productId поля в моках
 function resolveProduct(productId: string | number) {
   const s = String(productId ?? "").trim();
   if (!s) return null;
 
-  // если строка — число, пробуем по id
   const n = Number(s);
   if (Number.isFinite(n) && n > 0) {
     const byId = (CATALOG_MOCK as any[]).find((p) => Number(p.id) === n);
     if (byId) return byId;
   }
 
-  // иначе ищем по возможным полям slug/productId
   return (CATALOG_MOCK as any[]).find((p) => {
     const a = String(p.productId ?? "").trim();
     const b = String(p.slug ?? "").trim();
@@ -163,6 +159,18 @@ function resolveProduct(productId: string | number) {
     const d = String(p.id ?? "").trim();
     return a === s || b === s || c === s || d === s;
   });
+}
+
+function getPerView() {
+  const w = typeof window === "undefined" ? 1200 : window.innerWidth;
+  return w >= 1024 ? 4 : w >= 768 ? 2 : 1;
+}
+
+function getGapPx(track: HTMLElement) {
+  const style = window.getComputedStyle(track);
+  const g = style.columnGap || style.gap || "0px";
+  const n = Number(String(g).replace("px", "").trim());
+  return Number.isFinite(n) ? n : 0;
 }
 
 export default function BestSellers({
@@ -188,16 +196,12 @@ export default function BestSellers({
     return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   }, []);
 
-  /**
-   * ✅ ВАЖНО ДЛЯ HYDRATION:
-   * baseList — ДЕТЕРМИНИРОВАННЫЙ (без Math.random / sessionStorage)
-   * чтобы серверный HTML и первый клиентский рендер совпали.
-   */
   const baseList = useMemo<HitUIItem[]>(() => {
     if (!priceEntries.length) return [];
 
     const hits = priceEntries.filter(
-      (e) => e.isActive && e.collectionBadge === "Хит продаж",
+      (e) =>
+        !!e.isActive && String(e.collectionBadge ?? "").trim() === "Хит продаж",
     );
     if (!hits.length) return [];
 
@@ -211,7 +215,6 @@ export default function BestSellers({
           .trim();
         const brandLabel = mapBrandLabel(brandRaw) || undefined;
 
-        // ✅ Title: приоритет Strapi -> fallback на мок
         const displayTitle = String(
           (entry.title ?? "").trim() || (product.title ?? "").trim() || "",
         );
@@ -225,26 +228,18 @@ export default function BestSellers({
           price_rub: Number(entry.priceRUB ?? 0),
           price_uzs: Number(entry.priceUZS ?? 0),
 
-          badge: entry.collectionBadge ?? "Хит продаж",
+          badge: (entry.collectionBadge ?? "Хит продаж").trim(),
           skuLabel: `ID: ${product.id}`,
           brandLabel,
         };
       })
       .filter(Boolean) as HitUIItem[];
 
-    // ✅ Детерминируем порядок (важно для SSR -> hydration)
-    // (чтобы не прыгали href/карточки между сервером и клиентом)
+    // ✅ детерминированно для SSR
     items.sort((a, b) => a.id.localeCompare(b.id));
-
-    return items.slice(0, Math.min(12, items.length));
+    return items; // ✅ БЕЗ ОГРАНИЧЕНИЯ
   }, [priceEntries]);
 
-  /**
-   * ✅ Реальный "рандом" — только после mount (клиент),
-   * и один раз на сессию (sessionStorage), чтобы:
-   * - не было hydration mismatch
-   * - рандом был стабильный в рамках одной сессии
-   */
   const [list, setList] = useState<HitUIItem[]>(() => baseList);
 
   useEffect(() => {
@@ -255,21 +250,17 @@ export default function BestSellers({
 
     const key = "lioneto_best_sellers_seed_v1";
     let seed = Number(sessionStorage.getItem(key));
-
     if (!Number.isFinite(seed) || seed <= 0) {
       seed = getSeedEveryLoad();
       sessionStorage.setItem(key, String(seed));
     }
 
-    const shuffled = shuffleSeeded(baseList, seed).slice(
-      0,
-      Math.min(12, baseList.length),
-    );
+    // ✅ перемешиваем ВСЕ, без slice
+    const shuffled = shuffleSeeded(baseList, seed);
     setList(shuffled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseList.length, priceEntries]);
 
-  // touch mode
   useLayoutEffect(() => {
     const calc = () => {
       const w = window.innerWidth;
@@ -284,16 +275,14 @@ export default function BestSellers({
     return () => window.removeEventListener("resize", calc);
   }, []);
 
-  // pages
+  // ✅ pages всегда от реального list.length
   useLayoutEffect(() => {
     const calcPages = () => {
-      const w = window.innerWidth;
-      const perView = w >= 1024 ? 4 : w >= 768 ? 2 : 1;
+      const perView = getPerView();
       const newPages = Math.max(1, Math.ceil(list.length / perView));
       setPages(newPages);
       setPage((p) => Math.min(p, newPages - 1));
     };
-
     calcPages();
     window.addEventListener("resize", calcPages);
     return () => window.removeEventListener("resize", calcPages);
@@ -302,26 +291,24 @@ export default function BestSellers({
   // desktop GSAP slide
   useLayoutEffect(() => {
     if (isTouchMode) return;
-    if (!rootRef.current || !trackRef.current) return;
+    if (!trackRef.current) return;
 
-    const card = trackRef.current.querySelector(
-      "[data-card]",
-    ) as HTMLElement | null;
+    const track = trackRef.current;
+    const card = track.querySelector("[data-card]") as HTMLElement | null;
     if (!card) return;
 
-    const gap = 24;
+    const gap = getGapPx(track);
     const cw = card.getBoundingClientRect().width;
-    const perView =
-      window.innerWidth >= 1024 ? 4 : window.innerWidth >= 768 ? 2 : 1;
+    const perView = getPerView();
 
     const shift = page * perView * (cw + gap);
 
     if (reducedMotion) {
-      gsap.set(trackRef.current, { x: -shift });
+      gsap.set(track, { x: -shift });
       return;
     }
 
-    gsap.to(trackRef.current, { x: -shift, duration: 0.9, ease: "expo.out" });
+    gsap.to(track, { x: -shift, duration: 0.9, ease: "expo.out" });
   }, [page, reducedMotion, list.length, isTouchMode]);
 
   // mobile scroll sync -> page
@@ -334,12 +321,12 @@ export default function BestSellers({
       const card = vp.querySelector("[data-card]") as HTMLElement | null;
       if (!card) return;
 
-      const gap = 24;
+      const track = trackRef.current;
+      const gap = track ? getGapPx(track) : 0;
       const cw = card.getBoundingClientRect().width;
       const step = cw + gap;
 
-      const w = window.innerWidth;
-      const perView = w >= 1024 ? 4 : w >= 768 ? 2 : 1;
+      const perView = getPerView();
       const pageStep = perView * step;
 
       const p = Math.round(vp.scrollLeft / pageStep);
@@ -362,12 +349,12 @@ export default function BestSellers({
     const card = vp.querySelector("[data-card]") as HTMLElement | null;
     if (!card) return;
 
-    const gap = 24;
+    const track = trackRef.current;
+    const gap = track ? getGapPx(track) : 0;
     const cw = card.getBoundingClientRect().width;
     const step = cw + gap;
-    const w = window.innerWidth;
-    const perView = w >= 1024 ? 4 : w >= 768 ? 2 : 1;
 
+    const perView = getPerView();
     const target = Math.max(0, vp.scrollLeft - perView * step);
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
@@ -381,12 +368,12 @@ export default function BestSellers({
     const card = vp.querySelector("[data-card]") as HTMLElement | null;
     if (!card) return;
 
-    const gap = 24;
+    const track = trackRef.current;
+    const gap = track ? getGapPx(track) : 0;
     const cw = card.getBoundingClientRect().width;
     const step = cw + gap;
-    const w = window.innerWidth;
-    const perView = w >= 1024 ? 4 : w >= 768 ? 2 : 1;
 
+    const perView = getPerView();
     const max = vp.scrollWidth - vp.clientWidth;
     const target = Math.min(max, vp.scrollLeft + perView * step);
     vp.scrollTo({ left: target, behavior: "smooth" });
@@ -401,12 +388,12 @@ export default function BestSellers({
     const card = vp.querySelector("[data-card]") as HTMLElement | null;
     if (!card) return;
 
-    const gap = 24;
+    const track = trackRef.current;
+    const gap = track ? getGapPx(track) : 0;
     const cw = card.getBoundingClientRect().width;
     const step = cw + gap;
-    const w = window.innerWidth;
-    const perView = w >= 1024 ? 4 : w >= 768 ? 2 : 1;
 
+    const perView = getPerView();
     const target = i * perView * step;
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
