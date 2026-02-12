@@ -98,13 +98,53 @@ export default function CatalogClient({
   }, []);
 
   const applyPrices = useMemo(() => {
+    const normKey = (v: unknown) => String(v ?? "").trim();
+    const normKeyLower = (v: unknown) => normKey(v).toLowerCase();
+
+    const pickRow = (p: any) => {
+      if (!pricesMap) return null;
+
+      // Собираем кандидаты ключей (CSV может быть по id или по slug)
+      const candidates = [p?.productId, p?.id, p?.slug, p?.handle, p?.sku];
+
+      for (const c of candidates) {
+        const k = normKey(c);
+        if (!k) continue;
+
+        // 1) как есть
+        const row1 = pricesMap.get(k);
+        if (row1) return row1;
+
+        // 2) lower-case (на случай если в CSV/Strapi регистр другой)
+        const kl = k.toLowerCase();
+        const row2 = pricesMap.get(kl);
+        if (row2) return row2;
+
+        // 3) если ключ — число строкой, попробуем без ведущих нулей
+        // (иногда CSV даёт "0012")
+        if (/^\d+$/.test(k)) {
+          const kn = String(Number(k));
+          const row3 = pricesMap.get(kn);
+          if (row3) return row3;
+        }
+      }
+
+      // Доп. попытка: если productId есть, но с пробелами/регистром — попробуем нормализованный
+      const pid = normKey(p?.productId);
+      if (pid) {
+        const row4 = pricesMap.get(pid);
+        if (row4) return row4;
+        const row5 = pricesMap.get(pid.toLowerCase());
+        if (row5) return row5;
+      }
+
+      return null;
+    };
+
     return (p: any) => {
       if (!pricesMap) return p;
 
-      const key = String(p.productId ?? p.id ?? "").trim();
-      if (!key) return p;
-
-      const row = pricesMap.get(key);
+      const row = pickRow(p);
       if (!row) return p;
 
       const title = row.title?.trim() ? row.title : p.title;
