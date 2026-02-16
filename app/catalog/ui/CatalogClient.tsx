@@ -640,7 +640,6 @@ export default function CatalogClient({
           params.delete("facade");
         })
       }
-      heroMode={false}
     />
   );
 
