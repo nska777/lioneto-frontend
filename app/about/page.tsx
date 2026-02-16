@@ -24,13 +24,14 @@ export default function AboutPage() {
     <div className="bg-#f3f3f3 text-black">
       {/* Slider (как на главной) */}
       <section className="mx-auto w-full max-w-[1280px] px-4 pt-6">
-        <CatalogHeroSlider
-          slides={HOME_HERO_SLIDES}
-          height={460}
-          // title/subtitle можно оставить пустыми, если на главной их нет
-          // title="О компании"
-          // subtitle="LIONETO • PREMIUM FURNITURE"
-        />
+        <div className="h-[460px]">
+          <CatalogHeroSlider
+            slides={HOME_HERO_SLIDES}
+            // title/subtitle можно оставить пустыми, если на главной их нет
+            // title="О компании"
+            // subtitle="LIONETO • PREMIUM FURNITURE"
+          />
+        </div>
       </section>
 
       {/* Premium About block */}
