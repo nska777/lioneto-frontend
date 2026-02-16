@@ -412,14 +412,19 @@ export default function ProductVariants({
       .filter((g) => g && g.group && Array.isArray(g.items))
       .map((g) => ({
         group: String(g.group),
-        items: g.items.filter(Boolean).map((v) => ({
-          ...v,
-          id: String(v.id),
-          title: String(v.title ?? ""),
-          group: String(v.group ?? g.group ?? "").trim() || String(g.group),
-          kind: v.kind === "color" ? "color" : "option",
-          disabled: !!(v as any).disabled,
-        })),
+        items: g.items.filter(Boolean).map((v) => {
+          const { kind: _k, ...rest } = v as any;
+          return {
+            ...rest,
+            id: String(v.id),
+            title: String(v.title ?? ""),
+            group: String(v.group ?? g.group ?? "").trim() || String(g.group),
+            kind: (v.kind === "color" ? "color" : "option") as
+              | "color"
+              | "option",
+            disabled: !!(v as any).disabled,
+          };
+        }),
       }));
 
     const orderedKeys = sortGroups(cleaned.map((g) => g.group));
