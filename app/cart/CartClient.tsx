@@ -256,7 +256,8 @@ export default function CartClient() {
           (parsed.image ? String(parsed.image) : "") ||
           String(pDisplay?.image || pDisplay?.gallery?.[0] || "");
 
-        const brandSlug = String(pDisplay?.brand ?? pStrapi?.brand ?? "" ?? "");
+        const brandSlug = String(pDisplay?.brand ?? pStrapi?.brand ?? "");
+
         const collectionLabel = labelByBrandSlug(brandSlug);
 
         const title = String(
