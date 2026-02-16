@@ -298,6 +298,15 @@ export default async function ProductPage({
       };
     }),
   };
+  const variantsFixed = (product.variants ?? []).map((v: any) => {
+    const rawKind = String(v?.kind ?? v?.type ?? "").toLowerCase();
+    return {
+      ...v,
+      kind: (rawKind === "color" ? "color" : "option") as "color" | "option",
+    };
+  });
 
-  return <ProductClient product={product} />;
+  const productFixed = { ...product, variants: variantsFixed };
+
+  return <ProductClient product={productFixed} />;
 }
