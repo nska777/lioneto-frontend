@@ -162,7 +162,7 @@ export default function SupplyNewsSection({
   }, [reduced]);
 
   return (
-    <section ref={rootRef} className="bg-white text-black">
+    <section ref={rootRef} className="bg-#f3f3f3 text-black">
       <div className="mx-auto w-full max-w-[1200px] px-4">
         {/* Header */}
         <div data-head className="pt-10 md:pt-14">

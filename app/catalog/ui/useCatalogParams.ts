@@ -35,19 +35,34 @@ export function useCatalogParams({
 
   const currencyLabel = region === "uz" ? "сум" : "руб.";
 
+  // ✅ FIX: нормальный парсер чисел (Strapi/CSV часто шлёт "5 590 000" или NBSP)
+  const num = (v: any) => {
+    const s = String(v ?? "")
+      .replace(/\u00A0/g, " ") // NBSP
+      .replace(/\u202F/g, " ") // narrow NBSP
+      .replace(/\s+/g, "") // убрать пробелы-разделители
+      .replace(/,/g, ".") // на всякий
+      .trim();
+
+    if (!s) return 0;
+
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   const priceOf = (p: ProductAny) => {
     if (region === "uz") {
       const v = p.price_uzs ?? p.priceUZS ?? p.priceUz ?? p.uzs ?? 0;
-      return Number(v ?? 0) || 0;
+      return num(v);
     }
     const v = p.price_rub ?? p.priceRUB ?? p.priceRub ?? p.rub ?? 0;
-    return Number(v ?? 0) || 0;
+    return num(v);
   };
 
   const fmtPrice = (rub: number, uzs: number) =>
     region === "uz"
-      ? `${uzs.toLocaleString("en-US")} сум`
-      : `${rub.toLocaleString("en-US")} руб.`;
+      ? `${Number(uzs || 0).toLocaleString("en-US")} сум`
+      : `${Number(rub || 0).toLocaleString("en-US")} руб.`;
 
   function pushParams(mutator: (p: URLSearchParams) => void) {
     const params = new URLSearchParams(sp.toString());
@@ -271,7 +286,7 @@ export function useCatalogParams({
 
   return {
     sp,
-    heroRoom, // ✅ оставили
+    heroRoom,
 
     region,
     currencyLabel,

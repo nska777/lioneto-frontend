@@ -1,64 +1,24 @@
-// app/checkout/CheckoutClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, CheckCircle2, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 
-import { useRegionLang } from "../context/region-lang";
-import { useShopState } from "../context/shop-state";
+import { useRegionLang } from "@/app/context/region-lang";
+import { useShopState } from "@/app/context/shop-state";
 import { CATALOG_BY_ID, BRANDS } from "@/app/lib/mock/catalog-products";
+import { fetchProductsMap, type LiteProduct } from "@/app/lib/strapi/products";
 
-import { supabase } from "@/app/lib/supabase/client";
+const cn = (...s: Array<string | false | null | undefined>) =>
+  s.filter(Boolean).join(" ");
 
 function formatMoney(n: number, region: "uz" | "ru") {
   if (region === "uz") return new Intl.NumberFormat("ru-RU").format(n) + " сум";
   return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
 }
 
-function makeOrderId() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
-  return `LNT-${y}${m}${day}-${rand}`;
-}
-
-const LS_CUSTOMER = "lioneto:customer:v1";
-const LS_ONECLICK = "lioneto:oneclick:v1";
-
-type CustomerCache = {
-  phone?: string;
-  name?: string;
-  address?: string;
-  comment?: string;
-};
-
-type ProfileRow = {
-  full_name: string | null;
-  phone_e164: string | null;
-  phone_verified: boolean;
-};
-
-function safeParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-type VariantAny = {
-  id: string;
-  title?: string;
-  group?: string;
-  priceDeltaRUB?: number;
-  priceDeltaUZS?: number;
-};
-
+/** ✅ Лейбл коллекции по slug (brand) */
 function labelByBrandSlug(slug: string | null | undefined) {
   const s = String(slug ?? "")
     .trim()
@@ -68,42 +28,79 @@ function labelByBrandSlug(slug: string | null | undefined) {
   return found ? found.title : s.toUpperCase();
 }
 
-/** ====== UZ PHONE HELPERS ====== */
-const UZ_PREFIX = "+998 ";
-const UZ_DIGITS = 9;
+type VariantAny = {
+  id: string;
+  title?: string;
+  group?: string;
+  priceDeltaRUB?: number;
+  priceDeltaUZS?: number;
+  image?: string | null;
+  gallery?: string[];
+};
 
-function onlyDigits(s: string) {
-  return String(s || "").replace(/\D/g, "");
-}
+/**
+ * ✅ Разбираем composite variantId (как в CartClient)
+ * - "base"
+ * - "color:white"
+ * - "color:white|option:lift"
+ */
+function parseCompositeVariantForCart(
+  variantId: string,
+  variants: VariantAny[],
+) {
+  const raw = String(variantId ?? "").trim();
+  if (!raw || raw === "base") {
+    return { title: null as string | null, image: null as string | null };
+  }
 
-function formatUzPhone(digits9: string) {
-  const d = digits9.slice(0, 9);
-  const p1 = d.slice(0, 2);
-  const p2 = d.slice(2, 5);
-  const p3 = d.slice(5, 7);
-  const p4 = d.slice(7, 9);
+  const parts = raw
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  let out = UZ_PREFIX;
-  if (p1) out += p1;
-  if (p2) out += (p1 ? " " : "") + p2;
-  if (p3) out += (p2 ? " " : p1 ? " " : "") + p3;
-  if (p4) out += (p3 ? " " : p2 ? " " : p1 ? " " : "") + p4;
+  const picked: VariantAny[] = [];
 
-  return out;
-}
+  for (const part of parts) {
+    if (part.includes(":")) {
+      const [g, id] = part.split(":");
+      const group = String(g ?? "").trim();
+      const vid = String(id ?? "").trim();
+      if (!vid) continue;
 
-function getUzDigitsFromInput(v: string) {
-  const raw = String(v || "");
-  const stripped = raw.startsWith(UZ_PREFIX)
-    ? raw.slice(UZ_PREFIX.length)
-    : raw;
-  return onlyDigits(stripped).slice(0, UZ_DIGITS);
+      const found =
+        variants.find(
+          (v) =>
+            String(v.id) === vid &&
+            (group ? String(v.group ?? "") === group : true),
+        ) ?? variants.find((v) => String(v.id) === vid);
+
+      if (found) picked.push(found);
+      continue;
+    }
+
+    const found = variants.find((v) => String(v.id) === part);
+    if (found) picked.push(found);
+  }
+
+  const title = picked
+    .map((v) => (v.title ? String(v.title).trim() : ""))
+    .filter(Boolean)
+    .join(", ");
+
+  const image =
+    picked.find((v) => Array.isArray(v.gallery) && v.gallery.length)
+      ?.gallery?.[0] ??
+    picked.find((v) => !!v.image)?.image ??
+    null;
+
+  return { title: title || null, image };
 }
 
 /** ================= Strapi price-entry (client) ================= */
 
 type PriceEntry = {
   productId: string;
+  variantKey?: string | null;
   title?: string | null;
   priceUZS?: number | null;
   priceRUB?: number | null;
@@ -142,12 +139,22 @@ async function fetchPriceMap(productIds: string[]) {
 
   const map: Record<string, PriceEntry> = {};
   for (const item of data) {
-    const a = item;
+    const a = item?.attributes ? item.attributes : item;
     const pid = String(a?.productId ?? "");
     if (!pid) continue;
 
-    map[pid] = {
+    const vk =
+      a?.variantKey !== undefined &&
+      a?.variantKey !== null &&
+      String(a.variantKey).trim()
+        ? String(a.variantKey).trim()
+        : "base";
+
+    const key = `${pid}::${vk}`;
+
+    map[key] = {
       productId: pid,
+      variantKey: vk === "base" ? null : vk,
       title: a?.title ?? null,
       priceUZS: a?.priceUZS !== undefined ? toNum(a.priceUZS) : null,
       priceRUB: a?.priceRUB !== undefined ? toNum(a.priceRUB) : null,
@@ -163,68 +170,76 @@ async function fetchPriceMap(productIds: string[]) {
   return map;
 }
 
-/** ✅ composite variant: title + delta sum (как в корзине) */
-function resolveCompositeVariant(
-  variantId: string,
-  variants: VariantAny[],
-  region: "uz" | "ru",
-) {
-  const raw = String(variantId ?? "").trim();
+/**
+ * ✅ Нормализация variantKey для цены (как в CartClient)
+ */
+function canonicalPriceKey(pid: string, vid: string, variants: VariantAny[]) {
+  const raw = String(vid || "base").trim();
+
   if (!raw || raw === "base") {
-    return { title: null as string | null, delta: 0 };
+    return {
+      primary: `${pid}::base`,
+      fallbacks: buildFallbacksForBase(pid, variants),
+    };
   }
 
-  const parts = raw
-    .split("|")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  if (raw.includes(":")) {
+    return { primary: `${pid}::${raw}`, fallbacks: [`${pid}::base`] };
+  }
 
-  const picked: VariantAny[] = [];
+  const v = variants.find((x) => String(x.id) === raw);
+  const grouped = v?.group ? `${String(v.group).trim()}:${raw}` : raw;
 
-  for (const part of parts) {
-    if (part.includes(":")) {
-      const [g, id] = part.split(":");
-      const group = String(g ?? "").trim();
-      const vid = String(id ?? "").trim();
-      if (!vid) continue;
+  const fallbacks: string[] = [];
+  if (grouped !== raw) fallbacks.push(`${pid}::${grouped}`);
+  fallbacks.push(`${pid}::${raw}`);
+  fallbacks.push(`${pid}::base`);
+  if (raw === "white") fallbacks.unshift(`${pid}::color:white`);
 
-      const found =
-        variants.find(
-          (v) =>
-            String(v.id) === vid &&
-            (group ? String(v.group ?? "") === group : true),
-        ) ?? variants.find((v) => String(v.id) === vid);
+  return { primary: `${pid}::${raw}`, fallbacks };
+}
 
-      if (found) picked.push(found);
-      continue;
+function buildFallbacksForBase(pid: string, variants: VariantAny[]) {
+  const fallbacks: string[] = [];
+
+  const white =
+    variants.find(
+      (v) => String(v.id) === "white" && String(v.group ?? "") === "color",
+    ) || variants.find((v) => String(v.id) === "white");
+
+  if (white) {
+    const key = white.group ? `${white.group}:${white.id}` : String(white.id);
+    fallbacks.push(`${pid}::${key}`);
+  } else {
+    const firstColor = variants.find((v) => String(v.group ?? "") === "color");
+    if (firstColor) {
+      const key = firstColor.group
+        ? `${firstColor.group}:${firstColor.id}`
+        : String(firstColor.id);
+      fallbacks.push(`${pid}::${key}`);
     }
-
-    const found = variants.find((v) => String(v.id) === part);
-    if (found) picked.push(found);
   }
 
-  const title = picked
-    .map((v) => (v.title ? String(v.title).trim() : ""))
-    .filter(Boolean)
-    .join(", ");
+  return fallbacks;
+}
 
-  const delta = picked.reduce((acc, v) => {
-    const d =
-      region === "uz"
-        ? Number(v?.priceDeltaUZS ?? 0)
-        : Number(v?.priceDeltaRUB ?? 0);
-    return acc + (Number(d ?? 0) || 0);
-  }, 0);
+const LS_CUSTOMER = "lioneto:checkout:customer:v2";
 
-  return { title: title || null, delta };
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 export default function CheckoutClient() {
   const router = useRouter();
   const sp = useSearchParams();
-  const mode = sp.get("mode"); // "oneclick" | null
+  const mode = String(sp?.get("mode") ?? "").toLowerCase(); // "" | "oneclick"
 
-  const { region } = useRegionLang();
+  const { region } = useRegionLang(); // "uz" | "ru"
   const shop = useShopState();
 
   const goBack = () => {
@@ -233,121 +248,43 @@ export default function CheckoutClient() {
     else router.push("/cart");
   };
 
-  const [phone, setPhone] = useState(region === "uz" ? UZ_PREFIX : "+7 ");
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
-  const [comment, setComment] = useState("");
+  /** ✅ keys from cart or oneclick */
+  const keys = useMemo(() => {
+    if (mode === "oneclick" && shop.oneClick?.id) return [shop.oneClick.id];
+    return Object.keys(shop.cart).filter((k) => (shop.cart[k] ?? 0) > 0);
+  }, [mode, shop.cart, shop.oneClick]);
 
-  const [submitting, setSubmitting] = useState(false);
-  const [doneOrderId, setDoneOrderId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const productIds = useMemo(() => {
+    return keys
+      .map((key) => String(shop.parseKey(key).productId))
+      .filter(Boolean);
+  }, [keys, shop]);
 
-  const uzDigitsCount = useMemo(() => {
-    if (region !== "uz") return 0;
-    return getUzDigitsFromInput(phone).length;
-  }, [phone, region]);
-
-  const isPhoneValid = useMemo(() => {
-    if (region === "uz") return uzDigitsCount === UZ_DIGITS;
-    return phone.trim().length >= 7;
-  }, [region, uzDigitsCount, phone]);
-
-  useEffect(() => {
-    const c = safeParse<CustomerCache>(localStorage.getItem(LS_CUSTOMER), {});
-    if (c.phone) setPhone(c.phone);
-    if (c.name) setName(c.name);
-    if (c.address) setAddress(c.address);
-    if (c.comment) setComment(c.comment);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (region !== "uz") return;
-    setPhone((prev) => formatUzPhone(getUzDigitsFromInput(prev)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [region]);
-
+  /** ✅ Strapi products map (если товара нет в моках) */
+  const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
+    {},
+  );
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const userId = data.session?.user?.id;
-        if (!userId) return;
-
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("full_name, phone_e164, phone_verified")
-          .eq("user_id", userId)
-          .single();
-
-        if (!alive) return;
-
-        const p = prof as ProfileRow | null;
-        if (p?.full_name && !name) setName(p.full_name);
-
-        if (region !== "uz") {
-          if (p?.phone_e164 && (!phone || phone.trim().length < 5)) {
-            setPhone(p.phone_e164);
-          }
-        }
+        const missing = productIds.filter(
+          (id) => !CATALOG_BY_ID.get(String(id)),
+        );
+        const m = await fetchProductsMap(missing);
+        if (alive) setProductsMap(m);
       } catch {
-        // молча
+        if (alive) setProductsMap({});
       }
     })();
-
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [region]);
+  }, [productIds.join("|")]);
 
-  // ===== items source =====
-  const cart = shop.cart ?? {};
-  const cartKeys = useMemo(
-    () => Object.keys(cart).filter((k) => (cart[k] ?? 0) > 0),
-    [cart],
-  );
-
-  const oneClick = shop.oneClick ?? null;
-
-  const oneClickFromLS = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    const oc = safeParse<{ id: string; qty: number } | null>(
-      localStorage.getItem(LS_ONECLICK),
-      null,
-    );
-    if (!oc?.id) return null;
-    return { id: String(oc.id), qty: Math.max(1, Math.floor(oc.qty || 1)) };
-  }, []);
-
-  const effectiveOneClick = oneClick?.id
-    ? oneClick
-    : oneClickFromLS?.id
-      ? oneClickFromLS
-      : null;
-
-  // ✅ ids -> Strapi
-  const productIds = useMemo(() => {
-    const useOneClick = mode === "oneclick";
-    const keys = useOneClick
-      ? effectiveOneClick?.id
-        ? [effectiveOneClick.id]
-        : []
-      : cartKeys;
-
-    return keys
-      .map((key) => {
-        const k = String(key);
-        const { productId } = shop.parseKey(k);
-        return String(productId);
-      })
-      .filter(Boolean);
-  }, [mode, effectiveOneClick, cartKeys, shop]);
-
+  /** ✅ price-entry map */
   const [priceMap, setPriceMap] = useState<Record<string, PriceEntry>>({});
-
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -364,216 +301,229 @@ export default function CheckoutClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIds.join("|")]);
 
+  /** ✅ items */
   const items = useMemo(() => {
-    const useOneClick = mode === "oneclick";
-
-    const keys = useOneClick
-      ? effectiveOneClick?.id
-        ? [effectiveOneClick.id]
-        : []
-      : cartKeys;
-
     return keys
       .map((key) => {
-        const k = String(key);
-        const { productId, variantId } = shop.parseKey(k);
+        const { productId, variantId } = shop.parseKey(key);
 
-        const p = CATALOG_BY_ID.get(String(productId));
+        const pid = String(productId);
+        const vid = String(variantId || "base");
+
+        const qty =
+          mode === "oneclick"
+            ? Math.max(1, Math.floor(Number(shop.oneClick?.qty ?? 1)))
+            : Math.max(1, Math.floor(Number(shop.cart[key] ?? 1)));
+
+        const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
+        const pStrapi = productsMap[pid] as LiteProduct | undefined;
+        const p = pMock ?? pStrapi;
         if (!p) return null;
-
-        const qty = useOneClick
-          ? (effectiveOneClick?.qty ?? 1)
-          : (cart[k] ?? 1);
-
-        const pe = priceMap[String(productId)];
-
-        const baseUnitFromStrapi =
-          region === "uz"
-            ? Number(pe?.priceUZS ?? 0)
-            : Number(pe?.priceRUB ?? 0);
-
-        const baseUnitFromMock =
-          region === "uz"
-            ? Number((p as any).price_uzs ?? (p as any).priceUZS ?? 0)
-            : Number((p as any).price_rub ?? (p as any).priceRUB ?? 0);
-
-        const baseUnit =
-          Number.isFinite(baseUnitFromStrapi) && baseUnitFromStrapi > 0
-            ? baseUnitFromStrapi
-            : Number(baseUnitFromMock ?? 0) || 0;
 
         const variants: VariantAny[] = Array.isArray((p as any).variants)
           ? ((p as any).variants as VariantAny[])
           : [];
 
-        const resolved = resolveCompositeVariant(
-          String(variantId),
-          variants,
-          region,
-        );
+        const parsed = parseCompositeVariantForCart(vid, variants);
 
-        const unit = baseUnit + resolved.delta;
+        const { primary, fallbacks } = canonicalPriceKey(pid, vid, variants);
+        const pe =
+          priceMap[primary] ||
+          fallbacks.map((k) => priceMap[k]).find(Boolean) ||
+          undefined;
 
-        const brandSlug = String((p as any).brand ?? "");
+        function readPriceAny(obj: any, region: "uz" | "ru") {
+          if (!obj) return 0;
+
+          const uz = obj?.priceUZS ?? obj?.price_uzs ?? obj?.priceUzs ?? null;
+
+          const ru = obj?.priceRUB ?? obj?.price_rub ?? obj?.priceRub ?? null;
+
+          const raw = region === "uz" ? uz : ru;
+          const n = Number(raw);
+          return Number.isFinite(n) && n > 0 ? n : 0;
+        }
+
+        // 1️⃣ price-entry приоритет
+        const baseFromPriceEntry = readPriceAny(pe, region);
+
+        // 2️⃣ product fallback
+        const baseFromProduct = readPriceAny(p, region);
+
+        const baseUnit = baseFromPriceEntry || baseFromProduct || 0;
+
+        // delta из variants (если используешь priceDelta)
+        const pickedForDelta: VariantAny[] = [];
+        const raw = String(vid).trim();
+        if (raw && raw !== "base") {
+          const parts = raw
+            .split("|")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          for (const part of parts) {
+            const pure = part.includes(":")
+              ? String(part.split(":")[1] ?? "").trim()
+              : part;
+            const found = variants.find((v) => String(v.id) === pure);
+            if (found) pickedForDelta.push(found);
+          }
+        }
+
+        const delta = pickedForDelta.reduce((acc, v) => {
+          const d =
+            region === "uz"
+              ? Number(v?.priceDeltaUZS ?? 0)
+              : Number(v?.priceDeltaRUB ?? 0);
+          return acc + (Number(d ?? 0) || 0);
+        }, 0);
+
+        const unit = baseUnit + delta;
+
+        const brandSlug = String((p as any).brand ?? pStrapi?.brand ?? "");
         const collectionLabel = labelByBrandSlug(brandSlug);
 
-        const title = String(pe?.title ?? (p as any).title ?? "");
+        const title = String(pe?.title ?? (p as any).title ?? "Товар");
 
         return {
-          key: k,
-          productId: String(productId),
-          variantId: String(variantId),
-          variantTitle: resolved.title,
-          title,
-          collectionSlug: brandSlug || null,
-          collectionLabel,
+          key,
+          productId: pid,
+          variantId: vid,
           qty,
           unit,
           sum: unit * qty,
+          title,
+          collectionLabel,
+          variantTitle: parsed.title,
         };
       })
       .filter(Boolean) as Array<{
       key: string;
       productId: string;
       variantId: string;
-      variantTitle: string | null;
-      title: string;
-      collectionSlug: string | null;
-      collectionLabel: string | null;
       qty: number;
       unit: number;
       sum: number;
+      title: string;
+      collectionLabel: string | null;
+      variantTitle: string | null;
     }>;
-  }, [mode, effectiveOneClick, cartKeys, cart, region, shop, priceMap]);
+  }, [
+    keys,
+    mode,
+    productsMap,
+    priceMap,
+    region,
+    shop,
+    shop.cart,
+    shop.oneClick,
+  ]);
 
-  const total = useMemo(() => items.reduce((a, b) => a + b.sum, 0), [items]);
+  const total = useMemo(
+    () => items.reduce((acc, it) => acc + (Number(it.sum) || 0), 0),
+    [items],
+  );
 
-  const canSubmit = isPhoneValid && items.length > 0 && !submitting;
+  /** ✅ form */
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [comment, setComment] = useState("");
+  const [phoneDigits, setPhoneDigits] = useState(""); // UZ: 9 digits after +998
 
-  async function submit() {
-    setError(null);
+  useEffect(() => {
+    const cached = safeParse<any>(localStorage.getItem(LS_CUSTOMER), {});
+    setName(String(cached?.name ?? ""));
+    setAddress(String(cached?.address ?? ""));
+    setComment(String(cached?.comment ?? ""));
+    setPhoneDigits(String(cached?.phoneDigits ?? ""));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      LS_CUSTOMER,
+      JSON.stringify({ name, address, comment, phoneDigits }),
+    );
+  }, [name, address, comment, phoneDigits]);
+
+  const isPhoneValid = useMemo(() => {
+    if (region === "uz") return /^\d{9}$/.test(phoneDigits);
+    return String(phoneDigits).trim().length >= 7;
+  }, [region, phoneDigits]);
+
+  const canSubmit = items.length > 0 && isPhoneValid;
+
+  const phoneValue = useMemo(() => {
+    if (region === "uz") return `+998${phoneDigits}`;
+    return phoneDigits;
+  }, [region, phoneDigits]);
+
+  const submit = async () => {
     if (!canSubmit) return;
 
-    const orderId = makeOrderId();
-    setSubmitting(true);
-
-    try {
-      const normalizedPhone =
-        region === "uz"
-          ? formatUzPhone(getUzDigitsFromInput(phone))
-          : phone.trim();
-
-      const cache: CustomerCache = {
-        phone: normalizedPhone,
+    const payload = {
+      mode: mode === "oneclick" ? "oneclick" : "cart",
+      region,
+      customer: {
         name: name.trim(),
+        phone: phoneValue.trim(),
         address: address.trim(),
         comment: comment.trim(),
-      };
-      localStorage.setItem(LS_CUSTOMER, JSON.stringify(cache));
+      },
+      items: items.map((it) => ({
+        productId: it.productId,
+        variantId: it.variantId,
+        qty: it.qty,
+        title: it.title,
+        unit: it.unit,
+        sum: it.sum,
+      })),
+      total,
+    };
 
-      const payload = {
-        orderId,
-        createdAt: new Date().toLocaleString("ru-RU"),
-        region,
-        mode: mode === "oneclick" ? "oneclick" : "cart",
-        customer: {
-          phone: normalizedPhone,
-          name: name.trim() || undefined,
-          address: address.trim() || undefined,
-          comment: comment.trim() || undefined,
-        },
-        items: items.map((it) => ({
-          id: it.productId,
-          collection: it.collectionSlug || undefined,
-          collectionLabel: it.collectionLabel || undefined,
-          variantId: it.variantId,
-          variantTitle: it.variantTitle || undefined,
-          qty: it.qty,
-          unit: it.unit,
-          sum: it.sum,
-          title: it.title,
-        })),
-        total,
-        meta: { mode: mode === "oneclick" ? "oneclick" : "cart" },
-      };
-
+    try {
       const res = await fetch("/api/order", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j?.ok) {
-        throw new Error(j?.error || j?.details || "Ошибка отправки заказа");
+      if (!res.ok) {
+        alert("Не удалось отправить заказ. Попробуйте ещё раз.");
+        return;
       }
 
-      setDoneOrderId(orderId);
+      if (mode === "oneclick") shop.clearOneClick();
+      else shop.clearCart();
 
-      if (mode === "oneclick") shop.clearOneClick?.();
-      else shop.clearCart?.();
-    } catch (e: any) {
-      setError(e?.message || "Ошибка");
-    } finally {
-      setSubmitting(false);
+      router.push("/checkout/success");
+    } catch {
+      alert("Ошибка сети. Попробуйте ещё раз.");
     }
-  }
+  };
 
-  if (doneOrderId) {
-    return (
-      <main className="mx-auto w-full max-w-[900px] px-4 py-14">
-        <div className="rounded-3xl border border-black/10 bg-white p-8">
-          <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-black/5">
-              <CheckCircle2 className="h-6 w-6 text-black/70" />
-            </div>
-            <div>
-              <div className="text-xl font-semibold tracking-[-0.02em]">
-                Ваш заказ оформлен
-              </div>
-              <div className="mt-1 text-sm text-black/60">
-                Номер заказа:{" "}
-                <span className="font-medium text-black">{doneOrderId}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/catalog"
-              className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75 hover:text-black hover:border-black/20 transition cursor-pointer"
-            >
-              В каталог <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-medium text-white hover:opacity-90 transition cursor-pointer"
-            >
-              На главную <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-
-          <p className="mt-5 text-xs text-black/45">
-            Менеджер увидит заказ в Telegram и свяжется с вами.
-          </p>
-        </div>
-      </main>
-    );
-  }
+  const orderTitle = useMemo(() => {
+    if (!items.length) return "Ваш заказ";
+    const it = items[0];
+    const left = it.collectionLabel ? `${it.collectionLabel} / ` : "";
+    return `${left}${it.title}`;
+  }, [items]);
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-10">
-      <button
-        type="button"
-        onClick={goBack}
-        className="mb-5 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/70 hover:text-black hover:border-black/20 transition cursor-pointer"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Назад
-      </button>
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={goBack}
+          className={cn(
+            "cursor-pointer inline-flex items-center gap-2 rounded-full",
+            "border border-black/10 bg-white px-4 py-2 text-sm text-black/70",
+            "hover:text-black hover:border-black/20 transition",
+          )}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Назад
+        </button>
 
-      <div>
-        <div className="text-[12px] tracking-[0.28em] text-black/45">
+        <div className="mt-4 text-[12px] tracking-[0.28em] text-black/45">
           LIONETO
         </div>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em]">
@@ -584,168 +534,182 @@ export default function CheckoutClient() {
         </p>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
-        <section className="rounded-3xl border border-black/10 bg-white p-5">
-          <div className="text-base font-semibold">Данные клиента</div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
+        {/* LEFT: FORM */}
+        <section className="rounded-3xl border border-black/10 bg-white p-6">
+          <div className="text-base font-semibold tracking-[-0.01em]">
+            Данные клиента
+          </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="block">
-              <div className="text-xs text-black/50">Телефон *</div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* phone */}
+            <div className="sm:col-span-1">
+              <div className="mb-1 text-[12px] font-medium text-black/55">
+                Телефон *
+              </div>
 
-              <input
-                value={phone}
-                onChange={(e) => {
-                  const v = e.target.value;
+              {region === "uz" ? (
+                <div className="flex items-center overflow-hidden rounded-2xl border border-black/10 bg-white">
+                  <div className="px-4 py-3 text-sm font-semibold text-black/60">
+                    +998
+                  </div>
+                  <input
+                    value={phoneDigits}
+                    onChange={(e) => {
+                      const only = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 9);
+                      setPhoneDigits(only);
+                    }}
+                    inputMode="numeric"
+                    placeholder="9 цифр"
+                    className="w-full px-4 py-3 text-sm outline-none"
+                  />
+                </div>
+              ) : (
+                <input
+                  value={phoneDigits}
+                  onChange={(e) => setPhoneDigits(e.target.value)}
+                  placeholder="+7..."
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
+                />
+              )}
+            </div>
 
-                  if (region !== "uz") {
-                    setPhone(v);
-                    return;
-                  }
-
-                  const digits = getUzDigitsFromInput(v);
-                  setPhone(formatUzPhone(digits));
-                }}
-                onFocus={() => {
-                  if (region === "uz") {
-                    setPhone((prev) =>
-                      formatUzPhone(getUzDigitsFromInput(prev)),
-                    );
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (region !== "uz") return;
-
-                  const input = e.currentTarget;
-                  const start = input.selectionStart ?? 0;
-                  const end = input.selectionEnd ?? 0;
-
-                  if (
-                    (e.key === "Backspace" || e.key === "Delete") &&
-                    start <= UZ_PREFIX.length &&
-                    end <= UZ_PREFIX.length
-                  ) {
-                    e.preventDefault();
-                  }
-                }}
-                className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/25"
-                placeholder={
-                  region === "uz" ? "+998 91 123 45 67" : "+7 999 123 45 67"
-                }
-                inputMode="tel"
-              />
-            </label>
-
-            <label className="block">
-              <div className="text-xs text-black/50">Имя</div>
+            {/* name */}
+            <div className="sm:col-span-1">
+              <div className="mb-1 text-[12px] font-medium text-black/55">
+                Имя
+              </div>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/25"
-                placeholder="Роман"
+                placeholder="Введите имя"
+                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
               />
-            </label>
+            </div>
 
-            <label className="block md:col-span-2">
-              <div className="text-xs text-black/50">Адрес</div>
+            {/* address */}
+            <div className="sm:col-span-2">
+              <div className="mb-1 text-[12px] font-medium text-black/55">
+                Адрес
+              </div>
               <input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="mt-1 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/25"
-                placeholder="Город, улица, дом"
+                placeholder="Город, улица, дом, квартира"
+                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
               />
-            </label>
+            </div>
 
-            <label className="block md:col-span-2">
-              <div className="text-xs text-black/50">Комментарий</div>
+            {/* comment */}
+            <div className="sm:col-span-2">
+              <div className="mb-1 text-[12px] font-medium text-black/55">
+                Комментарий
+              </div>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="mt-1 min-h-[96px] w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/25"
-                placeholder="Например: позвонить после 18:00"
+                placeholder="Пожелания по доставке, этаж, время..."
+                className="h-28 w-full resize-none rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
               />
-            </label>
-          </div>
-
-          {error && (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
             </div>
-          )}
+          </div>
         </section>
 
-        <aside className="h-fit rounded-3xl border border-black/10 bg-white p-5">
-          <div className="text-base font-semibold">Ваш заказ</div>
+        {/* RIGHT: ORDER SUMMARY */}
+        <aside className="h-fit rounded-3xl border border-black/10 bg-white p-6">
+          <div className="text-base font-semibold tracking-[-0.01em]">
+            Ваш заказ
+          </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4">
             {items.length ? (
-              items.map((it) => (
-                <div
-                  key={it.key}
-                  className="flex items-start justify-between gap-3"
-                >
+              <>
+                {/* first line like on screenshot */}
+                <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {it.collectionLabel ? (
+                    <div className="text-sm font-medium text-black/85">
+                      {items[0].collectionLabel ? (
                         <span className="text-black/55">
-                          {it.collectionLabel} /{" "}
+                          {items[0].collectionLabel} /{" "}
                         </span>
                       ) : null}
-                      {it.title}
+                      {items[0].title}
                     </div>
-
-                    {it.variantTitle && it.variantId !== "base" && (
-                      <div className="mt-1 text-[12px] text-black/55">
-                        Вариант:{" "}
-                        <span className="font-semibold text-black/75">
-                          {it.variantTitle}
-                        </span>
-                      </div>
-                    )}
 
                     <div className="mt-1 text-xs text-black/45">
-                      {it.qty} × {formatMoney(it.unit, region)}
+                      {items[0].qty} × {formatMoney(items[0].unit, region)}
+                      {items[0].variantTitle && items[0].variantId !== "base"
+                        ? ` • ${items[0].variantTitle}`
+                        : ""}
                     </div>
                   </div>
 
-                  <div className="text-sm font-semibold">
-                    {formatMoney(it.sum, region)}
+                  <div className="text-sm font-semibold text-black">
+                    {formatMoney(items[0].sum, region)}
                   </div>
                 </div>
-              ))
+
+                {/* if more items */}
+                {items.length > 1 ? (
+                  <div className="mt-3 space-y-2">
+                    {items.slice(1).map((it) => (
+                      <div
+                        key={it.key}
+                        className="flex items-start justify-between gap-4"
+                      >
+                        <div className="min-w-0 text-xs text-black/60">
+                          {it.qty} × {it.title}
+                        </div>
+                        <div className="text-xs font-medium text-black/75">
+                          {formatMoney(it.sum, region)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
             ) : (
-              <div className="text-sm text-black/55">Товар не выбран</div>
+              <div className="text-sm text-black/50">Корзина пустая.</div>
             )}
           </div>
 
-          <div className="mt-5 h-px bg-black/10" />
+          <div className="mt-4 h-px bg-black/10" />
 
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <span className="text-black/60">Итого</span>
-            <span className="font-semibold">{formatMoney(total, region)}</span>
+          <div className="mt-4 flex items-center justify-between text-sm text-black/60">
+            <span>Итого</span>
+            <span className="font-semibold text-black">
+              {formatMoney(total, region)}
+            </span>
           </div>
 
           <button
             type="button"
             onClick={submit}
             disabled={!canSubmit}
-            className={`mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition ${
+            className={cn(
+              "mt-5 w-full rounded-full px-5 py-3 text-sm font-semibold transition",
               canSubmit
                 ? "bg-black text-white hover:opacity-90 cursor-pointer"
-                : "bg-black/10 text-black/40"
-            }`}
+                : "bg-black/10 text-black/40 cursor-not-allowed",
+            )}
           >
-            {submitting ? "Оформляем..." : "Подтвердить заказ"}
-            <ArrowRight className="h-4 w-4" />
+            Подтвердить заказ →
           </button>
 
           <Link
             href="/cart"
-            className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75 hover:text-black hover:border-black/20 transition cursor-pointer"
+            className={cn(
+              "mt-3 inline-flex w-full items-center justify-center rounded-full",
+              "border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75",
+              "hover:text-black hover:border-black/20 transition cursor-pointer",
+            )}
           >
             Вернуться в корзину
           </Link>
 
-          <p className="mt-4 text-xs text-black/45">
+          <p className="mt-4 text-xs leading-relaxed text-black/45">
             * Оплаты нет — заказ улетает менеджеру в Telegram.
           </p>
         </aside>

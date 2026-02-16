@@ -569,7 +569,11 @@ export default function BestSellers({
   }, [reducedMotion, list.length]);
 
   return (
-    <section ref={rootRef} className="w-full bg-white relative overflow-hidden">
+    <section
+      ref={rootRef}
+      className="w-full relative overflow-hidden"
+      style={{ backgroundColor: "#f3f3f3" }}
+    >
       <div
         data-wind
         className="pointer-events-none absolute inset-y-0 -left-[40%] w-[180%]"

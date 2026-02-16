@@ -4,7 +4,7 @@ import { makeGallery, makeProduct, type CatalogProduct } from "../catalog-base";
 const ROSE = "Бежевая роза";
 const WHITE = "Белая";
 
-// ✅ временно: белый цвет дороже на 800 000 сум (можешь поменять)
+//  временно: белый цвет дороже на 800 000 сум 
 const WHITE_DELTA_UZS = 800_000;
 
 export const BUONGIORNO_PRODUCTS: CatalogProduct[] = [

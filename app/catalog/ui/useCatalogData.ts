@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CATALOG_MOCK as MOCK } from "@/app/lib/mock/catalog-products";
 
 import {
@@ -18,8 +18,6 @@ import {
 import type { SortKey } from "./useCatalogParams";
 import type { FiltersValue } from "./FiltersSidebar";
 
-import { applyPrices, type PriceRow } from "./prices-utils";
-
 type ProductAny = (typeof MOCK)[number] & Record<string, any>;
 
 export function useCatalogData({
@@ -30,6 +28,7 @@ export function useCatalogData({
   priceOf,
   selectedDoors,
   selectedFacades,
+  baseItems,
 }: {
   sidebarValue: FiltersValue;
   qFromUrl: string;
@@ -38,48 +37,23 @@ export function useCatalogData({
   priceOf: (p: ProductAny) => number;
   selectedDoors: string[];
   selectedFacades: string[];
+  baseItems: any[];
 }) {
   const activeRoom = sidebarValue.menu[0] || "";
   const activeCollection = sidebarValue.collections[0] || "";
   const activeModule = sidebarValue.types[0] || "";
 
   const isRoomMode = !!activeRoom && ROOM_MENUS_SET.has(norm(activeRoom));
-  const isDoorsFacadeUI = activeModule === "shkafy" || activeModule === "vitrini";
+  const isDoorsFacadeUI =
+    activeModule === "shkafy" || activeModule === "vitrini";
 
   const facadeItems =
     activeModule === "vitrini" ? VITRINI_FACADE_ITEMS : FACADE_ITEMS;
 
-  // ==========================
-  // ✅ PRICES FROM STRAPI (via Next API)
-  // ==========================
-  const [priceRows, setPriceRows] = useState<PriceRow[] | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        const res = await fetch("/api/prices", { cache: "no-store" });
-        if (!res.ok) return;
-
-        const json = await res.json();
-        const rows = Array.isArray(json?.data) ? (json.data as PriceRow[]) : [];
-        if (alive) setPriceRows(rows);
-      } catch {
-        // молча, fallback на MOCK
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  // ✅ Накрываем цены поверх моков до фильтрации
-  const DATA = useMemo(() => {
-    if (!priceRows?.length) return MOCK as any[];
-    return applyPrices(MOCK as any[], priceRows);
-  }, [priceRows]);
+  const DATA = useMemo(
+    () => (Array.isArray(baseItems) ? baseItems : []),
+    [baseItems],
+  );
 
   const { bedroomsFirst, bedroomsFirstList, collectionRest, sorted } = useMemo(() => {
     const needle = (qFromUrl || "").toLowerCase().trim();
@@ -88,12 +62,14 @@ export function useCatalogData({
     const hasCollection = sidebarValue.collections.length > 0;
     const hasModule = sidebarValue.types.length > 0;
 
-    // ✅ когда выбраны Раздел + Коллекция -> показываем ВСЮ коллекцию (room фильтр игнорируем)
-    const shouldIgnoreRoomFilter = hasRoom && hasCollection;
+    // ✅ ВАЖНО:
+    // - когда выбраны Раздел + Коллекция -> показываем ВСЮ коллекцию (room фильтр игнорируем)
+    // - когда выбраны Раздел + Модуль (types) -> показываем ВСЕ товары модуля по каталогу (room фильтр игнорируем)
+    const shouldIgnoreRoomFilter = hasRoom && (hasCollection || hasModule);
 
+    // ✅ Двери/фасады должны работать независимо от игнора room
     const isDoorFacadeFilter =
-      !shouldIgnoreRoomFilter &&
-      (sidebarValue.types.includes("shkafy") || sidebarValue.types.includes("vitrini"));
+      sidebarValue.types.includes("shkafy") || sidebarValue.types.includes("vitrini");
 
     const doorsSet = new Set(selectedDoors);
     const facadeSet = new Set(selectedFacades);
@@ -105,7 +81,7 @@ export function useCatalogData({
       const isScene = ROOM_MENUS_SET.has(norm(room)); // сцены: bedrooms/living/youth
       const col = getCollectionSlug(p);
 
-      // ROOM — только если НЕ режим "раздел+коллекция"
+      // ROOM — только если НЕ игнорим room
       if (!shouldIgnoreRoomFilter) {
         if (sidebarValue.menu.length) {
           if (room && !sidebarValue.menu.includes(room)) return false;
@@ -122,13 +98,14 @@ export function useCatalogData({
       if (hasModule && !isScene) {
         if (!sidebarValue.types.includes(mod)) return false;
 
+        // doors/facade для шкафов/витрин
         if (isDoorFacadeFilter && (mod === "shkafy" || mod === "vitrini")) {
           if (doorsSet.size) {
-            const d = String(p.attrs?.doors ?? "");
+            const d = String((p as any).attrs?.doors ?? "");
             if (!doorsSet.has(d)) return false;
           }
           if (facadeSet.size) {
-            const f = String(p.attrs?.facade ?? "");
+            const f = String((p as any).attrs?.facade ?? "");
             if (!facadeSet.has(f)) return false;
           }
         }
@@ -141,7 +118,7 @@ export function useCatalogData({
 
       // SEARCH
       if (needle) {
-        const hay = `${p.title ?? ""} ${p.badge ?? ""}`.toLowerCase();
+        const hay = `${(p as any).title ?? ""} ${(p as any).badge ?? ""}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
 
@@ -173,7 +150,7 @@ export function useCatalogData({
           if (price > sidebarValue.priceMax) return false;
 
           if (needle) {
-            const hay = `${p.title ?? ""} ${p.badge ?? ""}`.toLowerCase();
+            const hay = `${(p as any).title ?? ""} ${(p as any).badge ?? ""}`.toLowerCase();
             if (!hay.includes(needle)) return false;
           }
 
@@ -188,14 +165,14 @@ export function useCatalogData({
     }
 
     // ===========================
-    // ✅ НИЖНИЙ СПИСОК МОДУЛЕЙ КОЛЛЕКЦИИ
+    // ✅ НИЖНИЙ СПИСОК (БЕЗ СЦЕН)
     // ===========================
-    const topIds = new Set(scenesTop.map((p) => String(p.id)));
+    const topIds = new Set(scenesTop.map((p) => String((p as any).id)));
 
     const rest = baseFiltered.filter((p) => {
-      if (topIds.has(String(p.id))) return false;
+      if (topIds.has(String((p as any).id))) return false;
 
-      const room = norm(getRoomSlug(p));
+      const room = norm(getRoomSlug(p as any));
       const isScene = ROOM_MENUS_SET.has(room);
       if (isScene) return false;
 
@@ -206,7 +183,7 @@ export function useCatalogData({
     switch (sort) {
       case "title_asc":
         restSorted.sort((a, b) =>
-          String(a.title).localeCompare(String(b.title), "ru"),
+          String((a as any).title).localeCompare(String((b as any).title), "ru"),
         );
         break;
       case "price_asc":

@@ -450,7 +450,11 @@ export default function BestPrice({
   }, [list.length, reducedMotion, isTouchMode]);
 
   return (
-    <section ref={rootRef} className="w-full bg-white relative overflow-hidden">
+    <section
+      ref={rootRef}
+      className="w-full relative overflow-hidden"
+      style={{ backgroundColor: "#f3f3f3" }}
+    >
       <div className="mx-auto w-full max-w-[1200px] px-4 py-12">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.02em] text-black">

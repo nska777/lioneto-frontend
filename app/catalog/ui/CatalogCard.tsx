@@ -1,3 +1,4 @@
+// app/catalog/ui/CatalogCard.tsx
 "use client";
 
 import Image from "next/image";
@@ -6,7 +7,6 @@ import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import ProductActions from "../ProductActions";
-import { useShopState } from "@/app/context/shop-state";
 import { useRegionLang } from "@/app/context/region-lang";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
@@ -95,6 +95,10 @@ function n(v: any) {
   return Number.isFinite(x) ? x : 0;
 }
 
+function isRemoteSrc(src: string) {
+  return /^https?:\/\//i.test(src);
+}
+
 export default function CatalogCard({
   p,
   idx,
@@ -104,15 +108,11 @@ export default function CatalogCard({
   idx: number;
   fmtPrice: (rub: number, uzs: number) => string;
 }) {
-  const { addToCart, isInCart } = useShopState();
-
-  // ✅ для корректного процента скидки в зависимости от выбранной валюты
   const rl = useRegionLang() as any;
   const currency: "RUB" | "UZS" =
     (rl?.currency as "RUB" | "UZS" | undefined) ??
     (rl?.region === "ru" ? "RUB" : "UZS");
 
-  // ✅ стабильный "from" без window → нет hydration mismatch
   const pathname = usePathname();
   const sp = useSearchParams();
   const catalogPath = useMemo(() => {
@@ -120,18 +120,22 @@ export default function CatalogCard({
     return `${pathname}${qs ? `?${qs}` : ""}`;
   }, [pathname, sp]);
 
-  const href = `/product/${p.id}?from=${encodeURIComponent(catalogPath)}`;
+  const routeKey = String(p?.productId ?? p?.slug ?? p?.id ?? "").trim();
+  const pid = routeKey || String(p?.id ?? "");
+
+  const href =
+    (p as any)?.href ||
+    (pid ? `/product/${encodeURIComponent(pid)}` : "/catalog");
 
   const title = String(p.title ?? "").trim() || "Товар";
 
-  // ✅ цены: Strapi (priceUZS/priceRUB) + fallback на старые поля
   const curRub = n(p.priceRUB ?? p.price_rub ?? 0);
   const curUzs = n(p.priceUZS ?? p.price_uzs ?? 0);
+  const hasAnyPrice = curRub > 0 || curUzs > 0;
 
   const oldRub = n(p.oldPriceRUB ?? p.old_price_rub ?? 0);
   const oldUzs = n(p.oldPriceUZS ?? p.old_price_uzs ?? 0);
 
-  // ✅ скидка считается по ТЕКУЩЕЙ валюте (RU=RUB, UZ=UZS), с фолбэком на другую валюту
   const cur = currency === "RUB" ? curRub || curUzs : curUzs || curRub;
   const old = currency === "RUB" ? oldRub || oldUzs : oldUzs || oldRub;
 
@@ -141,10 +145,6 @@ export default function CatalogCard({
     ? Math.max(1, Math.min(99, Math.round((1 - cur / old) * 100)))
     : 0;
 
-  // оставляем (может использоваться где-то ещё)
-  const discountPct = n(p.discountPct ?? computedPct);
-
-  // ✅ бейджи
   const badgeMain = p.badge ? String(p.badge) : "";
   const collectionBadge = p.collectionBadge ? String(p.collectionBadge) : "";
 
@@ -159,10 +159,10 @@ export default function CatalogCard({
 
   const STRAPI = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 
-  // ✅ Strapi cardImage
   const strapiImg =
     (p.cardImage?.formats?.small?.url as string | undefined) ??
     (p.cardImage?.url as string | undefined) ??
+    (typeof p.cardImage === "string" ? (p.cardImage as string) : undefined) ??
     undefined;
 
   const strapiSrc = strapiImg
@@ -171,23 +171,31 @@ export default function CatalogCard({
       : `${STRAPI}${strapiImg}`
     : "";
 
-  // ✅ Fallback: cover/image/gallery[0]/images[0]/photos[0]
   const firstGallery =
     (Array.isArray(p.gallery) && p.gallery[0]) ||
     (Array.isArray(p.images) && p.images[0]) ||
     (Array.isArray(p.photos) && p.photos[0]) ||
     "";
 
-  const imgSrcFallback =
+  let imgSrcFallback =
     String(firstGallery ?? "").trim() ||
     String(p.image ?? p.cover ?? "").trim() ||
     "/placeholder.png";
 
-  // ✅ модуль/предметка определяем стабильно (в проде и локале одинаково)
-  // сейчас: если есть Strapi-картинка для карточки — это “модульная/предметная” карточка
+  if (
+    imgSrcFallback.startsWith("/") &&
+    (p.__source === "strapi" || strapiSrc)
+  ) {
+    const looksLikeStrapi =
+      imgSrcFallback.startsWith("/uploads/") ||
+      imgSrcFallback.startsWith("/sections/");
+    if (looksLikeStrapi) imgSrcFallback = `${STRAPI}${imgSrcFallback}`;
+  }
+
   const isModuleCard = Boolean(strapiSrc);
 
-  const added = isInCart(String(p.id));
+  // ✅ единый источник картинки для module-card (чтобы не было "вписывания")
+  const moduleSrc = (strapiSrc || imgSrcFallback || "").trim();
 
   return (
     <article
@@ -199,41 +207,19 @@ export default function CatalogCard({
       )}
     >
       <Link href={href} className="flex h-full flex-col">
-        {/* IMAGE */}
         <div className="relative aspect-[13/11] overflow-hidden bg-white">
-          {/* ✅ Интерьеры/сцены: cover, но если нет cardImage — берём imgSrcFallback (gallery[0]/image/cover) */}
           {!isModuleCard ? (
             <>
-              <Image
-                key={imgSrcFallback}
-                src={imgSrcFallback}
-                alt={title}
-                fill
-                sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                className={cn(
-                  "object-cover object-center",
-                  "transition-transform duration-500",
-                  "group-hover:scale-[1.02]",
-                )}
-                priority={idx < 6}
-              />
-            </>
-          ) : (
-            /* ✅ Модули/предметка: contain + “пол” + воздух сверху (чтобы не прижимало) */
-            <div className="absolute inset-0 flex items-end justify-center bg-black/[0.03] pt-6 pb-5">
-              <div className="pointer-events-none absolute inset-x-8 bottom-5 h-px bg-black/8" />
-
-              {strapiSrc ? (
+              {isRemoteSrc(imgSrcFallback) ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={strapiSrc}
+                  src={imgSrcFallback}
                   alt={title}
                   className={cn(
-                    "h-auto w-auto",
-                    "max-h-[78%] max-w-[92%]",
-                    "object-contain object-bottom",
+                    "absolute inset-0 h-full w-full",
+                    "object-cover object-center",
                     "transition-transform duration-500",
                     "group-hover:scale-[1.02]",
-                    "drop-shadow-[0_14px_18px_rgba(0,0,0,0.14)]",
                   )}
                   loading={idx < 6 ? "eager" : "lazy"}
                 />
@@ -242,38 +228,66 @@ export default function CatalogCard({
                   key={imgSrcFallback}
                   src={imgSrcFallback}
                   alt={title}
-                  width={900}
-                  height={700}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
                   className={cn(
-                    "h-auto w-auto",
-                    "max-h-[78%] max-w-[92%]",
-                    "object-contain object-bottom",
+                    "object-cover object-center",
                     "transition-transform duration-500",
                     "group-hover:scale-[1.02]",
-                    "drop-shadow-[0_14px_18px_rgba(0,0,0,0.14)]",
                   )}
                   priority={idx < 6}
                 />
               )}
-            </div>
+            </>
+          ) : (
+            // ✅ FIX: делаем как обычные карточки — полноэкранная картинка object-cover
+            <>
+              {isRemoteSrc(moduleSrc) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={moduleSrc}
+                  alt={title}
+                  className={cn(
+                    "absolute inset-0 h-full w-full",
+                    "object-cover object-center",
+                    "transition-transform duration-500",
+                    "group-hover:scale-[1.02]",
+                  )}
+                  loading={idx < 6 ? "eager" : "lazy"}
+                />
+              ) : (
+                <Image
+                  key={moduleSrc}
+                  src={moduleSrc}
+                  alt={title}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                  className={cn(
+                    "object-cover object-center",
+                    "transition-transform duration-500",
+                    "group-hover:scale-[1.02]",
+                  )}
+                  priority={idx < 6}
+                />
+              )}
+
+              {/* ✅ лёгкий “премиум” градиент снизу как у hero (можешь убрать если не надо) */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
+            </>
           )}
 
-          {/* ✅ BADGES */}
           {hasDiscount || badgeMain || collectionBadge ? (
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               {hasDiscount ? (
                 <GoldDiscountBadge text={`Скидка −${computedPct}%`} />
               ) : null}
-
               {badgeMain ? <GreenPremiumBadge text={badgeMain} /> : null}
-
               {collectionBadge ? (
                 <GreenPremiumBadge text={collectionBadge} />
               ) : null}
             </div>
           ) : null}
 
-          {/* ✅ ACTION ICONS */}
           <div className="absolute right-3 top-3 z-10 flex flex-col gap-2 translate-y-[-4px] opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
             <div
               onClick={(e) => {
@@ -282,7 +296,7 @@ export default function CatalogCard({
               }}
             >
               <ProductActions
-                id={String(p.id)}
+                id={pid}
                 snapshot={snapshot}
                 onOpenSpecs={() => {
                   window.location.href = href;
@@ -292,7 +306,6 @@ export default function CatalogCard({
           </div>
         </div>
 
-        {/* CONTENT */}
         <div className="flex flex-1 flex-col px-4 pb-3 pt-3">
           <div
             className="overflow-hidden text-[14px] font-medium leading-[20px] text-black/90"
@@ -307,147 +320,55 @@ export default function CatalogCard({
           </div>
 
           <div className="mt-2 flex items-baseline gap-2">
-            <div className="text-[15px] font-semibold text-black">
-              {fmtPrice(curRub, curUzs)}
-            </div>
+            {hasAnyPrice ? (
+              <>
+                <div className="text-[15px] font-semibold text-black">
+                  {fmtPrice(curRub, curUzs)}
+                </div>
 
-            {hasDiscount ? (
-              <div className="text-[13px] text-black/35 line-through">
-                {fmtPrice(oldRub, oldUzs)}
+                {hasDiscount ? (
+                  <div className="text-[13px] text-black/35 line-through">
+                    {fmtPrice(oldRub, oldUzs)}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="text-[13px] font-medium text-black/55">
+                Цена по запросу
               </div>
-            ) : null}
+            )}
           </div>
 
           <div className="mt-auto pt-3">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!added) addToCart(String(p.id), 1);
-              }}
+            {/* ✅ Кнопка теперь просто ведёт в карточку */}
+            <span
               className={cn(
-                "lionetoCartBtn relative h-10 w-full overflow-hidden rounded-xl",
+                "relative h-10 w-full overflow-hidden rounded-xl",
                 "inline-flex items-center justify-center",
                 "text-[12px] font-semibold tracking-[0.14em] uppercase",
                 "transition cursor-pointer",
                 "active:scale-[0.99]",
-                added ? "isAdded" : "isIdle",
+                "border border-black/10 bg-white",
+                "hover:border-black/20 hover:text-black",
+                "shadow-[0_10px_26px_rgba(0,0,0,0.06)]",
               )}
-              aria-label={added ? "Добавлено в корзину" : "Добавить в корзину"}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = href;
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  window.location.href = href;
+                }
+              }}
+              aria-label="Открыть товар"
             >
-              <span className="bgSlide pointer-events-none absolute inset-0 opacity-0" />
-              <span className="glass pointer-events-none absolute inset-[1px] rounded-[11px] opacity-0" />
-              <span className="shine pointer-events-none absolute -left-[60%] top-0 h-full w-[55%] opacity-0" />
-
-              <span className="relative z-10">
-                {added ? "Добавлено" : "В корзину"}
-              </span>
-            </button>
-
-            <style jsx>{`
-              .lionetoCartBtn.isIdle {
-                border: 1px solid rgba(0, 0, 0, 0.14);
-                color: rgba(0, 0, 0, 0.82);
-                background: rgba(255, 255, 255, 0.72);
-                box-shadow:
-                  inset 0 1px 0 rgba(255, 255, 255, 0.9),
-                  0 10px 26px rgba(0, 0, 0, 0.06);
-                backdrop-filter: blur(10px);
-              }
-              .lionetoCartBtn.isIdle:hover {
-                border-color: rgba(215, 181, 107, 0.72);
-                color: rgba(0, 0, 0, 0.92);
-              }
-
-              .lionetoCartBtn.isAdded {
-                border: 1px solid rgba(215, 181, 107, 0.75);
-                color: rgba(90, 58, 0, 0.92);
-                background: radial-gradient(
-                  120% 140% at 30% 20%,
-                  rgba(255, 241, 184, 0.98) 0%,
-                  rgba(255, 211, 106, 0.92) 35%,
-                  rgba(230, 169, 60, 0.86) 65%,
-                  rgba(201, 138, 26, 0.82) 100%
-                );
-                box-shadow:
-                  inset 0 1px 0 rgba(255, 255, 255, 0.65),
-                  0 14px 34px rgba(201, 138, 26, 0.22);
-              }
-              .lionetoCartBtn.isAdded {
-                cursor: default;
-              }
-              .lionetoCartBtn.isAdded .bgSlide,
-              .lionetoCartBtn.isAdded .glass,
-              .lionetoCartBtn.isAdded .shine {
-                display: none;
-              }
-
-              .lionetoCartBtn .bgSlide {
-                background: linear-gradient(
-                  90deg,
-                  rgba(255, 241, 184, 0) 0%,
-                  rgba(255, 241, 184, 0.9) 18%,
-                  rgba(255, 211, 106, 0.9) 40%,
-                  rgba(230, 169, 60, 0.86) 62%,
-                  rgba(201, 138, 26, 0.84) 82%,
-                  rgba(255, 241, 184, 0) 100%
-                );
-                background-size: 240% 100%;
-                background-position: 0% 50%;
-              }
-              .lionetoCartBtn .glass {
-                background: linear-gradient(
-                  180deg,
-                  rgba(255, 255, 255, 0.55),
-                  rgba(255, 255, 255, 0.08)
-                );
-              }
-              .lionetoCartBtn .shine {
-                background: linear-gradient(
-                  120deg,
-                  transparent 0%,
-                  rgba(255, 255, 255, 0.92) 50%,
-                  transparent 100%
-                );
-                transform: skewX(-18deg);
-              }
-
-              .lionetoCartBtn.isIdle:hover .bgSlide {
-                opacity: 1;
-                animation: lioneto_bgSlide 900ms ease-out forwards;
-              }
-              .lionetoCartBtn.isIdle:hover .glass {
-                opacity: 1;
-                transition: opacity 180ms ease;
-              }
-              .lionetoCartBtn.isIdle:hover .shine {
-                opacity: 1;
-                animation: lioneto_shineSlide 900ms ease-out forwards;
-              }
-
-              @keyframes lioneto_bgSlide {
-                0% {
-                  background-position: 0% 50%;
-                }
-                100% {
-                  background-position: 100% 50%;
-                }
-              }
-              @keyframes lioneto_shineSlide {
-                0% {
-                  transform: translateX(0) skewX(-18deg);
-                  opacity: 0;
-                }
-                10% {
-                  opacity: 1;
-                }
-                100% {
-                  transform: translateX(260%) skewX(-18deg);
-                  opacity: 0;
-                }
-              }
-            `}</style>
+              Открыть товар
+            </span>
           </div>
         </div>
       </Link>

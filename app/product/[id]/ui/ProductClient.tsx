@@ -82,6 +82,30 @@ export type ProductPageModel = {
   isCollection?: boolean;
 };
 
+type Accent = "white" | "cappuccino" | "default";
+
+/** ✅ Определяем акцент только по выбранному цвету/variantKey (без ломки логики) */
+function getAccentFromVariant(
+  variantKey?: string | null,
+  selectedByGroup?: Record<string, any> | null,
+): Accent {
+  const c = String((selectedByGroup as any)?.color ?? "")
+    .trim()
+    .toLowerCase();
+  if (c) {
+    if (c.includes("white") || c.includes("бел")) return "white";
+    if (c.includes("cappuccino") || c.includes("капуч")) return "cappuccino";
+  }
+
+  const k = String(variantKey ?? "")
+    .trim()
+    .toLowerCase();
+  if (k.includes("white") || k.includes("бел")) return "white";
+  if (k.includes("cappuccino") || k.includes("капуч")) return "cappuccino";
+
+  return "default";
+}
+
 export default function ProductClient({
   product,
 }: {
@@ -120,6 +144,12 @@ export default function ProductClient({
     // group:id | group:id ...
     return entries.map(([g, v]) => `${g}:${v}`).join("|");
   }, [selectedByGroup]);
+
+  // ✅ Акцент (white / cappuccino)
+  const accent: Accent = useMemo(
+    () => getAccentFromVariant(variantKey, selectedByGroup as any),
+    [variantKey, selectedByGroup],
+  );
 
   // ✅ Берём галерею/картинку выбранного варианта (цвета)
   const variantGallery = useMemo(() => {
@@ -189,6 +219,45 @@ export default function ProductClient({
     .trim()
     .toUpperCase();
 
+  // ✅ стили-акценты (тонко, премиально)
+  const accentVars = useMemo(() => {
+    // cappuccino: теплый, white: нейтральный серебристый
+    const acc =
+      accent === "cappuccino"
+        ? "#C6A27E"
+        : accent === "white"
+          ? "#F5F5F5"
+          : "#111111";
+
+    const accText =
+      accent === "cappuccino"
+        ? "#FFFFFF"
+        : accent === "white"
+          ? "#111111"
+          : "#FFFFFF";
+
+    const ring =
+      accent === "cappuccino"
+        ? "rgba(198,162,126,0.45)"
+        : accent === "white"
+          ? "rgba(0,0,0,0.14)"
+          : "rgba(0,0,0,0.14)";
+
+    const soft =
+      accent === "cappuccino"
+        ? "rgba(198,162,126,0.18)"
+        : accent === "white"
+          ? "rgba(0,0,0,0.06)"
+          : "rgba(0,0,0,0.06)";
+
+    return {
+      "--acc": acc,
+      "--accText": accText,
+      "--accRing": ring,
+      "--accSoft": soft,
+    } as React.CSSProperties;
+  }, [accent]);
+
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-8">
       <div className="mb-4 text-[12px] text-black/40">
@@ -226,9 +295,7 @@ export default function ProductClient({
           onClick={() => router.back()}
           className={cn(
             "cursor-pointer inline-flex items-center gap-2 rounded-full border",
-            // ✅ mobile compact
             "h-9 px-3 text-[11px] tracking-[0.16em] uppercase",
-            // ✅ desktop as before
             "sm:h-11 sm:px-4 sm:py-2 sm:text-[12px]",
             "border-black/10 bg-white text-black/70",
             "hover:border-black/20 hover:text-black transition",
@@ -238,15 +305,12 @@ export default function ProductClient({
           ← НАЗАД
         </button>
 
-        {/* ✅ right actions: on mobile can wrap and stay neat */}
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           <button
             onClick={() => toggleFav(product.id, vk)}
             className={cn(
               "cursor-pointer inline-flex items-center gap-2 rounded-full border",
-              // ✅ mobile compact
               "h-9 px-3 text-[11px]",
-              // ✅ desktop
               "sm:h-11 sm:px-4 sm:py-2 sm:text-[13px]",
               "border-black/10 bg-white text-black/75",
               "hover:border-black/20 hover:text-black transition",
@@ -262,15 +326,18 @@ export default function ProductClient({
             В избранное
           </button>
 
+          {/* ✅ top cart action — акцентная под цвет */}
           <button
             onClick={toggleMainCart}
+            style={accentVars}
             className={cn(
               "cursor-pointer inline-flex items-center gap-2 rounded-full",
-              // ✅ mobile compact
               "h-9 px-3 text-[11px]",
-              // ✅ desktop
               "sm:h-11 sm:px-4 sm:py-2 sm:text-[13px]",
-              "text-white transition bg-black hover:bg-black/90",
+              "transition active:scale-[0.99]",
+              accent === "cappuccino"
+                ? "bg-[var(--acc)] text-white shadow-[0_12px_26px_var(--accSoft)] hover:brightness-[0.98]"
+                : "bg-black text-white hover:bg-black/90",
             )}
             type="button"
           >
@@ -282,7 +349,6 @@ export default function ProductClient({
 
       <div className="grid gap-10 lg:grid-cols-[520px_1fr]">
         <ProductGallery
-          // ✅ key теперь меняется при смене color
           key={`${product.id}-${gallery.length}-${variantKey ?? "base"}`}
           title={product.title}
           gallery={gallery}
@@ -293,7 +359,16 @@ export default function ProductClient({
           onOpenLightbox={(idx) => openLightbox(idx)}
         />
 
-        <aside>
+        {/* ✅ Правый блок с мягким акцентным glow */}
+        <aside
+          style={accentVars}
+          className={cn(
+            "relative",
+            accent === "cappuccino"
+              ? "shadow-[0_0_0_1px_var(--accRing),0_30px_80px_-60px_var(--accSoft)] rounded-3xl p-5 -m-5"
+              : "rounded-3xl p-5 -m-5",
+          )}
+        >
           {collectionBadge ? (
             <div className="mb-2 inline-flex rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] tracking-[0.18em] uppercase text-black/55">
               Коллекция: {collectionBadge}
@@ -304,12 +379,22 @@ export default function ProductClient({
             {product.title}
           </h1>
 
-          <ProductVariants
-            groups={groupsForUI}
-            selectedByGroup={selectedByGroup}
-            setSelectedByGroup={setSelectedByGroup}
-            currency={currency}
-          />
+          {/* ✅ Акцент на вариантах без правки ProductVariants: через wrapper */}
+          <div
+            className={cn(
+              "mt-4 rounded-2xl p-3",
+              accent === "cappuccino"
+                ? "bg-[rgba(198,162,126,0.06)]"
+                : "bg-transparent",
+            )}
+          >
+            <ProductVariants
+              groups={groupsForUI}
+              selectedByGroup={selectedByGroup}
+              setSelectedByGroup={setSelectedByGroup}
+              currency={currency}
+            />
+          </div>
 
           <div className="mt-3 flex items-start justify-between gap-6">
             <div className="text-[28px] font-semibold text-black">
@@ -343,16 +428,20 @@ export default function ProductClient({
             </div>
           </div>
 
+          {/* ✅ Главные CTA — зависят от accent */}
           <div className="mt-4 flex items-center gap-4">
             <button
               onClick={toggleMainCart}
+              style={accentVars}
               className={cn(
                 "cursor-pointer inline-flex items-center justify-center gap-2",
                 "h-12 flex-1 rounded-none",
                 "text-[13px] font-semibold transition active:scale-[0.99]",
                 inCart
                   ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                  : "bg-white text-black border border-black/20 hover:bg-black/[0.02]",
+                  : accent === "cappuccino"
+                    ? "bg-[var(--acc)] text-white hover:brightness-[0.98] shadow-[0_16px_36px_var(--accSoft)]"
+                    : "bg-white text-black border border-black/20 hover:bg-black/[0.02]",
               )}
               type="button"
             >
@@ -369,10 +458,16 @@ export default function ProductClient({
                 shop.setOneClick(product.id, qty, vk);
                 router.push("/checkout?mode=oneclick");
               }}
+              style={accentVars}
               className={cn(
                 "cursor-pointer h-12 flex-1 rounded-none",
-                "bg-black text-white text-[13px] font-semibold",
-                "hover:bg-black/90 transition active:scale-[0.99]",
+                "text-[13px] font-semibold",
+                "transition active:scale-[0.99]",
+                accent === "cappuccino"
+                  ? "bg-black text-white hover:bg-black/90"
+                  : accent === "white"
+                    ? "bg-black text-white hover:bg-black/90"
+                    : "bg-black text-white hover:bg-black/90",
               )}
               type="button"
             >

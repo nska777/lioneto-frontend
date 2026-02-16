@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRegionLang } from "../context/region-lang";
 import { getDict, tF } from "@/i18n";
 
 import TopBar from "./header/TopBar";
 import BrandRow from "./header/BrandRow";
-import CategoryNav from "./header/CategoryNav";
 import MobileMenu from "./header/MobileMenu";
 
 import MapModal from "./modals/MapModal";
 import CallModal from "./modals/CallModal";
-
+import CategoryNav from "./header/CategoryNav";
 import {
   REGION_DATA,
   megaCategories,
@@ -38,12 +37,10 @@ type GlobalFromStrapi = {
     id?: number;
     region?: RegionKey | string | null;
 
-    // RU
     city?: string | null;
     addressLine?: string | null;
     workTime?: string | null;
 
-    // UZ
     city_uz?: string | null;
     addressLine_uz?: string | null;
     workTime_uz?: string | null;
@@ -79,11 +76,9 @@ export default function Header({
   const [callOpen, setCallOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // 1) регион
   const regionKey = normalizeRegionKey(region);
   const regionMeta = (REGION_DATA as any)[regionKey] ?? (REGION_DATA as any).uz;
 
-  // 2) префикс и подпись региона — всегда из текущего regionKey
   const phonePrefix = String(REGION_DATA[regionKey].phonePrefix);
 
   const regionLabel =
@@ -91,7 +86,6 @@ export default function Header({
       ? safeTF(dict, "region.uz", "Узбекистан")
       : safeTF(dict, "region.ru", "Россия");
 
-  // 4) TOP LINKS
   const topLinks = useMemo(() => {
     const normalize = (s: string) =>
       s
@@ -146,7 +140,6 @@ export default function Header({
     }));
   }, [global?.topLinks]);
 
-  // 5) phone
   const phone = useMemo(() => {
     const p = (global?.phones ?? []).find(
       (x) => String(x?.region) === regionKey,
@@ -157,7 +150,6 @@ export default function Header({
       : String(regionMeta?.phone ?? "");
   }, [global?.phones, regionKey, regionMeta]);
 
-  // 6) addresses
   const addresses = useMemo(() => {
     const isUzLang = String(lang) === "uz";
 
@@ -180,7 +172,6 @@ export default function Header({
     const fallback = Array.isArray(regionMeta?.addresses)
       ? regionMeta.addresses
       : [];
-
     return list.length ? list : fallback;
   }, [global?.addresses, regionKey, regionMeta, lang]);
 
@@ -190,7 +181,8 @@ export default function Header({
 
   return (
     <>
-      <header className="w-full bg-white">
+      {/* ✅ CategoryNav теперь внутри header, фон один */}
+      <header className="w-full bg-[#f3f3f3]">
         <TopBar
           dict={dict}
           topLinks={topLinks}
@@ -199,6 +191,7 @@ export default function Header({
           regionTitleFallback={String(regionMeta?.fallback ?? "Узбекистан")}
           addresses={addresses}
           callCtaLabel={callCta}
+          catalogCategories={megaCategories}
           onPickAddress={(a) => {
             setSelectedAddress(a);
             setMapOpen(true);
@@ -230,7 +223,6 @@ export default function Header({
         onClose={() => setMapOpen(false)}
         address={selectedAddress}
       />
-
       <CallModal open={callOpen} onClose={() => setCallOpen(false)} />
 
       <MobileMenu
@@ -241,6 +233,7 @@ export default function Header({
           href: x.href,
           isExternal: x.isExternal,
         }))}
+        categories={megaCategories}
       />
     </>
   );

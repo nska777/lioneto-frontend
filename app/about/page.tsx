@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="bg-white text-black">
+    <div className="bg-#f3f3f3 text-black">
       {/* Slider (как на главной) */}
       <section className="mx-auto w-full max-w-[1280px] px-4 pt-6">
         <CatalogHeroSlider

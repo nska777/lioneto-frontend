@@ -91,17 +91,34 @@ export default function StoresDropdown({
       <button
         ref={btnRef}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-full px-2 py-1 whitespace-nowrap transition hover:bg-black/5 hover:text-black"
         type="button"
+        className={[
+          "relative inline-flex items-center gap-1 whitespace-nowrap",
+          "cursor-pointer select-none",
+          "text-[13px] tracking-[0.02em]",
+          "transition-colors",
+          open ? "text-black" : "text-black/70 hover:text-black",
+        ].join(" ")}
       >
-        <span className="hidden sm:inline">{label}</span>
-
-        <span className="sm:hidden">Адреса</span>
+        <span>{label}</span>
 
         <ChevronDown
-          className={`h-4 w-4 opacity-70 transition ${
-            open ? "rotate-180" : ""
-          }`}
+          className={[
+            "h-4 w-4 opacity-70 transition-transform duration-300",
+            open ? "rotate-180" : "",
+          ].join(" ")}
+        />
+
+        {/* underline как у TopLink */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-0 -bottom-[0.75px] h-[0.75px] w-full rounded-full transition-all duration-300"
+          style={{
+            background: "rgba(0,0,0,0.65)",
+            opacity: open ? 1 : 0,
+            transform: open ? "scaleX(1)" : "scaleX(0)",
+            transformOrigin: "left center",
+          }}
         />
       </button>
 

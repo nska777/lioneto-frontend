@@ -1,78 +1,107 @@
 // app/lib/prices.ts
-
 export type PriceEntry = {
-  productId: string;
-  title?: string | null;
+  id?: number;
+  documentId?: string;
 
-  priceUZS?: number | null;
-  priceRUB?: number | null;
+  productId: string | number;
 
-  oldPriceUZS?: number | null;
-  oldPriceRUB?: number | null;
+  title?: string;
 
-  hasDiscount?: boolean | null;
-  collectionBadge?: string | null;
-  isActive?: boolean | null;
+  priceUZS?: number;
+  priceRUB?: number;
+
+  oldPriceUZS?: number;
+  oldPriceRUB?: number;
+
+  hasDiscount?: boolean;
+  collectionBadge?: string;
+  isActive?: boolean;
 
   cardImage?: any;
+
+  createdAt?: string;
+  updatedAt?: string;
+  publishedAt?: string;
 };
 
-function num(v: any) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+function getStrapiBase(): string {
+  const raw = (process.env.NEXT_PUBLIC_STRAPI_URL || "").trim();
+
+  // dev fallback (локально)
+  if (!raw && process.env.NODE_ENV !== "production") {
+    return "http://localhost:1337";
+  }
+
+  return raw ? raw.replace(/\/$/, "") : "";
+}
+
+function asStr(v: any) {
+  return String(v ?? "").trim();
+}
+
+function addToMap(map: Map<string, PriceEntry>, key: any, row: PriceEntry) {
+  const k = asStr(key);
+  if (!k) return;
+  map.set(k, row);
+  map.set(k.toLowerCase(), row);
+  if (/^\d+$/.test(k)) {
+    map.set(String(Number(k)), row);
+  }
+}
+
+// TEST_MODE:
+// - false (prod): берём только isActive=true
+// - true  (local): берём ВСЁ, но если есть isActive=false (тестовые) — они имеют приоритет
+const TEST_MODE = process.env.NEXT_PUBLIC_STRAPI_TEST_MODE === "true";
+
+async function fetchAllPriceEntries(): Promise<PriceEntry[]> {
+  const base = getStrapiBase();
+  if (!base) return [];
+
+  // pageSize можно большой — у тебя total=98, это точно влезает
+  const pageSize = 250;
+
+  const filters = TEST_MODE ? "" : "&filters[isActive][$eq]=true";
+  const url = `${base}/api/price-entries?pagination[page]=1&pagination[pageSize]=${pageSize}${filters}`;
+
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return [];
+
+    const json = await res.json();
+    const data = Array.isArray(json?.data) ? json.data : [];
+    return data as PriceEntry[];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchPricesMap(): Promise<Map<string, PriceEntry>> {
-  const res = await fetch("/api/prices", { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch /api/prices");
+  const list = await fetchAllPriceEntries();
 
-  const json = await res.json();
-
-  // может быть: {data:[...]} или [...]
-  const rawRows: any[] = Array.isArray(json)
-    ? json
-    : Array.isArray(json?.data)
-      ? json.data
-      : [];
+  // сортировка, чтобы в TEST_MODE “тестовые” (isActive=false) могли переопределять активные
+  const sorted = [...list].sort((a: any, b: any) => {
+    if (TEST_MODE) {
+      const aTest = a?.isActive === false ? 0 : 1;
+      const bTest = b?.isActive === false ? 0 : 1;
+      if (aTest !== bTest) return aTest - bTest;
+    }
+    const au = Date.parse(a?.updatedAt || a?.createdAt || "") || 0;
+    const bu = Date.parse(b?.updatedAt || b?.createdAt || "") || 0;
+    return bu - au;
+  });
 
   const map = new Map<string, PriceEntry>();
 
-  for (const r of rawRows) {
-    // ✅ поддержка Strapi { attributes: {...} } и плоского объекта
-    const src = r?.attributes ? { ...r.attributes, id: r.id, documentId: r.documentId } : r;
+  for (const item of sorted) {
+    const row: PriceEntry = item; // у тебя формат “без attributes”
 
-    const productId = String(src?.productId ?? "").trim();
-    if (!productId) continue;
-
-    const entry: PriceEntry = {
-      productId,
-      title: src?.title ?? null,
-
-      // ✅ camelCase
-      priceUZS: src?.priceUZS ?? null,
-      priceRUB: src?.priceRUB ?? null,
-      oldPriceUZS: src?.oldPriceUZS ?? null,
-      oldPriceRUB: src?.oldPriceRUB ?? null,
-
-      // ✅ snake_case fallback (если вдруг)
-      // (не мешает даже если не используется)
-      ...(src?.price_uzs != null ? { priceUZS: num(src.price_uzs) } : null),
-      ...(src?.price_rub != null ? { priceRUB: num(src.price_rub) } : null),
-      ...(src?.old_price_uzs != null ? { oldPriceUZS: num(src.old_price_uzs) } : null),
-      ...(src?.old_price_rub != null ? { oldPriceRUB: num(src.old_price_rub) } : null),
-
-      hasDiscount: src?.hasDiscount ?? null,
-      collectionBadge: src?.collectionBadge ?? null,
-      isActive: src?.isActive ?? null,
-
-      // ✅ cardImage может быть плоский объект (как у тебя) или {data:{attributes}}
-      cardImage:
-        src?.cardImage?.data?.attributes
-          ? { ...src.cardImage.data.attributes, id: src.cardImage.data.id }
-          : src?.cardImage ?? null,
-    };
-
-    map.set(productId, entry);
+    // ключи, по которым будем находить
+    addToMap(map, row.productId, row);
+    addToMap(map, row.id, row);
+    addToMap(map, (row as any).slug, row);
+    addToMap(map, (row as any).handle, row);
+    addToMap(map, (row as any).sku, row);
   }
 
   return map;

@@ -85,7 +85,16 @@ export default function BrandRow({
               {tt("header.pickRegion", "Выберите регион")}
             </div>
 
-            <div className="inline-flex shrink-0 rounded-full border border-black/10 bg-white/70 p-1 shadow-[0_10px_30px_-22px_rgba(0,0,0,0.35)] backdrop-blur">
+            <div
+              className="
+  inline-flex
+  shrink-0
+  rounded-full
+  bg-[#f3f3f3]
+  p-1
+  shadow-[0_4px_12px_rgba(0,0,0,0.08)]
+"
+            >
               <button
                 type="button"
                 onClick={() => setRegion("uz")}
@@ -121,9 +130,9 @@ export default function BrandRow({
               className="inline-flex items-center justify-center cursor-pointer"
             >
               <Image
-                src="/logo-lioneto.svg"
+                src="/logo-lioneto.png"
                 alt="Lioneto"
-                width={160}
+                width={265}
                 height={45}
                 priority
                 className="transition-transform duration-300 hover:scale-[1.03]"
@@ -133,7 +142,7 @@ export default function BrandRow({
 
           {/* RIGHT */}
           <div className="flex flex-nowrap items-center justify-end gap-3 md:w-[360px]">
-            <div className="inline-flex min-w-[86px] rounded-full border border-black/10 bg-white p-1 shadow-sm">
+            <div className="inline-flex min-w-[86px] rounded-full border-none bg-#f3f3f3 p-1 shadow-sm">
               <button
                 type="button"
                 onClick={() => setLang("ru")}

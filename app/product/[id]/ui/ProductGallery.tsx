@@ -6,6 +6,66 @@ import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
+function isRemoteSrc(src: string) {
+  return /^https?:\/\//i.test(src);
+}
+
+// next/image часто ругается на localhost/private ip.
+// Поэтому для Strapi (http/https) используем <img>, как в CatalogCard.
+function UseImage({
+  src,
+  alt,
+  priority,
+  className,
+}: {
+  src: string;
+  alt: string;
+  priority?: boolean;
+  className?: string;
+}) {
+  if (!src) return null;
+
+  if (isRemoteSrc(src)) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        loading={priority ? "eager" : "lazy"}
+      />
+    );
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      priority={priority}
+      className={className}
+      sizes="(max-width: 1024px) 100vw, 520px"
+    />
+  );
+}
+
+function UseThumb({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  if (!src) return null;
+
+  if (isRemoteSrc(src)) {
+    return <img src={src} alt={alt} className={className} loading="lazy" />;
+  }
+
+  return <Image src={src} alt={alt} fill className={className} sizes="120px" />;
+}
+
 export default function ProductGallery({
   title,
   gallery,
@@ -50,13 +110,11 @@ export default function ProductGallery({
               aria-label="Открыть фото в полный размер"
             />
 
-            <Image
+            <UseImage
               src={safeGallery[safeIdx]}
               alt={title}
-              fill
               priority
-              className="object-cover"
-              sizes="(max-width: 1024px) 100vw, 520px"
+              className="absolute inset-0 h-full w-full object-cover"
             />
 
             {safeGallery.length > 1 && (
@@ -137,12 +195,10 @@ export default function ProductGallery({
                 )}
                 aria-label={`Фото ${i + 1}`}
               >
-                <Image
+                <UseThumb
                   src={src}
                   alt={`${title} ${i + 1}`}
-                  fill
-                  className="object-cover"
-                  sizes="120px"
+                  className="absolute inset-0 h-full w-full object-cover"
                 />
               </button>
             );

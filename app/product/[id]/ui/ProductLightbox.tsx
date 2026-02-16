@@ -1,10 +1,61 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
+
+function isRemoteSrc(src: string) {
+  const s = String(src || "")
+    .trim()
+    .toLowerCase();
+  return s.startsWith("http://") || s.startsWith("https://");
+}
+
+function SafeFullscreenMedia({ src, alt }: { src: string; alt: string }) {
+  const [broken, setBroken] = useState(false);
+
+  const remote = useMemo(() => isRemoteSrc(src), [src]);
+
+  if (!src || broken) {
+    return (
+      <div className="absolute inset-0 grid place-items-center bg-black/10">
+        <div className="text-[11px] tracking-[0.22em] text-white/70">
+          NO IMAGE
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Для Strapi/remote используем <img> (не зависит от next/image domains)
+  if (remote) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className="absolute inset-0 h-full w-full object-contain"
+        loading="eager"
+        decoding="async"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+
+  // ✅ Для локальных /public путей оставляем next/image
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      priority
+      sizes="100vw"
+      className="object-contain"
+      onError={() => setBroken(true)}
+    />
+  );
+}
 
 export default function ProductLightbox({
   open,
@@ -25,9 +76,26 @@ export default function ProductLightbox({
   onPrev: () => void;
   onNext: () => void;
 }) {
+  const hasNav = gallery.length > 1;
+
+  // ✅ Esc / стрелки (без изменения твоих хуков)
+  useEffect(() => {
+    if (!open) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (!hasNav) return;
+      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "ArrowRight") onNext();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, hasNav, onClose, onPrev, onNext]);
+
   if (!open) return null;
 
-  const hasNav = gallery.length > 1;
+  const src = gallery[idx] || "";
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -45,6 +113,7 @@ export default function ProductLightbox({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* крестик */}
         <button
@@ -102,17 +171,10 @@ export default function ProductLightbox({
 
         {/* изображение на весь экран */}
         <div className="absolute inset-0 z-10">
-          <Image
-            src={gallery[idx]}
-            alt={title}
-            fill
-            priority
-            sizes="100vw"
-            className="object-contain"
-          />
+          <SafeFullscreenMedia src={src} alt={title} />
         </div>
 
-        {/* нижняя плашка (не мешает картинке) */}
+        {/* нижняя плашка */}
         <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2">
           <div
             className={cn(

@@ -117,6 +117,7 @@ function getColorToken(title: string) {
   if (t.includes("сер")) return "gray";
   if (t.includes("граф")) return "graphite";
   if (t.includes("беж")) return "beige";
+  if (t.includes("капуч")) return "cappuccino";
   if (t.includes("роз")) return "rose";
   if (t.includes("крем")) return "cream";
   if (t.includes("орех")) return "walnut";
@@ -141,6 +142,8 @@ function swatchClass(token: string) {
       return "bg-zinc-700";
     case "beige":
       return "bg-[#E7D8C7]";
+    case "cappuccino":
+      return "bg-[#CBB39A]";
     case "rose":
       return "bg-[#E7C7D6]";
     case "cream":
@@ -157,6 +160,42 @@ function swatchClass(token: string) {
       return "bg-[#C7D6C7]";
     default:
       return "bg-zinc-200";
+  }
+}
+
+/**
+ * ✅ ТЕМА ПИЛЮЛИ ДЛЯ ЦВЕТА (вся пилюля, не только кружок)
+ * Белый — белая премиальная пилюля.
+ * Капучино — мягкий капучино.
+ */
+function getColorPillTheme(token: string) {
+  switch (token) {
+    case "white":
+      return {
+        base: "bg-white text-black border-black/15 shadow-[0_10px_26px_rgba(0,0,0,0.08)]",
+        hover:
+          "hover:border-black/25 hover:shadow-[0_14px_32px_rgba(0,0,0,0.10)]",
+        active:
+          "bg-white text-black border-black/35 shadow-[0_16px_38px_rgba(0,0,0,0.12)]",
+        ring: "ring-black/10",
+      };
+    case "cappuccino":
+      return {
+        base: "bg-[#F2E7DB] text-[#3C2C22] border-[#E2CBB6] shadow-[0_10px_26px_rgba(0,0,0,0.07)]",
+        hover:
+          "hover:bg-[#EBDDCE] hover:border-[#D9BEA6] hover:shadow-[0_14px_32px_rgba(0,0,0,0.10)]",
+        active:
+          "bg-[#D9BFA8] text-[#2D1F17] border-[#CDAE93] shadow-[0_16px_38px_rgba(0,0,0,0.14)]",
+        ring: "ring-[#CDAE93]/35",
+      };
+    default:
+      return {
+        base: "bg-white/85 text-black/70 border-black/10 shadow-[0_8px_22px_rgba(0,0,0,0.06)]",
+        hover: "hover:border-black/15 hover:text-black",
+        active:
+          "bg-black text-white border-black/15 shadow-[0_14px_34px_rgba(0,0,0,0.22)]",
+        ring: "ring-black/10",
+      };
   }
 }
 
@@ -227,7 +266,6 @@ function PremiumPillButton({
           "bg-black/[0.02] text-black/30 shadow-none hover:border-black/10 hover:text-black/30",
       )}
     >
-      {/* Premium sheen */}
       <span
         className={cn(
           "pointer-events-none absolute inset-0 rounded-full opacity-0 transition",
@@ -236,8 +274,6 @@ function PremiumPillButton({
             : "group-hover:opacity-100 [background:radial-gradient(120%_120%_at_50%_0%,rgba(0,0,0,0.06)_0%,rgba(0,0,0,0.00)_60%)]",
         )}
       />
-
-      {/* Hairline inner ring (Apple-ish) */}
       <span
         className={cn(
           "pointer-events-none absolute inset-0 rounded-full opacity-0 transition",
@@ -246,7 +282,6 @@ function PremiumPillButton({
             : "group-hover:opacity-100 ring-1 ring-black/[0.04]",
         )}
       />
-
       <span className="relative leading-none">{title}</span>
       {right ? <span className="relative">{right}</span> : null}
     </button>
@@ -350,7 +385,6 @@ function MechanismCard({
             disabled && "border-black/10 bg-black/[0.02]",
           )}
         >
-          {/* minimalist dot */}
           <span
             className={cn(
               "h-2 w-2 rounded-full",
@@ -428,13 +462,11 @@ export default function ProductVariants({
                 {label}
               </div>
 
-              {/* маленький hint справа, если надо */}
               <div className="text-[11px] text-black/35">
                 {isColor ? "выберите оттенок" : null}
               </div>
             </div>
 
-            {/* ===== MECHANISM: cards ===== */}
             {isMechanism ? (
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {g.items.map((v) => {
@@ -470,7 +502,7 @@ export default function ProductVariants({
               </div>
             ) : null}
 
-            {/* ===== COLOR: swatches ===== */}
+            {/* ✅ COLOR: теперь вся пилюля в цвет */}
             {isColor ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {g.items.map((v) => {
@@ -479,6 +511,7 @@ export default function ProductVariants({
 
                   const d = deltaOf(v as any, currency);
                   const token = getColorToken(v.title);
+                  const theme = getColorPillTheme(token);
 
                   return (
                     <button
@@ -491,21 +524,19 @@ export default function ProductVariants({
                       title={disabled ? "Пока недоступно" : undefined}
                       className={cn(
                         "group relative inline-flex items-center gap-2 rounded-full border px-3 py-2 transition",
-                        "bg-white/85 backdrop-blur",
                         "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
                         disabled ? "cursor-not-allowed" : "cursor-pointer",
-                        active
-                          ? "border-black/15 shadow-[0_12px_28px_rgba(0,0,0,0.10)]"
-                          : "border-black/10 shadow-[0_8px_22px_rgba(0,0,0,0.06)] hover:border-black/15",
+                        active ? cn(theme.active) : cn(theme.base, theme.hover),
                         disabled &&
-                          "bg-black/[0.02] shadow-none hover:border-black/10",
+                          "bg-black/[0.02] text-black/35 border-black/10 shadow-none hover:border-black/10",
                       )}
                     >
                       {/* swatch */}
                       <span
                         className={cn(
                           "relative inline-flex h-6 w-6 items-center justify-center rounded-full border",
-                          active ? "border-black/20" : "border-black/10",
+                          // swatch border — чуть контрастнее на цветных пилюлях
+                          active ? "border-black/25" : "border-black/15",
                           disabled && "border-black/10",
                         )}
                       >
@@ -515,35 +546,30 @@ export default function ProductVariants({
                             swatchClass(token),
                           )}
                         />
-                        {/* glossy */}
                         <span className="pointer-events-none absolute inset-0 rounded-full [background:radial-gradient(120%_120%_at_30%_0%,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0.00)_55%)]" />
                       </span>
 
-                      <span
-                        className={cn(
-                          "text-[12px] leading-none",
-                          active ? "text-black" : "text-black/70",
-                          disabled && "text-black/35",
-                        )}
-                      >
+                      <span className="relative text-[12px] leading-none">
                         {v.title}
                       </span>
 
                       {d !== 0 ? (
-                        <DeltaBadge
-                          delta={d}
-                          active={false}
-                          disabled={disabled}
-                          currency={currency}
-                        />
+                        <span className="relative">
+                          <DeltaBadge
+                            delta={d}
+                            active={active}
+                            disabled={disabled}
+                            currency={currency}
+                          />
+                        </span>
                       ) : null}
 
-                      {/* active ring */}
+                      {/* hairline ring */}
                       <span
                         className={cn(
                           "pointer-events-none absolute inset-0 rounded-full opacity-0 transition",
                           active
-                            ? "opacity-100 ring-1 ring-black/10"
+                            ? cn("opacity-100 ring-1", theme.ring)
                             : "group-hover:opacity-100 ring-1 ring-black/[0.06]",
                         )}
                       />
@@ -553,7 +579,6 @@ export default function ProductVariants({
               </div>
             ) : null}
 
-            {/* ===== DEFAULT: premium pills ===== */}
             {!isColor && !isMechanism ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {g.items.map((v) => {

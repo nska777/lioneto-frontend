@@ -19,10 +19,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
         {pickLabel(cat) ?? `Категория: ${slug}`}
       </h1>
 
-      <p className="mt-2 text-sm text-black/60">
-        Временная страница категории (чтобы не было 404). Позже сюда поставим
-        карточки коллекций, фильтры и баннер.
-      </p>
+      <p className="mt-2 text-sm text-black/60">В Разработке</p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(cat?.items ?? []).map((it) => (
@@ -40,7 +37,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
 
         {!cat && (
           <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
-            Нет данных по категории. Проверь slug и headerData.ts
+            {/*Нет данных по категории. Проверь slug и headerData.ts*/}
           </div>
         )}
       </div>

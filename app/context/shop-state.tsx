@@ -9,17 +9,15 @@ import React, {
 } from "react";
 
 /**
- * ✅ ВАЖНО:
- * - Чтобы один и тот же товар мог быть в корзине/избранном в разных вариантах,
- *   ключ становится: productId::variantId
- * - При этом мы сохраняем совместимость со старым кодом:
- *   toggleFav(productId) / addToCart(productId) продолжают работать
- *   (они будут использовать дефолтный вариант "base").
+ * ✅ КАК РАНЬШЕ:
+ * - Один и тот же товар может быть в корзине в разных вариантах.
+ * - Ключ: productId::variantId
+ * - addToCart(productId) без variant => добавляет "base"
  */
 
 export type VariantRef = {
-  id: string; // variantId (например "white", "with-lift")
-  title?: string; // "Белая", "С подъёмным механизмом"
+  id: string; // variantId
+  title?: string;
 };
 
 export type ItemKey = string; // "productId::variantId"
@@ -146,7 +144,6 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartMap>({});
   const [oneClick, setOneClickState] = useState<OneClick>(null);
 
-  // init from localStorage
   useEffect(() => {
     const favRaw = safeParse<any>(localStorage.getItem(LS_FAV), []);
     const cartRaw = safeParse<any>(localStorage.getItem(LS_CART), {});
@@ -157,7 +154,6 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
     setOneClickState(migrateOneClick(ocRaw));
   }, []);
 
-  // persist
   useEffect(() => {
     localStorage.setItem(LS_FAV, JSON.stringify(favorites));
   }, [favorites]);
@@ -190,13 +186,15 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
       return (cart[key] ?? 0) > 0;
     };
 
+    // ✅ как раньше: разные варианты = разные строки
     const addToCart = (
       productId: string,
       qty = 1,
       variant?: VariantRef | string,
     ) => {
       const q = Math.max(1, Math.floor(qty || 1));
-      const key = makeKey(productId, pickVariantId(variant));
+      const vid = pickVariantId(variant);
+      const key = makeKey(productId, vid);
 
       setCart((prev) => ({
         ...prev,

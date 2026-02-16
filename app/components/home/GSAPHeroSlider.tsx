@@ -162,11 +162,9 @@ export default function GSAPHeroSlider({
     const nextTitle = next.querySelector("[data-title]") as HTMLElement | null;
     const nextBtn = next.querySelector("[data-btn]") as HTMLElement | null;
 
-    // поднимаем next выше
     gsap.set(next, { zIndex: 2, opacity: 1, pointerEvents: "auto" });
     gsap.set(prev, { zIndex: 1, pointerEvents: "none" });
 
-    // начальные состояния next
     gsap.set(nextImg, { scale: 1.06, filter: "blur(8px)" });
     gsap.set(nextOverlay, { opacity: 0.25 });
     gsap.set([nextTitle, nextBtn], { y: 18, opacity: 0 });
@@ -205,7 +203,6 @@ export default function GSAPHeroSlider({
 
     const root = rootRef.current;
 
-    // initial state
     slides.forEach((_, i) => {
       const el = root.querySelector(
         `[data-slide="${i}"]`,
@@ -264,17 +261,16 @@ export default function GSAPHeroSlider({
             router.push(slides[activeRef.current]?.href ?? "/catalog")
           }
           className={cn(
-            "relative overflow-hidden rounded-[22px]",
-            "bg-white",
-            // вместо грубой рамки — тонкий highlight
-            "ring-1 ring-black/10",
-            "shadow-[0_22px_70px_rgba(0,0,0,0.14)]",
+            "relative isolate overflow-hidden rounded-none",
+            "bg-[#f3f3f3]",
+            "border-0 ring-0 outline-none",
             "h-[420px] md:h-[520px]",
             "cursor-pointer select-none",
           )}
+          style={{ border: "none", outline: "none", boxShadow: "none" }}
         >
-          {/* мягкий внутренний highlight (Apple-style) */}
-          <div className="pointer-events-none absolute inset-0 z-[5] rounded-[22px] ring-1 ring-white/25" />
+          {/* мягкий highlight без швов (тот же радиус) */}
+          <div className="pointer-events-none absolute inset-0 z-[5] rounded-none ring-1 ring-white/20" />
 
           {slides.map((s, i) => (
             <div
@@ -283,7 +279,6 @@ export default function GSAPHeroSlider({
               className="absolute inset-0 opacity-0"
               aria-hidden={i !== active}
             >
-              {/* один (!) слой для изображения (анимируем scale/blur без дерганий) */}
               <div
                 data-img
                 className="absolute inset-0 will-change-transform"
@@ -291,14 +286,12 @@ export default function GSAPHeroSlider({
                   backgroundImage: `url(${s.image})`,
                   backgroundSize: "cover",
                   backgroundPosition: "center",
-                  transform: "translateZ(0)",
+                  transform: "translateZ(0) scale(1.01)",
                 }}
               />
 
-              {/* overlay: читаемость + виньетка (премиум) */}
-              <div data-overlay className="absolute inset-0 bg-transparent" />
+              <div data-overlay className="absolute inset-0 bg-black/45" />
 
-              {/* content */}
               <div className="relative z-10 flex h-full items-center justify-center px-5 md:px-10">
                 <div className="text-center">
                   <h2
@@ -320,15 +313,13 @@ export default function GSAPHeroSlider({
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
                         "inline-flex items-center justify-center",
-                        "rounded-2xl px-6 py-3",
-                        "bg-white/90 backdrop-blur-xl",
-                        "ring-1 ring-white/25",
-                        "shadow-[0_18px_55px_rgba(0,0,0,0.22)]",
-                        "text-black",
-                        "text-[12px] md:text-[13px] tracking-[0.18em] uppercase",
-                        "transition",
-                        "hover:-translate-y-[1px] hover:shadow-[0_22px_70px_rgba(0,0,0,0.25)]",
-                        "active:translate-y-0",
+                        "px-10 py-3",
+                        "bg-transparent",
+                        "text-white",
+                        "text-[12px] md:text-[13px] tracking-[0.22em] uppercase",
+                        "border border-white/80",
+                        "transition-all duration-300",
+                        "hover:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.9)]",
                         "cursor-pointer",
                       )}
                     >
@@ -340,7 +331,6 @@ export default function GSAPHeroSlider({
             </div>
           ))}
 
-          {/* arrows */}
           <button
             type="button"
             onClick={(e) => {
@@ -348,18 +338,18 @@ export default function GSAPHeroSlider({
               prev();
             }}
             className={cn(
-              "absolute left-4 top-1/2 -translate-y-1/2 z-20",
-              "h-11 w-11 rounded-full",
-              "bg-white/70 backdrop-blur-xl",
-              "ring-1 ring-black/10",
-              "shadow-[0_16px_45px_rgba(0,0,0,0.22)]",
-              "grid place-items-center",
-              "hover:bg-white/85 transition",
+              "absolute left-6 top-1/2 -translate-y-1/2 z-20",
+              "p-2",
+              "bg-transparent",
+              "rounded-none",
+              "shadow-none ring-0 border-0",
+              "text-white/90 hover:text-white",
+              "transition-opacity hover:opacity-70",
               "cursor-pointer",
             )}
             aria-label="Предыдущий слайд"
           >
-            <ChevronLeft className="h-5 w-5 text-black/80" />
+            <ChevronLeft className="h-7 w-7" />
           </button>
 
           <button
@@ -369,23 +359,21 @@ export default function GSAPHeroSlider({
               next();
             }}
             className={cn(
-              "absolute right-4 top-1/2 -translate-y-1/2 z-20",
-              "h-11 w-11 rounded-full",
-              "bg-white/70 backdrop-blur-xl",
-              "ring-1 ring-black/10",
-              "shadow-[0_16px_45px_rgba(0,0,0,0.22)]",
-              "grid place-items-center",
-              "hover:bg-white/85 transition",
+              "absolute right-6 top-1/2 -translate-y-1/2 z-20",
+              "p-2",
+              "bg-transparent",
+              "rounded-none",
+              "shadow-none ring-0 border-0",
+              "text-white/90 hover:text-white",
+              "transition-opacity hover:opacity-70",
               "cursor-pointer",
             )}
             aria-label="Следующий слайд"
           >
-            <ChevronRight className="h-5 w-5 text-black/80" />
+            <ChevronRight className="h-7 w-7" />
           </button>
 
-          {/* dots */}
           <div className="absolute bottom-4 left-0 right-0 z-[999] flex justify-center pointer-events-auto">
-            {/* лёгкая подложка, чтобы точки всегда читались */}
             <div className="rounded-full bg-black/18 px-3 py-2 backdrop-blur-[6px] ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
               <div className="flex items-center gap-2">
                 {Array.from({ length: slides.length }).map((_, idx) => {

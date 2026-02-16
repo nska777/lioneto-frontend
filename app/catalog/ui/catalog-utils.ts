@@ -57,8 +57,10 @@ export function normalizeModuleToken(v: string) {
   let t = norm(v);
   if (!t) return "";
 
-  // ✅ важный алиас: в папках у тебя "tumby", а в модуле/UI "tumbi"
-  if (t === "tumby") t = "tumbi";
+  // ✅ алиасы для "тумбы" — приводим ВСЁ к tumbi
+  if (t === "tumby") t = "tumbi"; // важный алиас: папки tumby, UI tumbi
+  if (t === "tumba" || t === "tumb") t = "tumbi";
+  if (t === "тумба" || t === "тумбы") t = "tumbi";
 
   const byValue = MODULE_ITEMS.find((x) => norm(x.value) === t);
   if (byValue) return norm(byValue.value);
@@ -102,5 +104,8 @@ export function getCollectionSlug(p: ProductAny) {
 }
 
 export function getModuleSlug(p: ProductAny) {
-  return norm(p.type ?? p.module ?? p.kind ?? p.cat ?? p.item_type ?? "");
+  // ✅ КРИТИЧНО: модуль тоже должен проходить normalizeModuleToken
+  // иначе tumby vs tumbi никогда не совпадут
+  const raw = p.type ?? p.module ?? p.kind ?? p.item_type ?? p.cat ?? "";
+  return normalizeModuleToken(String(raw ?? ""));
 }

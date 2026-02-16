@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2, ArrowRight, ShoppingBag, ChevronLeft } from "lucide-react";
@@ -14,6 +13,8 @@ import {
   CATALOG_MOCK,
   BRANDS,
 } from "../lib/mock/catalog-products";
+
+import { fetchProductsMap, type LiteProduct } from "@/app/lib/strapi/products";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
@@ -33,8 +34,8 @@ function labelByBrandSlug(slug: string | null | undefined) {
   return found ? found.title : s.toUpperCase();
 }
 
-/** ✅ Безопасная картинка: если src битый — показываем плейсхолдер */
-function SafeImage({ src, alt }: { src: string; alt: string }) {
+/** ✅ <img> вместо next/image (Strapi/localhost/remote) */
+function SafeImg({ src, alt }: { src: string; alt: string }) {
   const [broken, setBroken] = React.useState(false);
 
   if (!src || broken) {
@@ -48,13 +49,13 @@ function SafeImage({ src, alt }: { src: string; alt: string }) {
   }
 
   return (
-    <Image
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={src}
       alt={alt}
-      fill
-      className="object-contain"
-      sizes="96px"
+      className="absolute inset-0 h-full w-full object-contain"
       onError={() => setBroken(true)}
+      loading="lazy"
     />
   );
 }
@@ -65,7 +66,7 @@ type VariantAny = {
   group?: string;
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
-  image?: string;
+  image?: string | null;
   gallery?: string[];
 };
 
@@ -127,67 +128,22 @@ function parseCompositeVariantForCart(
   return { title: title || null, image };
 }
 
-/** ================= Strapi price-entry (client) ================= */
+function itSafeTitle(p: any) {
+  const t = p?.title;
+  if (typeof t === "string") return t;
+  return "";
+}
 
-type PriceEntry = {
-  productId: string;
-  title?: string | null;
-  priceUZS?: number | null;
-  priceRUB?: number | null;
-  oldPriceUZS?: number | null;
-  oldPriceRUB?: number | null;
-  hasDiscount?: boolean | null;
-  collectionBadge?: string | null;
-  isActive?: boolean | null;
-};
+function readPriceFromObj(obj: any, region: "uz" | "ru") {
+  if (!obj) return 0;
 
-const toNum = (v: any) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-};
+  const uz = obj?.priceUZS ?? obj?.price_uzs ?? obj?.priceUzs ?? null;
 
-async function fetchPriceMap(productIds: string[]) {
-  const ids = Array.from(new Set(productIds.filter(Boolean)));
-  if (!ids.length) return {} as Record<string, PriceEntry>;
+  const ru = obj?.priceRUB ?? obj?.price_rub ?? obj?.priceRub ?? null;
 
-  const base =
-    process.env.NEXT_PUBLIC_STRAPI_URL ||
-    process.env.STRAPI_URL ||
-    "http://localhost:1337";
-
-  const params = new URLSearchParams();
-  ids.forEach((id, i) => params.set(`filters[productId][$in][${i}]`, id));
-  params.set("pagination[pageSize]", String(Math.min(100, ids.length)));
-
-  const url = `${base.replace(/\/$/, "")}/api/price-entries?${params.toString()}`;
-
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return {} as Record<string, PriceEntry>;
-
-  const json = await res.json();
-  const data: any[] = Array.isArray(json?.data) ? json.data : [];
-
-  const map: Record<string, PriceEntry> = {};
-  for (const item of data) {
-    const a = item; // у тебя поля прямо тут
-    const pid = String(a?.productId ?? "");
-    if (!pid) continue;
-
-    map[pid] = {
-      productId: pid,
-      title: a?.title ?? null,
-      priceUZS: a?.priceUZS !== undefined ? toNum(a.priceUZS) : null,
-      priceRUB: a?.priceRUB !== undefined ? toNum(a.priceRUB) : null,
-      oldPriceUZS: a?.oldPriceUZS !== undefined ? toNum(a.oldPriceUZS) : null,
-      oldPriceRUB: a?.oldPriceRUB !== undefined ? toNum(a.oldPriceRUB) : null,
-      hasDiscount: typeof a?.hasDiscount === "boolean" ? a.hasDiscount : null,
-      collectionBadge:
-        a?.collectionBadge !== undefined ? String(a.collectionBadge) : null,
-      isActive: typeof a?.isActive === "boolean" ? a.isActive : null,
-    };
-  }
-
-  return map;
+  const raw = region === "uz" ? uz : ru;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 export default function CartClient() {
@@ -205,26 +161,32 @@ export default function CartClient() {
     return Object.keys(shop.cart).filter((k) => (shop.cart[k] ?? 0) > 0);
   }, [shop.cart]);
 
-  // ✅ ids из корзины -> в Strapi
   const productIds = useMemo(() => {
     return keys
-      .map((key) => {
-        const { productId } = shop.parseKey(key);
-        return String(productId);
-      })
+      .map((key) => String(shop.parseKey(key).productId))
       .filter(Boolean);
   }, [keys, shop]);
 
-  const [priceMap, setPriceMap] = useState<Record<string, PriceEntry>>({});
-
+  /**
+   * ✅ ВАЖНОЕ ИЗМЕНЕНИЕ:
+   * Раньше ты фетчил Strapi только для missing (нет в моках).
+   * Но у тебя товары есть в моках, а цены в моках часто 0 → корзина показывала 0.
+   *
+   * Теперь: фетим Strapi для ВСЕХ товаров из корзины,
+   * и цену в корзине берём из Strapi Product как приоритет.
+   */
+  const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
+    {},
+  );
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const map = await fetchPriceMap(productIds);
-        if (alive) setPriceMap(map);
+        const ids = Array.from(new Set(productIds.filter(Boolean)));
+        const m = await fetchProductsMap(ids);
+        if (alive) setProductsMap(m);
       } catch {
-        if (alive) setPriceMap({});
+        if (alive) setProductsMap({});
       }
     })();
     return () => {
@@ -238,55 +200,45 @@ export default function CartClient() {
       .map((key) => {
         const { productId, variantId } = shop.parseKey(key);
 
-        const p = CATALOG_BY_ID.get(String(productId));
-        if (!p) return null;
+        const pid = String(productId);
+        const vidRaw = String(variantId || "base");
+
+        const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
+        const pStrapi = productsMap[pid] as LiteProduct | undefined;
+
+        // для отображения (картинки/лейблы) оставим как было:
+        const pDisplay = (pMock ?? pStrapi) as any;
+        if (!pDisplay) return null;
 
         const qty = shop.cart[key] ?? 1;
 
-        // ✅ цена: сначала Strapi, потом моки (фолбэк)
-        const pe = priceMap[String(productId)];
-        const baseUnitFromStrapi =
-          region === "uz"
-            ? Number(pe?.priceUZS ?? 0)
-            : Number(pe?.priceRUB ?? 0);
-
-        const baseUnitFromMock =
-          region === "uz"
-            ? Number((p as any).price_uzs ?? (p as any).priceUZS ?? 0)
-            : Number((p as any).price_rub ?? (p as any).priceRUB ?? 0);
-
-        const baseUnit =
-          Number.isFinite(baseUnitFromStrapi) && baseUnitFromStrapi > 0
-            ? baseUnitFromStrapi
-            : Number(baseUnitFromMock ?? 0) || 0;
-
-        const variants: VariantAny[] = Array.isArray((p as any).variants)
-          ? ((p as any).variants as VariantAny[])
+        const variants: VariantAny[] = Array.isArray(pDisplay?.variants)
+          ? (pDisplay.variants as VariantAny[])
           : [];
 
-        const parsed = parseCompositeVariantForCart(
-          String(variantId),
-          variants,
-        );
+        const parsed = parseCompositeVariantForCart(vidRaw, variants);
 
-        // ✅ delta: суммируем по всем выбранным вариантам (если их несколько)
+        // ✅ БАЗОВАЯ ЦЕНА: приоритет Strapi Product → потом моки
+        const baseFromStrapi = readPriceFromObj(pStrapi, region);
+        const baseFromMocks = readPriceFromObj(pMock, region);
+        const baseUnit = baseFromStrapi || baseFromMocks || 0;
+
+        // ✅ delta из variants (priceDeltaUZS/RUB)
         const pickedForDelta: VariantAny[] = [];
-        const raw = String(variantId ?? "").trim();
+        const raw = String(vidRaw).trim();
         if (raw && raw !== "base") {
           const parts = raw
             .split("|")
             .map((s) => s.trim())
             .filter(Boolean);
+
           for (const part of parts) {
-            if (part.includes(":")) {
-              const [, id] = part.split(":");
-              const vid = String(id ?? "").trim();
-              const found = variants.find((v) => String(v.id) === vid);
-              if (found) pickedForDelta.push(found);
-            } else {
-              const found = variants.find((v) => String(v.id) === part);
-              if (found) pickedForDelta.push(found);
-            }
+            const pure = part.includes(":")
+              ? String(part.split(":")[1] ?? "").trim()
+              : part;
+
+            const found = variants.find((v) => String(v.id) === pure);
+            if (found) pickedForDelta.push(found);
           }
         }
 
@@ -299,23 +251,24 @@ export default function CartClient() {
         }, 0);
 
         const unit = baseUnit + delta;
-        const variantTitle = parsed.title;
 
         const image =
-          (parsed.image ? String(parsed.image) : "") || (p as any).image;
+          (parsed.image ? String(parsed.image) : "") ||
+          String(pDisplay?.image || pDisplay?.gallery?.[0] || "");
 
-        const brandSlug = String((p as any).brand ?? "");
+        const brandSlug = String(pDisplay?.brand ?? pStrapi?.brand ?? "" ?? "");
         const collectionLabel = labelByBrandSlug(brandSlug);
 
-        // ✅ title можно тоже взять из price-entry (если хочешь)
-        const title = String(pe?.title ?? itSafeTitle(p) ?? "");
+        const title = String(
+          itSafeTitle(pStrapi) || itSafeTitle(pDisplay) || "",
+        );
 
         return {
           key,
-          productId: String(productId),
-          variantId: String(variantId),
-          variantTitle,
-          product: { ...(p as any), title } as any,
+          productId: pid,
+          variantId: vidRaw,
+          variantTitle: parsed.title,
+          product: { ...(pDisplay as any), title } as any,
           qty,
           unit,
           sum: unit * qty,
@@ -328,14 +281,14 @@ export default function CartClient() {
       productId: string;
       variantId: string;
       variantTitle: string | null;
-      product: (typeof CATALOG_MOCK)[number];
+      product: (typeof CATALOG_MOCK)[number] | any;
       qty: number;
       unit: number;
       sum: number;
       image: string;
       collectionLabel: string | null;
     }>;
-  }, [keys, shop.cart, shop, region, priceMap]);
+  }, [keys, shop, shop.cart, region, productsMap]);
 
   const total = useMemo(
     () => items.reduce((acc, it) => acc + it.sum, 0),
@@ -433,7 +386,7 @@ export default function CartClient() {
                     href={`/product/${it.productId}`}
                     className="cursor-pointer relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-black/5"
                   >
-                    <SafeImage src={it.image} alt={it.product.title} />
+                    <SafeImg src={it.image} alt={it.product.title} />
                   </Link>
 
                   <div className="min-w-0 flex-1">
@@ -559,10 +512,4 @@ export default function CartClient() {
       </div>
     </main>
   );
-}
-
-function itSafeTitle(p: any) {
-  const t = p?.title;
-  if (typeof t === "string") return t;
-  return "";
 }

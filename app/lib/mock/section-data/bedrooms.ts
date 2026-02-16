@@ -15,7 +15,7 @@ export const BEDROOMS_SCENES: CollectionScene[] = [
     collection: "amber",
     title: "Спальня",
     badge: "AMBER",
-    // ✅ поставь реальное кол-во фоток
+    // поставит реальное кол-во фоток
     gallery: makeGallery("/sections/bedrooms/amber", 4),
     cover: "/sections/bedrooms/amber/01.jpg",
     priceRUB: 0,

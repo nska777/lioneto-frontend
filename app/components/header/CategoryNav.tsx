@@ -1,18 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { X } from "lucide-react";
 
 import { tF } from "@/i18n";
-import {
-  MegaCategory,
-  MegaKey,
-  MegaItem,
-  MEGA_PREVIEWS,
-} from "@/app/lib/headerData";
+import { MegaCategory, MegaKey, MegaItem } from "@/app/lib/headerData";
 
 function cn(...s: Array<string | false | null | undefined>) {
   return s.filter(Boolean).join(" ");
@@ -35,16 +29,13 @@ export default function CategoryNav({
   const [active, setActive] = useState<MegaKey | null>(null);
   const open = active !== null;
 
-  // активный item для превью (по href)
-  const [activeItemHref, setActiveItemHref] = useState<string | null>(null);
-
   const navWrapRef = useRef<HTMLDivElement | null>(null);
   const navRef = useRef<HTMLDivElement | null>(null);
   const indicatorRef = useRef<HTMLDivElement | null>(null);
   const menuOuterRef = useRef<HTMLDivElement | null>(null);
   const menuPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // ✅ hover-intent (задержка открытия)
+  // hover-intent
   const hoverTimer = useRef<number | null>(null);
 
   const activeCat = useMemo(
@@ -52,7 +43,6 @@ export default function CategoryNav({
     [categories, active],
   );
 
-  // сколько колонок слева: делаем умнее (меньше пустоты)
   const colsCount = useMemo(() => {
     const n = activeCat?.items?.length ?? 0;
     if (n <= 6) return 3;
@@ -64,23 +54,6 @@ export default function CategoryNav({
     () => chunkColumns(activeCat?.items ?? [], colsCount),
     [activeCat, colsCount],
   );
-
-  // при смене категории — ставим дефолтный item для превью
-  useLayoutEffect(() => {
-    if (!activeCat) {
-      setActiveItemHref(null);
-      return;
-    }
-    const firstWithPreview =
-      activeCat.items.find((it) => !!MEGA_PREVIEWS[it.href]) ??
-      activeCat.items[0];
-    setActiveItemHref(firstWithPreview?.href ?? null);
-  }, [activeCat]);
-
-  const preview = useMemo(() => {
-    if (!activeItemHref) return null;
-    return MEGA_PREVIEWS[activeItemHref] ?? null;
-  }, [activeItemHref]);
 
   const moveIndicatorTo = (el: HTMLElement | null, immediate = false) => {
     const ind = indicatorRef.current;
@@ -110,7 +83,6 @@ export default function CategoryNav({
     });
   };
 
-  //  hover-intent helpers
   const cancelHoverOpen = () => {
     if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
     hoverTimer.current = null;
@@ -139,7 +111,7 @@ export default function CategoryNav({
             autoAlpha: 1,
             y: 0,
             filter: "blur(0px)",
-            duration: 0.38,
+            duration: 0.28,
             ease: "power3.out",
           },
         );
@@ -149,7 +121,7 @@ export default function CategoryNav({
           autoAlpha: 0,
           y: 8,
           filter: "blur(10px)",
-          duration: 0.22,
+          duration: 0.2,
           ease: "power2.out",
         });
       }
@@ -169,22 +141,16 @@ export default function CategoryNav({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // ===== helpers to render i18n text =====
   const catLabel = (c: MegaCategory) =>
     tF(dict, String(c.labelKey ?? ""), String(c.fallback ?? ""));
 
   const itemLabel = (it: MegaItem) =>
     tF(dict, String(it.labelKey ?? ""), String(it.fallback ?? ""));
 
-  const previewTitle = preview
-    ? tF(dict, String(preview.titleKey ?? ""), String(preview.fallback ?? ""))
-    : "";
-
-  const previewHref = activeItemHref ?? undefined;
   const activeCatTitle = activeCat ? catLabel(activeCat) : "";
 
   return (
-    <div className="border-y border-black/10">
+    <div className="w-full bg-[#f3f3f3]  border-black/10">
       <div className="mx-auto w-full max-w-[1200px] px-4">
         <div ref={navWrapRef} className="relative" onMouseLeave={onNavLeave}>
           {/* DESKTOP */}
@@ -202,7 +168,7 @@ export default function CategoryNav({
                     onMouseLeave={cancelHoverOpen}
                     onFocus={(e) => openWithDelay(c.key, e.currentTarget)}
                     className={cn(
-                      "py-2 transition cursor-default select-none cursor-pointer",
+                      "py-2 transition select-none cursor-pointer",
                       isActive ? "text-black" : "hover:text-black",
                     )}
                     aria-label={label}
@@ -219,7 +185,7 @@ export default function CategoryNav({
             />
           </div>
 
-          {/* MOBILE CATEGORIES */}
+          {/* MOBILE */}
           <div className="md:hidden">
             <div className="flex h-14 items-center gap-6 overflow-x-auto whitespace-nowrap text-[13px] tracking-[0.16em] text-black/70">
               {categories.map((c) => {
@@ -243,8 +209,8 @@ export default function CategoryNav({
 
             {open && activeCat && (
               <div className="pb-4">
-                <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-[0_20px_60px_-45px_rgba(0,0,0,0.45)]">
-                  <div className="mb-3 flex items-center justify-between">
+                <div className="rounded-none bg-[#f3f3f3] shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+                  <div className="pl-2 mb-3 flex items-center justify-between">
                     <div className="text-[12px] tracking-[0.18em] text-black/50">
                       {activeCatTitle}
                     </div>
@@ -274,7 +240,7 @@ export default function CategoryNav({
             )}
           </div>
 
-          {/* DESKTOP MEGA */}
+          {/* DESKTOP MEGA (ТОЛЬКО СПИСКИ, БЕЗ ПРАВОГО БЛОКА) */}
           <div
             ref={menuOuterRef}
             className="absolute left-0 top-[64px] z-50 hidden w-full pointer-events-none md:block"
@@ -282,16 +248,22 @@ export default function CategoryNav({
             <div
               ref={menuPanelRef}
               className={cn(
-                "rounded-2xl border border-black/10 bg-white",
-                "shadow-[0_35px_110px_-65px_rgba(0,0,0,0.55)]",
+                "bg-[#f3f3f3]",
+                "border-0 ring-0 outline-none",
+                "shadow-[0_40px_120px_-30px_rgba(0,0,0,0.32),0_12px_30px_10px_rgba(0,0,0,0.15)]",
                 "opacity-0",
               )}
+              style={{
+                outline: "none",
+                boxShadow: "0 22px 60px -28px rgba(0,0,0,0.28)",
+                border: "none",
+              }}
               onMouseEnter={cancelHoverOpen}
             >
               <div className="px-8 pt-7 pb-8">
                 <div className="grid grid-cols-12 gap-10">
-                  {/* LEFT: списки */}
-                  <div className="col-span-7">
+                  {/* LEFT: списки на всю ширину */}
+                  <div className="col-span-12">
                     <div
                       className={cn(
                         colsCount === 3 && "grid grid-cols-3 gap-x-12 gap-y-2",
@@ -302,24 +274,18 @@ export default function CategoryNav({
                       {columns.map((col, idx) => (
                         <div key={idx} className="space-y-3">
                           {col.map((it) => {
-                            const isItemActive = it.href === activeItemHref;
-                            const hasPreview = !!MEGA_PREVIEWS[it.href];
                             const label = itemLabel(it);
 
                             return (
                               <Link
                                 key={it.href}
                                 href={it.href}
-                                onMouseEnter={() => setActiveItemHref(it.href)}
-                                onFocus={() => setActiveItemHref(it.href)}
                                 onClick={() => setActive(null)}
                                 className={cn(
                                   "block w-full text-left cursor-pointer",
-                                  "text-[14px] tracking-[0.06em] transition",
-                                  isItemActive
-                                    ? "text-black"
-                                    : "text-black/70 hover:text-black",
-                                  !hasPreview && "opacity-60",
+                                  "text-[14px] tracking-[0.06em]",
+                                  "text-black/70 transition-colors duration-200",
+                                  "hover:text-[#B9893B]",
                                 )}
                               >
                                 {label}
@@ -330,121 +296,12 @@ export default function CategoryNav({
                       ))}
                     </div>
                   </div>
-
-                  {/* RIGHT: превью */}
-                  <div className="col-span-5">
-                    <div className="min-h-[330px]">
-                      <div className="relative overflow-hidden rounded-2xl bg-black/5">
-                        <div className="relative aspect-[16/10] w-full">
-                          {preview?.main ? (
-                            <Link
-                              href={previewHref ?? "#"}
-                              className="group absolute inset-0 block cursor-pointer"
-                              onClick={(e) => {
-                                if (!previewHref) e.preventDefault();
-                                setActive(null);
-                              }}
-                              aria-label={previewTitle}
-                            >
-                              <Image
-                                key={preview.main}
-                                src={preview.main}
-                                alt={previewTitle}
-                                fill
-                                className="object-cover opacity-0 animate-[fade_.22s_ease-out_forwards] transition duration-700 group-hover:scale-[1.02]"
-                                priority
-                              />
-
-                              {!!previewTitle && (
-                                <div className="absolute inset-x-0 bottom-0 p-4">
-                                  <div className="inline-flex rounded-xl bg-black/55 px-3 py-2 backdrop-blur-md">
-                                    <span className="text-[14px] font-semibold text-white">
-                                      {previewTitle}
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-white/85 px-3 py-1 text-[11px] tracking-[0.14em] uppercase text-black/70 opacity-0 group-hover:opacity-100 transition">
-                                Смотреть
-                              </div>
-                            </Link>
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-sm text-black/40">
-                              Наведи на коллекцию
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-4">
-                        <MiniCard
-                          src={preview?.a}
-                          href={previewHref}
-                          onGo={() => setActive(null)}
-                        />
-                        <MiniCard
-                          src={preview?.b}
-                          href={previewHref}
-                          onGo={() => setActive(null)}
-                        />
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
-
-              <style jsx global>{`
-                @keyframes fade {
-                  to {
-                    opacity: 1;
-                  }
-                }
-              `}</style>
             </div>
           </div>
           {/* /DESKTOP MEGA */}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MiniCard({
-  src,
-  href,
-  onGo,
-}: {
-  src?: string;
-  href?: string;
-  onGo?: () => void;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl bg-black/5">
-      <div className="relative aspect-[16/10] w-full">
-        {src ? (
-          <Link
-            href={href ?? "#"}
-            className="group absolute inset-0 block cursor-pointer"
-            onClick={(e) => {
-              if (!href) e.preventDefault();
-              onGo?.();
-            }}
-            aria-label="Открыть"
-          >
-            <Image
-              key={src}
-              src={src}
-              alt=""
-              fill
-              className="object-cover opacity-0 animate-[fade_.22s_ease-out_forwards] transition duration-700 group-hover:scale-[1.03]"
-            />
-          </Link>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs text-black/35">
-            —
-          </div>
-        )}
       </div>
     </div>
   );

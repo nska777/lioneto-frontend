@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { normalizeModuleToken } from "./catalog-utils";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
@@ -150,8 +151,27 @@ export default function FiltersSidebar({
     };
   }, []);
 
-  const toggleInArray = (arr: string[], v: string) =>
-    arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+  // ✅ защита от дублей в query -> value.*
+  const uniq = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
+
+  const toggleInArray = (arr: string[], v: string) => {
+    const clean = uniq(arr);
+    return clean.includes(v) ? clean.filter((x) => x !== v) : [...clean, v];
+  };
+
+  // ✅ sets для корректного checked даже если пришли дубли
+  const menuSet = useMemo(
+    () => new Set(uniq(value.menu)),
+    [value.menu.join("|")],
+  );
+  const collectionsSet = useMemo(
+    () => new Set(uniq(value.collections)),
+    [value.collections.join("|")],
+  );
+  const typesSet = useMemo(
+    () => new Set(uniq(value.types)),
+    [value.types.join("|")],
+  );
 
   // ✅ процент для подсветки трека
   const minPct = useMemo(() => {
@@ -165,7 +185,7 @@ export default function FiltersSidebar({
   }, [maxDrag, meta.priceAbsMin, meta.priceAbsMax]);
 
   return (
-    <aside className="h-fit rounded-2xl border border-black/10 bg-white p-4 shadow-[0_18px_40px_-30px_rgba(0,0,0,0.35)]">
+    <aside className="h-fit rounded-2xl border border-white/70 bg-#f3f3f3 p-4 shadow-[0_18px_40px_-30px_rgba(0,0,0,0.35)]">
       <div className="mb-3 flex items-center justify-between">
         <div className="text-[12px] tracking-[0.18em] uppercase text-black/45">
           Фильтры
@@ -188,10 +208,13 @@ export default function FiltersSidebar({
         {meta.menuItems.map((it) => (
           <CheckRow
             key={it.value}
-            checked={value.menu.includes(it.value)}
+            checked={menuSet.has(it.value)}
             label={it.label}
             onChange={() =>
-              onChange({ ...value, menu: toggleInArray(value.menu, it.value) })
+              onChange({
+                ...value,
+                menu: toggleInArray(value.menu, it.value),
+              })
             }
           />
         ))}
@@ -254,28 +277,23 @@ export default function FiltersSidebar({
                 setMaxDrag(fixedMax);
                 applyPriceDebounced(fixedMin, fixedMax);
               }}
-              onChange={() => {
-                // onChange оставляем пустым — всё идёт через onInput
-              }}
+              onChange={() => {}}
               onPointerUp={() => applyPriceNow(minDrag, maxDrag)}
               onKeyUp={() => applyPriceNow(minDrag, maxDrag)}
               className={cn(
                 "absolute inset-0 w-full cursor-pointer bg-transparent",
                 "appearance-none",
-                // thumb (webkit)
                 "[&::-webkit-slider-thumb]:appearance-none",
                 "[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4",
                 "[&::-webkit-slider-thumb]:rounded-full",
                 "[&::-webkit-slider-thumb]:bg-black",
                 "[&::-webkit-slider-thumb]:shadow-[0_10px_25px_rgba(0,0,0,0.20)]",
                 "[&::-webkit-slider-thumb]:ring-2 [&::-webkit-slider-thumb]:ring-white",
-                // thumb (firefox)
                 "[&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4",
                 "[&::-moz-range-thumb]:rounded-full",
                 "[&::-moz-range-thumb]:border-0",
                 "[&::-moz-range-thumb]:bg-black",
                 "[&::-moz-range-thumb]:box-shadow-[0_10px_25px_rgba(0,0,0,0.20)]",
-                // track invisible (мы рисуем свой)
                 "[&::-webkit-slider-runnable-track]:bg-transparent",
                 "[&::-moz-range-track]:bg-transparent",
               )}
@@ -294,9 +312,7 @@ export default function FiltersSidebar({
                 setMaxDrag(fixedMax);
                 applyPriceDebounced(fixedMin, fixedMax);
               }}
-              onChange={() => {
-                // всё через onInput
-              }}
+              onChange={() => {}}
               onPointerUp={() => applyPriceNow(minDrag, maxDrag)}
               onKeyUp={() => applyPriceNow(minDrag, maxDrag)}
               className={cn(
@@ -335,7 +351,7 @@ export default function FiltersSidebar({
         {meta.collectionItems.map((it) => (
           <CheckRow
             key={it.value}
-            checked={value.collections.includes(it.value)}
+            checked={collectionsSet.has(it.value)}
             label={it.label}
             onChange={() =>
               onChange({
@@ -348,20 +364,24 @@ export default function FiltersSidebar({
       </Section>
 
       {/* Модули */}
+      {/* Модули */}
       <Section title="Модули" defaultOpen>
-        {meta.typeItems.map((it) => (
-          <CheckRow
-            key={it.value}
-            checked={value.types.includes(it.value)}
-            label={it.label}
-            onChange={() =>
-              onChange({
-                ...value,
-                types: toggleInArray(value.types, it.value),
-              })
-            }
-          />
-        ))}
+        {meta.typeItems.map((it) => {
+          const token = normalizeModuleToken(it.value); // ✅ канон
+          return (
+            <CheckRow
+              key={String(it.value)}
+              checked={value.types.includes(token)}
+              label={it.label}
+              onChange={() =>
+                onChange({
+                  ...value,
+                  types: toggleInArray(value.types, token), // ✅ тогглим канон
+                })
+              }
+            />
+          );
+        })}
       </Section>
 
       <div className="mt-4 rounded-xl border border-black/10 bg-black/[0.02] p-3 text-[12px] text-black/60">

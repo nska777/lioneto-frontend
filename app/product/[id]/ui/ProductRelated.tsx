@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 import ProductActions from "@/app/catalog/ProductActions";
-
 import { useShopState } from "@/app/context/shop-state";
 import { formatPrice } from "@/app/lib/format/price";
 
@@ -40,6 +39,23 @@ function seededShuffle<T>(arr: T[], seed: number) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+function isRemoteSrc(src: string) {
+  return /^https?:\/\//i.test(src);
+}
+
+function isLocalhostUrl(src: string) {
+  try {
+    const u = new URL(src);
+    return (
+      u.hostname === "localhost" ||
+      u.hostname === "127.0.0.1" ||
+      u.hostname === "::1"
+    );
+  } catch {
+    return false;
+  }
 }
 
 /* ================= Badge (SAME as BestSellers) ================= */
@@ -108,14 +124,18 @@ export default function ProductRelated({
 }: {
   title: string;
   items: Array<{
-    id: string;
+    id: string; // может быть slug
     title: string;
     image: string;
     price_rub: number;
     price_uzs: number;
-    href: string;
+    href?: string;
     badge?: string;
     sku?: string;
+
+    // optional, если ты начнёшь прокидывать
+    slug?: string;
+    productId?: string;
   }>;
   currency: "RUB" | "UZS";
 }) {
@@ -183,13 +203,15 @@ export default function ProductRelated({
     <section className="mt-12">
       <h2 className="text-[20px] font-semibold text-black">{title}</h2>
 
-      {/* ✅ сетка плотнее и ближе к ощущениям BestSellers */}
       <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {orderedItems.map((p, idx) => {
+          // ✅ единый ключ товара (важно для корзины/избранного после ухода от моков)
+          const pid = String(p.productId ?? p.slug ?? p.id ?? "").trim();
+
           const v = currency === "RUB" ? p.price_rub : p.price_uzs;
 
           const imgSrc = String(p.image ?? "").trim() || "/placeholder.png";
-          const href = p.href || `/product/${p.id}`;
+          const href = String(p.href ?? `/product/${encodeURIComponent(pid)}`);
 
           const catalogPath =
             typeof window !== "undefined"
@@ -209,16 +231,14 @@ export default function ProductRelated({
             price_rub: Number(p.price_rub ?? 0),
           };
 
-          const added = isInCart(String(p.id));
-          const liked = isFav(String(p.id), "base");
+          const added = isInCart(pid);
+          const liked = isFav(pid, "base");
 
-          // ✅ как в BestSellers: у хитов — gold; тут по умолчанию gold если badge есть
           const badgeVariant: "gold" | "green" = "gold";
 
           return (
-            <article key={p.id} data-card className="group h-full">
+            <article key={pid || p.id} data-card className="group h-full">
               <Link href={hrefWithFrom} className="block h-full">
-                {/* ✅ CARD оболочка 1-в-1 по классу как в BestSellers */}
                 <div
                   className={cn(
                     "relative flex h-full flex-col",
@@ -231,7 +251,6 @@ export default function ProductRelated({
                     "overflow-hidden",
                   )}
                 >
-                  {/* TOP (badge + actions + image) */}
                   <div className="relative overflow-visible rounded-t-[22px] bg-white">
                     {p.badge ? (
                       <div className="absolute left-3 top-0.5 z-20">
@@ -242,7 +261,6 @@ export default function ProductRelated({
                       </div>
                     ) : null}
 
-                    {/* actions — как в BestSellers (data-actions + stopPropagation) */}
                     <div
                       data-actions
                       className={cn(
@@ -257,7 +275,7 @@ export default function ProductRelated({
                       }}
                     >
                       <ProductActions
-                        id={String(p.id)}
+                        id={pid}
                         snapshot={snapshot}
                         onOpenSpecs={() => {
                           window.location.href = hrefWithFrom;
@@ -267,25 +285,39 @@ export default function ProductRelated({
 
                     <div className="relative overflow-hidden rounded-t-[22px]">
                       <div className="relative aspect-[4/3] bg-white">
-                        <Image
-                          key={imgSrc}
-                          src={imgSrc}
-                          alt={String(p.title ?? "")}
-                          fill
-                          sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
-                          className={cn(
-                            // ✅ ВАЖНО: как в BestSellers
-                            "object-cover object-center",
-                            "transition-transform duration-500",
-                            "group-hover:scale-[1.03]",
-                          )}
-                          priority={idx < 6}
-                        />
+                        {/* ✅ ВАЖНО: remote/localhost картинки лучше рендерить <img>,
+                            чтобы не ловить "private ip" от next/image в dev */}
+                        {isRemoteSrc(imgSrc) && isLocalhostUrl(imgSrc) ? (
+                          <img
+                            src={imgSrc}
+                            alt={String(p.title ?? "")}
+                            className={cn(
+                              "absolute inset-0 h-full w-full",
+                              "object-cover object-center",
+                              "transition-transform duration-500",
+                              "group-hover:scale-[1.03]",
+                            )}
+                            loading={idx < 6 ? "eager" : "lazy"}
+                          />
+                        ) : (
+                          <Image
+                            key={imgSrc}
+                            src={imgSrc}
+                            alt={String(p.title ?? "")}
+                            fill
+                            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
+                            className={cn(
+                              "object-cover object-center",
+                              "transition-transform duration-500",
+                              "group-hover:scale-[1.03]",
+                            )}
+                            priority={idx < 6}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* CONTENT — ближе к BestSellers: price -> title -> spacer */}
                   <div className="px-5 pt-3 pb-3">
                     <div className="text-[20px] font-semibold tracking-[-0.01em] text-black">
                       {formatPrice(Number(v ?? 0), currency)}
@@ -303,18 +335,16 @@ export default function ProductRelated({
                       {p.title}
                     </div>
 
-                    {/* ✅ как в BestSellers: если нет лейбла — оставляем пустое место */}
                     <div className="mt-1.5 h-[12px]" />
                   </div>
 
-                  {/* ✅ ТВОЯ КНОПКА (логика не меняется) */}
                   <div className="mt-auto px-5 pb-4">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (!added) addToCart(String(p.id), 1);
+                        if (!added) addToCart(pid, 1);
                       }}
                       className={cn(
                         "lionetoCartBtn relative h-10 w-full overflow-hidden rounded-xl",
@@ -440,21 +470,25 @@ export default function ProductRelated({
                       }
                     `}</style>
 
-                    {/* ✅ “как положено” избранное: отдельная кнопка-подпись (не ломаем ProductActions) */}
                     {toggleFav ? (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          toggleFav(String(p.id), "base");
+                          toggleFav(pid, "base");
                         }}
                         style={{ cursor: "pointer" }}
-                      ></button>
+                        aria-label={
+                          liked ? "Убрать из избранного" : "В избранное"
+                        }
+                        className="sr-only"
+                      >
+                        {liked ? "liked" : "not-liked"}
+                      </button>
                     ) : null}
                   </div>
 
-                  {/* ✅ как в BestSellers: внутренний inset highlight */}
                   <div
                     className="pointer-events-none absolute inset-0 rounded-[22px]"
                     style={{

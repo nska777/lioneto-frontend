@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import ProductClient from "./ui/ProductClient";
-
-// ✅ единый источник правды (моки каталога)
-import { BRANDS, CATALOG_MOCK } from "@/app/lib/mock/catalog-products";
+import { resolveStrapiImage } from "@/app/lib/strapi/resolveImage";
 
 function norm(v: any) {
   return String(v ?? "")
@@ -10,39 +8,82 @@ function norm(v: any) {
     .toLowerCase();
 }
 
-function pickRandomUnique<T>(arr: T[], n: number) {
-  const a = [...arr];
+type StrapiProduct = {
+  id?: string | number;
+  documentId?: string;
+  title?: string;
+  slug?: string;
+  isActive?: boolean;
+  brand?: string;
+  cat?: string;
+  module?: string;
+  collection?: string;
+  collectionBadge?: string | null;
 
-  // Fisher–Yates
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-
-  return a.slice(0, n);
-}
-
-/** ================= Strapi fetch: price-entry ================= */
-
-type StrapiPriceEntry = {
-  productId?: string | null;
-  title?: string | null;
+  media?: any;
+  gallery?: any;
+  variants?: any[];
 
   priceUZS?: number | null;
   priceRUB?: number | null;
-
   oldPriceUZS?: number | null;
   oldPriceRUB?: number | null;
 
-  hasDiscount?: boolean | null;
-  collectionBadge?: string | null;
-  isActive?: boolean | null;
+  description?: string | null;
+  sku?: string | null;
+  sizeText?: string | null;
+  colorText?: string | null;
+  materialText?: string | null;
 };
 
-async function getPriceEntryByProductId(
-  productId: string,
-): Promise<StrapiPriceEntry | null> {
-  // ✅ ЖЕЛЕЗНЫЙ base, чтобы локально точно работало
+function pickStrapiMediaUrl(m: any): string | undefined {
+  if (!m) return undefined;
+  const a = m?.data?.attributes ?? m?.attributes ?? m;
+  const url =
+    a?.formats?.large?.url ||
+    a?.formats?.medium?.url ||
+    a?.formats?.small?.url ||
+    a?.url;
+
+  return url ? resolveStrapiImage(String(url)) : undefined;
+}
+
+function pickStrapiGalleryUrls(g: any): string[] {
+  if (!g) return [];
+  const arr = Array.isArray(g?.data) ? g.data : Array.isArray(g) ? g : [];
+  const out: string[] = [];
+
+  for (const item of arr) {
+    const a = item?.attributes ?? item;
+    const url =
+      a?.formats?.large?.url ||
+      a?.formats?.medium?.url ||
+      a?.formats?.small?.url ||
+      a?.url;
+
+    if (url) out.push(resolveStrapiImage(String(url))!);
+  }
+
+  return out.filter(Boolean);
+}
+
+function pickVariantImageUrl(v: any) {
+  const a =
+    v?.image?.data?.attributes ?? v?.image?.attributes ?? v?.image ?? null;
+
+  const url =
+    a?.formats?.large?.url ||
+    a?.formats?.medium?.url ||
+    a?.formats?.small?.url ||
+    a?.url ||
+    null;
+
+  return url ? resolveStrapiImage(String(url)) : undefined;
+}
+
+async function fetchStrapiProductBySlug(
+  slug: string,
+): Promise<StrapiProduct | null> {
   const base =
     process.env.NEXT_PUBLIC_STRAPI_URL ||
     process.env.STRAPI_URL ||
@@ -50,70 +91,96 @@ async function getPriceEntryByProductId(
 
   const url =
     `${base.replace(/\/$/, "")}` +
-    `/api/price-entries?filters[productId][$eq]=${encodeURIComponent(productId)}`;
+    `/api/products?filters[slug][$eq]=${encodeURIComponent(slug)}` +
+    `&populate[0]=media` +
+    `&populate[1]=gallery` +
+    `&populate[2]=variants` +
+    `&populate[3]=variants.image`;
 
   try {
     const res = await fetch(url, { cache: "no-store" });
-
-    // ✅ смотри это в терминале где `npm run dev`
-    console.log("[price-entry] GET", url, "->", res.status);
-
     if (!res.ok) return null;
 
     const json = await res.json();
     const item = json?.data?.[0];
     if (!item) return null;
 
-    // ✅ у тебя данные прямо в item (без attributes)
-    const a = item;
-
-    const toNum = (v: any) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    };
+    const src = item?.attributes ?? item;
 
     return {
-      productId: a?.productId ?? null,
-      title: a?.title ?? null,
-
-      priceUZS: a?.priceUZS !== undefined ? toNum(a.priceUZS) : null,
-      priceRUB: a?.priceRUB !== undefined ? toNum(a.priceRUB) : null,
-
-      oldPriceUZS: a?.oldPriceUZS !== undefined ? toNum(a.oldPriceUZS) : null,
-      oldPriceRUB: a?.oldPriceRUB !== undefined ? toNum(a.oldPriceRUB) : null,
-
-      hasDiscount: typeof a?.hasDiscount === "boolean" ? a.hasDiscount : null,
-      collectionBadge:
-        a?.collectionBadge !== undefined ? String(a.collectionBadge) : null,
-      isActive: typeof a?.isActive === "boolean" ? a.isActive : null,
+      id: src?.id ?? item?.id,
+      title: src?.title ?? "",
+      slug: src?.slug ?? "",
+      isActive: !!src?.isActive,
+      brand: src?.brand ?? null,
+      cat: src?.cat ?? null,
+      module: src?.module ?? null,
+      collection: src?.collection ?? null,
+      collectionBadge: src?.collectionBadge ?? null,
+      media: src?.media ?? null,
+      gallery: src?.gallery ?? null,
+      variants: Array.isArray(src?.variants) ? src.variants : [],
+      priceUZS: src?.priceUZS ?? null,
+      priceRUB: src?.priceRUB ?? null,
+      oldPriceUZS: src?.oldPriceUZS ?? null,
+      oldPriceRUB: src?.oldPriceRUB ?? null,
+      description: src?.description ?? null,
+      sku: src?.sku ?? null,
+      sizeText: src?.sizeText ?? null,
+      colorText: src?.colorText ?? null,
+      materialText: src?.materialText ?? null,
     };
-  } catch (e) {
-    console.log("[price-entry] ERROR", url, e);
+  } catch {
     return null;
   }
 }
 
-// ✅ related: подтягиваем price-entry для нескольких товаров (до 4) через Promise.all
-async function getPriceEntriesByProductIds(
-  ids: string[],
-): Promise<Record<string, StrapiPriceEntry>> {
-  const map: Record<string, StrapiPriceEntry> = {};
-  const unique = Array.from(new Set(ids.map(String))).filter(Boolean);
-  if (!unique.length) return map;
+async function fetchRelatedStrapiProducts(seed: {
+  brand?: string | null;
+  collection?: string | null;
+  cat?: string | null;
+  currentSlug: string;
+}) {
+  const base =
+    process.env.NEXT_PUBLIC_STRAPI_URL ||
+    process.env.STRAPI_URL ||
+    "http://localhost:1337";
 
-  const entries = await Promise.all(
-    unique.map((pid) => getPriceEntryByProductId(String(pid))),
-  );
+  const params = new URLSearchParams();
+  params.set("pagination[pageSize]", "24");
+  params.set("populate[0]", "media");
+  params.set("filters[isActive][$eq]", "true");
 
-  unique.forEach((pid, i) => {
-    const e = entries[i];
-    if (e) map[String(pid)] = e;
-  });
+  if (seed.collection) params.set("filters[collection][$eq]", seed.collection);
+  else if (seed.brand) params.set("filters[brand][$eq]", seed.brand);
+  else if (seed.cat) params.set("filters[cat][$eq]", seed.cat);
 
-  return map;
+  const url = `${base.replace(/\/$/, "")}/api/products?${params.toString()}`;
+
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return [];
+
+    const json = await res.json();
+    const data: any[] = Array.isArray(json?.data) ? json.data : [];
+
+    return data
+      .map((item) => {
+        const src = item?.attributes ?? item;
+        return {
+          title: src?.title ?? "",
+          slug: src?.slug ?? "",
+          brand: src?.brand ?? null,
+          media: src?.media ?? null,
+          priceUZS: src?.priceUZS ?? null,
+          priceRUB: src?.priceRUB ?? null,
+        };
+      })
+      .filter((p) => p.slug && p.slug !== seed.currentSlug);
+  } catch {
+    return [];
+  }
 }
-
-/** ================= Page ================= */
 
 export default async function ProductPage({
   params,
@@ -122,170 +189,112 @@ export default async function ProductPage({
 }) {
   const { id } = await params;
 
-  const p = (CATALOG_MOCK as any[]).find((x) => String(x.id) === String(id));
-  if (!p) return notFound();
+  const sp = await fetchStrapiProductBySlug(id);
+  if (!sp || sp.isActive === false) return notFound();
 
-  // ✅ подтягиваем Strapi по productId = params.id
-  const s = await getPriceEntryByProductId(String(id)).catch(() => null);
+  const slug = String(sp.slug || id);
 
-  // ✅ нормализуем галерею (база)
-  const galleryBase = (
-    Array.isArray(p.gallery) && p.gallery.length
-      ? p.gallery
-      : [p.image, p.image, p.image, p.image]
-  )
-    .map(String)
-    .filter(Boolean);
+  const image = pickStrapiMediaUrl(sp.media) || "";
+  const galleryBase = pickStrapiGalleryUrls(sp.gallery);
 
-  // ✅ нормализуем variants (если есть)
-  const variants = Array.isArray(p.variants)
-    ? (p.variants as any[])
-        .map((v) => ({
-          id: String(v?.id ?? ""),
-          title: String(v?.title ?? ""),
-          kind: v?.kind === "color" || v?.kind === "option" ? v.kind : "option",
-          priceDeltaRUB:
-            v?.priceDeltaRUB !== undefined
-              ? Number(v.priceDeltaRUB)
-              : undefined,
-          priceDeltaUZS:
-            v?.priceDeltaUZS !== undefined
-              ? Number(v.priceDeltaUZS)
-              : undefined,
-          image: v?.image ? String(v.image) : undefined,
-          gallery: Array.isArray(v?.gallery)
-            ? v.gallery.map(String).filter(Boolean)
-            : undefined,
-        }))
-        .filter((v) => v.id && v.title)
+  const variantImgs = Array.isArray(sp.variants)
+    ? (sp.variants.map(pickVariantImageUrl).filter(Boolean) as string[])
     : [];
 
-  // ✅ коллекция (бренд)
-  const brandSlug = norm(p.brand);
-  const brandLabel =
-    BRANDS.find((b) => norm(b.slug) === brandSlug)?.title ??
-    (brandSlug ? brandSlug.toUpperCase() : "");
+  const galleryFinal = (
+    galleryBase.length
+      ? galleryBase
+      : image
+        ? [image, ...variantImgs]
+        : variantImgs
+  ).filter(Boolean);
 
-  // ✅ УМНЫЕ "С ЭТИМ ТОВАРОМ ПОКУПАЮТ"
-  const poolAll = (CATALOG_MOCK as any[]).filter(
-    (x) => String(x.id) !== String(p.id),
-  );
+  const relatedStrapi = await fetchRelatedStrapiProducts({
+    brand: sp.brand ?? null,
+    collection: sp.collection ?? null,
+    cat: sp.cat ?? null,
+    currentSlug: slug,
+  });
 
-  const room0 = norm(
-    p.menu ?? p.room ?? p.section ?? p.category ?? p.room_slug,
-  );
-  const type0 = norm(p.type ?? p.module ?? p.kind ?? p.item_type);
-
-  const sameBrand = poolAll.filter((x) => norm(x.brand) === brandSlug);
-  const sameType = poolAll.filter(
-    (x) => norm(x.type ?? x.module ?? x.kind ?? x.item_type) === type0,
-  );
-  const sameRoom = poolAll.filter(
-    (x) =>
-      norm(x.menu ?? x.room ?? x.section ?? x.category ?? x.room_slug) ===
-      room0,
-  );
-
-  let relatedPool = [...sameBrand, ...sameType, ...sameRoom];
-
-  // убрали дубли
-  const uniq = new Map<string, any>();
-  for (const x of relatedPool) uniq.set(String(x.id), x);
-  relatedPool = Array.from(uniq.values());
-
-  // берем до 4 похожих
-  let picked = pickRandomUnique(relatedPool, 4);
-
-  // добиваем рандомом, если не хватило
-  if (picked.length < 4) {
-    const used = new Set(picked.map((x) => String(x.id)));
-    const rest = poolAll.filter((x) => !used.has(String(x.id)));
-    picked = [...picked, ...pickRandomUnique(rest, 4 - picked.length)];
-  }
-
-  // ✅ подтягиваем Strapi для related (до 4 товаров)
-  const relatedIds = picked.map((x) => String(x.id));
-  const relatedPriceMap = await getPriceEntriesByProductIds(relatedIds).catch(
-    () => ({}) as Record<string, StrapiPriceEntry>,
-  );
-
-  const fallbackSku = p.sku || `T${String(p.id).padStart(4, "0")}`;
-
-  // ✅ финальная модель: база из моков + price-entry из Strapi
   const product = {
-    id: String(p.id),
+    id: slug,
+    productId: slug,
+    slug,
 
-    title: (s?.title ?? p.title) || "—",
+    title: sp.title || "—",
+    badge: "",
+    collectionBadge: sp.collectionBadge ?? null,
+    hasDiscount: false,
+    href: `/product/${slug}`,
 
-    badge: String(p.badge ?? ""),
-    collectionBadge: s?.collectionBadge ?? null,
-    hasDiscount: s?.hasDiscount ?? null,
+    sku: String(sp.sku ?? slug),
 
-    href: p.href || `/product/${p.id}`,
-    sku: String(fallbackSku),
+    image,
+    gallery: (galleryFinal.length ? galleryFinal : ["/placeholder.png"]).filter(
+      Boolean,
+    ),
 
-    image: String(p.image || ""),
-    gallery: galleryBase,
-
-    price_rub:
-      typeof s?.priceRUB === "number"
-        ? s.priceRUB
-        : Number(p.price_rub ?? p.priceRUB ?? 0),
-    price_uzs:
-      typeof s?.priceUZS === "number"
-        ? s.priceUZS
-        : Number(p.price_uzs ?? p.priceUZS ?? 0),
+    price_rub: Number(sp.priceRUB ?? 0),
+    price_uzs: Number(sp.priceUZS ?? 0),
 
     old_price_rub:
-      typeof s?.oldPriceRUB === "number" ? s.oldPriceRUB : undefined,
+      typeof sp.oldPriceRUB === "number" ? sp.oldPriceRUB : undefined,
     old_price_uzs:
-      typeof s?.oldPriceUZS === "number" ? s.oldPriceUZS : undefined,
+      typeof sp.oldPriceUZS === "number" ? sp.oldPriceUZS : undefined,
 
-    variants,
+    variants: Array.isArray(sp.variants)
+      ? sp.variants
+          .map((v: any) => {
+            const vid = String(v?.variantKey || v?.id || "");
+            const img = pickVariantImageUrl(v);
 
-    brand: brandSlug,
-    collectionLabel: brandLabel,
+            return {
+              id: vid,
+              title: String(v?.title || vid || ""),
+              kind: v?.type === "color" ? "color" : "option",
+              group: v?.group ? String(v.group) : undefined,
+              priceDeltaRUB:
+                v?.priceDeltaRUB !== undefined
+                  ? Number(v.priceDeltaRUB)
+                  : undefined,
+              priceDeltaUZS:
+                v?.priceDeltaUZS !== undefined
+                  ? Number(v.priceDeltaUZS)
+                  : undefined,
+              image: img,
+            };
+          })
+          .filter((x: any) => x.id)
+      : [],
 
-    description:
-      p.description ||
-      "Компактная и практичная модель. Удобная тумба с выдвижными ящиками. Для изготовления используются качественные материалы.",
+    brand: norm(sp.brand),
+    collectionLabel: String(sp.brand ?? "").toUpperCase(),
 
+    description: String(sp.description ?? "Описание скоро будет."),
     extra: {
-      article: String(p.sku ?? fallbackSku),
-      size: String(p.size ?? "500 × 450 × 523"),
-      color: String(p.color ?? "орех матовый / мокко"),
-      material: String(p.material ?? "мдф, шпон ясень, массив ясень"),
+      article: String(sp.sku ?? slug),
+      size: String(sp.sizeText ?? "—"),
+      color: String(sp.colorText ?? "—"),
+      material: String(sp.materialText ?? "—"),
     },
 
-    // ✅ related теперь: title/price/badge приоритет Strapi -> fallback мок
-    related: picked.map((x) => {
-      const rid = String(x.id);
-      const re = relatedPriceMap[rid];
-
-      // если entry явно неактивен — не используем Strapi
-      const useStrapi = re?.isActive !== false;
-
-      const titleFromStrapi = String(re?.title ?? "").trim();
-      const badgeFromStrapi = String(re?.collectionBadge ?? "").trim();
-
-      const price_rub =
-        useStrapi && typeof re?.priceRUB === "number"
-          ? re.priceRUB
-          : Number(x.price_rub ?? x.priceRUB ?? 0);
-
-      const price_uzs =
-        useStrapi && typeof re?.priceUZS === "number"
-          ? re.priceUZS
-          : Number(x.price_uzs ?? x.priceUZS ?? 0);
+    related: relatedStrapi.slice(0, 4).map((rp) => {
+      const rSlug = String(rp.slug);
+      const rImage = pickStrapiMediaUrl(rp.media) || "/placeholder.png";
 
       return {
-        id: rid,
-        title: titleFromStrapi || String(x.title ?? "—"),
-        image: String(x.image ?? ""),
-        price_rub,
-        price_uzs,
-        href: `/product/${rid}`,
-        badge: badgeFromStrapi || String(x.badge ?? ""),
+        id: rSlug,
+        productId: rSlug,
+        slug: rSlug,
+        title: String(rp.title ?? "—"),
+        href: `/product/${rSlug}`,
+        image: rImage,
+        gallery: [rImage],
+        price_rub: Number(rp.priceRUB ?? 0),
+        price_uzs: Number(rp.priceUZS ?? 0),
+        variants: [],
+        brand: norm(rp.brand),
+        collectionLabel: String(rp.brand ?? "").toUpperCase(),
       };
     }),
   };

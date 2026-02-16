@@ -35,6 +35,7 @@ body {
     sans-serif;
   font-weight: 500;
   font-feature-settings: "kern" 1, "liga" 1;
+  background: #ffffff;
 }
 
 /* ===== HEADINGS ===== */
@@ -51,4 +52,20 @@ button,
 .nav-item {
   font-weight: 600;
   letter-spacing: 0.06em;
+}
+/* Force override for classicomobili-like white */
+:root {
+  --force-white: #ffffff;
+}
+
+/* Перебить inline style="background: #f3f3f3" и классы bg-[#f3f3f3] */
+*[style*="#f3f3f3"],
+*[style*="rgb(243, 243, 243)"] {
+  background-color: var(--force-white) !important;
+  background: var(--force-white) !important;
+}
+
+/* Перебить tailwind arbitrary bg */
+.bg-\[\#f3f3f3\] {
+  background-color: var(--force-white) !important;
 }

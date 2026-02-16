@@ -3,53 +3,22 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight, HeartOff, ShoppingBag, Trash2 } from "lucide-react";
+import { ArrowRight, HeartOff, ShoppingBag, Trash2, Zap } from "lucide-react";
 
 import { useRegionLang } from "../context/region-lang";
 import { useShopState } from "../context/shop-state";
-import { CATALOG_BY_ID, CATALOG_MOCK } from "../lib/mock/catalog-products";
+import { fetchStrapiProductsMapBySlugs } from "@/app/lib/strapi/products";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-/* ================= Stable random helpers ================= */
-
-function hashString(input: string) {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number) {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function seededShuffle<T>(arr: T[], seed: number) {
-  const a = arr.slice();
-  const rnd = mulberry32(seed);
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-/* ================= Utils ================= */
-
 function formatMoney(n: number, region: "uz" | "ru") {
-  if (region === "uz") return new Intl.NumberFormat("ru-RU").format(n) + " сум";
-  return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
+  const v = Number.isFinite(Number(n)) ? Number(n) : 0;
+  if (region === "uz") return new Intl.NumberFormat("ru-RU").format(v) + " сум";
+  return new Intl.NumberFormat("ru-RU").format(v) + " ₽";
 }
 
+/** ✅ Безопасная картинка (Strapi-friendly: <img>, без next/image) */
 function SafeImage({ src, alt }: { src: string; alt: string }) {
   const [broken, setBroken] = React.useState(false);
 
@@ -64,27 +33,23 @@ function SafeImage({ src, alt }: { src: string; alt: string }) {
   }
 
   return (
-    <Image
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={src}
       alt={alt}
-      fill
-      className="object-cover"
-      sizes="(max-width: 768px) 100vw, 360px"
+      className="absolute inset-0 h-full w-full object-cover"
       onError={() => setBroken(true)}
+      loading="lazy"
     />
   );
 }
 
-type VariantAny = {
-  id: string;
-  title?: string;
-  priceDeltaRUB?: number;
-  priceDeltaUZS?: number;
-  image?: string;
-};
-
-/** ================= Strapi price-entry (client) ================= */
-
+/** ================= Strapi price-entry (client) =================
+ * Ключи цен: productId может быть:
+ * - "slug::variantId"
+ * - "slug::base"
+ * - (иногда) "slug" — оставляем как самый последний fallback
+ */
 type PriceEntry = {
   productId: string;
   title?: string | null;
@@ -102,14 +67,13 @@ const toNum = (v: any) => {
   return Number.isFinite(n) ? n : null;
 };
 
-async function fetchPriceMap(productIds: string[]) {
-  const ids = Array.from(new Set(productIds.filter(Boolean)));
+async function fetchPriceMapByKeys(keys: string[]) {
+  const ids = Array.from(
+    new Set(keys.map((s) => String(s || "").trim()).filter(Boolean)),
+  );
   if (!ids.length) return {} as Record<string, PriceEntry>;
 
-  const base =
-    process.env.NEXT_PUBLIC_STRAPI_URL ||
-    process.env.STRAPI_URL ||
-    "http://localhost:1337";
+  const base = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 
   const params = new URLSearchParams();
   ids.forEach((id, i) => params.set(`filters[productId][$in][${i}]`, id));
@@ -125,8 +89,8 @@ async function fetchPriceMap(productIds: string[]) {
 
   const map: Record<string, PriceEntry> = {};
   for (const item of data) {
-    const a = item; // у тебя поля прямо тут (без attributes)
-    const pid = String(a?.productId ?? "");
+    const a = item?.attributes ?? item; // на всякий случай
+    const pid = String(a?.productId ?? "").trim();
     if (!pid) continue;
 
     map[pid] = {
@@ -146,40 +110,134 @@ async function fetchPriceMap(productIds: string[]) {
   return map;
 }
 
+/** ✅ composite variant: title + delta sum + image */
+function resolveCompositeVariant(
+  variantId: string,
+  variants: Array<{
+    id: string;
+    title?: string;
+    group?: string;
+    priceDeltaRUB?: number;
+    priceDeltaUZS?: number;
+    image?: string;
+    gallery?: string[];
+  }>,
+  region: "uz" | "ru",
+) {
+  const raw = String(variantId ?? "").trim();
+  if (!raw || raw === "base") {
+    return {
+      title: null as string | null,
+      delta: 0,
+      image: null as string | null,
+    };
+  }
+
+  const parts = raw
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const picked: typeof variants = [];
+
+  for (const part of parts) {
+    if (part.includes(":")) {
+      const [g, id] = part.split(":");
+      const group = String(g ?? "").trim();
+      const vid = String(id ?? "").trim();
+      if (!vid) continue;
+
+      const found =
+        variants.find(
+          (v) =>
+            String(v.id) === vid &&
+            (group ? String(v.group ?? "") === group : true),
+        ) ?? variants.find((v) => String(v.id) === vid);
+
+      if (found) picked.push(found);
+      continue;
+    }
+
+    const found = variants.find((v) => String(v.id) === part);
+    if (found) picked.push(found);
+  }
+
+  const title = picked
+    .map((v) => (v.title ? String(v.title).trim() : ""))
+    .filter(Boolean)
+    .join(", ");
+
+  const delta = picked.reduce((acc, v) => {
+    const d =
+      region === "uz"
+        ? Number(v?.priceDeltaUZS ?? 0)
+        : Number(v?.priceDeltaRUB ?? 0);
+    return acc + (Number(d ?? 0) || 0);
+  }, 0);
+
+  const image =
+    picked.find((v) => Array.isArray(v.gallery) && v.gallery.length)
+      ?.gallery?.[0] ??
+    picked.find((v) => !!v.image)?.image ??
+    null;
+
+  return { title: title || null, delta, image };
+}
+
 export default function FavoritesClient() {
   const { region } = useRegionLang();
   const shop = useShopState();
 
-  // ✅ keys вида productId::variantId
   const favKeys = shop.favorites;
 
-  // ✅ ids из избранного -> в Strapi
+  // slugs для продуктов
   const productIds = useMemo(() => {
     return favKeys
-      .map((key) => {
-        const { productId } = shop.parseKey(String(key));
-        return String(productId);
-      })
+      .map((key) => shop.parseKey(String(key)).productId)
+      .map((x) => String(x))
       .filter(Boolean);
   }, [favKeys, shop]);
 
+  // ✅ ключи цен: slug::variantId + slug::base (и на крайняк slug)
+  const priceKeys = useMemo(() => {
+    const keys: string[] = [];
+    for (const k of favKeys) {
+      const { productId, variantId } = shop.parseKey(String(k));
+      const pid = String(productId || "").trim();
+      const vid = String(variantId || "base").trim() || "base";
+      if (!pid) continue;
+      keys.push(`${pid}::${vid}`);
+      keys.push(`${pid}::base`);
+      keys.push(pid); // самый последний fallback, если у тебя где-то так заведено
+    }
+    return Array.from(new Set(keys));
+  }, [favKeys, shop]);
+
   const [priceMap, setPriceMap] = useState<Record<string, PriceEntry>>({});
+  const [productsMap, setProductsMap] = useState<Record<string, any>>({});
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const map = await fetchPriceMap(productIds);
-        if (alive) setPriceMap(map);
+        const [pm, pr] = await Promise.all([
+          fetchPriceMapByKeys(priceKeys),
+          fetchStrapiProductsMapBySlugs(productIds),
+        ]);
+        if (!alive) return;
+        setPriceMap(pm);
+        setProductsMap(pr);
       } catch {
-        if (alive) setPriceMap({});
+        if (!alive) return;
+        setPriceMap({});
+        setProductsMap({});
       }
     })();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productIds.join("|")]);
+  }, [productIds.join("|"), priceKeys.join("|")]);
 
   const items = useMemo(() => {
     return favKeys
@@ -187,101 +245,88 @@ export default function FavoritesClient() {
         const k = String(key);
         const { productId, variantId } = shop.parseKey(k);
 
-        const p = CATALOG_BY_ID.get(String(productId));
-        if (!p) return null;
+        const pid = String(productId || "").trim();
+        const vid = String(variantId || "base").trim() || "base";
+        const p = productsMap[pid];
+        if (!pid || !p) return null;
 
-        const variants: VariantAny[] = Array.isArray((p as any).variants)
-          ? ((p as any).variants as VariantAny[])
-          : [];
+        const variants = Array.isArray(p?.variants) ? p.variants : [];
+        const resolved = resolveCompositeVariant(vid, variants, region);
 
-        const variant =
-          variantId && variantId !== "base"
-            ? (variants.find((v) => String(v.id) === String(variantId)) ?? null)
-            : null;
+        // ✅ 1) price-entry по variant
+        const peVariant = priceMap[`${pid}::${vid}`];
+        // ✅ 2) fallback base
+        const peBase = priceMap[`${pid}::base`];
+        // ✅ 3) fallback "slug"
+        const pePlain = priceMap[pid];
 
-        // ✅ базовая цена: сначала Strapi, потом моки
-        const pe = priceMap[String(productId)];
+        const pickBaseFromEntry = (pe?: PriceEntry) => {
+          const n =
+            region === "uz"
+              ? Number(pe?.priceUZS ?? 0)
+              : Number(pe?.priceRUB ?? 0);
+          return Number.isFinite(n) ? n : 0;
+        };
 
         const baseFromStrapi =
-          region === "uz"
-            ? Number(pe?.priceUZS ?? 0)
-            : Number(pe?.priceRUB ?? 0);
+          (peVariant && pickBaseFromEntry(peVariant)) ||
+          (peBase && pickBaseFromEntry(peBase)) ||
+          (pePlain && pickBaseFromEntry(pePlain)) ||
+          0;
 
-        const baseFromMock =
-          region === "uz"
-            ? Number((p as any).price_uzs ?? (p as any).priceUZS ?? 0)
-            : Number((p as any).price_rub ?? (p as any).priceRUB ?? 0);
+        // ✅ fallback на Strapi Product base price
+        const baseFromProduct =
+          region === "uz" ? Number(p?.priceUZS ?? 0) : Number(p?.priceRUB ?? 0);
 
         const basePrice =
-          Number.isFinite(baseFromStrapi) && baseFromStrapi > 0
+          (Number.isFinite(baseFromStrapi) && baseFromStrapi > 0
             ? baseFromStrapi
-            : Number(baseFromMock ?? 0) || 0;
+            : 0) ||
+          (Number.isFinite(baseFromProduct) && baseFromProduct > 0
+            ? baseFromProduct
+            : 0) ||
+          0;
 
-        const deltaRaw =
-          region === "uz"
-            ? Number(variant?.priceDeltaUZS ?? 0)
-            : Number(variant?.priceDeltaRUB ?? 0);
+        const price = (basePrice || 0) + (resolved.delta || 0);
 
-        const delta = Number(deltaRaw ?? 0) || 0;
+        // title: сначала из price-entry variant/base/plain, потом product.title
+        const title =
+          String(
+            peVariant?.title ??
+              peBase?.title ??
+              pePlain?.title ??
+              p?.title ??
+              "—",
+          ) || "—";
 
-        const price = basePrice + delta;
-
-        const variantTitle = variant?.title ? String(variant.title) : null;
-
-        // ✅ картинка варианта, если есть
+        // image: variant.gallery[0] -> variant.image -> product.image -> product.gallery[0]
         const image =
-          (variant?.image ? String(variant.image) : "") || (p as any).image;
-
-        // ✅ title можно тоже взять из price-entry
-        const title = String(pe?.title ?? (p as any).title ?? "");
+          (resolved.image ? String(resolved.image) : "") ||
+          (p?.image ? String(p.image) : "") ||
+          (Array.isArray(p?.gallery) && p.gallery[0]
+            ? String(p.gallery[0])
+            : "");
 
         return {
           key: k,
-          productId: String(productId),
-          variantId: String(variantId),
-          variantTitle,
-          product: { ...(p as any), title } as any,
+          productId: pid,
+          variantId: vid,
+          title,
+          variantTitle: resolved.title,
           price,
-          image: String(image || ""),
+          image,
         };
       })
       .filter(Boolean) as Array<{
       key: string;
       productId: string;
       variantId: string;
+      title: string;
       variantTitle: string | null;
-      product: (typeof CATALOG_MOCK)[number];
       price: number;
       image: string;
     }>;
-  }, [favKeys, region, shop, priceMap]);
-
-  // ✅ РЕКОМЕНДАЦИИ (FIX hydration):
-  const [recommended, setRecommended] = useState<
-    Array<(typeof CATALOG_MOCK)[number]>
-  >([]);
-
-  useEffect(() => {
-    const set = new Set(favKeys.map((k) => shop.parseKey(String(k)).productId));
-    const pool = CATALOG_MOCK.filter((p) => !set.has(String(p.id)));
-
-    const ids = pool.map((x) => String(x.id)).join("|");
-    const seedKey = `lioneto:favorites:recommended:${hashString(ids)}`;
-
-    let seed = 1;
-    try {
-      const stored = sessionStorage.getItem(seedKey);
-      if (stored) seed = Number(stored) || 1;
-      else {
-        seed = Math.floor(Math.random() * 1_000_000_000) + 1;
-        sessionStorage.setItem(seedKey, String(seed));
-      }
-    } catch {
-      seed = hashString(seedKey) || 1;
-    }
-
-    setRecommended(seededShuffle(pool, seed).slice(0, 3));
-  }, [favKeys, shop]);
+  }, [favKeys, shop, productsMap, priceMap, region]);
 
   const clearFavorites = () => {
     favKeys.forEach((key) => {
@@ -321,7 +366,6 @@ export default function FavoritesClient() {
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
-        {/* LIST */}
         <div className="space-y-4">
           {items.length === 0 ? (
             <div className="rounded-3xl border border-black/10 bg-white p-8">
@@ -363,7 +407,7 @@ export default function FavoritesClient() {
                     href={`/product/${it.productId}`}
                     className="cursor-pointer relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-black/5"
                   >
-                    <SafeImage src={it.image} alt={it.product.title} />
+                    <SafeImage src={it.image} alt={it.title} />
                   </Link>
 
                   <div className="min-w-0 flex-1">
@@ -373,7 +417,7 @@ export default function FavoritesClient() {
                           href={`/product/${it.productId}`}
                           className="cursor-pointer block truncate text-base font-medium tracking-[-0.01em] hover:underline"
                         >
-                          {it.product.title}
+                          {it.title}
                         </Link>
 
                         {it.variantTitle && it.variantId !== "base" ? (
@@ -434,13 +478,12 @@ export default function FavoritesClient() {
                       <button
                         type="button"
                         onClick={() => {
-                          // гарантированно кладём в корзину выбранный вариант
-                          shop.addToCart(it.productId, 1, it.variantId);
-                          window.location.href = "/checkout";
+                          shop.setOneClick(it.productId, 1, it.variantId);
+                          window.location.href = "/checkout?mode=oneclick";
                         }}
                         className="cursor-pointer inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/75 hover:text-black hover:border-black/20 transition"
                       >
-                        Оформить заказ
+                        Купить в 1 клик <Zap className="ml-2 h-4 w-4" />
                       </button>
                     </div>
                   </div>
@@ -450,46 +493,20 @@ export default function FavoritesClient() {
           )}
         </div>
 
-        {/* RIGHT: RECOMMENDED */}
         <aside className="h-fit rounded-3xl border border-black/10 bg-white p-5">
           <div className="text-base font-semibold tracking-[-0.01em]">
             Рекомендуем
           </div>
-          <p className="mt-1 text-sm text-black/55">Товары высокого спроса</p>
-
-          <div className="mt-4 space-y-3">
-            {recommended.map((p) => (
-              <Link
-                key={p.id}
-                href={`/product/${p.id}`}
-                className="group flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 hover:border-black/20 transition cursor-pointer"
-              >
-                <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-black/5 shrink-0">
-                  <SafeImage src={p.image} alt={p.title} />
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium group-hover:underline">
-                    {p.title}
-                  </div>
-                  <div className="text-xs text-black/45">
-                    {formatMoney(
-                      (region === "uz"
-                        ? (p as any).price_uzs
-                        : (p as any).price_rub) ?? 0,
-                      region,
-                    )}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <p className="mt-1 text-sm text-black/55">
+            Это включим на Strapi в следующем шаге (related).
+          </p>
 
           <div className="mt-5">
             <Link
               href="/catalog"
               className="cursor-pointer inline-flex w-full items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75 hover:text-black hover:border-black/20 transition"
             >
-              Ещё товары
+              В каталог
             </Link>
           </div>
         </aside>

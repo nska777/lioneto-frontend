@@ -41,15 +41,18 @@ export const MEGA_SLIDES: Record<MegaSlidesKey, string[]> = {
   "hallway:amber": ["/mega/hallway/amber/01.jpg"],
   "hallway:buongiorno": ["/mega/hallway/buongiorno/01.jpg"],
 };
+
 export type MegaItem = { labelKey: string; fallback: string; href: string };
 
 export type MegaKey =
   | "bedrooms"
   | "living"
+  | "youth"
   | "hallway"
   | "office"
   | "wardrobes"
-  | "tables";
+  | "tables"
+  | "kitchens";
 
 export type MegaCategory = {
   key: MegaKey;
@@ -84,6 +87,9 @@ const MENU_BY_CATEGORY: Record<string, string> = {
   bedrooms: "bedrooms",
   living: "living",
   youth: "youth",
+  hallway: "hallway",
+  tables: "tables",
+  tables_chairs: "tables_chairs",
 };
 
 export const makeCollectionHref = (brand: string, category: string) => {
@@ -202,8 +208,10 @@ export const megaCategories: MegaCategory[] = [
       },
     ],
   },
-   {
-    key: "wardrobes",
+
+  // ✅ FIX: Молодёжные должны быть key: "youth" (а не wardrobes)
+  {
+    key: "youth",
     labelKey: "header.mega.youth",
     fallback: "МОЛОДЕЖНЫЕ",
     href: "/category/youth",
@@ -220,6 +228,7 @@ export const megaCategories: MegaCategory[] = [
       },
     ],
   },
+
   {
     key: "hallway",
     labelKey: "header.mega.hallway",
@@ -233,6 +242,9 @@ export const megaCategories: MegaCategory[] = [
       },
     ],
   },
+
+  // ✅ NEW: Кухни (чтобы снова появилась в верхнем меню)
+
   {
     key: "tables",
     labelKey: "header.mega.tables",
@@ -246,7 +258,6 @@ export const megaCategories: MegaCategory[] = [
       },
     ],
   },
- 
 ];
 
 /* =========================
@@ -261,7 +272,6 @@ type MegaPreview = {
   a?: string;
   b?: string;
 };
-
 
 export const MEGA_PREVIEWS: Record<string, MegaPreview> = {
   // СПАЛЬНИ
@@ -327,7 +337,6 @@ export const MEGA_PREVIEWS: Record<string, MegaPreview> = {
     titleKey: "mega.preview.living.salvador",
     fallback: "Гостиная «САЛЬВАДОР»",
     main: "/mega/living/salvador/main.jpg",
- 
   },
   [makeCollectionHref("buongiorno", "living")]: {
     titleKey: "mega.preview.living.bergenWhite",

@@ -22,7 +22,7 @@ export default async function NewsPage() {
   const items = await fetchNews();
 
   return (
-    <main className="bg-white text-black">
+    <main className="bg-#f3f3f3 text-black">
       <div className="mx-auto w-full max-w-[1200px] px-4">
         {/* Breadcrumbs */}
         <nav className="pt-6 text-[12px] tracking-[0.18em] text-black/50">
