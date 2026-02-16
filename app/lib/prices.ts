@@ -14,7 +14,6 @@ export type PriceEntry = {
   collectionBadge?: string | null;
   isActive?: boolean | null;
 
-  // Strapi media object (cardImage) или строка url
   cardImage?: any;
 };
 
@@ -50,84 +49,100 @@ function pickMediaUrl(src: any): string | null {
     src?.media?.data?.attributes?.url ??
     src?.media?.data?.url ??
     null;
+
   return u ? String(u) : null;
 }
 
-/**
- * ✅ Теперь pricesMap строится ИЗ /api/products (Strapi product)
- * ⚠️ Никаких price-entries и /api/prices
- *
- * Возвращает Map с ключами:
- * - productId/slug (как есть)
- * - lowercased productId/slug
- * - numeric id (если есть)
- */
 export async function fetchPricesMap(): Promise<Map<string, PriceEntry>> {
   const STRAPI_URL = String(process.env.NEXT_PUBLIC_STRAPI_URL || "").trim();
   if (!STRAPI_URL) return new Map();
 
-  // берём только нужные поля, чтобы не тянуть тяжёлый populate
-  const url = joinUrl(
-    STRAPI_URL,
-    "/api/products?pagination[pageSize]=250&filters[isActive][$eq]=true&fields[0]=slug&fields[1]=productId&fields[2]=title&fields[3]=priceUZS&fields[4]=priceRUB&fields[5]=oldPriceUZS&fields[6]=oldPriceRUB&fields[7]=hasDiscount&fields[8]=collectionBadge&fields[9]=isActive&populate[media]=*",
-  );
-
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return new Map();
-
-  const json = await res.json();
-  const rows: any[] = Array.isArray(json?.data) ? json.data : [];
+  const pageSize = 200;
+  let page = 1;
+  let total = Infinity;
 
   const map = new Map<string, PriceEntry>();
 
-  for (const it of rows) {
-    const src = pickStrapi(it);
+  while (map.size < total) {
+    const url = joinUrl(
+      STRAPI_URL,
+      `/api/products?pagination[page]=${page}&pagination[pageSize]=${pageSize}` +
+        `&filters[isActive][$eq]=true` +
+        `&fields[0]=slug&fields[1]=productId&fields[2]=title` +
+        `&fields[3]=priceUZS&fields[4]=priceRUB` +
+        `&fields[5]=oldPriceUZS&fields[6]=oldPriceRUB` +
+        `&fields[7]=hasDiscount&fields[8]=collectionBadge&fields[9]=isActive` +
+        `&populate[media]=*`
+    );
 
-    const idRaw = src?.id ?? it?.id ?? src?.documentId ?? null;
-    const slug = String(src?.slug ?? "").trim();
-    const pid = String(src?.productId ?? src?.slug ?? slug ?? idRaw ?? "").trim();
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) break;
 
-    if (!pid) continue;
+    const json = await res.json();
+    const rows: any[] = Array.isArray(json?.data) ? json.data : [];
 
-    const entry: PriceEntry = {
-      productId: pid,
-      title: src?.title ?? null,
+    const pagination = json?.meta?.pagination;
+    total =
+      typeof pagination?.total === "number"
+        ? pagination.total
+        : rows.length;
 
-      priceUZS: parseNum(src?.priceUZS),
-      priceRUB: parseNum(src?.priceRUB),
+    if (!rows.length) break;
 
-      oldPriceUZS: parseNum(src?.oldPriceUZS),
-      oldPriceRUB: parseNum(src?.oldPriceRUB),
+    for (const it of rows) {
+      const src = pickStrapi(it);
 
-      hasDiscount: src?.hasDiscount ?? null,
-      collectionBadge: src?.collectionBadge ?? null,
-      isActive: src?.isActive ?? null,
+      const idRaw = src?.id ?? it?.id ?? src?.documentId ?? null;
+      const slug = String(src?.slug ?? "").trim().toLowerCase();
+      const pid = String(
+        src?.productId ?? slug ?? idRaw ?? ""
+      ).trim().toLowerCase();
 
-      cardImage: pickMediaUrl(src) ?? src?.media ?? null,
-    };
+      if (!pid) continue;
 
-    const keys = new Set<string>();
+      const entry: PriceEntry = {
+        productId: pid,
+        title: src?.title ?? null,
 
-    // основной ключ
-    keys.add(pid);
-    keys.add(pid.toLowerCase());
+        priceUZS: parseNum(src?.priceUZS),
+        priceRUB: parseNum(src?.priceRUB),
 
-    // slug как отдельный ключ (если отличается)
-    if (slug) {
-      keys.add(slug);
-      keys.add(slug.toLowerCase());
-    }
+        oldPriceUZS: parseNum(src?.oldPriceUZS),
+        oldPriceRUB: parseNum(src?.oldPriceRUB),
 
-    // numeric id как ключ тоже (на всякий случай)
-    if (idRaw !== null && idRaw !== undefined) {
-      const k = String(idRaw).trim();
-      if (k) {
-        keys.add(k);
-        if (/^\d+$/.test(k)) keys.add(String(Number(k)));
+        hasDiscount: src?.hasDiscount ?? null,
+        collectionBadge: src?.collectionBadge ?? null,
+        isActive: src?.isActive ?? null,
+
+        cardImage: pickMediaUrl(src) ?? src?.media ?? null,
+      };
+
+      const keys = new Set<string>();
+
+      keys.add(pid);
+      keys.add(pid.toLowerCase());
+
+      if (slug) {
+        keys.add(slug);
+        keys.add(slug.toLowerCase());
+      }
+
+      if (idRaw !== null && idRaw !== undefined) {
+        const k = String(idRaw).trim();
+        if (k) {
+          keys.add(k);
+          if (/^\d+$/.test(k)) keys.add(String(Number(k)));
+        }
+      }
+
+      for (const k of keys) {
+        map.set(k, entry);
       }
     }
 
-    for (const k of keys) map.set(k, entry);
+    page += 1;
+
+    if (page > 50) break; // safety
   }
 
   return map;
