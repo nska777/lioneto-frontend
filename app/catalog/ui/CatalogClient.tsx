@@ -17,8 +17,6 @@ import { useCatalogData } from "./useCatalogData";
 
 import { HERO_SLIDES_MANIFEST, makeSlidesFromConf } from "./heroSlidesManifest";
 
-import { fetchPricesMap, type PriceEntry } from "@/app/lib/prices";
-
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
@@ -216,20 +214,15 @@ export default function CatalogClient({
 
   // ✅ FIX: Intercept sidebar change and write query via params.set (no append)
   const onSidebarChangeSafe = (next: typeof sidebarValue) => {
-    // 1) update URL deterministically (kills duplicates forever)
     pushParams((params) => {
       setCSVParam(params, "menu", next.menu);
       setCSVParam(params, "collections", next.collections);
       setCSVParam(params, "types", next.types);
 
-      // min/max are already in your params contract
       setNumParam(params, "min", next.priceMin);
       setNumParam(params, "max", next.priceMax);
-
-      // doors/facade rules stay untouched here — useCatalogTopBar handles it
     });
 
-    // 2) still let existing hook/state update happen (safe)
     onSidebarChange({
       ...next,
       menu: uniq(next.menu),
@@ -258,20 +251,42 @@ export default function CatalogClient({
       }
 
       try {
-        const url = joinUrl(
-          STRAPI_URL,
-          "/api/products?populate=*&pagination[pageSize]=200&sort=sortOrder:asc,updatedAt:desc",
-        );
+        const pageSize = 200;
+        let page = 1;
+        let total = Infinity;
 
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) throw new Error("Strapi products fetch failed");
+        const all: any[] = [];
 
-        const json = await res.json();
-        const arr = Array.isArray(json?.data) ? json.data : [];
-        const mapped = arr.map((it: any) => pickStrapiItem(it)).filter(Boolean);
+        while (alive && all.length < total) {
+          const url = joinUrl(
+            STRAPI_URL,
+            `/api/products?populate=*&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=sortOrder:asc,updatedAt:desc`,
+          );
 
-        if (alive) setStrapiItems(mapped);
-      } catch {
+          const res = await fetch(url, { cache: "no-store" });
+          if (!res.ok) throw new Error("Strapi products fetch failed");
+
+          const json = await res.json();
+
+          const arr = Array.isArray(json?.data) ? json.data : [];
+          const mapped = arr
+            .map((it: any) => pickStrapiItem(it))
+            .filter(Boolean);
+          all.push(...mapped);
+
+          const p = json?.meta?.pagination;
+          total = typeof p?.total === "number" ? p.total : all.length;
+
+          if (!arr.length) break;
+          page += 1;
+
+          // safety break
+          if (page > 50) break;
+        }
+
+        if (alive) setStrapiItems(all);
+      } catch (e) {
+        console.error("Strapi products fetch failed", e);
         if (alive) setStrapiItems([]);
       }
     };
@@ -282,12 +297,10 @@ export default function CatalogClient({
     };
   }, [CATALOG_SOURCE, STRAPI_URL]);
 
-  // ✅ базовый список товаров
+  // ✅ базовый список товаров (для useCatalogData)
   const baseItems = useMemo(() => {
     if (CATALOG_SOURCE !== "strapi") return [];
-
     if (!Array.isArray(strapiItems)) return [];
-
     return strapiItems;
   }, [CATALOG_SOURCE, strapiItems]);
 
@@ -319,142 +332,13 @@ export default function CatalogClient({
 
   const heroRoomEffective = heroRoom || activeRoom;
 
-  // ==========================
-  // ✅ Prices overlay
-  // ==========================
-  const [pricesMap, setPricesMap] = useState<Map<string, PriceEntry> | null>(
-    null,
-  );
-
-  useEffect(() => {
-    let alive = true;
-    fetchPricesMap()
-      .then((m) => alive && setPricesMap(m))
-      .catch(() => alive && setPricesMap(new Map()));
-    return () => {
-      alive = false;
-    };
-  }, []);
-
+  // ✅ price-entries больше не используем вообще
   const applyPrices = useMemo(() => {
-    // ✅ FIX: нормальный парсер чисел (Strapi/CSV часто шлёт "5 590 000" или NBSP)
-    const num = (v: any) => {
-      const s = String(v ?? "")
-        .replace(/\u00A0/g, " ")
-        .replace(/\s+/g, "")
-        .replace(/,/g, ".")
-        .trim();
-      const n = Number(s);
-      return Number.isFinite(n) ? n : 0;
-    };
-
-    const pickRow = (p: any) => {
-      if (!pricesMap) return null;
-
-      const candidates = [p?.productId, p?.id, p?.slug, p?.handle, p?.sku];
-
-      for (const c of candidates) {
-        const k0 = String(c ?? "").trim();
-        if (!k0) continue;
-
-        const row1 = pricesMap.get(k0);
-        if (row1) return row1;
-
-        const kl = k0.toLowerCase();
-        const row2 = pricesMap.get(kl);
-        if (row2) return row2;
-
-        if (/^\d+$/.test(k0)) {
-          const kn = String(Number(k0));
-          const row3 = pricesMap.get(kn);
-          if (row3) return row3;
-        }
-      }
-
-      const pid = String(p?.productId ?? "").trim();
-      if (pid) {
-        const row4 = pricesMap.get(pid) || pricesMap.get(pid.toLowerCase());
-        if (row4) return row4;
-      }
-
-      return null;
-    };
-
-    const makeCatalogHrefForItem = (p: any) => {
-      const col = getCollectionSlug(p);
-      const mod = getModuleSlug(p);
-      const openKey = normKey(p?.__openKey ?? p?.slug ?? p?.productId ?? p?.id);
-
-      return `/catalog?${[
-        col ? `collections=${encodeURIComponent(col)}` : "",
-        mod ? `types=${encodeURIComponent(mod)}` : "",
-        openKey ? `open=${encodeURIComponent(openKey)}` : "",
-      ]
-        .filter(Boolean)
-        .join("&")}`;
-    };
-
-    return (p: any) => {
-      const p2 = {
-        ...p,
-        __catalogHref: p?.__catalogHref || makeCatalogHrefForItem(p),
-        __hasProductPage: true,
-      };
-
-      if (!pricesMap) return p2;
-
-      const row = pickRow(p2);
-      if (!row) return p2;
-
-      const title = row.title?.trim() ? row.title : p2.title;
-
-      // ✅ FIX HERE: было Number(...) → теперь num(...)
-      // ✅ безопасный парсер
-      const parseNum = (v: any) => {
-        const s = String(v ?? "")
-          .replace(/\u00A0/g, " ")
-          .replace(/\s+/g, "")
-          .replace(/,/g, ".")
-          .trim();
-        const n = Number(s);
-        return Number.isFinite(n) ? n : 0;
-      };
-
-      const rowU = parseNum(row.priceUZS);
-      const rowR = parseNum(row.priceRUB);
-
-      const baseU = parseNum(p2.priceUZS ?? p2.price_uzs);
-      const baseR = parseNum(p2.priceRUB ?? p2.price_rub);
-
-      // НИКОГДА не затираем нормальную цену нулём
-      const priceUZS = rowU > 0 ? rowU : baseU;
-      const priceRUB = rowR > 0 ? rowR : baseR;
-
-      const oldU = parseNum((row as any).oldPriceUZS);
-      const oldR = parseNum((row as any).oldPriceRUB);
-
-      const baseOldU = parseNum(p2.oldPriceUZS ?? p2.old_price_uzs);
-      const baseOldR = parseNum(p2.oldPriceRUB ?? p2.old_price_rub);
-
-      const oldPriceUZS = oldU > 0 ? oldU : baseOldU || undefined;
-      const oldPriceRUB = oldR > 0 ? oldR : baseOldR || undefined;
-
-      return {
-        ...p2,
-        title,
-        priceUZS,
-        priceRUB,
-        oldPriceUZS,
-        oldPriceRUB,
-        hasDiscount: (row as any).hasDiscount ?? (p2 as any).hasDiscount,
-        badge: (row as any).collectionBadge ?? (p2 as any).badge,
-        collectionBadge:
-          (row as any).collectionBadge ?? (p2 as any).collectionBadge,
-        isActive: (row as any).isActive ?? (p2 as any).isActive ?? true,
-        cardImage: (row as any).cardImage ?? (p2 as any).cardImage,
-      };
-    };
-  }, [pricesMap]);
+    return (p: any) => ({
+      ...p,
+      __hasProductPage: true,
+    });
+  }, []);
 
   const bedroomsFirst2 = bedroomsFirst
     ? applyPrices(bedroomsFirst as any)
@@ -511,13 +395,11 @@ export default function CatalogClient({
     return "";
   }, [heroRoomEffective]);
 
-  // ✅ название коллекции
   const heroTitle = useMemo(() => {
     if (!activeCollection) return "";
     return String(activeCollection).toUpperCase();
   }, [activeCollection]);
 
-  // ✅ описание
   const heroDescription = useMemo(() => {
     if (!activeCollection) return "";
     const base = String(activeCollection).toUpperCase();
@@ -543,7 +425,6 @@ export default function CatalogClient({
     setHeroSlides(makeSlidesFromConf(conf));
   }, [hero, heroRoomEffective, activeCollection]);
 
-  // ... (дальше файл без изменений)
   useEffect(() => {
     if (!gridRef.current) return;
     const cards = gridRef.current.querySelectorAll("[data-card]");
@@ -578,12 +459,10 @@ export default function CatalogClient({
     sort,
     selectedDoors.join(","),
     selectedFacades.join(","),
-    pricesMap,
     CATALOG_SOURCE,
     strapiItems?.length,
   ]);
 
-  // Обычная TopBar (не hero)
   const TopBar = (
     <CatalogTopBar
       activeRoom={activeRoom}
@@ -643,9 +522,6 @@ export default function CatalogClient({
     />
   );
 
-  // ==========================
-  // ✅ Sort UI (tabs) — without touching core filtering logic
-  // ==========================
   const sortKey = String(sort ?? "").toLowerCase();
   const isPopular = sortKey.includes("popular") || sortKey.includes("pop");
   const isUpdated =
@@ -671,7 +547,6 @@ export default function CatalogClient({
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-2">
-      {/* ✅ in hero=1 remove top "Каталог/..." */}
       {!hero ? (
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -697,7 +572,6 @@ export default function CatalogClient({
         </div>
       ) : null}
 
-      {/* ✅ HeroSlider stays as is */}
       {hero && heroSlides.length ? (
         <div className="mb-4">
           <CatalogHeroSlider slides={heroSlides} />
@@ -705,9 +579,7 @@ export default function CatalogClient({
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-        {/* LEFT COLUMN */}
         <div>
-          {/* ✅ LEFT TITLE block (like screenshot) */}
           {hero ? (
             <div className="mb-3 pb-3">
               <div className="flex items-center gap-3">
@@ -728,10 +600,8 @@ export default function CatalogClient({
 
           <div className="catalog-filters-wrap">
             <FiltersSidebar
-              // ✅ FIX: pass deduped UI value
               value={sidebarValueSafe as any}
               meta={sidebarMeta}
-              // ✅ FIX: write params via set (no duplicates)
               onChange={onSidebarChangeSafe as any}
               onReset={() =>
                 pushParams((params) => {
@@ -749,9 +619,7 @@ export default function CatalogClient({
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
         <section>
-          {/* ✅ this block (description + sort) must be WITHOUT border */}
           {hero ? (
             <div className="mb-4 px-1">
               <div className="text-[14px] leading-relaxed text-black/60">
@@ -814,7 +682,6 @@ export default function CatalogClient({
             TopBar
           )}
 
-          {/* ✅ in non-hero show the old TopBar */}
           {!hero ? TopBar : null}
 
           <CatalogGrid
@@ -834,7 +701,6 @@ export default function CatalogClient({
             </div>
           ) : null}
 
-          {/* ✅ Make filter card corners sharper (not oval) without touching FiltersSidebar */}
           <style jsx global>{`
             .catalog-filters-wrap [class*="rounded-"] {
               border-radius: 12px !important;
