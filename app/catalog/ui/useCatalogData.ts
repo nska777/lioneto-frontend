@@ -20,6 +20,11 @@ import type { FiltersValue } from "./FiltersSidebar";
 
 type ProductAny = (typeof MOCK)[number] & Record<string, any>;
 
+function toNum(v: any) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function useCatalogData({
   sidebarValue,
   qFromUrl,
@@ -74,6 +79,30 @@ export function useCatalogData({
     const doorsSet = new Set(selectedDoors);
     const facadeSet = new Set(selectedFacades);
 
+    // ✅ SAFE priceOf: сначала Strapi поля, потом fallback на старый priceOf
+    const safePriceOf = (pAny: any) => {
+      const p = pAny as any;
+
+      const raw =
+        region === "uz"
+          ? (p?.priceUZS ?? p?.priceUzs ?? p?.price_uzs ?? p?.priceUZSBase ?? p?.priceUzsBase)
+          : (p?.priceRUB ?? p?.priceRub ?? p?.price_rub ?? p?.priceRUBBase ?? p?.priceRubBase);
+
+      const n1 = Number(raw);
+      if (Number.isFinite(n1) && n1 > 0) return n1;
+
+      // fallback на текущую функцию (моки/старые поля)
+      const n2 = Number((priceOf as any)(pAny as any));
+      return Number.isFinite(n2) ? n2 : 0;
+    };
+
+    // ✅ Нормализуем границы цены:
+    // - priceMin < 0 => 0
+    // - priceMax <= 0 => Infinity (то есть "без верхнего лимита")
+    const minBound = Math.max(0, toNum(sidebarValue.priceMin));
+    const maxRaw = toNum(sidebarValue.priceMax);
+    const maxBound = maxRaw > 0 ? maxRaw : Number.POSITIVE_INFINITY;
+
     const baseFiltered = (DATA as any[]).filter((pAny) => {
       const p = pAny as ProductAny;
 
@@ -111,10 +140,10 @@ export function useCatalogData({
         }
       }
 
-      // PRICE
-      const price = priceOf(p);
-      if (price < sidebarValue.priceMin) return false;
-      if (price > sidebarValue.priceMax) return false;
+      // PRICE ✅ (теперь корректно для Strapi)
+      const price = safePriceOf(pAny);
+      if (price < minBound) return false;
+      if (price > maxBound) return false;
 
       // SEARCH
       if (needle) {
@@ -145,9 +174,9 @@ export function useCatalogData({
           }
 
           // ✅ цена/поиск учитываем, модуль НЕТ
-          const price = priceOf(p);
-          if (price < sidebarValue.priceMin) return false;
-          if (price > sidebarValue.priceMax) return false;
+          const price = safePriceOf(p as any);
+          if (price < minBound) return false;
+          if (price > maxBound) return false;
 
           if (needle) {
             const hay = `${(p as any).title ?? ""} ${(p as any).badge ?? ""}`.toLowerCase();
@@ -187,10 +216,10 @@ export function useCatalogData({
         );
         break;
       case "price_asc":
-        restSorted.sort((a, b) => priceOf(a as any) - priceOf(b as any));
+        restSorted.sort((a, b) => safePriceOf(a as any) - safePriceOf(b as any));
         break;
       case "price_desc":
-        restSorted.sort((a, b) => priceOf(b as any) - priceOf(a as any));
+        restSorted.sort((a, b) => safePriceOf(b as any) - safePriceOf(a as any));
         break;
       default:
         break;
