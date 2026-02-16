@@ -232,7 +232,7 @@ export default function CatalogClient({
   };
 
   // ==========================
-  // ✅ Strapi Products fetch (safe + fallback)
+  // ✅ Strapi Products fetch (safe + pagination loop)
   // ==========================
   const [strapiItems, setStrapiItems] = useState<any[] | null>(null);
 
@@ -284,7 +284,10 @@ export default function CatalogClient({
           if (page > 50) break;
         }
 
-        if (alive) setStrapiItems(all);
+        if (alive) {
+          console.log("[catalog] strapi fetched:", all.length);
+          setStrapiItems(all);
+        }
       } catch (e) {
         console.error("Strapi products fetch failed", e);
         if (alive) setStrapiItems([]);
@@ -347,7 +350,8 @@ export default function CatalogClient({
   const collectionRest2 = (collectionRest ?? []).map(applyPrices);
   const sorted2 = (sorted ?? []).map(applyPrices);
 
-  const filterActive = (p: any) => (TEST_MODE ? true : p?.isActive !== false);
+  // ✅ ВАЖНО: показываем ВСЕ товары (задача: видеть все 485)
+  const filterActive = (_p: any) => true;
 
   const sorted3 = (sorted2 ?? []).filter(filterActive);
   const bedroomsFirstList3 = (bedroomsFirstList2 ?? []).filter(filterActive);

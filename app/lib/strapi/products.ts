@@ -108,6 +108,154 @@ function getStrapiBase() {
   ).replace(/\/$/, "");
 }
 
+// ----------- ✅ общий маппер одного item -> LiteProduct (чтобы reuse) -----------
+function mapStrapiItemToLite(item: any): StrapiProductLite | null {
+  const src = unwrapItem(item);
+  const slug = String(src?.slug ?? "").trim();
+  if (!slug) return null;
+
+  const image = pickMediaUrl(src?.media);
+  const gallery = pickGalleryUrls(src?.gallery);
+  const galleryFinal = gallery.length ? gallery : image ? [image] : [];
+
+  const variantsRaw: any[] = Array.isArray(src?.variants) ? src.variants : [];
+
+  const variants: StrapiVariant[] = variantsRaw
+    .map((v) => {
+      const { id, groupFromKey } = normalizeVariantKey(v?.variantKey || v?.id);
+      const group = String(v?.group ?? groupFromKey ?? "").trim() || undefined;
+
+      const img = pickVariantImageUrl(v);
+
+      return {
+        id: String(id || "").trim(),
+        title: v?.title ? String(v.title) : undefined,
+        group,
+        priceDeltaRUB: toNum(v?.priceDeltaRUB) ?? undefined,
+        priceDeltaUZS: toNum(v?.priceDeltaUZS) ?? undefined,
+        image: img,
+        gallery: img ? [img] : undefined,
+      };
+    })
+    .filter((x) => x.id && x.title);
+
+  return {
+    id: slug,
+    slug,
+    title: String(src?.title ?? "—"),
+    brand: src?.brand ?? null,
+    cat: src?.cat ?? null,
+    module: src?.module ?? null,
+    collection: src?.collection ?? null,
+
+    // ✅ БАЗОВАЯ ЦЕНА ИЗ Strapi Product
+    priceUZS: toNum(src?.priceUZS ?? src?.priceUzs ?? src?.price_uzs),
+    priceRUB: toNum(src?.priceRUB ?? src?.priceRub ?? src?.price_rub),
+
+    image: image || undefined,
+    gallery: galleryFinal.length ? galleryFinal : undefined,
+    variants,
+  };
+}
+
+// ----------- ✅ NEW: fetch ALL products with pagination loop (catalog) ----------
+type StrapiPagination = {
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  total: number;
+};
+
+type StrapiListResponse = {
+  data: any[];
+  meta?: { pagination?: StrapiPagination };
+};
+
+/**
+ * ✅ Каталог: загрузить ВСЕ товары из Strapi v5 с учетом pagination
+ * - Без price-entry
+ * - cache: "no-store"
+ * - page loop до pageCount
+ */
+export async function fetchAllProductsLite(opts?: {
+  pageSize?: number; // рекомендуем 250
+  sort?: string; // например "sortOrder:asc" или "title:asc"
+  // если у тебя есть "isActive", можешь включить фильтр, но по умолчанию НЕ фильтруем
+  filters?: Record<string, string | number | boolean>;
+}) {
+  const base = getStrapiBase();
+  const pageSize = Math.max(1, Math.min(opts?.pageSize ?? 250, 1000));
+
+  const baseParams = new URLSearchParams();
+
+  // populate — оставляем как у тебя (media/gallery/variants/image)
+  baseParams.set("populate[0]", "media");
+  baseParams.set("populate[1]", "gallery");
+  baseParams.set("populate[2]", "variants");
+  baseParams.set("populate[3]", "variants.image");
+
+  baseParams.set("pagination[pageSize]", String(pageSize));
+
+  if (opts?.sort) baseParams.set("sort", opts.sort);
+
+  if (opts?.filters) {
+    // ожидаем, что ключи будут уже в формате Strapi filters[...]...
+    // например: { "filters[isActive][$eq]": "true" }
+    for (const [k, v] of Object.entries(opts.filters)) {
+      if (v === undefined || v === null || v === "") continue;
+      baseParams.set(k, String(v));
+    }
+  }
+
+  // page 1 — чтобы узнать pageCount/total
+  const p1 = new URLSearchParams(baseParams);
+  p1.set("pagination[page]", "1");
+
+  const url1 = `${base}/api/products?${p1.toString()}`;
+  const res1 = await fetch(url1, { cache: "no-store" });
+  if (!res1.ok) {
+    const text = await res1.text().catch(() => "");
+    throw new Error(`fetchAllProductsLite failed ${res1.status}: ${text || url1}`);
+  }
+
+  const json1 = (await res1.json()) as StrapiListResponse;
+  const data1: any[] = Array.isArray(json1?.data) ? json1.data : [];
+  const pag = json1?.meta?.pagination;
+
+  const allItems: StrapiProductLite[] = [];
+  for (const it of data1) {
+    const mapped = mapStrapiItemToLite(it);
+    if (mapped) allItems.push(mapped);
+  }
+
+  const pageCount = pag?.pageCount ?? 1;
+
+  // остальные страницы
+  for (let page = 2; page <= pageCount; page++) {
+    const p = new URLSearchParams(baseParams);
+    p.set("pagination[page]", String(page));
+
+    const url = `${base}/api/products?${p.toString()}`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) continue;
+
+    const json = (await res.json()) as StrapiListResponse;
+    const chunk: any[] = Array.isArray(json?.data) ? json.data : [];
+
+    for (const it of chunk) {
+      const mapped = mapStrapiItemToLite(it);
+      if (mapped) allItems.push(mapped);
+    }
+  }
+
+  return {
+    items: allItems,
+    total: pag?.total ?? allItems.length,
+    pageCount,
+    pageSize,
+  };
+}
+
 /**
  * Fetch many products by slugs (ids in your cart/favorites)
  */
@@ -142,53 +290,9 @@ export async function fetchStrapiProductsMapBySlugs(
   const out: Record<string, StrapiProductLite> = {};
 
   for (const item of data) {
-    const src = unwrapItem(item);
-    const slug = String(src?.slug ?? "").trim();
-    if (!slug) continue;
-
-    const image = pickMediaUrl(src?.media);
-    const gallery = pickGalleryUrls(src?.gallery);
-    const galleryFinal = gallery.length ? gallery : image ? [image] : [];
-
-    const variantsRaw: any[] = Array.isArray(src?.variants) ? src.variants : [];
-
-    const variants: StrapiVariant[] = variantsRaw
-      .map((v) => {
-        const { id, groupFromKey } = normalizeVariantKey(v?.variantKey || v?.id);
-        const group = String(v?.group ?? groupFromKey ?? "").trim() || undefined;
-
-        const img = pickVariantImageUrl(v);
-
-        return {
-          id: String(id || "").trim(),
-          title: v?.title ? String(v.title) : undefined,
-          group,
-          priceDeltaRUB: toNum(v?.priceDeltaRUB) ?? undefined,
-          priceDeltaUZS: toNum(v?.priceDeltaUZS) ?? undefined,
-          image: img,
-          gallery: img ? [img] : undefined,
-        };
-      })
-      .filter((x) => x.id && x.title);
-
-    out[slug] = {
-      id: slug,
-      slug,
-      title: String(src?.title ?? "—"),
-      brand: src?.brand ?? null,
-      cat: src?.cat ?? null,
-      module: src?.module ?? null,
-      collection: src?.collection ?? null,
-
-      // ✅ БАЗОВАЯ ЦЕНА ИЗ Strapi Product
-      priceUZS: toNum(src?.priceUZS ?? src?.priceUzs ?? src?.price_uzs),
-priceRUB: toNum(src?.priceRUB ?? src?.priceRub ?? src?.price_rub),
-
-
-      image: image || undefined,
-      gallery: galleryFinal.length ? galleryFinal : undefined,
-      variants,
-    };
+    const mapped = mapStrapiItemToLite(item);
+    if (!mapped) continue;
+    out[mapped.slug] = mapped;
   }
 
   return out;
