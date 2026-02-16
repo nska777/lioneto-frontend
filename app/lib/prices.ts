@@ -1,107 +1,133 @@
 // app/lib/prices.ts
+
 export type PriceEntry = {
-  id?: number;
-  documentId?: string;
+  productId: string;
+  title?: string | null;
 
-  productId: string | number;
+  priceUZS?: number | null;
+  priceRUB?: number | null;
 
-  title?: string;
+  oldPriceUZS?: number | null;
+  oldPriceRUB?: number | null;
 
-  priceUZS?: number;
-  priceRUB?: number;
+  hasDiscount?: boolean | null;
+  collectionBadge?: string | null;
+  isActive?: boolean | null;
 
-  oldPriceUZS?: number;
-  oldPriceRUB?: number;
-
-  hasDiscount?: boolean;
-  collectionBadge?: string;
-  isActive?: boolean;
-
+  // Strapi media object (cardImage) или строка url
   cardImage?: any;
-
-  createdAt?: string;
-  updatedAt?: string;
-  publishedAt?: string;
 };
 
-function getStrapiBase(): string {
-  const raw = (process.env.NEXT_PUBLIC_STRAPI_URL || "").trim();
-
-  // dev fallback (локально)
-  if (!raw && process.env.NODE_ENV !== "production") {
-    return "http://localhost:1337";
-  }
-
-  return raw ? raw.replace(/\/$/, "") : "";
+function joinUrl(base: string, path: string) {
+  const b = String(base || "").replace(/\/+$/, "");
+  const p = String(path || "").trim();
+  if (!p) return b;
+  if (/^https?:\/\//i.test(p)) return p;
+  return `${b}${p.startsWith("/") ? "" : "/"}${p}`;
 }
 
-function asStr(v: any) {
-  return String(v ?? "").trim();
+function pickStrapi(item: any) {
+  return item?.attributes ?? item ?? {};
 }
 
-function addToMap(map: Map<string, PriceEntry>, key: any, row: PriceEntry) {
-  const k = asStr(key);
-  if (!k) return;
-  map.set(k, row);
-  map.set(k.toLowerCase(), row);
-  if (/^\d+$/.test(k)) {
-    map.set(String(Number(k)), row);
-  }
+function parseNum(v: any): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+
+  const s = String(v)
+    .replace(/\u00A0/g, " ")
+    .replace(/\s+/g, "")
+    .replace(/,/g, ".")
+    .trim();
+
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
 }
 
-// TEST_MODE:
-// - false (prod): берём только isActive=true
-// - true  (local): берём ВСЁ, но если есть isActive=false (тестовые) — они имеют приоритет
-const TEST_MODE = process.env.NEXT_PUBLIC_STRAPI_TEST_MODE === "true";
-
-async function fetchAllPriceEntries(): Promise<PriceEntry[]> {
-  const base = getStrapiBase();
-  if (!base) return [];
-
-  // pageSize можно большой — у тебя total=98, это точно влезает
-  const pageSize = 250;
-
-  const filters = TEST_MODE ? "" : "&filters[isActive][$eq]=true";
-  const url = `${base}/api/price-entries?pagination[page]=1&pagination[pageSize]=${pageSize}${filters}`;
-
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return [];
-
-    const json = await res.json();
-    const data = Array.isArray(json?.data) ? json.data : [];
-    return data as PriceEntry[];
-  } catch {
-    return [];
-  }
+function pickMediaUrl(src: any): string | null {
+  const u =
+    src?.media?.url ??
+    src?.media?.data?.attributes?.url ??
+    src?.media?.data?.url ??
+    null;
+  return u ? String(u) : null;
 }
 
+/**
+ * ✅ Теперь pricesMap строится ИЗ /api/products (Strapi product)
+ * ⚠️ Никаких price-entries и /api/prices
+ *
+ * Возвращает Map с ключами:
+ * - productId/slug (как есть)
+ * - lowercased productId/slug
+ * - numeric id (если есть)
+ */
 export async function fetchPricesMap(): Promise<Map<string, PriceEntry>> {
-  const list = await fetchAllPriceEntries();
+  const STRAPI_URL = String(process.env.NEXT_PUBLIC_STRAPI_URL || "").trim();
+  if (!STRAPI_URL) return new Map();
 
-  // сортировка, чтобы в TEST_MODE “тестовые” (isActive=false) могли переопределять активные
-  const sorted = [...list].sort((a: any, b: any) => {
-    if (TEST_MODE) {
-      const aTest = a?.isActive === false ? 0 : 1;
-      const bTest = b?.isActive === false ? 0 : 1;
-      if (aTest !== bTest) return aTest - bTest;
-    }
-    const au = Date.parse(a?.updatedAt || a?.createdAt || "") || 0;
-    const bu = Date.parse(b?.updatedAt || b?.createdAt || "") || 0;
-    return bu - au;
-  });
+  // берём только нужные поля, чтобы не тянуть тяжёлый populate
+  const url = joinUrl(
+    STRAPI_URL,
+    "/api/products?pagination[pageSize]=250&filters[isActive][$eq]=true&fields[0]=slug&fields[1]=productId&fields[2]=title&fields[3]=priceUZS&fields[4]=priceRUB&fields[5]=oldPriceUZS&fields[6]=oldPriceRUB&fields[7]=hasDiscount&fields[8]=collectionBadge&fields[9]=isActive&populate[media]=*",
+  );
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return new Map();
+
+  const json = await res.json();
+  const rows: any[] = Array.isArray(json?.data) ? json.data : [];
 
   const map = new Map<string, PriceEntry>();
 
-  for (const item of sorted) {
-    const row: PriceEntry = item; // у тебя формат “без attributes”
+  for (const it of rows) {
+    const src = pickStrapi(it);
 
-    // ключи, по которым будем находить
-    addToMap(map, row.productId, row);
-    addToMap(map, row.id, row);
-    addToMap(map, (row as any).slug, row);
-    addToMap(map, (row as any).handle, row);
-    addToMap(map, (row as any).sku, row);
+    const idRaw = src?.id ?? it?.id ?? src?.documentId ?? null;
+    const slug = String(src?.slug ?? "").trim();
+    const pid = String(src?.productId ?? src?.slug ?? slug ?? idRaw ?? "").trim();
+
+    if (!pid) continue;
+
+    const entry: PriceEntry = {
+      productId: pid,
+      title: src?.title ?? null,
+
+      priceUZS: parseNum(src?.priceUZS),
+      priceRUB: parseNum(src?.priceRUB),
+
+      oldPriceUZS: parseNum(src?.oldPriceUZS),
+      oldPriceRUB: parseNum(src?.oldPriceRUB),
+
+      hasDiscount: src?.hasDiscount ?? null,
+      collectionBadge: src?.collectionBadge ?? null,
+      isActive: src?.isActive ?? null,
+
+      cardImage: pickMediaUrl(src) ?? src?.media ?? null,
+    };
+
+    const keys = new Set<string>();
+
+    // основной ключ
+    keys.add(pid);
+    keys.add(pid.toLowerCase());
+
+    // slug как отдельный ключ (если отличается)
+    if (slug) {
+      keys.add(slug);
+      keys.add(slug.toLowerCase());
+    }
+
+    // numeric id как ключ тоже (на всякий случай)
+    if (idRaw !== null && idRaw !== undefined) {
+      const k = String(idRaw).trim();
+      if (k) {
+        keys.add(k);
+        if (/^\d+$/.test(k)) keys.add(String(Number(k)));
+      }
+    }
+
+    for (const k of keys) map.set(k, entry);
   }
 
   return map;
