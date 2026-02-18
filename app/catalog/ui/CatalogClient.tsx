@@ -351,7 +351,16 @@ export default function CatalogClient({
   const sorted2 = (sorted ?? []).map(applyPrices);
 
   // ✅ ВАЖНО: показываем ВСЕ товары (задача: видеть все 485)
-  const filterActive = (_p: any) => true;
+  // ✅ Показываем ТОЛЬКО активные и опубликованные товары
+  const filterActive = (p: any) => {
+    // если поле явно false — скрываем
+    if (p?.isActive === false) return false;
+
+    // если Strapi когда-нибудь вернёт publishedAt — тоже проверим
+    if ("publishedAt" in p && p?.publishedAt === null) return false;
+
+    return true;
+  };
 
   const sorted3 = (sorted2 ?? []).filter(filterActive);
   const bedroomsFirstList3 = (bedroomsFirstList2 ?? []).filter(filterActive);
