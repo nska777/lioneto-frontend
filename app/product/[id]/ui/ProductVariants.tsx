@@ -111,7 +111,6 @@ function sortMechanism(a: ProductVariant, b: ProductVariant) {
 function getColorToken(title: string) {
   const t = (title || "").toLowerCase();
 
-  // частые варианты
   if (t.includes("бел")) return "white";
   if (t.includes("черн")) return "black";
   if (t.includes("сер")) return "gray";
@@ -130,7 +129,6 @@ function getColorToken(title: string) {
 }
 
 function swatchClass(token: string) {
-  // не указываю “ядовитые” цвета — всё мягко и премиально
   switch (token) {
     case "white":
       return "bg-white";
@@ -160,42 +158,6 @@ function swatchClass(token: string) {
       return "bg-[#C7D6C7]";
     default:
       return "bg-zinc-200";
-  }
-}
-
-/**
- * ✅ ТЕМА ПИЛЮЛИ ДЛЯ ЦВЕТА (вся пилюля, не только кружок)
- * Белый — белая премиальная пилюля.
- * Капучино — мягкий капучино.
- */
-function getColorPillTheme(token: string) {
-  switch (token) {
-    case "white":
-      return {
-        base: "bg-white text-black border-black/15 shadow-[0_10px_26px_rgba(0,0,0,0.08)]",
-        hover:
-          "hover:border-black/25 hover:shadow-[0_14px_32px_rgba(0,0,0,0.10)]",
-        active:
-          "bg-white text-black border-black/35 shadow-[0_16px_38px_rgba(0,0,0,0.12)]",
-        ring: "ring-black/10",
-      };
-    case "cappuccino":
-      return {
-        base: "bg-[#F2E7DB] text-[#3C2C22] border-[#E2CBB6] shadow-[0_10px_26px_rgba(0,0,0,0.07)]",
-        hover:
-          "hover:bg-[#EBDDCE] hover:border-[#D9BEA6] hover:shadow-[0_14px_32px_rgba(0,0,0,0.10)]",
-        active:
-          "bg-[#D9BFA8] text-[#2D1F17] border-[#CDAE93] shadow-[0_16px_38px_rgba(0,0,0,0.14)]",
-        ring: "ring-[#CDAE93]/35",
-      };
-    default:
-      return {
-        base: "bg-white/85 text-black/70 border-black/10 shadow-[0_8px_22px_rgba(0,0,0,0.06)]",
-        hover: "hover:border-black/15 hover:text-black",
-        active:
-          "bg-black text-white border-black/15 shadow-[0_14px_34px_rgba(0,0,0,0.22)]",
-        ring: "ring-black/10",
-      };
   }
 }
 
@@ -507,16 +469,12 @@ export default function ProductVariants({
               </div>
             ) : null}
 
-            {/* ✅ COLOR: теперь вся пилюля в цвет */}
+            {/* ✅ COLOR: нейтральные кнопки (без active-рамок/заливки). Меняется только фото по клику */}
             {isColor ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {g.items.map((v) => {
-                  const active = v.id === selectedId;
                   const disabled = !!v.disabled;
-
-                  const d = deltaOf(v as any, currency);
                   const token = getColorToken(v.title);
-                  const theme = getColorPillTheme(token);
 
                   return (
                     <button
@@ -524,24 +482,24 @@ export default function ProductVariants({
                       type="button"
                       onClick={() => pick(g.group, v as any)}
                       disabled={disabled}
-                      aria-pressed={active}
+                      aria-pressed={v.id === selectedId}
                       aria-disabled={disabled}
                       title={disabled ? "Пока недоступно" : undefined}
                       className={cn(
-                        "group relative inline-flex items-center gap-2 rounded-full border px-3 py-2 transition",
+                        "inline-flex items-center gap-2 rounded-full border px-3 py-2 transition",
+                        "border-black/10 bg-white text-black/70 shadow-[0_10px_26px_rgba(0,0,0,0.06)]",
+                        "hover:border-black/15 hover:text-black",
                         "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
-                        disabled ? "cursor-not-allowed" : "cursor-pointer",
-                        active ? cn(theme.active) : cn(theme.base, theme.hover),
                         disabled &&
-                          "bg-black/[0.02] text-black/35 border-black/10 shadow-none hover:border-black/10",
+                          "cursor-not-allowed bg-black/[0.02] text-black/35 border-black/10 shadow-none hover:border-black/10 hover:text-black/35",
+                        !disabled && "cursor-pointer",
                       )}
                     >
-                      {/* swatch */}
+                      {/* swatch (оставляем только как индикатор цвета) */}
                       <span
                         className={cn(
                           "relative inline-flex h-6 w-6 items-center justify-center rounded-full border",
-                          // swatch border — чуть контрастнее на цветных пилюлях
-                          active ? "border-black/25" : "border-black/15",
+                          "border-black/15",
                           disabled && "border-black/10",
                         )}
                       >
@@ -551,33 +509,12 @@ export default function ProductVariants({
                             swatchClass(token),
                           )}
                         />
-                        <span className="pointer-events-none absolute inset-0 rounded-full [background:radial-gradient(120%_120%_at_30%_0%,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0.00)_55%)]" />
+                        <span className="pointer-events-none absolute inset-0 rounded-full [background:radial-gradient(120%_120%_at_30%_0%,rgba(255,255,255,0.60)_0%,rgba(255,255,255,0.00)_55%)]" />
                       </span>
 
-                      <span className="relative text-[12px] leading-none">
+                      <span className="text-[12px] leading-none">
                         {v.title}
                       </span>
-
-                      {d !== 0 ? (
-                        <span className="relative">
-                          <DeltaBadge
-                            delta={d}
-                            active={active}
-                            disabled={disabled}
-                            currency={currency}
-                          />
-                        </span>
-                      ) : null}
-
-                      {/* hairline ring */}
-                      <span
-                        className={cn(
-                          "pointer-events-none absolute inset-0 rounded-full opacity-0 transition",
-                          active
-                            ? cn("opacity-100 ring-1", theme.ring)
-                            : "group-hover:opacity-100 ring-1 ring-black/[0.06]",
-                        )}
-                      />
                     </button>
                   );
                 })}
