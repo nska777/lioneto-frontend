@@ -5,24 +5,14 @@ import Image from "next/image";
 import React, { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Check, Sparkles } from "lucide-react";
 
-// ✅ ВАЖНО: поправь путь под твой реальный файл со слайдером
-// (это тот GSAPHeroSlider, который ты прислал)
+// ✅ твой баннер с главной — сохраняем
 import GSAPHeroSlider from "@/app/components/home/GSAPHeroSlider";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-const VALUES = [
-  "Премиальные материалы",
-  "Чёткая геометрия",
-  "Стабильная сборка",
-  "Продуманный сервис",
-  "Интерьерный подход",
-];
-
-// ✅ слайды для About (твои фото уже лежат в public/about/)
+// ✅ твои слайды — как было
 const ABOUT_SLIDES = [
   {
     id: "s1",
@@ -96,53 +86,87 @@ const ABOUT_SLIDES = [
   },
 ];
 
-function ImgPremium({
+// ✅ поставь реальный файл, когда будет
+const ABOUT_IMAGE_SRC = ""; // например "/about/showroom-01.jpg"
+
+function GoldLioneto({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "relative inline-block align-baseline",
+        "bg-clip-text text-transparent",
+        "bg-[linear-gradient(90deg,#b88a2a_0%,#f2d58a_35%,#b88a2a_70%,#f4e7b6_100%)]",
+        className,
+      )}
+    >
+      LIONETO
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute -inset-x-2 -inset-y-1",
+          "opacity-40",
+          "bg-[radial-gradient(220px_60px_at_20%_40%,rgba(255,255,255,0.75),transparent_60%)]",
+          "mix-blend-overlay",
+        )}
+      />
+    </span>
+  );
+}
+
+function PremiumImageBlock({
   src,
-  alt,
-  heightClass = "h-[340px] md:h-[420px] lg:h-[480px]",
+  alt = "Lioneto",
 }: {
-  src: string;
-  alt: string;
-  heightClass?: string;
+  src?: string;
+  alt?: string;
 }) {
   return (
     <div
-      data-reveal
+      data-reveal-image
       className={cn(
-        "relative overflow-hidden rounded-[28px]",
-        "shadow-[0_22px_70px_rgba(0,0,0,0.10)]",
-        "ring-1 ring-black/[0.05]",
-        "transition-transform duration-500 hover:translate-y-[-2px]",
+        "relative overflow-hidden",
+        "rounded-[18px]",
+        "bg-white",
+        "ring-1 ring-black/[0.08]",
+        "shadow-[0_28px_110px_rgba(0,0,0,0.10)]",
       )}
     >
-      <div className={cn("relative w-full", heightClass)}>
-        {/* ✅ фон-заполнитель: cover + blur */}
-        <Image
-          src={src}
-          alt=""
-          fill
-          aria-hidden
-          className="object-cover scale-[1.08] blur-[18px] opacity-60"
-          sizes="(max-width: 1280px) 100vw, 900px"
-          priority={false}
-        />
-        <div className="absolute inset-0 bg-white/20" />
-
-        {/* ✅ основной слой: cover (без белых краёв) */}
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          className="object-cover"
-          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 60vw, 900px"
-          priority={false}
-        />
-
-        {/* ✅ лёгкая виньетка */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(900px_320px_at_50%_0%,rgba(0,0,0,0.05),transparent_60%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),transparent_45%)]" />
-        </div>
+      <div className="relative aspect-[16/9] w-full bg-[#f4f4f4]">
+        {src ? (
+          <>
+            {/* подложка */}
+            <Image
+              src={src}
+              alt=""
+              fill
+              aria-hidden
+              className="object-cover scale-[1.06] blur-[16px] opacity-55"
+              sizes="(max-width: 1280px) 100vw, 1280px"
+              priority={false}
+            />
+            <div className="absolute inset-0 bg-white/25" />
+            {/* основной слой */}
+            <Image
+              src={src}
+              alt={alt}
+              fill
+              className="object-cover"
+              sizes="(max-width: 1280px) 100vw, 1280px"
+              priority={false}
+            />
+            {/* лёгкая виньетка */}
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-0 bg-[radial-gradient(900px_340px_at_50%_0%,rgba(0,0,0,0.06),transparent_60%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_55%)]" />
+            </div>
+          </>
+        ) : (
+          <div className="grid h-full w-full place-items-center">
+            <div className="rounded-[16px] px-6 py-4 text-[20px] font-medium text-black/45 ring-1 ring-black/10">
+              картинка
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -160,77 +184,36 @@ export default function AboutClient() {
     const prefersReduced = window.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
     )?.matches;
-
     if (prefersReduced) return;
 
     const ctx = gsap.context(() => {
-      // ===== базовый reveal =====
-      const blocks = root.querySelectorAll<HTMLElement>("[data-reveal]");
+      const items = root.querySelectorAll<HTMLElement>("[data-reveal]");
+      gsap.set(items, { autoAlpha: 0, y: 16, filter: "blur(8px)" as any });
 
-      blocks.forEach((el) => {
-        const kids = el.querySelectorAll<HTMLElement>("[data-reveal-item]");
+      gsap.to(items, {
+        autoAlpha: 1,
+        y: 0,
+        filter: "blur(0px)" as any,
+        duration: 0.9,
+        ease: "power3.out",
+        stagger: 0.08,
+        scrollTrigger: { trigger: items[0], start: "top 86%", once: true },
+      });
 
-        if (kids.length) {
-          gsap.set(kids, { autoAlpha: 0, y: 18, scale: 0.992 });
-          gsap.to(kids, {
+      const img = root.querySelector<HTMLElement>("[data-reveal-image]");
+      if (img) {
+        gsap.fromTo(
+          img,
+          { autoAlpha: 0, y: 22, scale: 0.985 },
+          {
             autoAlpha: 1,
             y: 0,
             scale: 1,
-            duration: 0.9,
+            duration: 1.0,
             ease: "power3.out",
-            stagger: 0.08,
-            scrollTrigger: {
-              trigger: el,
-              start: "top 86%",
-              once: true,
-            },
-          });
-        } else {
-          gsap.fromTo(
-            el,
-            { autoAlpha: 0, y: 16, scale: 0.995 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              scale: 1,
-              duration: 0.85,
-              ease: "power3.out",
-              scrollTrigger: {
-                trigger: el,
-                start: "top 88%",
-                once: true,
-              },
-            },
-          );
-        }
-      });
-
-      // ===== chips: появление по одному “вырисовывается” =====
-      const chipsWrap = root.querySelector<HTMLElement>("[data-chips-wrap]");
-      const chips = root.querySelectorAll<HTMLElement>("[data-chip]");
-
-      if (chips.length) {
-        gsap.set(chips, {
-          autoAlpha: 0,
-          y: 10,
-          scale: 0.985,
-          filter: "blur(8px)",
-        });
-
-        gsap.to(chips, {
-          autoAlpha: 1,
-          y: 0,
-          scale: 1,
-          filter: "blur(0px)",
-          duration: 0.7,
-          ease: "power3.out",
-          stagger: 0.12,
-          scrollTrigger: {
-            trigger: chipsWrap || chips[0],
-            start: "top 86%",
-            once: true,
+            scrollTrigger: { trigger: img, start: "top 86%", once: true },
           },
-        });
+        );
       }
     }, root);
 
@@ -251,186 +234,127 @@ export default function AboutClient() {
         <span className="text-black/80">О КОМПАНИИ</span>
       </nav>
 
-      {/* ✅ СЛАЙДЕР (как на главной) */}
+      {/* ✅ БАННЕР С ГЛАВНОЙ (оставляем) */}
       <section className="mt-6">
         <GSAPHeroSlider slides={ABOUT_SLIDES} autoMs={6500} />
       </section>
 
-      {/* главный белый блок */}
-      <section className="relative mt-10 overflow-hidden rounded-[34px] bg-white">
+      {/* ===== ОСНОВНОЙ БЛОК: ЗАГОЛОВОК → ТЕКСТ → КАРТИНКА ===== */}
+      <section
+        className={cn(
+          "relative mt-10 overflow-hidden rounded-[20px] bg-white",
+          "ring-1 ring-black/[0.06]",
+          "shadow-[0_30px_120px_rgba(0,0,0,0.08)]",
+        )}
+      >
+        {/* мягкий премиальный фон */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-48 -top-48 h-[620px] w-[620px] rounded-full bg-black/[0.03]" />
-          <div className="absolute -right-44 -bottom-44 h-[620px] w-[620px] rounded-full bg-black/[0.025]" />
-          <div className="absolute inset-0 bg-[radial-gradient(1200px_420px_at_50%_-10%,rgba(0,0,0,0.04),transparent_60%)]" />
+          <div className="absolute -left-56 -top-56 h-[720px] w-[720px] rounded-full bg-black/[0.03]" />
+          <div className="absolute -right-56 -bottom-56 h-[720px] w-[720px] rounded-full bg-black/[0.025]" />
+          <div className="absolute inset-0 bg-[radial-gradient(1200px_520px_at_50%_-10%,rgba(0,0,0,0.05),transparent_60%)]" />
         </div>
 
-        <div className="relative rounded-[34px] ring-1 ring-black/[0.04]">
-          {/* intro */}
-          <div
-            data-reveal
-            className="px-6 pb-8 pt-10 md:px-12 md:pb-12 md:pt-14"
-          >
-            <div className="mx-auto max-w-[980px] text-center">
-              <div
-                data-reveal-item
-                className="text-[12px] tracking-[0.22em] text-black/45"
-              >
-                LIONETO • PREMIUM FURNITURE
-              </div>
+        <div className="relative px-6 py-10 md:px-12 md:py-14">
+          {/* heading */}
+          <div className="mx-auto max-w-[980px] text-center">
+            <div
+              data-reveal
+              className="text-[12px] tracking-[0.22em] text-black/45"
+            ></div>
 
-              <h1
-                data-reveal-item
-                className="mt-4 text-balance text-[32px] font-semibold leading-[1.06] tracking-[-0.02em] md:text-[54px]"
+            <h1
+              data-reveal
+              className="mt-4 text-balance text-[26px] leading-[1.08] tracking-[-0.02em] md:text-[46px]"
+            >
+              <span className="font-medium text-black">
+                ТРИ ЗВЕЗДЫ, СТАВШИЕ НОВЫМ СОЗВЕЗДИЕМ —
+              </span>{" "}
+              <span
+                className={cn(
+                  "font-semibold",
+                  "bg-clip-text text-transparent",
+                  "bg-[linear-gradient(90deg,#b88a2a_0%,#f2d58a_35%,#b88a2a_70%,#f4e7b6_100%)]",
+                )}
               >
-                Спокойная премиальность
-                <span className="block">в каждой детали</span>
-              </h1>
+                LIONETO
+              </span>
+              .
+            </h1>
 
-              <p
-                data-reveal-item
-                className="mx-auto mt-4 max-w-[820px] text-pretty text-[14px] leading-7 text-black/65 md:text-[16px]"
-              >
-                Lioneto — мебель из массива для гостиных, спален, прихожих и
-                современных интерьеров, созданная на стыке дизайна и ремесла. Мы
-                делаем то, что выглядит благородно сегодня и остаётся актуальным
-                через годы.
-              </p>
-            </div>
+            <div
+              data-reveal
+              className="mx-auto mt-6 h-px w-[220px] bg-black/10"
+            />
           </div>
 
-          {/* row 1 */}
-          <div className="grid gap-10 px-6 pb-10 md:grid-cols-12 md:gap-12 md:px-12 md:pb-12">
-            <div data-reveal className="md:col-span-4">
-              <h2
-                data-reveal-item
-                className="text-[22px] font-semibold tracking-[-0.01em] md:text-[26px]"
-              >
-                Интерьеры, собранные в единую систему
-              </h2>
+          {/* text */}
+          <div className="mx-auto mt-10 max-w-[980px] space-y-4 text-[14px] leading-7 text-black/65 md:text-[15px]">
+            <p data-reveal>
+              В 2025 году в мебельной индустрии произошло знаменательное
+              событие: три компании с богатой историей и общими ценностями —
+              MANNGROUP, MANINIMOBILI (Калининград) и RICH HOUSE (Ташкент) —
+              объединили свои усилия, опыт и технологии с целью создания единого
+              бренда LIONETO — пространства, где встречаются традиции,
+              современные технологии и безграничная любовь к своему делу.
+            </p>
 
-              <p
-                data-reveal-item
-                className="mt-4 text-[14px] leading-7 text-black/65 md:text-[15px]"
-              >
-                Коллекции Lioneto проектируются как цельные интерьерные решения:
-                мебель легко сочетается по пропорциям, материалам и тону —
-                поэтому пространство выглядит “дорого” без лишних акцентов.
-              </p>
+            <p data-reveal>
+              Это не просто слияние активов, это встреча единомышленников,
+              которые верят, что вместе могут создать нечто большее.
+            </p>
 
-              <p
-                data-reveal-item
-                className="mt-4 text-[14px] leading-7 text-black/65 md:text-[15px]"
-              >
-                Мы выстраиваем не просто линейку изделий, а архитектуру
-                интерьера: от крупных форм до деталей, которые отвечают за
-                ощущение качества.
-              </p>
+            <p data-reveal>
+              Если ранее каждая компания специализировалась в производстве
+              определенного направления в мебели, сегодня в LIONETO создаются
+              как серийные коллекции для дома (уютные спальни и гостиные,
+              респектабельные кабинеты с библиотеками, функциональные прихожие,
+              красивая садовая мебель), так и предлагаются интерьерные решения
+              любой сложности «под ключ» (от загородных особняков до отелей).
+            </p>
 
-              <div data-reveal-item className="mt-5 space-y-3">
+            <p data-reveal>
+              Ориентируясь на тренды и сотрудничая с ведущими российскими и
+              зарубежными дизайнерами, мы сохраняем свою индивидуальность,
+              грамотно расставляя акценты: все, что попадает в поле зрения
+              нашего клиента, и к чему прикасается его рука – всегда эстетично и
+              практично.
+            </p>
+
+            <div data-reveal className="pt-2">
+              <div className="font-medium text-black/80">
+                Сегодня LIONETO — это:
+              </div>
+              <ul className="mt-3 space-y-2">
                 {[
-                  "Целостная архитектура интерьера",
-                  "Продуманная геометрия и зазоры",
-                  "Комфорт в ежедневном использовании",
+                  "полный цикл производства (на наиболее сложных производственных участках, подчеркивающих индивидуальность LIONETO, заняты итальянские специалисты по деревообработке и окрашивания);",
+                  "слаженная работа коллектива;",
+                  "сотрудничество с лидирующими российскими и европейскими поставщиками из Германии и Италии (итальянские лакокрасочные покрытия, оригинальная фурнитура);",
+                  "сочетание традиций и непрерывного совершенствования технологий (работа с массивом дерева осуществляется по секретам итальянских мастеров и на немецком оборудовании);",
+                  "экологичность продукции (молодежные решения для спален и гостиных).",
                 ].map((t) => (
-                  <div key={t} className="flex items-start gap-3">
-                    <div className="mt-0.5 grid h-7 w-7 place-items-center rounded-full bg-black/[0.03] ring-1 ring-black/[0.06] text-black/55">
-                      <Sparkles className="h-4 w-4" />
-                    </div>
-                    <div className="text-[13px] leading-6 text-black/65">
-                      {t}
-                    </div>
-                  </div>
+                  <li key={t} className="flex gap-3">
+                    <span className="mt-[10px] h-[5px] w-[5px] shrink-0 rounded-full bg-black/35" />
+                    <span>{t}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
 
-            <div className="md:col-span-8">
-              <ImgPremium src="/about/showroom-01.jpg" alt="Lioneto showroom" />
-            </div>
+            <p data-reveal className="pt-1">
+              География LIONETO охватывает крупнейшие города России,
+              Узбекистана, Таджикистана, Казахстана и Кыргызстана, а коллекции
+              мебели представлены в лучших мебельных центрах.
+            </p>
+
+            <p data-reveal className="font-medium text-black/80">
+              Мы уверены: наша мебель принесет в Ваш дом красоту, уют и
+              наслаждение на долгие годы.
+            </p>
           </div>
 
-          <div className="mx-6 h-px bg-black/10 md:mx-12" />
-
-          {/* row 2 */}
-          <div className="grid gap-10 px-6 py-10 md:grid-cols-12 md:gap-12 md:px-12 md:py-12">
-            <div className="md:col-span-8">
-              <ImgPremium
-                src="/about/showroom-02.jpg"
-                alt="Lioneto quality and control"
-              />
-            </div>
-
-            <div data-reveal className="md:col-span-4">
-              <h2
-                data-reveal-item
-                className="text-[22px] font-semibold tracking-[-0.01em] md:text-[26px]"
-              >
-                Натуральные материалы и контроль на каждом этапе
-              </h2>
-
-              <p
-                data-reveal-item
-                className="mt-4 text-[14px] leading-7 text-black/65 md:text-[15px]"
-              >
-                В производстве используется массив ценных пород дерева,
-                качественная фурнитура и проверенные технологии обработки. Мы
-                следим за стабильностью формы, аккуратностью кромок и чистотой
-                сборки — именно это создаёт ощущение премиальности.
-              </p>
-
-              <p
-                data-reveal-item
-                className="mt-4 text-[14px] leading-7 text-black/65 md:text-[15px]"
-              >
-                Каждое изделие проходит внутреннюю проверку перед тем, как стать
-                частью вашего интерьера. Мы не делаем “эффект ради эффекта” — мы
-                делаем результат, который не разочарует вживую.
-              </p>
-            </div>
-          </div>
-
-          {/* chips */}
-          <div data-reveal className="px-6 pb-12 md:px-12">
-            <div
-              data-reveal-item
-              className={cn(
-                "rounded-[24px] bg-white",
-                "shadow-[0_18px_55px_rgba(0,0,0,0.06)]",
-                "ring-1 ring-black/[0.05]",
-                "px-4 py-4 md:px-6 md:py-5",
-              )}
-            >
-              <div
-                data-chips-wrap
-                className="grid gap-2 md:grid-cols-5 md:gap-3"
-              >
-                {VALUES.map((t) => (
-                  <div
-                    key={t}
-                    data-chip
-                    className={cn(
-                      "flex items-center gap-3 rounded-2xl bg-white px-4 py-3",
-                      "ring-1 ring-black/[0.06] transition",
-                      "hover:ring-black/[0.10] hover:shadow-[0_12px_30px_rgba(0,0,0,0.06)]",
-                    )}
-                  >
-                    <div className="grid h-8 w-8 place-items-center rounded-full bg-black/[0.03] text-black/60 ring-1 ring-black/[0.06]">
-                      <Check className="h-4 w-4" />
-                    </div>
-                    <div className="text-[12px] font-medium text-black/70">
-                      {t}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div
-              data-reveal-item
-              className="mt-7 text-center text-[14px] tracking-[-0.01em] text-black/60 md:text-[15px]"
-            >
-              Lioneto — мебель, которая остаётся актуальной годами.
-            </div>
+          {/* image */}
+          <div className="mx-auto mt-10 max-w-[1120px]">
+            <PremiumImageBlock src={ABOUT_IMAGE_SRC} alt="Lioneto" />
           </div>
         </div>
       </section>

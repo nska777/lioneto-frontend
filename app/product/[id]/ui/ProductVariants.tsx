@@ -469,11 +469,13 @@ export default function ProductVariants({
               </div>
             ) : null}
 
-            {/* ✅ COLOR: нейтральные кнопки (без active-рамок/заливки). Меняется только фото по клику */}
+            {/* ✅ COLOR: нейтральные пилюли (без капучино/white темы), но логика клика та же */}
             {isColor ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {g.items.map((v) => {
+                  const active = v.id === selectedId;
                   const disabled = !!v.disabled;
+                  const d = deltaOf(v as any, currency);
                   const token = getColorToken(v.title);
 
                   return (
@@ -482,24 +484,25 @@ export default function ProductVariants({
                       type="button"
                       onClick={() => pick(g.group, v as any)}
                       disabled={disabled}
-                      aria-pressed={v.id === selectedId}
+                      aria-pressed={active}
                       aria-disabled={disabled}
                       title={disabled ? "Пока недоступно" : undefined}
                       className={cn(
-                        "inline-flex items-center gap-2 rounded-full border px-3 py-2 transition",
-                        "border-black/10 bg-white text-black/70 shadow-[0_10px_26px_rgba(0,0,0,0.06)]",
-                        "hover:border-black/15 hover:text-black",
+                        "group relative inline-flex items-center gap-2 rounded-full border px-3 py-2 transition",
                         "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
+                        disabled ? "cursor-not-allowed" : "cursor-pointer",
+                        active
+                          ? "border-black/20 bg-black text-white shadow-[0_14px_34px_rgba(0,0,0,0.18)]"
+                          : "border-black/10 bg-white text-black/70 shadow-[0_10px_26px_rgba(0,0,0,0.08)] hover:border-black/15 hover:text-black",
                         disabled &&
-                          "cursor-not-allowed bg-black/[0.02] text-black/35 border-black/10 shadow-none hover:border-black/10 hover:text-black/35",
-                        !disabled && "cursor-pointer",
+                          "bg-black/[0.02] text-black/35 border-black/10 shadow-none hover:border-black/10",
                       )}
                     >
-                      {/* swatch (оставляем только как индикатор цвета) */}
+                      {/* swatch остаётся (кружок), он просто индикатор */}
                       <span
                         className={cn(
                           "relative inline-flex h-6 w-6 items-center justify-center rounded-full border",
-                          "border-black/15",
+                          active ? "border-white/25" : "border-black/15",
                           disabled && "border-black/10",
                         )}
                       >
@@ -509,12 +512,23 @@ export default function ProductVariants({
                             swatchClass(token),
                           )}
                         />
-                        <span className="pointer-events-none absolute inset-0 rounded-full [background:radial-gradient(120%_120%_at_30%_0%,rgba(255,255,255,0.60)_0%,rgba(255,255,255,0.00)_55%)]" />
+                        <span className="pointer-events-none absolute inset-0 rounded-full [background:radial-gradient(120%_120%_at_30%_0%,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0.00)_55%)]" />
                       </span>
 
-                      <span className="text-[12px] leading-none">
+                      <span className="relative text-[12px] leading-none">
                         {v.title}
                       </span>
+
+                      {d !== 0 ? (
+                        <span className="relative">
+                          <DeltaBadge
+                            delta={d}
+                            active={active}
+                            disabled={disabled}
+                            currency={currency}
+                          />
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
