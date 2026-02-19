@@ -31,6 +31,26 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
   }
 }
 
+export type FeaturedProduct = {
+  id: string; // slug
+  slug: string;
+  title: string;
+  href: string;
+  image: string;
+
+  priceUZS: number;
+  priceRUB: number;
+
+  oldPriceUZS?: number;
+  oldPriceRUB?: number;
+
+  collectionBadge?: string;
+  isActive?: boolean;
+
+  brand?: string | null;
+  collection?: string | null;
+};
+
 type PriceEntry = {
   productId: string | number;
   title?: string;
@@ -153,11 +173,48 @@ function calcDiscountPercent(price: number, old?: number | null) {
   return Math.round((1 - price / old) * 100);
 }
 
+function SmartCover({
+  src,
+  alt,
+  priority,
+}: {
+  src: string;
+  alt: string;
+  priority?: boolean;
+}) {
+  const s = String(src ?? "").trim();
+  const isRemote = /^https?:\/\//i.test(s);
+
+  // ✅ если remote — не ломаем next/image доменами
+  if (isRemote) {
+    return (
+      <img
+        src={s}
+        alt={alt}
+        className="absolute inset-0 h-full w-full object-cover object-center"
+        loading={priority ? "eager" : "lazy"}
+      />
+    );
+  }
+
+  return (
+    <Image
+      src={s}
+      alt={alt}
+      fill
+      className="object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
+      priority={priority}
+    />
+  );
+}
+
 export default function BestPrice({
   title = "Лучшая цена",
+  products = [],
   priceEntries = [],
 }: {
   title?: string;
+  products?: FeaturedProduct[];
   priceEntries?: PriceEntry[];
 }) {
   const { region } = useRegionLang();
@@ -177,6 +234,50 @@ export default function BestPrice({
   }, []);
 
   const list = useMemo<BestPriceUIItem[]>(() => {
+    // ✅ ПРИОРИТЕТ: Strapi products (badge уже выбран в админке)
+    if (products.length) {
+      const items = products
+        .filter((p) => p?.isActive !== false)
+        .map((p) => {
+          const price_rub = Number(p.priceRUB ?? 0);
+          const price_uzs = Number(p.priceUZS ?? 0);
+
+          const old_price_rub =
+            p.oldPriceRUB != null ? Number(p.oldPriceRUB) : null;
+          const old_price_uzs =
+            p.oldPriceUZS != null ? Number(p.oldPriceUZS) : null;
+
+          const price = currency === "RUB" ? price_rub : price_uzs;
+          const old = currency === "RUB" ? old_price_rub : old_price_uzs;
+
+          const discountPercent = calcDiscountPercent(price, old);
+
+          const line =
+            toCapsLabel(p.collection ?? null) || toCapsLabel(p.brand ?? null);
+
+          return {
+            id: String(p.id),
+            title: String(p.title ?? "").trim(),
+            href: p.href || `/product/${p.slug}`,
+            image: String(p.image ?? ""),
+
+            price_rub,
+            price_uzs,
+
+            old_price_rub,
+            old_price_uzs,
+
+            discountPercent,
+            badge: "Лучшая цена",
+            skuLabel: p.slug ? String(p.slug) : null,
+            brandLine: line ?? null,
+          };
+        });
+
+      return items.slice(0, Math.min(10, items.length));
+    }
+
+    // ✅ FALLBACK: старая схема priceEntries -> CATALOG_MOCK
     if (!priceEntries.length) return [];
 
     const best = priceEntries.filter(
@@ -232,7 +333,7 @@ export default function BestPrice({
       .filter(Boolean) as BestPriceUIItem[];
 
     return items.slice(0, Math.min(10, items.length));
-  }, [priceEntries, currency]);
+  }, [products, priceEntries, currency]);
 
   // touch mode
   useLayoutEffect(() => {
@@ -376,7 +477,7 @@ export default function BestPrice({
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
 
-  // ✅ HOVER ACTIONS (как в BestSellers): на десктопе показывать только при наведении
+  // hover actions
   useLayoutEffect(() => {
     if (!rootRef.current) return;
     if (isTouchMode) return;
@@ -545,14 +646,13 @@ export default function BestPrice({
                     className={cn(
                       "flex flex-col h-full",
                       "border border-black/10 bg-white",
-                      "rounded-[18px]", // ✅ меньше округление
+                      "rounded-[18px]",
                       "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                       "transition",
                       "group-hover:-translate-y-[2px]",
                       "group-hover:shadow-[0_18px_50px_rgba(0,0,0,0.10)]",
                     )}
                   >
-                    {/* ✅ TOP: как в Hit продаж — снизу у картинки НЕ закругляем */}
                     <div className="relative overflow-visible rounded-t-[18px] bg-white">
                       <div className="absolute left-3 top-0.5 z-20">
                         <BestPriceBadge
@@ -578,14 +678,11 @@ export default function BestPrice({
                         />
                       </div>
 
-                      {/*  клипуем ТОЛЬКО картинку, и только сверху */}
                       <div className="relative overflow-hidden rounded-t-[18px]">
                         <div className="relative aspect-[4/3] bg-white">
-                          <Image
+                          <SmartCover
                             src={p.image}
                             alt={p.title}
-                            fill
-                            className="object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
                             priority={idx < 6}
                           />
                         </div>

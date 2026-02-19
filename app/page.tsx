@@ -1,50 +1,92 @@
 // app/page.tsx
 import GSAPHeroSlider from "./components/home/GSAPHeroSlider";
-import BestSellers from "./components/home/BestSellers";
+import BestSellers, {
+  type FeaturedProduct,
+} from "./components/home/BestSellers";
 import BestPrice from "./components/home/BestPrice";
 import AboutCompany from "./components/home/AboutCompany";
 import CollectionsSlider from "./components/home/CollectionsSlider";
 
-// ✅ секция поставок/новостей
 import SupplyNewsSection from "./components/home/SupplyNewsSection";
 import { supplyNewsMock } from "./mocks/supplyNews";
 import NewsletterCta from "./components/home/NewsletterCta";
 
-import { getGlobal } from "../app/lib/strapi";
-
-// ✅ НОВЫЕ моки только для CollectionsSlider
 import { COLLECTIONS_SLIDER_MOCK } from "./lib/mock/collections-slider";
-
-// ✅ новости из Strapi (единый источник)
 import { fetchNews } from "./lib/strapi/news";
 
-export type PriceEntry = {
-  id?: number;
-  productId: string | number; // ✅ теперь поддерживаем slug и number
-  title?: string;
-
-  priceUZS: number;
-  priceRUB: number;
-
-  oldPriceUZS?: number;
-  oldPriceRUB?: number;
-
-  hasDiscount?: boolean;
-  collectionBadge?: string;
-  isActive?: boolean;
-};
-
-async function fetchPriceEntries(): Promise<PriceEntry[]> {
-  const base =
+function getStrapiBase() {
+  return (
     process.env.NEXT_PUBLIC_STRAPI_URL ||
     process.env.STRAPI_URL ||
-    "http://localhost:1337";
+    "http://localhost:1337"
+  );
+}
+
+function absUrl(base: string, url: string) {
+  const u = String(url ?? "").trim();
+  if (!u) return "";
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (u.startsWith("//")) return `https:${u}`;
+  if (u.startsWith("/")) return `${base}${u}`;
+  return `${base}/${u}`;
+}
+
+function pickMediaUrl(base: string, mediaAny: any): string {
+  // поддержка разных shape:
+  // v4: { data: { attributes: { url } } }
+  // v5: иногда { url } или { attributes: { url } }
+  const m = mediaAny?.data?.attributes ?? mediaAny?.attributes ?? mediaAny;
+  const url = String(m?.url ?? "").trim();
+  return absUrl(base, url);
+}
+
+function pickGalleryUrls(base: string, galleryAny: any): string[] {
+  const arr = Array.isArray(galleryAny?.data)
+    ? galleryAny.data
+    : Array.isArray(galleryAny)
+      ? galleryAny
+      : [];
+
+  return arr
+    .map((x: any) => {
+      const a = x?.attributes ?? x?.data?.attributes ?? x;
+      return absUrl(base, String(a?.url ?? "").trim());
+    })
+    .filter(Boolean);
+}
+
+// ✅ берём featured продукты прямо из Strapi "product"
+async function fetchFeaturedProducts(
+  badge: "Хит продаж" | "Лучшая цена",
+): Promise<FeaturedProduct[]> {
+  const base = getStrapiBase();
 
   try {
-    const res = await fetch(`${base}/api/price-entries`, { cache: "no-store" });
+    const qs = new URLSearchParams();
 
+    // фильтры
+    qs.set("filters[isActive][$eq]", "true");
+    qs.set("filters[collectionBadge][$eq]", badge);
+
+    // пагинация/сортировка
+    qs.set("pagination[page]", "1");
+    qs.set("pagination[pageSize]", "12");
+    qs.set("sort[0]", "sortOrder:asc");
+
+    // populate медиа
+    qs.set("populate[0]", "media");
+    qs.set("populate[1]", "gallery");
+
+    const url = `${base}/api/products?${qs.toString()}`;
+
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) {
-      console.error("price-entries fetch failed:", res.status, res.statusText);
+      console.error(
+        "products fetch failed:",
+        badge,
+        res.status,
+        res.statusText,
+      );
       return [];
     }
 
@@ -53,57 +95,54 @@ async function fetchPriceEntries(): Promise<PriceEntry[]> {
 
     return data
       .map((item: any) => {
-        // ✅ поддержка ОБОИХ форматов Strapi: attributes / без attributes
         const src = item?.attributes ?? item;
 
-        const rawProductId = src?.productId;
-        const productId =
-          rawProductId == null ? "" : String(rawProductId).trim();
+        const slug = String(src?.slug ?? "").trim();
+        if (!slug) return null;
 
-        if (!productId) return null;
+        const mediaUrl = pickMediaUrl(base, src?.media);
+        const galleryUrls = pickGalleryUrls(base, src?.gallery);
 
-        return {
-          id: item?.id ?? src?.id,
-          productId,
+        const image = mediaUrl || galleryUrls[0] || "";
 
-          title: src?.title ?? undefined,
+        const out: FeaturedProduct = {
+          // ✅ у тебя сейчас ключом везде должен быть slug (Strapi-only)
+          id: slug,
+          slug,
+          title: String(src?.title ?? "").trim() || slug,
+          href: `/product/${slug}`,
 
-          // ✅ поля как у тебя в админке: priceUZS/priceRUB/oldPriceUZS/oldPriceRUB
-          // + на всякий: snake_case
-          priceUZS: Number(src?.priceUZS ?? src?.price_uzs ?? 0),
-          priceRUB: Number(src?.priceRUB ?? src?.price_rub ?? 0),
+          image,
+
+          priceUZS: Number(src?.priceUZS ?? 0),
+          priceRUB: Number(src?.priceRUB ?? 0),
 
           oldPriceUZS:
-            src?.oldPriceUZS != null
-              ? Number(src?.oldPriceUZS)
-              : src?.old_price_uzs != null
-                ? Number(src?.old_price_uzs)
-                : undefined,
-
+            src?.oldPriceUZS != null ? Number(src?.oldPriceUZS) : undefined,
           oldPriceRUB:
-            src?.oldPriceRUB != null
-              ? Number(src?.oldPriceRUB)
-              : src?.old_price_rub != null
-                ? Number(src?.old_price_rub)
-                : undefined,
+            src?.oldPriceRUB != null ? Number(src?.oldPriceRUB) : undefined,
 
-          hasDiscount:
-            src?.hasDiscount != null ? Boolean(src?.hasDiscount) : undefined,
+          collectionBadge: String(src?.collectionBadge ?? "").trim() || badge,
+          isActive: Boolean(src?.isActive),
 
-          collectionBadge: src?.collectionBadge ?? undefined,
-          isActive: src?.isActive != null ? Boolean(src?.isActive) : false,
-        } as PriceEntry;
+          brand: src?.brand ?? null,
+          collection: src?.collection ?? null,
+        };
+
+        return out;
       })
-      .filter(Boolean) as PriceEntry[];
+      .filter(Boolean) as FeaturedProduct[];
   } catch (e) {
-    console.error("price-entries fetch error:", e);
+    console.error("products fetch error:", badge, e);
     return [];
   }
 }
 
 export default async function Page() {
-  const global = await getGlobal();
-  const priceEntries = await fetchPriceEntries();
+  const [hitProducts, bestProducts] = await Promise.all([
+    fetchFeaturedProducts("Хит продаж"),
+    fetchFeaturedProducts("Лучшая цена"),
+  ]);
 
   // ✅ новости из Strapi (для секции на главной)
   const newsFromStrapi = await fetchNews({ limit: 6 });
@@ -112,21 +151,21 @@ export default async function Page() {
       ? (newsFromStrapi as any)
       : (supplyNewsMock as any);
 
-  console.log("PRICE ENTRIES (home page):", priceEntries.length);
-  console.log("NEWS (home page):", newsFromStrapi.length);
+  console.log("HIT products:", hitProducts.length);
+  console.log("BEST products:", bestProducts.length);
 
   return (
     <main>
       <GSAPHeroSlider />
 
-      <BestSellers priceEntries={priceEntries} />
-      <BestPrice priceEntries={priceEntries} />
+      {/* ✅ priceEntries больше НЕ используем */}
+      <BestSellers products={hitProducts} />
+      <BestPrice products={bestProducts} />
 
       <AboutCompany />
 
       <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
 
-      {/* ✅ было: supplyNewsMock — стало: newsItems (Strapi -> fallback mock) */}
       <SupplyNewsSection items={newsItems} />
 
       <NewsletterCta backgroundUrl="/images/home/newsletter-bg.jpg" />

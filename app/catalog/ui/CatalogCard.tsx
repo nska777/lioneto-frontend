@@ -1,4 +1,3 @@
-// app/catalog/ui/CatalogCard.tsx
 "use client";
 
 import Image from "next/image";
@@ -95,10 +94,6 @@ function n(v: any) {
   return Number.isFinite(x) ? x : 0;
 }
 
-function isRemoteSrc(src: string) {
-  return /^https?:\/\//i.test(src);
-}
-
 export default function CatalogCard({
   p,
   idx,
@@ -159,11 +154,13 @@ export default function CatalogCard({
 
   const STRAPI = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 
+  // 1) Пытаемся взять “малые” форматы Strapi
   const strapiImg =
-    (p.cardImage?.formats?.small?.url as string | undefined) ??
-    (p.cardImage?.url as string | undefined) ??
-    (typeof p.cardImage === "string" ? (p.cardImage as string) : undefined) ??
-    undefined;
+    p.cardImage?.formats?.small?.url ||
+    p.cardImage?.formats?.medium?.url ||
+    p.cardImage?.formats?.thumbnail?.url ||
+    p.cardImage?.url ||
+    (typeof p.cardImage === "string" ? p.cardImage : undefined);
 
   const strapiSrc = strapiImg
     ? strapiImg.startsWith("http")
@@ -171,6 +168,7 @@ export default function CatalogCard({
       : `${STRAPI}${strapiImg}`
     : "";
 
+  // 2) Фолбэк на галерею/картинку
   const firstGallery =
     (Array.isArray(p.gallery) && p.gallery[0]) ||
     (Array.isArray(p.images) && p.images[0]) ||
@@ -192,10 +190,11 @@ export default function CatalogCard({
     if (looksLikeStrapi) imgSrcFallback = `${STRAPI}${imgSrcFallback}`;
   }
 
-  const isModuleCard = Boolean(strapiSrc);
+  // ✅ единый источник картинки
+  const src = (strapiSrc || imgSrcFallback || "/placeholder.png").trim();
 
-  // ✅ единый источник картинки для module-card (чтобы не было "вписывания")
-  const moduleSrc = (strapiSrc || imgSrcFallback || "").trim();
+  // ✅ первые карточки — приоритет
+  const eager = idx < 8;
 
   return (
     <article
@@ -208,73 +207,25 @@ export default function CatalogCard({
     >
       <Link href={href} className="flex h-full flex-col">
         <div className="relative aspect-[13/11] overflow-hidden bg-white">
-          {!isModuleCard ? (
-            <>
-              {isRemoteSrc(imgSrcFallback) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={imgSrcFallback}
-                  alt={title}
-                  className={cn(
-                    "absolute inset-0 h-full w-full",
-                    "object-cover object-center",
-                    "transition-transform duration-500",
-                    "group-hover:scale-[1.02]",
-                  )}
-                  loading={idx < 6 ? "eager" : "lazy"}
-                />
-              ) : (
-                <Image
-                  key={imgSrcFallback}
-                  src={imgSrcFallback}
-                  alt={title}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                  className={cn(
-                    "object-cover object-center",
-                    "transition-transform duration-500",
-                    "group-hover:scale-[1.02]",
-                  )}
-                  priority={idx < 6}
-                />
-              )}
-            </>
-          ) : (
-            // ✅ FIX: делаем как обычные карточки — полноэкранная картинка object-cover
-            <>
-              {isRemoteSrc(moduleSrc) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={moduleSrc}
-                  alt={title}
-                  className={cn(
-                    "absolute inset-0 h-full w-full",
-                    "object-cover object-center",
-                    "transition-transform duration-500",
-                    "group-hover:scale-[1.02]",
-                  )}
-                  loading={idx < 6 ? "eager" : "lazy"}
-                />
-              ) : (
-                <Image
-                  key={moduleSrc}
-                  src={moduleSrc}
-                  alt={title}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                  className={cn(
-                    "object-cover object-center",
-                    "transition-transform duration-500",
-                    "group-hover:scale-[1.02]",
-                  )}
-                  priority={idx < 6}
-                />
-              )}
+          {/* ✅ ТОЛЬКО next/image — иначе оптимизация не работает */}
+          <Image
+            key={src}
+            src={src}
+            alt={title}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            className={cn(
+              "object-cover object-center",
+              "transition-transform duration-500",
+              "group-hover:scale-[1.02]",
+            )}
+            priority={eager}
+            quality={75}
+            placeholder="empty"
+          />
 
-              {/* ✅ лёгкий “премиум” градиент снизу как у hero (можешь убрать если не надо) */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
-            </>
-          )}
+          {/* ✅ лёгкий “премиум” градиент снизу */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
 
           {hasDiscount || badgeMain || collectionBadge ? (
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
@@ -340,7 +291,6 @@ export default function CatalogCard({
           </div>
 
           <div className="mt-auto pt-3">
-            {/* ✅ Кнопка теперь просто ведёт в карточку */}
             <span
               className={cn(
                 "relative h-10 w-full overflow-hidden rounded-xl",

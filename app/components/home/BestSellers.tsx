@@ -1,12 +1,6 @@
 "use client";
 
-import React, {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import gsap from "gsap";
@@ -37,43 +31,42 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
   }
 }
 
-// seeded shuffle
-function mulberry32(seed: number) {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function shuffleSeeded<T>(arr: T[], seed: number) {
-  const a = arr.slice();
-  const rnd = mulberry32(seed);
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-function getSeedEveryLoad() {
-  return Math.floor(Math.random() * 2_147_483_647) + 1;
-}
-function mapBrandLabel(brand: string) {
-  const b = brand.trim().toLowerCase();
-  if (b === "scandi") return "SCANDY";
-  return b ? b.toUpperCase() : "";
-}
+export type FeaturedProduct = {
+  id: string; // slug
+  slug: string;
+  title: string;
+  href: string;
+  image: string;
+
+  priceUZS: number;
+  priceRUB: number;
+
+  oldPriceUZS?: number;
+  oldPriceRUB?: number;
+
+  collectionBadge?: string;
+  isActive?: boolean;
+
+  brand?: string | null;
+  collection?: string | null;
+};
 
 type PriceEntry = {
   productId: string | number;
   title?: string;
+
   priceUZS: number;
   priceRUB: number;
+
+  oldPriceUZS?: number;
+  oldPriceRUB?: number;
+
+  hasDiscount?: boolean;
   collectionBadge?: string;
   isActive?: boolean;
 };
 
-type HitUIItem = {
+type UIItem = {
   id: string;
   title: string;
   href: string;
@@ -82,63 +75,96 @@ type HitUIItem = {
   price_rub: number;
   price_uzs: number;
 
+  old_price_rub?: number | null;
+  old_price_uzs?: number | null;
+
+  discountPercent?: number | null;
+
   badge: string;
-  skuLabel?: string;
-  brandLabel?: string;
+  skuLabel?: string | null;
+  brandLine?: string | null;
 };
 
-function BadgePill({
-  text,
-  variant,
-}: {
-  text: string;
-  variant: "gold" | "green";
-}) {
-  const isGreen = variant === "green";
+function toCapsLabel(v?: string | null) {
+  const s = (v ?? "").trim();
+  if (!s) return null;
 
+  const low = s.toLowerCase();
+  if (low === "scandi") return "SCANDY";
+  if (low === "skandy") return "SCANDY";
+
+  return s.toUpperCase();
+}
+
+function HitBadge({ text }: { text: string }) {
   return (
-    <span className="relative inline-flex h-5 items-center overflow-hidden rounded-[12px] px-3">
+    <span className="relative inline-flex h-6 items-center overflow-hidden rounded-[10px] px-2">
       <span
-        className="absolute inset-0 rounded-[12px]"
-        style={{
-          background: isGreen
-            ? "radial-gradient(120% 140% at 30% 20%, #E8FFF2 0%, #BFF7D6 28%, #57E39A 55%, #17B868 78%, #0C7F45 100%)"
-            : "radial-gradient(120% 140% at 30% 20%, #FFF1B8 0%, #FFD36A 35%, #E6A93C 65%, #C98A1A 100%)",
-        }}
-      />
-      <span
-        className="absolute inset-[1px] rounded-[11px]"
-        style={{
-          background: isGreen
-            ? "linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.10))"
-            : "linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.12))",
-        }}
-      />
-      <span
-        className="absolute inset-0 rounded-[12px]"
-        style={{
-          boxShadow: isGreen
-            ? "0 0 0 1px rgba(120, 255, 190, 0.85), 0 10px 28px rgba(12, 127, 69, 0.28)"
-            : "0 0 0 1px rgba(255,215,130,0.85), 0 10px 28px rgba(201,138,26,0.35)",
-        }}
-      />
-      <span
-        className="pointer-events-none absolute -left-[60%] top-0 h-full w-[60%] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        className="absolute inset-0 rounded-[10px]"
         style={{
           background:
-            "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.70) 50%, transparent 100%)",
-          transform: "skewX(-20deg)",
+            "radial-gradient(120% 140% at 30% 20%, #FFF6D8 0%, #FFE39A 26%, #F7C34E 52%, #D79A28 78%, #9B6A10 100%)",
         }}
       />
       <span
-        className={cn(
-          "relative z-10 text-[12px] font-semibold tracking-[0.04em]",
-          isGreen ? "text-[#064B2A]" : "text-[#5A3A00]",
-        )}
-      >
+        className="absolute inset-[1px] rounded-[9px]"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(255,255,255,0.70), rgba(255,255,255,0.12))",
+        }}
+      />
+      <span
+        className="absolute inset-0 rounded-[10px]"
+        style={{
+          boxShadow:
+            "0 0 0 1px rgba(255,210,110,0.75), 0 10px 26px rgba(155,106,16,0.20)",
+        }}
+      />
+      <span className="relative z-10 inline-flex items-center whitespace-nowrap text-[10px] font-semibold tracking-[0.02em] text-[#5A3B06]">
         {text}
       </span>
     </span>
+  );
+}
+
+function calcDiscountPercent(price: number, old?: number | null) {
+  if (!old || old <= 0) return null;
+  if (!price || price <= 0) return null;
+  if (old <= price) return null;
+  return Math.round((1 - price / old) * 100);
+}
+
+function SmartCover({
+  src,
+  alt,
+  priority,
+}: {
+  src: string;
+  alt: string;
+  priority?: boolean;
+}) {
+  const s = String(src ?? "").trim();
+  const isRemote = /^https?:\/\//i.test(s);
+
+  if (isRemote) {
+    return (
+      <img
+        src={s}
+        alt={alt}
+        className="absolute inset-0 h-full w-full object-cover object-center"
+        loading={priority ? "eager" : "lazy"}
+      />
+    );
+  }
+
+  return (
+    <Image
+      src={s}
+      alt={alt}
+      fill
+      className="object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
+      priority={priority}
+    />
   );
 }
 
@@ -161,23 +187,13 @@ function resolveProduct(productId: string | number) {
   });
 }
 
-function getPerView() {
-  const w = typeof window === "undefined" ? 1200 : window.innerWidth;
-  return w >= 1024 ? 4 : w >= 768 ? 2 : 1;
-}
-
-function getGapPx(track: HTMLElement) {
-  const style = window.getComputedStyle(track);
-  const g = style.columnGap || style.gap || "0px";
-  const n = Number(String(g).replace("px", "").trim());
-  return Number.isFinite(n) ? n : 0;
-}
-
 export default function BestSellers({
   title = "Хит продаж",
+  products = [],
   priceEntries = [],
 }: {
   title?: string;
+  products?: FeaturedProduct[];
   priceEntries?: PriceEntry[];
 }) {
   const { region } = useRegionLang();
@@ -196,24 +212,80 @@ export default function BestSellers({
     return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   }, []);
 
-  const baseList = useMemo<HitUIItem[]>(() => {
+  const list = useMemo<UIItem[]>(() => {
+    // ✅ Strapi products first
+    if (products.length) {
+      const items = products
+        .filter((p) => p?.isActive !== false)
+        .map((p) => {
+          const price_rub = Number(p.priceRUB ?? 0);
+          const price_uzs = Number(p.priceUZS ?? 0);
+
+          const old_price_rub =
+            p.oldPriceRUB != null ? Number(p.oldPriceRUB) : null;
+          const old_price_uzs =
+            p.oldPriceUZS != null ? Number(p.oldPriceUZS) : null;
+
+          const price = currency === "RUB" ? price_rub : price_uzs;
+          const old = currency === "RUB" ? old_price_rub : old_price_uzs;
+
+          const discountPercent = calcDiscountPercent(price, old);
+
+          const line =
+            toCapsLabel(p.collection ?? null) || toCapsLabel(p.brand ?? null);
+
+          return {
+            id: String(p.id),
+            title: String(p.title ?? "").trim(),
+            href: p.href || `/product/${p.slug}`,
+            image: String(p.image ?? ""),
+
+            price_rub,
+            price_uzs,
+
+            old_price_rub,
+            old_price_uzs,
+
+            discountPercent,
+            badge: "Хит продаж",
+            skuLabel: p.slug ? String(p.slug) : null,
+            brandLine: line ?? null,
+          };
+        });
+
+      return items.slice(0, Math.min(10, items.length));
+    }
+
+    // ✅ fallback priceEntries -> mock
     if (!priceEntries.length) return [];
 
-    const hits = priceEntries.filter(
-      (e) =>
-        !!e.isActive && String(e.collectionBadge ?? "").trim() === "Хит продаж",
+    const hit = priceEntries.filter(
+      (e) => e.isActive && e.collectionBadge === "Хит продаж",
     );
-    if (!hits.length) return [];
+    if (!hit.length) return [];
 
-    const items = hits
+    const items = hit
       .map((entry) => {
         const product = resolveProduct(entry.productId);
         if (!product) return null;
 
-        const brandRaw = String(product.brand ?? "")
-          .replace(/[-_]+/g, " ")
-          .trim();
-        const brandLabel = mapBrandLabel(brandRaw) || undefined;
+        const price_rub = Number(entry.priceRUB ?? 0);
+        const price_uzs = Number(entry.priceUZS ?? 0);
+
+        const old_price_rub =
+          entry.oldPriceRUB != null ? Number(entry.oldPriceRUB) : null;
+        const old_price_uzs =
+          entry.oldPriceUZS != null ? Number(entry.oldPriceUZS) : null;
+
+        const price = currency === "RUB" ? price_rub : price_uzs;
+        const old = currency === "RUB" ? old_price_rub : old_price_uzs;
+
+        const discountPercent = calcDiscountPercent(price, old);
+
+        const line =
+          toCapsLabel(product.collection ?? null) ||
+          toCapsLabel(product.brand ?? null) ||
+          null;
 
         const displayTitle = String(
           (entry.title ?? "").trim() || (product.title ?? "").trim() || "",
@@ -225,41 +297,22 @@ export default function BestSellers({
           href: `/product/${product.id}`,
           image: String(product.image ?? ""),
 
-          price_rub: Number(entry.priceRUB ?? 0),
-          price_uzs: Number(entry.priceUZS ?? 0),
+          price_rub,
+          price_uzs,
 
-          badge: (entry.collectionBadge ?? "Хит продаж").trim(),
-          skuLabel: `ID: ${product.id}`,
-          brandLabel,
+          old_price_rub,
+          old_price_uzs,
+
+          discountPercent,
+          badge: "Хит продаж",
+          skuLabel: product.sku ? String(product.sku) : `ID: ${product.id}`,
+          brandLine: line,
         };
       })
-      .filter(Boolean) as HitUIItem[];
+      .filter(Boolean) as UIItem[];
 
-    // ✅ детерминированно для SSR
-    items.sort((a, b) => a.id.localeCompare(b.id));
-    return items; // ✅ БЕЗ ОГРАНИЧЕНИЯ
-  }, [priceEntries]);
-
-  const [list, setList] = useState<HitUIItem[]>(() => baseList);
-
-  useEffect(() => {
-    setList(baseList);
-
-    if (!baseList.length) return;
-    if (typeof window === "undefined") return;
-
-    const key = "lioneto_best_sellers_seed_v1";
-    let seed = Number(sessionStorage.getItem(key));
-    if (!Number.isFinite(seed) || seed <= 0) {
-      seed = getSeedEveryLoad();
-      sessionStorage.setItem(key, String(seed));
-    }
-
-    // ✅ перемешиваем ВСЕ, без slice
-    const shuffled = shuffleSeeded(baseList, seed);
-    setList(shuffled);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseList.length, priceEntries]);
+    return items.slice(0, Math.min(10, items.length));
+  }, [products, priceEntries, currency]);
 
   useLayoutEffect(() => {
     const calc = () => {
@@ -275,43 +328,44 @@ export default function BestSellers({
     return () => window.removeEventListener("resize", calc);
   }, []);
 
-  // ✅ pages всегда от реального list.length
   useLayoutEffect(() => {
     const calcPages = () => {
-      const perView = getPerView();
+      const w = window.innerWidth;
+      const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
       const newPages = Math.max(1, Math.ceil(list.length / perView));
       setPages(newPages);
       setPage((p) => Math.min(p, newPages - 1));
     };
+
     calcPages();
     window.addEventListener("resize", calcPages);
     return () => window.removeEventListener("resize", calcPages);
   }, [list.length]);
 
-  // desktop GSAP slide
   useLayoutEffect(() => {
     if (isTouchMode) return;
-    if (!trackRef.current) return;
+    if (!rootRef.current || !trackRef.current) return;
 
-    const track = trackRef.current;
-    const card = track.querySelector("[data-card]") as HTMLElement | null;
+    const card = trackRef.current.querySelector(
+      "[data-card]",
+    ) as HTMLElement | null;
     if (!card) return;
 
-    const gap = getGapPx(track);
+    const gap = 24;
     const cw = card.getBoundingClientRect().width;
-    const perView = getPerView();
+    const perView =
+      window.innerWidth >= 1024 ? 3 : window.innerWidth >= 768 ? 2 : 1;
 
     const shift = page * perView * (cw + gap);
 
     if (reducedMotion) {
-      gsap.set(track, { x: -shift });
+      gsap.set(trackRef.current, { x: -shift });
       return;
     }
 
-    gsap.to(track, { x: -shift, duration: 0.9, ease: "expo.out" });
+    gsap.to(trackRef.current, { x: -shift, duration: 0.9, ease: "expo.out" });
   }, [page, reducedMotion, list.length, isTouchMode]);
 
-  // mobile scroll sync -> page
   useLayoutEffect(() => {
     if (!isTouchMode) return;
     const vp = viewportRef.current;
@@ -321,12 +375,12 @@ export default function BestSellers({
       const card = vp.querySelector("[data-card]") as HTMLElement | null;
       if (!card) return;
 
-      const track = trackRef.current;
-      const gap = track ? getGapPx(track) : 0;
+      const gap = 24;
       const cw = card.getBoundingClientRect().width;
       const step = cw + gap;
 
-      const perView = getPerView();
+      const w = window.innerWidth;
+      const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
       const pageStep = perView * step;
 
       const p = Math.round(vp.scrollLeft / pageStep);
@@ -349,12 +403,12 @@ export default function BestSellers({
     const card = vp.querySelector("[data-card]") as HTMLElement | null;
     if (!card) return;
 
-    const track = trackRef.current;
-    const gap = track ? getGapPx(track) : 0;
+    const gap = 24;
     const cw = card.getBoundingClientRect().width;
     const step = cw + gap;
+    const w = window.innerWidth;
+    const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
 
-    const perView = getPerView();
     const target = Math.max(0, vp.scrollLeft - perView * step);
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
@@ -368,12 +422,12 @@ export default function BestSellers({
     const card = vp.querySelector("[data-card]") as HTMLElement | null;
     if (!card) return;
 
-    const track = trackRef.current;
-    const gap = track ? getGapPx(track) : 0;
+    const gap = 24;
     const cw = card.getBoundingClientRect().width;
     const step = cw + gap;
+    const w = window.innerWidth;
+    const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
 
-    const perView = getPerView();
     const max = vp.scrollWidth - vp.clientWidth;
     const target = Math.min(max, vp.scrollLeft + perView * step);
     vp.scrollTo({ left: target, behavior: "smooth" });
@@ -388,17 +442,16 @@ export default function BestSellers({
     const card = vp.querySelector("[data-card]") as HTMLElement | null;
     if (!card) return;
 
-    const track = trackRef.current;
-    const gap = track ? getGapPx(track) : 0;
+    const gap = 24;
     const cw = card.getBoundingClientRect().width;
     const step = cw + gap;
-
-    const perView = getPerView();
+    const w = window.innerWidth;
+    const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
     const target = i * perView * step;
+
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
 
-  // hover actions (desktop only)
   useLayoutEffect(() => {
     if (!rootRef.current) return;
     if (isTouchMode) return;
@@ -407,6 +460,7 @@ export default function BestSellers({
     const cards = Array.from(
       root.querySelectorAll("[data-card]"),
     ) as HTMLElement[];
+
     const cleanups: Array<() => void> = [];
 
     cards.forEach((card) => {
@@ -470,125 +524,14 @@ export default function BestSellers({
     return () => cleanups.forEach((fn) => fn());
   }, [list.length, reducedMotion, isTouchMode]);
 
-  // reveal
-  useLayoutEffect(() => {
-    if (!rootRef.current) return;
-    if (reducedMotion) return;
-
-    const root = rootRef.current;
-
-    const header = root.querySelector(
-      "[data-reveal='header']",
-    ) as HTMLElement | null;
-    const viewport = root.querySelector(
-      "[data-reveal='viewport']",
-    ) as HTMLElement | null;
-    const dots = root.querySelector(
-      "[data-reveal='dots']",
-    ) as HTMLElement | null;
-    const wind = root.querySelector("[data-wind]") as HTMLElement | null;
-
-    const cards = Array.from(
-      root.querySelectorAll("[data-card]"),
-    ) as HTMLElement[];
-
-    const tl = gsap.timeline({
-      scrollTrigger: { trigger: root, start: "top 78%", once: true },
-    });
-
-    if (header) gsap.set(header, { autoAlpha: 0, y: 18, filter: "blur(10px)" });
-    if (viewport)
-      gsap.set(viewport, {
-        autoAlpha: 0,
-        y: 22,
-        filter: "blur(12px)",
-        clipPath: "inset(0 0 18% 0 round 18px)",
-      });
-    if (dots) gsap.set(dots, { autoAlpha: 0, y: 10, filter: "blur(8px)" });
-    if (wind) gsap.set(wind, { xPercent: -140, autoAlpha: 0 });
-    if (cards.length) gsap.set(cards, { y: 10, filter: "blur(6px)" });
-
-    const tl2 = tl
-      .to(
-        wind,
-        { autoAlpha: 1, xPercent: 140, duration: 0.85, ease: "expo.out" },
-        0,
-      )
-      .to(
-        header,
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.55,
-          ease: "power3.out",
-        },
-        0.08,
-      )
-      .to(
-        viewport,
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          clipPath: "inset(0 0 0% 0 round 18px)",
-          duration: 0.75,
-          ease: "expo.out",
-        },
-        0.12,
-      )
-      .to(
-        cards,
-        {
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.55,
-          ease: "power3.out",
-          stagger: 0.06,
-        },
-        0.22,
-      )
-      .to(
-        dots,
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.45,
-          ease: "power3.out",
-        },
-        0.35,
-      );
-
-    return () => {
-      tl2.kill();
-      ScrollTrigger.getAll().forEach((st) => {
-        if (st.trigger === root) st.kill();
-      });
-    };
-  }, [reducedMotion, list.length]);
-
   return (
     <section
       ref={rootRef}
       className="w-full relative overflow-hidden"
       style={{ backgroundColor: "#f3f3f3" }}
     >
-      <div
-        data-wind
-        className="pointer-events-none absolute inset-y-0 -left-[40%] w-[180%]"
-        style={{
-          background:
-            "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.78) 45%, rgba(255,255,255,0) 100%)",
-          mixBlendMode: "soft-light",
-        }}
-      />
-
       <div className="mx-auto w-full max-w-[1200px] px-4 py-12">
-        <div
-          data-reveal="header"
-          className="flex items-center justify-between gap-4"
-        >
+        <div className="flex items-center justify-between gap-4">
           <h2 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.02em] text-black">
             {title}
           </h2>
@@ -600,14 +543,13 @@ export default function BestSellers({
               className={cn(
                 "h-10 w-10 rounded-full grid place-items-center",
                 "border border-black/10 bg-white",
-                "shadow-[0_12px_34px_rgba(0,0,0,0.10)]",
+                "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                 "transition cursor-pointer",
                 page === 0
                   ? "opacity-40 cursor-default"
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Назад"
-              type="button"
             >
               <ChevronLeft className="h-5 w-5 text-black/70" />
             </button>
@@ -618,14 +560,13 @@ export default function BestSellers({
               className={cn(
                 "h-10 w-10 rounded-full grid place-items-center",
                 "border border-black/10 bg-white",
-                "shadow-[0_12px_34px_rgba(0,0,0,0.10)]",
+                "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                 "transition cursor-pointer",
                 page >= pages - 1
                   ? "opacity-40 cursor-default"
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Вперёд"
-              type="button"
             >
               <ChevronRight className="h-5 w-5 text-black/70" />
             </button>
@@ -633,14 +574,12 @@ export default function BestSellers({
         </div>
 
         <div
-          data-reveal="viewport"
           ref={viewportRef}
           className={cn(
             "mt-8",
             isTouchMode ? "overflow-x-auto" : "overflow-hidden",
             isTouchMode ? "snap-x snap-mandatory" : "",
             "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-            "pr-0 lg:pr-[110px]",
           )}
           style={{ WebkitOverflowScrolling: "touch", scrollBehavior: "smooth" }}
         >
@@ -653,7 +592,9 @@ export default function BestSellers({
             style={{ transform: "translateZ(0)" }}
           >
             {list.map((p, idx) => {
-              const value = currency === "RUB" ? p.price_rub : p.price_uzs;
+              const price = currency === "RUB" ? p.price_rub : p.price_uzs;
+              const old =
+                currency === "RUB" ? p.old_price_rub : p.old_price_uzs;
 
               const snapshot = {
                 title: p.title,
@@ -664,8 +605,6 @@ export default function BestSellers({
                 price_rub: p.price_rub,
               };
 
-              const badgeVariant = "gold";
-
               return (
                 <Link
                   key={`${p.id}-${idx}`}
@@ -674,28 +613,28 @@ export default function BestSellers({
                   className={cn(
                     "group block shrink-0 cursor-pointer",
                     isTouchMode ? "snap-start" : "",
-                    "w-[260px] sm:w-[270px] md:w-[300px] lg:w-[282px]",
+                    "w-[260px] sm:w-[270px] md:w-[300px] lg:w-[360px]",
                   )}
                 >
                   <div
                     className={cn(
-                      "relative flex flex-col h-full",
-                      "rounded-[22px]",
+                      "flex flex-col h-full",
                       "border border-black/10 bg-white",
-                      "shadow-[0_14px_40px_rgba(0,0,0,0.07)]",
-                      "transition-transform duration-300",
+                      "rounded-[18px]",
+                      "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
+                      "transition",
                       "group-hover:-translate-y-[2px]",
-                      "group-hover:shadow-[0_20px_60px_rgba(0,0,0,0.10)]",
+                      "group-hover:shadow-[0_18px_50px_rgba(0,0,0,0.10)]",
                     )}
                   >
-                    <div className="relative overflow-visible rounded-t-[22px] bg-white">
+                    <div className="relative overflow-visible rounded-t-[18px] bg-white">
                       <div className="absolute left-3 top-0.5 z-20">
-                        <BadgePill text={p.badge} variant={badgeVariant} />
+                        <HitBadge text={p.badge} />
                       </div>
 
                       <div
                         data-actions
-                        className="absolute right-3 top-3 z-20"
+                        className="absolute right-2 top-2 z-20"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -710,55 +649,45 @@ export default function BestSellers({
                         />
                       </div>
 
-                      <div className="relative overflow-hidden rounded-t-[22px]">
+                      <div className="relative overflow-hidden rounded-t-[18px]">
                         <div className="relative aspect-[4/3] bg-white">
-                          <Image
+                          <SmartCover
                             src={p.image}
                             alt={p.title}
-                            fill
-                            className={cn(
-                              "object-cover object-center",
-                              "transition-transform duration-500",
-                              "group-hover:scale-[1.03]",
-                            )}
                             priority={idx < 6}
                           />
                         </div>
                       </div>
                     </div>
 
-                    <div className="px-5 pt-3 pb-3">
-                      <div className="text-[20px] font-semibold tracking-[-0.01em] text-black">
-                        {formatPrice(value, currency)}
+                    <div className="px-5 pt-3 pb-3 min-h-[112px]">
+                      <div className="flex items-baseline gap-3">
+                        <div className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black">
+                          {formatPrice(price, currency)}
+                        </div>
+                        {old && old > price ? (
+                          <div className="text-[12px] text-black/40 line-through">
+                            {formatPrice(old, currency)}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div
                         className={cn(
-                          "mt-1 text-[14px] leading-snug text-black/70",
+                          "mt-2 text-[15px] md:text-[16px] leading-snug text-black/80",
                           "whitespace-normal break-words",
                           "line-clamp-2",
-                          "min-h-[40px]",
+                          "min-h-[36px]",
                         )}
                         title={p.title}
                       >
                         {p.title}
                       </div>
 
-                      {p.brandLabel ? (
-                        <div className="mt-1.5 text-[11px] tracking-[0.18em] uppercase text-black/45">
-                          {p.brandLabel}
-                        </div>
-                      ) : (
-                        <div className="mt-1.5 h-[12px]" />
-                      )}
+                      <div className="mt-3 text-[11px] tracking-[0.18em] uppercase text-black/45">
+                        {p.brandLine ?? "—"}
+                      </div>
                     </div>
-
-                    <div
-                      className="pointer-events-none absolute inset-0 rounded-[22px]"
-                      style={{
-                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.7)",
-                      }}
-                    />
                   </div>
                 </Link>
               );
@@ -766,7 +695,7 @@ export default function BestSellers({
           </div>
         </div>
 
-        <div data-reveal="dots" className="mt-6 flex justify-center gap-2">
+        <div className="mt-6 flex justify-center gap-2">
           {Array.from({ length: pages }).map((_, i) => (
             <button
               key={i}
@@ -778,7 +707,6 @@ export default function BestSellers({
                   : "bg-black/15 hover:bg-black/30",
               )}
               aria-label={`Страница ${i + 1}`}
-              type="button"
             />
           ))}
         </div>

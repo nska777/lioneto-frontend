@@ -28,12 +28,6 @@ function joinUrl(base: string, path: string) {
   return `${b}${p.startsWith("/") ? "" : "/"}${p}`;
 }
 
-function normKey(v: unknown) {
-  return String(v ?? "")
-    .trim()
-    .toLowerCase();
-}
-
 function pickStrapiItem(item: any) {
   const src = item?.attributes ?? item ?? {};
   const id = src?.id ?? item?.id ?? src?.documentId ?? undefined;
@@ -111,6 +105,18 @@ function declOfGoods(n: number) {
   if (n10 >= 2 && n10 <= 4) return "товара";
   return "товаров";
 }
+
+// ✅ безопасные описания по коллекциям (можешь расширять)
+const HERO_DESC_BY_COLLECTION: Record<string, string> = {
+  amber:
+    "Коллекция AMBER — премиальный баланс эстетики, уюта и функциональности. Благородные оттенки, чистые линии и продуманные детали создают атмосферу спокойствия и превращают пространство в место для полноценного отдыха.",
+  buongiorno:
+    "BUONGIORNO — лёгкая современная коллекция с акцентом на свет, воздух и тактильные материалы. Идеальна для тех, кто хочет «дорогой минимализм» без холодности.",
+  salvador:
+    "SALVADOR — выразительный дизайн и статусные материалы. Коллекция собирает интерьер в цельный образ и подчёркивает премиальный характер пространства.",
+  scandi:
+    "SCANDI — чистый северный стиль: лаконичность, тёплые фактуры и визуальная лёгкость. Универсальная база для премиального интерьера.",
+};
 
 export default function CatalogClient({
   initialBrand,
@@ -232,7 +238,7 @@ export default function CatalogClient({
   };
 
   // ==========================
-  // ✅ Strapi Products fetch (safe + pagination loop)
+  // ✅ Strapi Products fetch (safe + REAL pagination loop)
   // ==========================
   const [strapiItems, setStrapiItems] = useState<any[] | null>(null);
 
@@ -251,40 +257,51 @@ export default function CatalogClient({
       }
 
       try {
-        const pageSize = 1000;
+        const pageSize = 200; // нормальный pageSize, но с циклом по pageCount
 
-        const url = joinUrl(
-          STRAPI_URL,
-          `/api/products?` +
-            `fields[0]=title&` +
-            `fields[1]=slug&` +
-            `fields[2]=collection&` +
-            `fields[3]=module&` +
-            `fields[4]=brand&` +
-            `fields[5]=cat&` +
-            `fields[6]=isActive&` +
-            `fields[7]=sortOrder&` +
-            `fields[8]=priceUZS&` +
-            `fields[9]=priceRUB&` +
-            `fields[10]=oldPriceUZS&` +
-            `fields[11]=oldPriceRUB&` +
-            `fields[12]=collectionBadge&` +
-            `populate[media][fields][0]=url&` +
-            `pagination[page]=1&pagination[pageSize]=${pageSize}&` +
-            `sort=sortOrder:asc,updatedAt:desc`,
-        );
+        let page = 1;
+        let pageCount = 1;
+        const acc: any[] = [];
 
-        const res = await fetch(url, {
-          next: { revalidate: 60 }, // вместо no-store
-        });
+        while (page <= pageCount) {
+          const url = joinUrl(
+            STRAPI_URL,
+            `/api/products?` +
+              `fields[0]=title&` +
+              `fields[1]=slug&` +
+              `fields[2]=collection&` +
+              `fields[3]=module&` +
+              `fields[4]=brand&` +
+              `fields[5]=cat&` +
+              `fields[6]=isActive&` +
+              `fields[7]=sortOrder&` +
+              `fields[8]=priceUZS&` +
+              `fields[9]=priceRUB&` +
+              `fields[10]=oldPriceUZS&` +
+              `fields[11]=oldPriceRUB&` +
+              `fields[12]=collectionBadge&` +
+              `populate[media][fields][0]=url&` +
+              `pagination[page]=${page}&pagination[pageSize]=${pageSize}&` +
+              `sort=sortOrder:asc,updatedAt:desc`,
+          );
 
-        if (!res.ok) throw new Error("Strapi products fetch failed");
+          const res = await fetch(url, { next: { revalidate: 60 } });
+          if (!res.ok) throw new Error("Strapi products fetch failed");
 
-        const json = await res.json();
+          const json = await res.json();
 
-        const arr = Array.isArray(json?.data) ? json.data : [];
+          const arr = Array.isArray(json?.data) ? json.data : [];
+          acc.push(...arr);
 
-        const mapped = arr.map((it: any) => pickStrapiItem(it)).filter(Boolean);
+          const meta = json?.meta?.pagination ?? {};
+          pageCount = Number(meta?.pageCount ?? 1) || 1;
+
+          page += 1;
+
+          if (!alive) return;
+        }
+
+        const mapped = acc.map((it: any) => pickStrapiItem(it)).filter(Boolean);
 
         if (alive) {
           console.log("[catalog] strapi fetched:", mapped.length);
@@ -302,7 +319,6 @@ export default function CatalogClient({
     };
   }, [CATALOG_SOURCE, STRAPI_URL]);
 
-  // ✅ базовый список товаров (для useCatalogData)
   const baseItems = useMemo(() => {
     if (CATALOG_SOURCE !== "strapi") return [];
     if (!Array.isArray(strapiItems)) return [];
@@ -355,12 +371,8 @@ export default function CatalogClient({
   // ✅ ВАЖНО: показываем ВСЕ товары (задача: видеть все 485)
   // ✅ Показываем ТОЛЬКО активные и опубликованные товары
   const filterActive = (p: any) => {
-    // если поле явно false — скрываем
     if (p?.isActive === false) return false;
-
-    // если Strapi когда-нибудь вернёт publishedAt — тоже проверим
     if ("publishedAt" in p && p?.publishedAt === null) return false;
-
     return true;
   };
 
@@ -417,9 +429,12 @@ export default function CatalogClient({
 
   const heroDescription = useMemo(() => {
     if (!activeCollection) return "";
-    const base = String(activeCollection).toUpperCase();
-    return `Спальня ${base} — воплощение премиального комфорта и современного стиля. Коллекция AMBER создана для тех, кто ценит баланс эстетики, уюта и функциональности. Чистые линии, благородные оттенки и тщательно продуманные детали формируют атмосферу спокойствия и гармонии, превращая спальню в личное пространство для полноценного отдыха и восстановления.`;
-  }, [activeCollection]);
+    const key = String(activeCollection).trim().toLowerCase();
+    const base = HERO_DESC_BY_COLLECTION[key];
+    if (base) return base;
+    const rn = roomLabel ? roomLabel.toLowerCase() : "интерьер";
+    return `Коллекция ${String(activeCollection).toUpperCase()} — премиальное решение для ${rn}. Чистый дизайн, качественные материалы и продуманная функциональность создают цельный и дорогой образ пространства.`;
+  }, [activeCollection, roomLabel]);
 
   useEffect(() => {
     if (!hero || !heroRoomEffective || !activeCollection) {
@@ -604,7 +619,7 @@ export default function CatalogClient({
                       {heroTitle || "Коллекция"}
                     </h1>
 
-                    <span className="shrink-0 whitespace-nowrap inline-flex h-7 items-center rounded-none border border-black/10 bg-#f3f3f3 px-3 text-[11px] font-medium tracking-[0.22em] uppercase text-black/55 leading-none">
+                    <span className="shrink-0 whitespace-nowrap inline-flex h-7 items-center rounded-none border border-black/10 bg-[#f3f3f3] px-3 text-[11px] font-medium tracking-[0.22em] uppercase text-black/55 leading-none">
                       {sorted3.length} {declOfGoods(sorted3.length)}
                     </span>
                   </div>
@@ -696,8 +711,6 @@ export default function CatalogClient({
           ) : (
             TopBar
           )}
-
-          {!hero ? TopBar : null}
 
           <CatalogGrid
             gridRef={gridRef}
