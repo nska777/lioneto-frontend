@@ -140,8 +140,13 @@ export default function CatalogCard({
     ? Math.max(1, Math.min(99, Math.round((1 - cur / old) * 100)))
     : 0;
 
-  const badgeMain = p.badge ? String(p.badge) : "";
-  const collectionBadge = p.collectionBadge ? String(p.collectionBadge) : "";
+  const badgeMain = p.badge ? String(p.badge).trim() : "";
+  const collectionBadge = p.collectionBadge
+    ? String(p.collectionBadge).trim()
+    : "";
+
+  // ✅ один feature badge (если нет скидки)
+  const featureBadge = (collectionBadge || badgeMain || "").trim();
 
   const snapshot = {
     title,
@@ -192,6 +197,7 @@ export default function CatalogCard({
 
   // ✅ единый источник картинки
   const src = (strapiSrc || imgSrcFallback || "/placeholder.png").trim();
+  const isRemote = /^https?:\/\//i.test(src);
 
   // ✅ первые карточки — приоритет
   const eager = idx < 8;
@@ -207,7 +213,7 @@ export default function CatalogCard({
     >
       <Link href={href} className="flex h-full flex-col">
         <div className="relative aspect-[13/11] overflow-hidden bg-white">
-          {/* ✅ ТОЛЬКО next/image — иначе оптимизация не работает */}
+          {/* ✅ next/image остаётся, но remote не ломает доменами */}
           <Image
             key={src}
             src={src}
@@ -222,20 +228,20 @@ export default function CatalogCard({
             priority={eager}
             quality={75}
             placeholder="empty"
+            unoptimized={isRemote}
           />
 
           {/* ✅ лёгкий “премиум” градиент снизу */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
 
-          {hasDiscount || badgeMain || collectionBadge ? (
+          {/* ✅ БЕЙДЖ: если скидка — только скидка, иначе — один feature */}
+          {hasDiscount || featureBadge ? (
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               {hasDiscount ? (
                 <GoldDiscountBadge text={`Скидка −${computedPct}%`} />
-              ) : null}
-              {badgeMain ? <GreenPremiumBadge text={badgeMain} /> : null}
-              {collectionBadge ? (
-                <GreenPremiumBadge text={collectionBadge} />
-              ) : null}
+              ) : (
+                <GreenPremiumBadge text={featureBadge} />
+              )}
             </div>
           ) : null}
 
