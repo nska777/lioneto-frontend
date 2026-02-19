@@ -237,6 +237,8 @@ function safeParse<T>(raw: string | null, fallback: T): T {
 export default function CheckoutClient() {
   const router = useRouter();
   const sp = useSearchParams();
+  const isSuccess = String(sp?.get("success") ?? "") === "1";
+
   const mode = String(sp?.get("mode") ?? "").toLowerCase(); // "" | "oneclick"
 
   const { region } = useRegionLang(); // "uz" | "ru"
@@ -260,7 +262,7 @@ export default function CheckoutClient() {
       .filter(Boolean);
   }, [keys, shop]);
 
-  /** ✅ Strapi products map (ВАЖНО: как в Cart — фетим для ВСЕХ, иначе цены 0 из моков) */
+  /** ✅ Strapi products map: как в Cart — фетим для всех ids */
   const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
     {},
   );
@@ -315,8 +317,6 @@ export default function CheckoutClient() {
 
         const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
-
-        // display fallback (как у тебя было)
         const p = (pMock ?? pStrapi) as any;
         if (!p) return null;
 
@@ -343,14 +343,9 @@ export default function CheckoutClient() {
           return Number.isFinite(n) && n > 0 ? n : 0;
         }
 
-        // ✅ ВАЖНО: чтобы совпадало с CartClient
-        // 1) Strapi Product (главный приоритет)
+        // ✅ ЕДИНАЯ логика: Strapi Product → price-entry → mocks
         const baseFromStrapi = readPriceAny(pStrapi, region);
-
-        // 2) price-entry (второй приоритет, если вдруг Strapi Product пустой)
         const baseFromPriceEntry = readPriceAny(pe, region);
-
-        // 3) mocks (последний fallback)
         const baseFromMocks = readPriceAny(pMock, region);
 
         const baseUnit =
@@ -491,25 +486,66 @@ export default function CheckoutClient() {
       });
 
       if (!res.ok) {
-        alert("Не удалось отправить заказ. Попробуйте ещё раз.");
+        const txt = await res.text().catch(() => "");
+        alert(
+          "Не удалось отправить заказ. Попробуйте ещё раз.\n\n" +
+            (txt ? txt.slice(0, 500) : ""),
+        );
         return;
       }
 
       if (mode === "oneclick") shop.clearOneClick();
       else shop.clearCart();
 
-      router.push("/checkout?success=1");
+      // ✅ показываем success экран без отдельной страницы
+      router.replace("/checkout?success=1");
     } catch {
       alert("Ошибка сети. Попробуйте ещё раз.");
     }
   };
 
-  const orderTitle = useMemo(() => {
-    if (!items.length) return "Ваш заказ";
-    const it = items[0];
-    const left = it.collectionLabel ? `${it.collectionLabel} / ` : "";
-    return `${left}${it.title}`;
-  }, [items]);
+  // ✅ SUCCESS SCREEN (ВАЖНО: до основного return)
+  if (isSuccess) {
+    return (
+      <main className="mx-auto w-full max-w-[1000px] px-4 py-20">
+        <div className="rounded-3xl border border-black/10 bg-white p-10 text-center">
+          <div className="text-[12px] tracking-[0.28em] text-black/45">
+            LIONETO
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black text-white text-2xl">
+              ✓
+            </div>
+          </div>
+
+          <h1 className="mt-6 text-3xl font-semibold tracking-[-0.02em]">
+            Спасибо за заказ!
+          </h1>
+
+          <p className="mt-4 text-sm text-black/60">
+            В ближайшее время с вами свяжется менеджер для подтверждения.
+          </p>
+
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <Link
+              href="/catalog"
+              className="inline-flex items-center justify-center rounded-full bg-black px-6 py-3 text-sm font-semibold text-white hover:opacity-90 transition"
+            >
+              Перейти в каталог
+            </Link>
+
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold text-black/80 hover:border-black/20 transition"
+            >
+              На главную
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-10">
