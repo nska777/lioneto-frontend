@@ -251,42 +251,44 @@ export default function CatalogClient({
       }
 
       try {
-        const pageSize = 200;
-        let page = 1;
-        let total = Infinity;
+        const pageSize = 1000;
 
-        const all: any[] = [];
+        const url = joinUrl(
+          STRAPI_URL,
+          `/api/products?` +
+            `fields[0]=title&` +
+            `fields[1]=slug&` +
+            `fields[2]=collection&` +
+            `fields[3]=module&` +
+            `fields[4]=brand&` +
+            `fields[5]=cat&` +
+            `fields[6]=isActive&` +
+            `fields[7]=sortOrder&` +
+            `fields[8]=priceUZS&` +
+            `fields[9]=priceRUB&` +
+            `fields[10]=oldPriceUZS&` +
+            `fields[11]=oldPriceRUB&` +
+            `fields[12]=collectionBadge&` +
+            `populate[media][fields][0]=url&` +
+            `pagination[page]=1&pagination[pageSize]=${pageSize}&` +
+            `sort=sortOrder:asc,updatedAt:desc`,
+        );
 
-        while (alive && all.length < total) {
-          const url = joinUrl(
-            STRAPI_URL,
-            `/api/products?populate=*&pagination[page]=${page}&pagination[pageSize]=${pageSize}&sort=sortOrder:asc,updatedAt:desc`,
-          );
+        const res = await fetch(url, {
+          next: { revalidate: 60 }, // вместо no-store
+        });
 
-          const res = await fetch(url, { cache: "no-store" });
-          if (!res.ok) throw new Error("Strapi products fetch failed");
+        if (!res.ok) throw new Error("Strapi products fetch failed");
 
-          const json = await res.json();
+        const json = await res.json();
 
-          const arr = Array.isArray(json?.data) ? json.data : [];
-          const mapped = arr
-            .map((it: any) => pickStrapiItem(it))
-            .filter(Boolean);
-          all.push(...mapped);
+        const arr = Array.isArray(json?.data) ? json.data : [];
 
-          const p = json?.meta?.pagination;
-          total = typeof p?.total === "number" ? p.total : all.length;
-
-          if (!arr.length) break;
-          page += 1;
-
-          // safety break
-          if (page > 50) break;
-        }
+        const mapped = arr.map((it: any) => pickStrapiItem(it)).filter(Boolean);
 
         if (alive) {
-          console.log("[catalog] strapi fetched:", all.length);
-          setStrapiItems(all);
+          console.log("[catalog] strapi fetched:", mapped.length);
+          setStrapiItems(mapped);
         }
       } catch (e) {
         console.error("Strapi products fetch failed", e);
