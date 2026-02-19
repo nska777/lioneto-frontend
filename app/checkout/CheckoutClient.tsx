@@ -498,7 +498,7 @@ export default function CheckoutClient() {
       if (mode === "oneclick") shop.clearOneClick();
       else shop.clearCart();
 
-      router.push("/checkout/success");
+      router.push("/checkout?success=1");
     } catch {
       alert("Ошибка сети. Попробуйте ещё раз.");
     }
