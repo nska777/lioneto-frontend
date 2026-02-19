@@ -260,7 +260,7 @@ export default function CheckoutClient() {
       .filter(Boolean);
   }, [keys, shop]);
 
-  /** ✅ Strapi products map (если товара нет в моках) */
+  /** ✅ Strapi products map (ВАЖНО: как в Cart — фетим для ВСЕХ, иначе цены 0 из моков) */
   const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
     {},
   );
@@ -268,10 +268,8 @@ export default function CheckoutClient() {
     let alive = true;
     (async () => {
       try {
-        const missing = productIds.filter(
-          (id) => !CATALOG_BY_ID.get(String(id)),
-        );
-        const m = await fetchProductsMap(missing);
+        const ids = Array.from(new Set(productIds.filter(Boolean)));
+        const m = await fetchProductsMap(ids);
         if (alive) setProductsMap(m);
       } catch {
         if (alive) setProductsMap({});
@@ -317,7 +315,9 @@ export default function CheckoutClient() {
 
         const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
-        const p = pMock ?? pStrapi;
+
+        // display fallback (как у тебя было)
+        const p = (pMock ?? pStrapi) as any;
         if (!p) return null;
 
         const variants: VariantAny[] = Array.isArray((p as any).variants)
@@ -336,7 +336,6 @@ export default function CheckoutClient() {
           if (!obj) return 0;
 
           const uz = obj?.priceUZS ?? obj?.price_uzs ?? obj?.priceUzs ?? null;
-
           const ru = obj?.priceRUB ?? obj?.price_rub ?? obj?.priceRub ?? null;
 
           const raw = region === "uz" ? uz : ru;
@@ -344,13 +343,18 @@ export default function CheckoutClient() {
           return Number.isFinite(n) && n > 0 ? n : 0;
         }
 
-        // 1️⃣ price-entry приоритет
+        // ✅ ВАЖНО: чтобы совпадало с CartClient
+        // 1) Strapi Product (главный приоритет)
+        const baseFromStrapi = readPriceAny(pStrapi, region);
+
+        // 2) price-entry (второй приоритет, если вдруг Strapi Product пустой)
         const baseFromPriceEntry = readPriceAny(pe, region);
 
-        // 2️⃣ product fallback
-        const baseFromProduct = readPriceAny(p, region);
+        // 3) mocks (последний fallback)
+        const baseFromMocks = readPriceAny(pMock, region);
 
-        const baseUnit = baseFromPriceEntry || baseFromProduct || 0;
+        const baseUnit =
+          baseFromStrapi || baseFromPriceEntry || baseFromMocks || 0;
 
         // delta из variants (если используешь priceDelta)
         const pickedForDelta: VariantAny[] = [];
@@ -626,7 +630,6 @@ export default function CheckoutClient() {
           <div className="mt-4">
             {items.length ? (
               <>
-                {/* first line like on screenshot */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-black/85">
@@ -651,7 +654,6 @@ export default function CheckoutClient() {
                   </div>
                 </div>
 
-                {/* if more items */}
                 {items.length > 1 ? (
                   <div className="mt-3 space-y-2">
                     {items.slice(1).map((it) => (
