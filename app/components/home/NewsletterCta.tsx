@@ -14,7 +14,7 @@ export default function NewsletterCta({
   backgroundUrl = "/images/home/newsletter-bg.jpg",
   title = "БУДЬТЕ В КУРСЕ",
   subtitle = "Подписывайтесь на наш Telegram — только важные новости и акции",
-  telegramUrl = "https://t.me/your_channel",
+  telegramUrl = "https://t.me/lianetouz",
 }: {
   backgroundUrl?: string;
   title?: string;

@@ -95,8 +95,13 @@ export default function Footer({ data }: { data?: FooterData }) {
           phones: [
             {
               label: "Телефон",
-              value: "+998 (78) 000-00-00",
-              href: "tel:+998780000000",
+              value: "+998 (90) 003-80-08",
+              href: "tel:+998900038008",
+            },
+            {
+              label: "",
+              value: "+998 (90) 925-60-06",
+              href: "tel:+998909256006",
             },
           ],
           email: {
@@ -107,17 +112,24 @@ export default function Footer({ data }: { data?: FooterData }) {
           addresses: [
             {
               label: "Ташкент",
-              value: "ул. Мирзо-Улугбек, 18",
+              value:
+                " Rich House: г. Ташкент, Мирзо-Улугбекский район, проспект Мирзо Улугбека, 18 ",
               mapUrl:
                 "https://yandex.ru/maps/?text=ул.%20Мирзо-Улугбек,%2018,%20Ташкент",
             },
           ],
         },
         socials: [
-          { label: "Instagram", href: "#", icon: "instagram" },
-          { label: "Telegram", href: "#", icon: "telegram" },
-          { label: "YouTube", href: "#", icon: "youtube" },
-          { label: "Facebook", href: "#", icon: "facebook" },
+          {
+            label: "Instagram",
+            href: "https://www.instagram.com/lioneto.uz?igsh=MWZoaHRzcjUxenF1bw%3D%3D&utm_source=qr",
+            icon: "instagram",
+          },
+          {
+            label: "Telegram",
+            href: "https://t.me/lianetouz",
+            icon: "telegram",
+          },
         ],
         legalLinks: [
           { label: "Политика конфиденциальности", href: "/privacy" },
@@ -179,13 +191,10 @@ export default function Footer({ data }: { data?: FooterData }) {
         onRefresh: checkAndRevealIfInView,
       });
 
-      // страховка на маунте
       requestAnimationFrame(() => {
         checkAndRevealIfInView();
       });
 
-      // страницы с динамической высотой (news accordion, lazy images и т.п.)
-      // → при изменении layout делаем refresh и сразу проверяем футер
       let raf = 0;
       const scheduleRefresh = () => {
         if (revealed) return;
@@ -199,15 +208,12 @@ export default function Footer({ data }: { data?: FooterData }) {
       const onLoad = () => scheduleRefresh();
       window.addEventListener("load", onLoad, { once: true });
 
-      // ResizeObserver: ловит смену высоты контента без resize окна
       let ro: ResizeObserver | null = null;
       if (typeof ResizeObserver !== "undefined") {
         ro = new ResizeObserver(() => scheduleRefresh());
-        // documentElement обычно надёжнее body
         ro.observe(document.documentElement);
       }
 
-      // MutationObserver: на всякий — если высота меняется из-за DOM-мутаций
       let mo: MutationObserver | null = null;
       if (typeof MutationObserver !== "undefined") {
         mo = new MutationObserver(() => scheduleRefresh());
@@ -218,7 +224,6 @@ export default function Footer({ data }: { data?: FooterData }) {
         });
       }
 
-      // и сразу после маунта — refresh
       requestAnimationFrame(() => scheduleRefresh());
 
       return () => {
@@ -234,6 +239,14 @@ export default function Footer({ data }: { data?: FooterData }) {
   }, []);
 
   /* ================= JSX ================= */
+
+  // ✅ делаем пункты "Покупателям" некликабельными (в футере)
+  const DISABLE_CUSTOMER_LINKS = new Set([
+    "Доставка и оплата",
+    "Возврат",
+    "Гарантия",
+    "Контакты",
+  ]);
 
   return (
     <footer ref={rootRef} className="bg-black text-white" aria-label="Footer">
@@ -276,22 +289,41 @@ export default function Footer({ data }: { data?: FooterData }) {
               <div className="text-[12px] font-semibold tracking-[0.18em] text-white/70">
                 {col.title}
               </div>
+
               <ul className="space-y-2">
-                {col.links.map((l) => (
-                  <li key={l.href}>
-                    <Link
-                      href={l.href}
-                      className={cn(
-                        "inline-flex items-center gap-2 text-[13px] text-white/55",
-                        "transition hover:text-white hover:-translate-y-[1px]",
-                        "cursor-pointer",
+                {col.links.map((l) => {
+                  const isCustomers = col.title === "Покупателям";
+                  const disabled =
+                    isCustomers && DISABLE_CUSTOMER_LINKS.has(l.label);
+
+                  return (
+                    <li key={`${col.title}-${l.label}`}>
+                      {disabled ? (
+                        <div
+                          className={cn(
+                            "inline-flex items-center gap-2 text-[13px] text-white/55",
+                            "select-none",
+                          )}
+                        >
+                          <span className="h-[4px] w-[4px] rounded-full bg-white/25" />
+                          {l.label}
+                        </div>
+                      ) : (
+                        <Link
+                          href={l.href}
+                          className={cn(
+                            "inline-flex items-center gap-2 text-[13px] text-white/55",
+                            "transition hover:text-white hover:-translate-y-[1px]",
+                            "cursor-pointer",
+                          )}
+                        >
+                          <span className="h-[4px] w-[4px] rounded-full bg-white/25" />
+                          {l.label}
+                        </Link>
                       )}
-                    >
-                      <span className="h-[4px] w-[4px] rounded-full bg-white/25" />
-                      {l.label}
-                    </Link>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}
@@ -348,6 +380,8 @@ export default function Footer({ data }: { data?: FooterData }) {
                 <a
                   key={s.label}
                   href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   aria-label={s.label}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/15 bg-white/5 transition hover:scale-[1.06] hover:bg-white/10 cursor-pointer"
                 >

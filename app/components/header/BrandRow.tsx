@@ -170,14 +170,16 @@ export default function BrandRow({
               </button>
             </div>
 
-            <IconBtn
-              label={tt("header.ariaSearch", "Поиск")}
-              onClick={() => {
-                // позже: открыть модалку поиска
-              }}
-            >
-              <Search className="h-5 w-5" />
-            </IconBtn>
+            {/* 
+<IconBtn
+  label={tt("header.ariaSearch", "Поиск")}
+  onClick={() => {
+    // позже: открыть модалку поиска
+  }}
+>
+  <Search className="h-5 w-5" />
+</IconBtn>
+*/}
 
             <IconBtn
               label={tt("header.ariaAccount", "Кабинет")}
