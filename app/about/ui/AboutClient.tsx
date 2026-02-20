@@ -6,13 +6,11 @@ import React, { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-// ✅ твой баннер с главной — сохраняем
 import GSAPHeroSlider from "@/app/components/home/GSAPHeroSlider";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-// ✅ твои слайды — как было
 const ABOUT_SLIDES = [
   {
     id: "s1",
@@ -86,8 +84,7 @@ const ABOUT_SLIDES = [
   },
 ];
 
-// ✅ поставь реальный файл, когда будет
-const ABOUT_IMAGE_SRC = ""; // например "/about/showroom-01.jpg"
+const ABOUT_IMAGE_SRC = "";
 
 function GoldLioneto({ className = "" }: { className?: string }) {
   return (
@@ -234,12 +231,12 @@ export default function AboutClient() {
         <span className="text-black/80">О КОМПАНИИ</span>
       </nav>
 
-      {/* ✅ БАННЕР С ГЛАВНОЙ (оставляем) */}
+      {/* */}
       <section className="mt-6">
         <GSAPHeroSlider slides={ABOUT_SLIDES} autoMs={6500} />
       </section>
 
-      {/* ===== ОСНОВНОЙ БЛОК: ЗАГОЛОВОК → ТЕКСТ → КАРТИНКА ===== */}
+      {/* */}
       <section
         className={cn(
           "relative mt-10 overflow-hidden rounded-[20px] bg-white",
@@ -247,7 +244,7 @@ export default function AboutClient() {
           "shadow-[0_30px_120px_rgba(0,0,0,0.08)]",
         )}
       >
-        {/* мягкий премиальный фон */}
+        {/* */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -left-56 -top-56 h-[720px] w-[720px] rounded-full bg-black/[0.03]" />
           <div className="absolute -right-56 -bottom-56 h-[720px] w-[720px] rounded-full bg-black/[0.025]" />
@@ -255,7 +252,7 @@ export default function AboutClient() {
         </div>
 
         <div className="relative px-6 py-10 md:px-12 md:py-14">
-          {/* heading */}
+          {/*  */}
           <div className="mx-auto max-w-[980px] text-center">
             <div
               data-reveal

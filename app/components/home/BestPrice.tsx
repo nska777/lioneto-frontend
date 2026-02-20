@@ -185,7 +185,7 @@ function SmartCover({
   const s = String(src ?? "").trim();
   const isRemote = /^https?:\/\//i.test(s);
 
-  // ✅ если remote — не ломаем next/image доменами
+  //
   if (isRemote) {
     return (
       <img
@@ -234,7 +234,7 @@ export default function BestPrice({
   }, []);
 
   const list = useMemo<BestPriceUIItem[]>(() => {
-    // ✅ ПРИОРИТЕТ: Strapi products (badge уже выбран в админке)
+    //
     if (products.length) {
       const items = products
         .filter((p) => p?.isActive !== false)
@@ -277,7 +277,7 @@ export default function BestPrice({
       return items.slice(0, Math.min(10, items.length));
     }
 
-    // ✅ FALLBACK: старая схема priceEntries -> CATALOG_MOCK
+    //
     if (!priceEntries.length) return [];
 
     const best = priceEntries.filter(

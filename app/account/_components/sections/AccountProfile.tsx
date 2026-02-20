@@ -33,12 +33,12 @@ export default function AccountProfile({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // ✅ синхроним имя в инпуте
+  //
   useEffect(() => {
     setName(profile?.full_name ?? "");
   }, [profile?.full_name]);
 
-  // ✅ КЛЮЧ: когда профиль/почта загрузились — сохраняем в localStorage для checkout
+  //
   useEffect(() => {
     try {
       if (!profile) return;
@@ -46,7 +46,7 @@ export default function AccountProfile({
       const raw = localStorage.getItem(LS_CHECKOUT_PROFILE);
       const prev = raw ? (JSON.parse(raw) as any) : {};
 
-      // address пока негде взять — оставляем как было (если юзер уже вводил)
+      //
       const next = {
         ...prev,
         name: profile.full_name ?? prev?.name ?? "",
@@ -77,10 +77,10 @@ export default function AccountProfile({
       return;
     }
 
-    // ✅ обновили стейт родителя
+    //
     onProfile(data as any);
 
-    // ✅ и сразу обновили localStorage (чтобы checkout подхватил)
+    //
     try {
       const raw = localStorage.getItem(LS_CHECKOUT_PROFILE);
       const prev = raw ? (JSON.parse(raw) as any) : {};
@@ -102,7 +102,7 @@ export default function AccountProfile({
 
   return (
     <div className="space-y-6">
-      {/* карточка "О вас" */}
+      {/*  */}
       <div className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_16px_60px_rgba(0,0,0,0.06)]">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -162,7 +162,7 @@ export default function AccountProfile({
             <span>{email ?? "—"}</span>
           </div>
 
-          {/* Телефон + кнопка "Изменить" */}
+          {/*  */}
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-4 py-3">
             <div className="flex items-center gap-2 text-[14px] text-black/75">
               <Phone className="h-4 w-4 text-black/50" />
@@ -200,7 +200,7 @@ export default function AccountProfile({
         )}
       </div>
 
-      {/* карточка "Адресная книга" — пока просто быстрый переход */}
+      {/*  */}
       <div className="rounded-[28px] border border-black/10 bg-white p-5">
         <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
           Адресная книга

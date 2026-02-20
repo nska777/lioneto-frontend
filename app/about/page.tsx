@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import CatalogHeroSlider from "@/app/catalog/ui/CatalogHeroSlider";
 import AboutClient from "./ui/AboutClient";
 
-const HOME_HERO_SLIDES: string[] = []; // <-- заменить на как на главной
+const HOME_HERO_SLIDES: string[] = [];
 
 export const metadata: Metadata = {
   title: "О компании — Lioneto",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <div className="bg-#f3f3f3 text-black">
-      {/* Slider (как на главной) */}
+      {/*  */}
       {Array.isArray(HOME_HERO_SLIDES) && HOME_HERO_SLIDES.length > 0 ? (
         <section className="mx-auto w-full max-w-[1280px] px-4 pt-6">
           <div className="relative h-[460px]">
@@ -31,7 +31,7 @@ export default function AboutPage() {
         </section>
       ) : null}
 
-      {/* Premium About block */}
+      {/**/}
       <AboutClient />
     </div>
   );

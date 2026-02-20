@@ -156,7 +156,7 @@ export default function AddressSection({ userId }: { userId: string }) {
       return;
     }
 
-    // если удалили тот, который редактировали
+    //
     if (editing?.id === id) setEditing(null);
 
     refresh();
@@ -186,7 +186,7 @@ export default function AddressSection({ userId }: { userId: string }) {
             onClick={() => {
               setErr(null);
               setOpen((v) => !v);
-              // закрывая "добавить", не мешаем редактированию
+              //
             }}
             className="h-10 px-4 rounded-2xl bg-black text-white transition cursor-pointer hover:translate-y-[-1px] active:translate-y-[0px]"
           >

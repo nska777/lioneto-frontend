@@ -19,7 +19,7 @@ export const COLLECTIONS_HOTSPOTS: CollectionsHotspots = {
   amber: {
     0: [
       { id: "a-1", productId: "amber-tumbi-tumba", xPct: 12, yPct: 75 },
-      { id: "a-2", productId: "amber-krovati-krovat", xPct: 50, yPct: 72 },
+      { id: "a-2", productId: "amber-krovati-krovat", xPct: 40, yPct: 72 },
       { id: "a-3", productId: "amber-shkafy-shkaf-2d", xPct: 63, yPct: 46 },
       { id: "a-4", productId: "amber-komody-komod", xPct: 86, yPct: 65 },
       { id: "a-5", productId: "amber-zerkala-zerkalo-round", xPct: 91, yPct: 45 },
@@ -40,17 +40,18 @@ export const COLLECTIONS_HOTSPOTS: CollectionsHotspots = {
 
   scandy: {
     0: [
-      { id: "s-1", productId: "scandi-krovati-min-base", xPct: 44, yPct: 70 },
-			{ id: "s-2", productId: "scandi-zerkala-on-dresser", xPct: 92, yPct: 45 },
-			{ id: "s-3", productId: "scandi-shkafy-3d-mirror-combined", xPct: 66, yPct: 55 },
-			{ id: "s-4", productId: "scandi-stoli-toilet", xPct: 87, yPct: 63 },
-			{ id: "s-5", productId: "scandi-tumby-bedside", xPct: 10, yPct: 75 },
-			{ id: "s-6", productId: "scandi-shkafy-1d-blind", xPct: 53, yPct: 55 },
+      { id: "s-1", productId: "scandi-krovati-min-lift", xPct: 60, yPct: 70 },
+			{ id: "s-2", productId: "scandi-shkafy-2d-blind", xPct: 35, yPct: 45 },
+			{ id: "s-3", productId: "scandi-zerkala-on-dresser", xPct: 10, yPct: 40 },
+			{ id: "s-4", productId: "scandi-tumby-bedside", xPct: 90, yPct: 70 },
+			{ id: "s-5", productId: "scandi-komody-wide", xPct: 12, yPct: 75 },
+	
+      
     ],
     1: [
-			{ id: "s-1", productId: "scandi-vitrini-2d-glass-shelves", xPct: 85, yPct: 50 },
-			{ id: "s-2", productId: "scandi-tumby-tv", xPct: 67, yPct: 70 },
-			{ id: "s-3", productId: "scandi-komody-3-drawers", xPct: 20, yPct: 65 },
+			{ id: "s-1", productId: "scandi-vitrini-2d-blind", xPct: 85, yPct: 50 },
+			{ id: "s-2", productId: "scandi-tumby-tv", xPct: 67, yPct: 60 },
+			{ id: "s-3", productId: "scandi-komody-3-drawers", xPct: 20, yPct: 60 },
 
 		],
   },

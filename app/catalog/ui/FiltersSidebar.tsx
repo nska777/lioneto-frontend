@@ -12,7 +12,7 @@ export type FiltersValue = {
   collections: string[];
   types: string[];
   priceMin: number;
-  priceMax: number;
+  priceMax: number; // ✅ 0 => Infinity (без верхнего лимита)
 };
 
 export type FiltersMeta = {
@@ -89,22 +89,34 @@ export default function FiltersSidebar({
   onReset: () => void;
   currencyLabel: string;
 }) {
+  // ✅ UI fields (inputs)
   const [minLocal, setMinLocal] = useState(value.priceMin);
-  const [maxLocal, setMaxLocal] = useState(value.priceMax);
 
-  // ✅ локальные значения для "плавного" range (UI двигается сразу)
+  // ⚠️ maxLocal хранит "реальное" значение (0 => Infinity),
+  // но в инпуте мы показываем число. Поэтому показываем meta.priceAbsMax когда value.priceMax==0.
+  const [maxLocal, setMaxLocal] = useState(
+    value.priceMax === 0 ? meta.priceAbsMax : value.priceMax,
+  );
+
+  // ✅ drag values (range)
   const [minDrag, setMinDrag] = useState(value.priceMin);
-  const [maxDrag, setMaxDrag] = useState(value.priceMax);
+  const [maxDrag, setMaxDrag] = useState(
+    value.priceMax === 0 ? meta.priceAbsMax : value.priceMax,
+  );
 
-  // debounce timer
   const tRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // при входящих value синхронизируем UI:
+    // если пришло priceMax=0, показываем сверху meta.priceAbsMax (как "без лимита")
+    const maxShown = value.priceMax === 0 ? meta.priceAbsMax : value.priceMax;
+
     setMinLocal(value.priceMin);
-    setMaxLocal(value.priceMax);
+    setMaxLocal(maxShown);
+
     setMinDrag(value.priceMin);
-    setMaxDrag(value.priceMax);
-  }, [value.priceMin, value.priceMax]);
+    setMaxDrag(maxShown);
+  }, [value.priceMin, value.priceMax, meta.priceAbsMax]);
 
   const clamp = (n: number, a: number, b: number) =>
     Math.max(a, Math.min(b, n));
@@ -117,21 +129,29 @@ export default function FiltersSidebar({
     return { fixedMin, fixedMax };
   };
 
-  // ✅ применяем в стейт каталога с debounce (чтобы не дёргалось)
+  // ✅ key fix: если max == верхняя граница, то считаем это "без ограничения" => priceMax=0
+  const toCatalogMax = (fixedMax: number) => {
+    // небольшой допуск на случай дробных/дерганий
+    const eps = 0.000001;
+    return fixedMax >= meta.priceAbsMax - eps ? 0 : fixedMax;
+  };
+
   const applyPriceDebounced = (minN: number, maxN: number) => {
     const { fixedMin, fixedMax } = normalizePair(minN, maxN);
 
-    // обновляем UI-поля тоже (чтобы всё было синхронно)
     setMinLocal(fixedMin);
     setMaxLocal(fixedMax);
 
     if (tRef.current) window.clearTimeout(tRef.current);
     tRef.current = window.setTimeout(() => {
-      onChange({ ...value, priceMin: fixedMin, priceMax: fixedMax });
-    }, 90); // ✅ плавность + отзывчивость (можно 70-120)
+      onChange({
+        ...value,
+        priceMin: fixedMin,
+        priceMax: toCatalogMax(fixedMax),
+      });
+    }, 90);
   };
 
-  // ✅ применяем сразу (например onBlur / onPointerUp)
   const applyPriceNow = (minN: number, maxN: number) => {
     const { fixedMin, fixedMax } = normalizePair(minN, maxN);
     if (tRef.current) window.clearTimeout(tRef.current);
@@ -139,10 +159,15 @@ export default function FiltersSidebar({
 
     setMinLocal(fixedMin);
     setMaxLocal(fixedMax);
+
     setMinDrag(fixedMin);
     setMaxDrag(fixedMax);
 
-    onChange({ ...value, priceMin: fixedMin, priceMax: fixedMax });
+    onChange({
+      ...value,
+      priceMin: fixedMin,
+      priceMax: toCatalogMax(fixedMax),
+    });
   };
 
   useEffect(() => {
@@ -151,7 +176,6 @@ export default function FiltersSidebar({
     };
   }, []);
 
-  // ✅ защита от дублей в query -> value.*
   const uniq = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
 
   const toggleInArray = (arr: string[], v: string) => {
@@ -159,7 +183,6 @@ export default function FiltersSidebar({
     return clean.includes(v) ? clean.filter((x) => x !== v) : [...clean, v];
   };
 
-  // ✅ sets для корректного checked даже если пришли дубли
   const menuSet = useMemo(
     () => new Set(uniq(value.menu)),
     [value.menu.join("|")],
@@ -173,7 +196,6 @@ export default function FiltersSidebar({
     [value.types.join("|")],
   );
 
-  // ✅ процент для подсветки трека
   const minPct = useMemo(() => {
     const span = meta.priceAbsMax - meta.priceAbsMin || 1;
     return ((minDrag - meta.priceAbsMin) / span) * 100;
@@ -203,7 +225,6 @@ export default function FiltersSidebar({
         </button>
       </div>
 
-      {/* Разделы */}
       <Section title="Разделы" defaultOpen>
         {meta.menuItems.map((it) => (
           <CheckRow
@@ -220,7 +241,6 @@ export default function FiltersSidebar({
         ))}
       </Section>
 
-      {/* Цена */}
       <Section title="Цена" defaultOpen>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
@@ -252,7 +272,6 @@ export default function FiltersSidebar({
 
         <div className="mt-3">
           <div className="relative h-10">
-            {/* красивый трек под range (полоска + активный участок) */}
             <div className="pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2">
               <div className="h-[6px] rounded-full bg-black/10" />
               <div
@@ -264,7 +283,6 @@ export default function FiltersSidebar({
               />
             </div>
 
-            {/* MIN */}
             <input
               type="range"
               min={meta.priceAbsMin}
@@ -299,7 +317,6 @@ export default function FiltersSidebar({
               )}
             />
 
-            {/* MAX */}
             <input
               type="range"
               min={meta.priceAbsMin}
@@ -346,7 +363,6 @@ export default function FiltersSidebar({
         </div>
       </Section>
 
-      {/* Коллекции */}
       <Section title="Коллекции" defaultOpen>
         {meta.collectionItems.map((it) => (
           <CheckRow
@@ -363,20 +379,18 @@ export default function FiltersSidebar({
         ))}
       </Section>
 
-      {/* Модули */}
-      {/* Модули */}
       <Section title="Модули" defaultOpen>
         {meta.typeItems.map((it) => {
-          const token = normalizeModuleToken(it.value); // ✅ канон
+          const token = normalizeModuleToken(it.value);
           return (
             <CheckRow
               key={String(it.value)}
-              checked={value.types.includes(token)}
+              checked={typesSet.has(token)}
               label={it.label}
               onChange={() =>
                 onChange({
                   ...value,
-                  types: toggleInArray(value.types, token), // ✅ тогглим канон
+                  types: toggleInArray(value.types, token),
                 })
               }
             />

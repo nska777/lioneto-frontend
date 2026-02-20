@@ -71,6 +71,53 @@ type VariantAny = {
 };
 
 /**
+ * ✅ Приводим variants к ПЛОСКОМУ списку:
+ * - либо variants уже плоский массив VariantAny[]
+ * - либо это группы: [{group, items:[VariantAny]}]
+ */
+function flattenVariantsForCart(product: any): VariantAny[] {
+  const raw = product?.variants;
+
+  if (!Array.isArray(raw)) return [];
+
+  // grouped shape
+  const looksGrouped =
+    raw.length > 0 &&
+    typeof raw[0] === "object" &&
+    raw[0] &&
+    Array.isArray((raw[0] as any).items);
+
+  if (looksGrouped) {
+    const out: VariantAny[] = [];
+    for (const g of raw) {
+      const group = String((g as any)?.group ?? "").trim();
+      const items = Array.isArray((g as any)?.items) ? (g as any).items : [];
+      for (const it of items) {
+        if (!it) continue;
+        out.push({
+          ...(it as any),
+          id: String((it as any).id ?? ""),
+          group:
+            String((it as any).group ?? group ?? "").trim() ||
+            group ||
+            undefined,
+        });
+      }
+    }
+    return out.filter((v) => v && v.id);
+  }
+
+  // flat shape
+  return raw
+    .map((v: any) => ({
+      ...(v as any),
+      id: String(v?.id ?? ""),
+      group: v?.group ? String(v.group) : undefined,
+    }))
+    .filter((v: any) => v && v.id);
+}
+
+/**
  * ✅ Разбираем composite variantId из корзины:
  * - "base" => нет варианта
  * - "color:white" => один вариант
@@ -138,7 +185,6 @@ function readPriceFromObj(obj: any, region: "uz" | "ru") {
   if (!obj) return 0;
 
   const uz = obj?.priceUZS ?? obj?.price_uzs ?? obj?.priceUzs ?? null;
-
   const ru = obj?.priceRUB ?? obj?.price_rub ?? obj?.priceRub ?? null;
 
   const raw = region === "uz" ? uz : ru;
@@ -167,14 +213,6 @@ export default function CartClient() {
       .filter(Boolean);
   }, [keys, shop]);
 
-  /**
-   * ✅ ВАЖНОЕ ИЗМЕНЕНИЕ:
-   * Раньше ты фетчил Strapi только для missing (нет в моках).
-   * Но у тебя товары есть в моках, а цены в моках часто 0 → корзина показывала 0.
-   *
-   * Теперь: фетим Strapi для ВСЕХ товаров из корзины,
-   * и цену в корзине берём из Strapi Product как приоритет.
-   */
   const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
     {},
   );
@@ -212,9 +250,9 @@ export default function CartClient() {
 
         const qty = shop.cart[key] ?? 1;
 
-        const variants: VariantAny[] = Array.isArray(pDisplay?.variants)
-          ? (pDisplay.variants as VariantAny[])
-          : [];
+        // ✅ ВОТ ГЛАВНЫЙ ФИКС:
+        // variants приводим к плоскому виду (чтобы капучино/белый находились)
+        const variants: VariantAny[] = flattenVariantsForCart(pDisplay);
 
         const parsed = parseCompositeVariantForCart(vidRaw, variants);
 
@@ -223,7 +261,7 @@ export default function CartClient() {
         const baseFromMocks = readPriceFromObj(pMock, region);
         const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-        // ✅ delta из variants (priceDeltaUZS/RUB)
+        // ✅ delta из variants (priceDeltaUZS/RUB), с учётом group:id
         const pickedForDelta: VariantAny[] = [];
         const raw = String(vidRaw).trim();
         if (raw && raw !== "base") {
@@ -233,11 +271,24 @@ export default function CartClient() {
             .filter(Boolean);
 
           for (const part of parts) {
-            const pure = part.includes(":")
-              ? String(part.split(":")[1] ?? "").trim()
-              : part;
+            if (part.includes(":")) {
+              const [g, id] = part.split(":");
+              const group = String(g ?? "").trim();
+              const pure = String(id ?? "").trim();
+              if (!pure) continue;
 
-            const found = variants.find((v) => String(v.id) === pure);
+              const found =
+                variants.find(
+                  (v) =>
+                    String(v.id) === pure &&
+                    (group ? String(v.group ?? "") === group : true),
+                ) ?? variants.find((v) => String(v.id) === pure);
+
+              if (found) pickedForDelta.push(found);
+              continue;
+            }
+
+            const found = variants.find((v) => String(v.id) === part);
             if (found) pickedForDelta.push(found);
           }
         }
@@ -252,12 +303,12 @@ export default function CartClient() {
 
         const unit = baseUnit + delta;
 
+        // ✅ картинка: сначала выбранный вариант → потом базовая
         const image =
           (parsed.image ? String(parsed.image) : "") ||
           String(pDisplay?.image || pDisplay?.gallery?.[0] || "");
 
         const brandSlug = String(pDisplay?.brand ?? pStrapi?.brand ?? "");
-
         const collectionLabel = labelByBrandSlug(brandSlug);
 
         const title = String(

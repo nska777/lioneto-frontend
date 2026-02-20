@@ -576,7 +576,7 @@ export default function CatalogClient({
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-4 py-2">
+    <main className="mx-auto w-full max-w-[1200px] px-4 py-2 pb-24">
       {!hero ? (
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>

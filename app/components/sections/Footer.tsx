@@ -133,7 +133,6 @@ export default function Footer({ data }: { data?: FooterData }) {
     const root = rootRef.current;
     if (!root) return;
 
-    // prefers-reduced-motion: не прячем контент
     const reduceMotion =
       typeof window !== "undefined" &&
       window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
@@ -142,7 +141,6 @@ export default function Footer({ data }: { data?: FooterData }) {
       const targets = gsap.utils.toArray<HTMLElement>("[data-ft-reveal]");
       if (!targets.length) return;
 
-      // Всегда сначала выставляем начальное состояние
       if (!reduceMotion) {
         gsap.set(targets, { autoAlpha: 0, y: 14 });
       } else {
@@ -166,43 +164,68 @@ export default function Footer({ data }: { data?: FooterData }) {
         });
       };
 
-      // Создаём триггер
+      const checkAndRevealIfInView = () => {
+        const r = root.getBoundingClientRect();
+        const vh = window.innerHeight || 0;
+        const inView = r.top < vh * 0.9;
+        if (inView) reveal();
+      };
+
       const st = ScrollTrigger.create({
         trigger: root,
         start: "top 90%",
         once: true,
         onEnter: reveal,
-
-        // Ключевое: если позиции пересчитались и футер уже в зоне — показываем
-        onRefresh: () => {
-          const r = root.getBoundingClientRect();
-          const vh = window.innerHeight || 0;
-          const inView = r.top < vh * 0.9;
-          if (inView) reveal();
-        },
+        onRefresh: checkAndRevealIfInView,
       });
 
-      // Ещё один страховочный чек: если футер уже виден в момент инициализации
-      // (например, при восстановлении scroll позиции или быстром скролле)
+      // страховка на маунте
       requestAnimationFrame(() => {
-        const r = root.getBoundingClientRect();
-        const vh = window.innerHeight || 0;
-        const inView = r.top < vh * 0.9;
-        if (inView) reveal();
+        checkAndRevealIfInView();
       });
 
-      // Очень важно для страниц с картинками/слайдерами выше:
-      // после полной загрузки пересчитать ScrollTrigger
-      const onLoad = () => {
-        ScrollTrigger.refresh();
+      // страницы с динамической высотой (news accordion, lazy images и т.п.)
+      // → при изменении layout делаем refresh и сразу проверяем футер
+      let raf = 0;
+      const scheduleRefresh = () => {
+        if (revealed) return;
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          ScrollTrigger.refresh();
+          checkAndRevealIfInView();
+        });
       };
+
+      const onLoad = () => scheduleRefresh();
       window.addEventListener("load", onLoad, { once: true });
 
-      // И ещё один refresh через кадр — ловит layout shift сразу после маунта
-      requestAnimationFrame(() => ScrollTrigger.refresh());
+      // ResizeObserver: ловит смену высоты контента без resize окна
+      let ro: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(() => scheduleRefresh());
+        // documentElement обычно надёжнее body
+        ro.observe(document.documentElement);
+      }
+
+      // MutationObserver: на всякий — если высота меняется из-за DOM-мутаций
+      let mo: MutationObserver | null = null;
+      if (typeof MutationObserver !== "undefined") {
+        mo = new MutationObserver(() => scheduleRefresh());
+        mo.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+        });
+      }
+
+      // и сразу после маунта — refresh
+      requestAnimationFrame(() => scheduleRefresh());
 
       return () => {
         window.removeEventListener("load", onLoad);
+        if (raf) cancelAnimationFrame(raf);
+        ro?.disconnect();
+        mo?.disconnect();
         st.kill();
       };
     }, root);

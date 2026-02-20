@@ -161,7 +161,7 @@ export function useCatalogParams({
   }, [region]);
 
   const absMax = useMemo(() => {
-    if (region === "uz") return 100_000_000;
+    if (region === "uz") return 200_000_000;
 
     const prices = MOCK.map((p) => priceOf(p as any)).filter((x) =>
       Number.isFinite(x),
