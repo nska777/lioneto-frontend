@@ -527,7 +527,7 @@ export default function BestSellers({
   return (
     <section
       ref={rootRef}
-      className="w-full relative overflow-hidden"
+      className="w-full relative overflow-visible"
       style={{ backgroundColor: "#f3f3f3" }}
     >
       <div className="mx-auto w-full max-w-[1200px] px-4 py-12">
@@ -618,6 +618,7 @@ export default function BestSellers({
                 >
                   <div
                     className={cn(
+                      "relative overflow-visible", // ✅ добавили
                       "flex flex-col h-full",
                       "border border-black/10 bg-white",
                       "rounded-[18px]",
@@ -628,7 +629,7 @@ export default function BestSellers({
                     )}
                   >
                     <div className="relative overflow-visible rounded-t-[18px] bg-white">
-                      <div className="absolute left-3 top-0.5 z-20">
+                      <div className="absolute left-3 top-3 z-30">
                         <HitBadge text={p.badge} />
                       </div>
 
