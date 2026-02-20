@@ -35,6 +35,7 @@ function IconBtn({
             : "text-black"
           : "text-black/75",
       )}
+      type="button"
     >
       {children}
     </button>
@@ -48,44 +49,60 @@ type WishlistSnapshot = {
   sku?: string | null;
   price_uzs?: number | null;
   price_rub?: number | null;
+
+  // ✅ добавим инфо о варианте (чтобы потом в избранном/аналитике было видно)
+  variantId?: string | null;
+  variantTitle?: string | null;
 };
 
 export default function ProductActions({
   id,
+  variantId, // ✅ NEW: сюда передаём variantKey (например "color:white|option:lift")
+  variantTitle, // ✅ NEW: опционально для snapshot
   onOpenSpecs,
   snapshot,
 }: {
   id: string;
+  variantId?: string | null;
+  variantTitle?: string | null;
   onOpenSpecs?: () => void;
   snapshot?: WishlistSnapshot; // ✅ передаём из карточки
 }) {
-  const { isFav, toggleFav, isInCart, toggleCart } = useShopState();
+  const shop = useShopState();
+  const { isFav, toggleFav, isInCart, toggleCart } = shop;
 
-  const fav = isFav(id);
-  const inCart = isInCart(id);
+  const vid = String(variantId ?? "base").trim() || "base";
+
+  const fav = isFav(id, vid);
+  const inCart = isInCart(id, vid);
 
   async function toggleFavAndSync() {
-    // каким станет состояние после клика
     const nextFav = !fav;
 
-    // 1) локально как было
-    toggleFav(id);
+    // ✅ локально — С УЧЁТОМ ВАРИАНТА
+    toggleFav(id, vid);
 
-    // 2) если не залогинен — ничего не делаем
+    // ✅ если не залогинен — ничего не делаем
     const { data } = await supabase.auth.getSession();
     if (!data.session) return;
 
-    // 3) синк в Supabase
+    // ✅ синк в Supabase (кладём variantId/variantTitle)
+    const snap: WishlistSnapshot = {
+      ...(snapshot ?? {}),
+      variantId: vid === "base" ? null : vid,
+      variantTitle: variantTitle ?? (snapshot as any)?.variantTitle ?? null,
+    };
+
     if (nextFav) {
-      await wishlistUpsert(id, snapshot ?? {});
+      await wishlistUpsert(`${id}::${vid}`, snap as any); // если у тебя wishlist ключ = id — ок, оставь `id`, но лучше key
     } else {
-      await wishlistRemove(id);
+      await wishlistRemove(`${id}::${vid}`);
     }
   }
 
   return (
     <div className="flex flex-col items-end gap-2">
-      {/*  избранное */}
+      {/* избранное */}
       <IconBtn
         title="В избранное"
         active={fav}
@@ -95,16 +112,16 @@ export default function ProductActions({
         <Heart className={cn("h-4 w-4", fav && "fill-current")} />
       </IconBtn>
 
-      {/*  характеристики */}
+      {/* характеристики */}
       <IconBtn title="Характеристики" onClick={() => onOpenSpecs?.()}>
         <ListChecks className="h-4 w-4" />
       </IconBtn>
 
-      {/* 🛒 корзина */}
+      {/* корзина */}
       <IconBtn
         title={inCart ? "Убрать из корзины" : "Добавить в корзину"}
         active={inCart}
-        onClick={() => toggleCart(id)}
+        onClick={() => toggleCart(id, vid)} // ✅ ВОТ ОНО
       >
         <ShoppingCart className={cn("h-4 w-4", inCart && "fill-current")} />
       </IconBtn>
