@@ -50,15 +50,15 @@ type WishlistSnapshot = {
   price_uzs?: number | null;
   price_rub?: number | null;
 
-  // ✅ добавим инфо о варианте (чтобы потом в избранном/аналитике было видно)
+  // ✅ вариант
   variantId?: string | null;
   variantTitle?: string | null;
 };
 
 export default function ProductActions({
   id,
-  variantId, // ✅ NEW: сюда передаём variantKey (например "color:white|option:lift")
-  variantTitle, // ✅ NEW: опционально для snapshot
+  variantId, // сюда передаём variantKey ("color:white|option:lift")
+  variantTitle,
   onOpenSpecs,
   snapshot,
 }: {
@@ -66,12 +66,17 @@ export default function ProductActions({
   variantId?: string | null;
   variantTitle?: string | null;
   onOpenSpecs?: () => void;
-  snapshot?: WishlistSnapshot; // ✅ передаём из карточки
+  snapshot?: WishlistSnapshot;
 }) {
   const shop = useShopState();
   const { isFav, toggleFav, isInCart, toggleCart } = shop;
 
-  const vid = String(variantId ?? "base").trim() || "base";
+  // ✅ FIX: если variantId не пришёл, пробуем взять из snapshot
+  const vid =
+    String(variantId ?? snapshot?.variantId ?? "base").trim() || "base";
+
+  const vTitle =
+    String(variantTitle ?? snapshot?.variantTitle ?? "").trim() || null;
 
   const fav = isFav(id, vid);
   const inCart = isInCart(id, vid);
@@ -82,21 +87,23 @@ export default function ProductActions({
     // ✅ локально — С УЧЁТОМ ВАРИАНТА
     toggleFav(id, vid);
 
-    // ✅ если не залогинен — ничего не делаем
+    // ✅ если не залогинен — просто выходим (локально уже ок)
     const { data } = await supabase.auth.getSession();
     if (!data.session) return;
 
-    // ✅ синк в Supabase (кладём variantId/variantTitle)
+    // ✅ snapshot с вариантом
     const snap: WishlistSnapshot = {
       ...(snapshot ?? {}),
       variantId: vid === "base" ? null : vid,
-      variantTitle: variantTitle ?? (snapshot as any)?.variantTitle ?? null,
+      variantTitle: vTitle,
     };
 
+    const key = `${id}::${vid}`;
+
     if (nextFav) {
-      await wishlistUpsert(`${id}::${vid}`, snap as any); // если у тебя wishlist ключ = id — ок, оставь `id`, но лучше key
+      await wishlistUpsert(key, snap as any);
     } else {
-      await wishlistRemove(`${id}::${vid}`);
+      await wishlistRemove(key);
     }
   }
 
@@ -121,7 +128,7 @@ export default function ProductActions({
       <IconBtn
         title={inCart ? "Убрать из корзины" : "Добавить в корзину"}
         active={inCart}
-        onClick={() => toggleCart(id, vid)} // ✅ ВОТ ОНО
+        onClick={() => toggleCart(id, vid)} // ✅ всегда variant-aware
       >
         <ShoppingCart className={cn("h-4 w-4", inCart && "fill-current")} />
       </IconBtn>

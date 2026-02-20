@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -128,24 +128,42 @@ export default function ProductClient({
 
   /**
    * ✅ ВАЖНО:
-   * Строим свой variantKey из selectedByGroup, чтобы:
-   * - color точно попадал в ключ
-   * - cacheKey у useProductGallery менялся при смене цвета
-   * - ProductGallery пересоздавался (key)
-   * - корзина/избранное различали варианты
+   * variantKey строим из selectedByGroup:
+   * - поддерживает строку и объект {id,title}
+   * - group:id | group:id ...
    */
   const variantKey = useMemo(() => {
     const entries = Object.entries(selectedByGroup || {})
-      .filter(([, v]) => typeof v === "string" && v.length > 0)
-      .sort(([a], [b]) => a.localeCompare(b));
+      .map(([g, v]) => {
+        if (!v) return null;
+
+        // если строка
+        if (typeof v === "string") {
+          const s = v.trim();
+          return s ? ([g, s] as const) : null;
+        }
+
+        // если объект { id, title }
+        if (typeof v === "object") {
+          const id =
+            typeof (v as any).id === "string"
+              ? String((v as any).id).trim()
+              : "";
+
+          return id ? ([g, id] as const) : null;
+        }
+
+        return null;
+      })
+      .filter(Boolean) as Array<readonly [string, string]>;
 
     if (!entries.length) return null;
 
-    // group:id | group:id ...
+    entries.sort(([a], [b]) => a.localeCompare(b));
     return entries.map(([g, v]) => `${g}:${v}`).join("|");
   }, [selectedByGroup]);
 
-  // ✅ Акцент (white / cappuccino)
+  // ✅ Акцент (white / cappuccino) — ВОТ ЭТОГО НЕ ХВАТАЛО
   const accent: Accent = useMemo(
     () => getAccentFromVariant(variantKey, selectedByGroup as any),
     [variantKey, selectedByGroup],
@@ -173,7 +191,7 @@ export default function ProductClient({
       },
       {
         variantGallery,
-        // ✅ cacheKey теперь точно меняется при смене color
+        // ✅ cacheKey меняется при смене color/option
         cacheKey: `${product.id}:${variantKey ?? "base"}`,
       },
     );
@@ -192,7 +210,7 @@ export default function ProductClient({
 
   const [qty, setQty] = useState(1);
 
-  // ✅ ВАЖНО: везде используем variantKey (а не selectedVariantKey)
+  // ✅ везде используем variantKey
   const vk = variantKey ?? undefined;
 
   const fav = isFav(product.id, vk);
@@ -221,7 +239,6 @@ export default function ProductClient({
 
   // ✅ стили-акценты (тонко, премиально)
   const accentVars = useMemo(() => {
-    // cappuccino: теплый, white: нейтральный серебристый
     const acc =
       accent === "cappuccino"
         ? "#C6A27E"
@@ -326,7 +343,6 @@ export default function ProductClient({
             В избранное
           </button>
 
-          {/* ✅ top cart action — акцентная под цвет */}
           <button
             onClick={toggleMainCart}
             style={accentVars}
@@ -359,7 +375,6 @@ export default function ProductClient({
           onOpenLightbox={(idx) => openLightbox(idx)}
         />
 
-        {/* ✅ Правый блок с мягким акцентным glow */}
         <aside
           style={accentVars}
           className={cn(
@@ -379,7 +394,6 @@ export default function ProductClient({
             {product.title}
           </h1>
 
-          {/* ✅ Акцент на вариантах без правки ProductVariants: через wrapper */}
           <div
             className={cn(
               "mt-4 rounded-2xl p-3",
@@ -428,7 +442,6 @@ export default function ProductClient({
             </div>
           </div>
 
-          {/* ✅ Главные CTA — зависят от accent */}
           <div className="mt-4 flex items-center gap-4">
             <button
               onClick={toggleMainCart}
@@ -463,11 +476,7 @@ export default function ProductClient({
                 "cursor-pointer h-12 flex-1 rounded-none",
                 "text-[13px] font-semibold",
                 "transition active:scale-[0.99]",
-                accent === "cappuccino"
-                  ? "bg-black text-white hover:bg-black/90"
-                  : accent === "white"
-                    ? "bg-black text-white hover:bg-black/90"
-                    : "bg-black text-white hover:bg-black/90",
+                "bg-black text-white hover:bg-black/90",
               )}
               type="button"
             >

@@ -13,7 +13,7 @@ const STRAPI_DISABLED =
 
 export async function POST(req: Request) {
   if (STRAPI_DISABLED) {
-    // ✅ важно: НЕ fetch, НЕ error, просто ок
+    //  важно: НЕ fetch, НЕ error, просто ок
     return NextResponse.json({ ok: true });
   }
 

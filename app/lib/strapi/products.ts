@@ -120,7 +120,7 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
 
   const variantsRaw: any[] = Array.isArray(src?.variants) ? src.variants : [];
 
-  const variants: StrapiVariant[] = variantsRaw
+    const variants: StrapiVariant[] = variantsRaw
     .map((v) => {
       const { id, groupFromKey } = normalizeVariantKey(v?.variantKey || v?.id);
       const group = String(v?.group ?? groupFromKey ?? "").trim() || undefined;
@@ -129,7 +129,10 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
 
       return {
         id: String(id || "").trim(),
-        title: v?.title ? String(v.title) : undefined,
+        // ✅ title может быть пустым — НЕ выкидываем вариант
+        title: v?.title !== undefined && v?.title !== null && String(v.title).trim()
+          ? String(v.title).trim()
+          : undefined,
         group,
         priceDeltaRUB: toNum(v?.priceDeltaRUB) ?? undefined,
         priceDeltaUZS: toNum(v?.priceDeltaUZS) ?? undefined,
@@ -137,7 +140,8 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
         gallery: img ? [img] : undefined,
       };
     })
-    .filter((x) => x.id && x.title);
+    // ✅ оставляем всё, где есть id (title не обязателен)
+    .filter((x) => x.id);
 
   return {
     id: slug,

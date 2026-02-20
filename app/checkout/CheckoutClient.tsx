@@ -39,10 +39,104 @@ type VariantAny = {
 };
 
 /**
- * ✅ Разбираем composite variantId (как в CartClient)
- * - "base"
- * - "color:white"
- * - "color:white|option:lift"
+ * ✅ Плоский список вариантов:
+ * - либо variants плоский VariantAny[]
+ * - либо это группы: [{group, items:[VariantAny]}]
+ */
+function flattenVariantsForCheckout(product: any): VariantAny[] {
+  const raw = product?.variants;
+  if (!Array.isArray(raw)) return [];
+
+  const looksGrouped =
+    raw.length > 0 &&
+    typeof raw[0] === "object" &&
+    raw[0] &&
+    Array.isArray((raw[0] as any).items);
+
+  if (looksGrouped) {
+    const out: VariantAny[] = [];
+    for (const g of raw) {
+      const group = String((g as any)?.group ?? "").trim();
+      const items = Array.isArray((g as any)?.items) ? (g as any).items : [];
+      for (const it of items) {
+        if (!it) continue;
+        out.push({
+          ...(it as any),
+          id: String((it as any).id ?? ""),
+          group:
+            String((it as any).group ?? group ?? "").trim() ||
+            group ||
+            undefined,
+        });
+      }
+    }
+    return out.filter((v) => v && v.id);
+  }
+
+  return raw
+    .map((v: any) => ({
+      ...(v as any),
+      id: String(v?.id ?? ""),
+      group: v?.group ? String(v.group) : undefined,
+    }))
+    .filter((v: any) => v && v.id);
+}
+
+/**
+ * ✅ Поиск варианта по part из composite variantId:
+ * part может быть "color:white" или "white"
+ */
+function findVariantForPart(part: string, variants: VariantAny[]) {
+  const p = String(part ?? "").trim();
+  if (!p) return null;
+
+  const hasColon = p.includes(":");
+  const group = hasColon ? String(p.split(":")[0] ?? "").trim() : "";
+  const val = hasColon ? String(p.split(":")[1] ?? "").trim() : p;
+
+  // 1) прямые совпадения
+  let found =
+    variants.find((v) => String(v.id) === p) ||
+    variants.find((v) => String(v.id) === val);
+
+  if (found) return found;
+
+  // 2) group + id (если group отдельно)
+  if (group) {
+    found =
+      variants.find(
+        (v) =>
+          String(v.group ?? "").trim() === group && String(v.id).trim() === val,
+      ) || null;
+    if (found) return found;
+  }
+
+  // 3) если id хранит "group:val" внутри
+  if (group) {
+    found =
+      variants.find((v) => {
+        const vid = String(v.id ?? "").trim();
+        if (!vid.includes(":")) return false;
+        const [vg, vv] = vid.split(":");
+        return String(vg).trim() === group && String(vv).trim() === val;
+      }) || null;
+    if (found) return found;
+  }
+
+  // 4) fallback: хвост "something:val"
+  found =
+    variants.find((v) => {
+      const vid = String(v.id ?? "").trim();
+      if (!vid.includes(":")) return false;
+      const tail = vid.split(":").pop();
+      return String(tail ?? "").trim() === val;
+    }) || null;
+
+  return found;
+}
+
+/**
+ * ✅ Парсим composite variantId → title/image (если variants совпали)
  */
 function parseCompositeVariantForCart(
   variantId: string,
@@ -61,29 +155,19 @@ function parseCompositeVariantForCart(
   const picked: VariantAny[] = [];
 
   for (const part of parts) {
-    if (part.includes(":")) {
-      const [g, id] = part.split(":");
-      const group = String(g ?? "").trim();
-      const vid = String(id ?? "").trim();
-      if (!vid) continue;
-
-      const found =
-        variants.find(
-          (v) =>
-            String(v.id) === vid &&
-            (group ? String(v.group ?? "") === group : true),
-        ) ?? variants.find((v) => String(v.id) === vid);
-
-      if (found) picked.push(found);
-      continue;
-    }
-
-    const found = variants.find((v) => String(v.id) === part);
+    const found = findVariantForPart(part, variants);
     if (found) picked.push(found);
   }
 
   const title = picked
-    .map((v) => (v.title ? String(v.title).trim() : ""))
+    .map((v) => {
+      const t = v.title ? String(v.title).trim() : "";
+      if (t) return t;
+      const id = String(v.id ?? "").trim();
+      if (id === "white") return "Белый";
+      if (id === "cappuccino") return "Капучино";
+      return id;
+    })
     .filter(Boolean)
     .join(", ");
 
@@ -96,131 +180,54 @@ function parseCompositeVariantForCart(
   return { title: title || null, image };
 }
 
-/** ================= Strapi price-entry (client) ================= */
+/** ✅ Красивый fallback для id-шников вариантов (white/cappuccino и т.п.) */
+function prettyVariantToken(token: string) {
+  const t = String(token || "")
+    .trim()
+    .toLowerCase();
 
-type PriceEntry = {
-  productId: string;
-  variantKey?: string | null;
-  title?: string | null;
-  priceUZS?: number | null;
-  priceRUB?: number | null;
-  oldPriceUZS?: number | null;
-  oldPriceRUB?: number | null;
-  hasDiscount?: boolean | null;
-  collectionBadge?: string | null;
-  isActive?: boolean | null;
-};
+  const map: Record<string, string> = {
+    white: "Белый",
+    black: "Чёрный",
+    beige: "Бежевый",
+    gray: "Серый",
+    grey: "Серый",
+    cappuccino: "Капучино",
+    capuccino: "Капучино",
+    "beige-pink": "Бежевая роза",
+    rose: "Роза",
+    pink: "Розовый",
+    walnut: "Орех",
+    oak: "Дуб",
+  };
 
-const toNum = (v: any) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-};
-
-async function fetchPriceMap(productIds: string[]) {
-  const ids = Array.from(new Set(productIds.filter(Boolean)));
-  if (!ids.length) return {} as Record<string, PriceEntry>;
-
-  const base =
-    process.env.NEXT_PUBLIC_STRAPI_URL ||
-    process.env.STRAPI_URL ||
-    "http://localhost:1337";
-
-  const params = new URLSearchParams();
-  ids.forEach((id, i) => params.set(`filters[productId][$in][${i}]`, id));
-  params.set("pagination[pageSize]", String(Math.min(100, ids.length)));
-
-  const url = `${base.replace(/\/$/, "")}/api/price-entries?${params.toString()}`;
-
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return {} as Record<string, PriceEntry>;
-
-  const json = await res.json();
-  const data: any[] = Array.isArray(json?.data) ? json.data : [];
-
-  const map: Record<string, PriceEntry> = {};
-  for (const item of data) {
-    const a = item?.attributes ? item.attributes : item;
-    const pid = String(a?.productId ?? "");
-    if (!pid) continue;
-
-    const vk =
-      a?.variantKey !== undefined &&
-      a?.variantKey !== null &&
-      String(a.variantKey).trim()
-        ? String(a.variantKey).trim()
-        : "base";
-
-    const key = `${pid}::${vk}`;
-
-    map[key] = {
-      productId: pid,
-      variantKey: vk === "base" ? null : vk,
-      title: a?.title ?? null,
-      priceUZS: a?.priceUZS !== undefined ? toNum(a.priceUZS) : null,
-      priceRUB: a?.priceRUB !== undefined ? toNum(a.priceRUB) : null,
-      oldPriceUZS: a?.oldPriceUZS !== undefined ? toNum(a.oldPriceUZS) : null,
-      oldPriceRUB: a?.oldPriceRUB !== undefined ? toNum(a.oldPriceRUB) : null,
-      hasDiscount: typeof a?.hasDiscount === "boolean" ? a.hasDiscount : null,
-      collectionBadge:
-        a?.collectionBadge !== undefined ? String(a.collectionBadge) : null,
-      isActive: typeof a?.isActive === "boolean" ? a.isActive : null,
-    };
-  }
-
-  return map;
+  return map[t] ?? token;
 }
 
-/**
- * ✅ Нормализация variantKey для цены (как в CartClient)
- */
-function canonicalPriceKey(pid: string, vid: string, variants: VariantAny[]) {
-  const raw = String(vid || "base").trim();
+/** ✅ Fallback: если variants не совпали — берём из variantId и приводим красиво */
+function fallbackVariantTitleFromId(variantId: string) {
+  const raw = String(variantId ?? "").trim();
+  if (!raw || raw === "base") return null;
 
-  if (!raw || raw === "base") {
-    return {
-      primary: `${pid}::base`,
-      fallbacks: buildFallbacksForBase(pid, variants),
-    };
-  }
+  const parts = raw
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  if (raw.includes(":")) {
-    return { primary: `${pid}::${raw}`, fallbacks: [`${pid}::base`] };
-  }
+  const labels = parts
+    .map((p) => {
+      const val = p.includes(":") ? p.split(":").slice(1).join(":") : p;
+      return prettyVariantToken(String(val || "").trim());
+    })
+    .filter(Boolean);
 
-  const v = variants.find((x) => String(x.id) === raw);
-  const grouped = v?.group ? `${String(v.group).trim()}:${raw}` : raw;
-
-  const fallbacks: string[] = [];
-  if (grouped !== raw) fallbacks.push(`${pid}::${grouped}`);
-  fallbacks.push(`${pid}::${raw}`);
-  fallbacks.push(`${pid}::base`);
-  if (raw === "white") fallbacks.unshift(`${pid}::color:white`);
-
-  return { primary: `${pid}::${raw}`, fallbacks };
+  const title = labels.join(", ");
+  return title || null;
 }
 
-function buildFallbacksForBase(pid: string, variants: VariantAny[]) {
-  const fallbacks: string[] = [];
-
-  const white =
-    variants.find(
-      (v) => String(v.id) === "white" && String(v.group ?? "") === "color",
-    ) || variants.find((v) => String(v.id) === "white");
-
-  if (white) {
-    const key = white.group ? `${white.group}:${white.id}` : String(white.id);
-    fallbacks.push(`${pid}::${key}`);
-  } else {
-    const firstColor = variants.find((v) => String(v.group ?? "") === "color");
-    if (firstColor) {
-      const key = firstColor.group
-        ? `${firstColor.group}:${firstColor.id}`
-        : String(firstColor.id);
-      fallbacks.push(`${pid}::${key}`);
-    }
-  }
-
-  return fallbacks;
+function resolveVariantTitle(variantId: string, variants: VariantAny[]) {
+  const parsed = parseCompositeVariantForCart(variantId, variants);
+  return parsed.title || fallbackVariantTitleFromId(variantId);
 }
 
 const LS_CUSTOMER = "lioneto:checkout:customer:v2";
@@ -262,10 +269,11 @@ export default function CheckoutClient() {
       .filter(Boolean);
   }, [keys, shop]);
 
-  /** ✅ Strapi products map: как в Cart — фетим для всех ids */
+  /** ✅ Strapi products map */
   const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
     {},
   );
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -283,26 +291,17 @@ export default function CheckoutClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIds.join("|")]);
 
-  /** ✅ price-entry map */
-  const [priceMap, setPriceMap] = useState<Record<string, PriceEntry>>({});
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const map = await fetchPriceMap(productIds);
-        if (alive) setPriceMap(map);
-      } catch {
-        if (alive) setPriceMap({});
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productIds.join("|")]);
-
   /** ✅ items */
   const items = useMemo(() => {
+    function readPriceAny(obj: any, region: "uz" | "ru") {
+      if (!obj) return 0;
+      const uz = obj?.priceUZS ?? obj?.price_uzs ?? obj?.priceUzs ?? null;
+      const ru = obj?.priceRUB ?? obj?.price_rub ?? obj?.priceRub ?? null;
+      const raw = region === "uz" ? uz : ru;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
     return keys
       .map((key) => {
         const { productId, variantId } = shop.parseKey(key);
@@ -317,41 +316,19 @@ export default function CheckoutClient() {
 
         const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
-        const p = (pMock ?? pStrapi) as any;
+        const p = (pStrapi ?? pMock) as any;
         if (!p) return null;
 
-        const variants: VariantAny[] = Array.isArray((p as any).variants)
-          ? ((p as any).variants as VariantAny[])
-          : [];
+        const variants: VariantAny[] = flattenVariantsForCheckout(p);
 
-        const parsed = parseCompositeVariantForCart(vid, variants);
+        const variantTitle = resolveVariantTitle(vid, variants);
 
-        const { primary, fallbacks } = canonicalPriceKey(pid, vid, variants);
-        const pe =
-          priceMap[primary] ||
-          fallbacks.map((k) => priceMap[k]).find(Boolean) ||
-          undefined;
-
-        function readPriceAny(obj: any, region: "uz" | "ru") {
-          if (!obj) return 0;
-
-          const uz = obj?.priceUZS ?? obj?.price_uzs ?? obj?.priceUzs ?? null;
-          const ru = obj?.priceRUB ?? obj?.price_rub ?? obj?.priceRub ?? null;
-
-          const raw = region === "uz" ? uz : ru;
-          const n = Number(raw);
-          return Number.isFinite(n) && n > 0 ? n : 0;
-        }
-
-        // ✅ ЕДИНАЯ логика: Strapi Product → price-entry → mocks
+        // ✅ базовая цена: Strapi Product -> mocks
         const baseFromStrapi = readPriceAny(pStrapi, region);
-        const baseFromPriceEntry = readPriceAny(pe, region);
         const baseFromMocks = readPriceAny(pMock, region);
+        const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-        const baseUnit =
-          baseFromStrapi || baseFromPriceEntry || baseFromMocks || 0;
-
-        // delta из variants (если используешь priceDelta)
+        // ✅ delta из variants
         const pickedForDelta: VariantAny[] = [];
         const raw = String(vid).trim();
         if (raw && raw !== "base") {
@@ -360,10 +337,7 @@ export default function CheckoutClient() {
             .map((s) => s.trim())
             .filter(Boolean);
           for (const part of parts) {
-            const pure = part.includes(":")
-              ? String(part.split(":")[1] ?? "").trim()
-              : part;
-            const found = variants.find((v) => String(v.id) === pure);
+            const found = findVariantForPart(part, variants);
             if (found) pickedForDelta.push(found);
           }
         }
@@ -378,10 +352,10 @@ export default function CheckoutClient() {
 
         const unit = baseUnit + delta;
 
-        const brandSlug = String((p as any).brand ?? pStrapi?.brand ?? "");
+        const brandSlug = String((p as any).brand ?? "");
         const collectionLabel = labelByBrandSlug(brandSlug);
 
-        const title = String(pe?.title ?? (p as any).title ?? "Товар");
+        const title = String((p as any).title ?? "Товар");
 
         return {
           key,
@@ -392,7 +366,7 @@ export default function CheckoutClient() {
           sum: unit * qty,
           title,
           collectionLabel,
-          variantTitle: parsed.title,
+          variantTitle,
         };
       })
       .filter(Boolean) as Array<{
@@ -406,16 +380,7 @@ export default function CheckoutClient() {
       collectionLabel: string | null;
       variantTitle: string | null;
     }>;
-  }, [
-    keys,
-    mode,
-    productsMap,
-    priceMap,
-    region,
-    shop,
-    shop.cart,
-    shop.oneClick,
-  ]);
+  }, [keys, mode, productsMap, region, shop, shop.cart, shop.oneClick]);
 
   const total = useMemo(
     () => items.reduce((acc, it) => acc + (Number(it.sum) || 0), 0),
@@ -470,6 +435,7 @@ export default function CheckoutClient() {
       items: items.map((it) => ({
         productId: it.productId,
         variantId: it.variantId,
+        variantTitle: it.variantTitle, // ✅ уйдет в TG
         qty: it.qty,
         title: it.title,
         unit: it.unit,
@@ -497,14 +463,12 @@ export default function CheckoutClient() {
       if (mode === "oneclick") shop.clearOneClick();
       else shop.clearCart();
 
-      // ✅ показываем success экран без отдельной страницы
       router.replace("/checkout?success=1");
     } catch {
       alert("Ошибка сети. Попробуйте ещё раз.");
     }
   };
 
-  // ✅ SUCCESS SCREEN (ВАЖНО: до основного return)
   if (isSuccess) {
     return (
       <main className="mx-auto w-full max-w-[1000px] px-4 py-20">
@@ -582,7 +546,6 @@ export default function CheckoutClient() {
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {/* phone */}
             <div className="sm:col-span-1">
               <div className="mb-1 text-[12px] font-medium text-black/55">
                 Телефон *
@@ -616,7 +579,6 @@ export default function CheckoutClient() {
               )}
             </div>
 
-            {/* name */}
             <div className="sm:col-span-1">
               <div className="mb-1 text-[12px] font-medium text-black/55">
                 Имя
@@ -629,7 +591,6 @@ export default function CheckoutClient() {
               />
             </div>
 
-            {/* address */}
             <div className="sm:col-span-2">
               <div className="mb-1 text-[12px] font-medium text-black/55">
                 Адрес
@@ -642,7 +603,6 @@ export default function CheckoutClient() {
               />
             </div>
 
-            {/* comment */}
             <div className="sm:col-span-2">
               <div className="mb-1 text-[12px] font-medium text-black/55">
                 Комментарий
@@ -666,6 +626,7 @@ export default function CheckoutClient() {
           <div className="mt-4">
             {items.length ? (
               <>
+                {/* first row */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-black/85">
@@ -690,6 +651,7 @@ export default function CheckoutClient() {
                   </div>
                 </div>
 
+                {/* rest rows */}
                 {items.length > 1 ? (
                   <div className="mt-3 space-y-2">
                     {items.slice(1).map((it) => (
@@ -698,8 +660,18 @@ export default function CheckoutClient() {
                         className="flex items-start justify-between gap-4"
                       >
                         <div className="min-w-0 text-xs text-black/60">
-                          {it.qty} × {it.title}
+                          {it.qty} ×{" "}
+                          {it.collectionLabel ? (
+                            <span className="text-black/55">
+                              {it.collectionLabel} /{" "}
+                            </span>
+                          ) : null}
+                          {it.title}
+                          {it.variantTitle && it.variantId !== "base"
+                            ? ` • ${it.variantTitle}`
+                            : ""}
                         </div>
+
                         <div className="text-xs font-medium text-black/75">
                           {formatMoney(it.sum, region)}
                         </div>

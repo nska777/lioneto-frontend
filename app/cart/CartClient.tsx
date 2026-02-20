@@ -77,10 +77,8 @@ type VariantAny = {
  */
 function flattenVariantsForCart(product: any): VariantAny[] {
   const raw = product?.variants;
-
   if (!Array.isArray(raw)) return [];
 
-  // grouped shape
   const looksGrouped =
     raw.length > 0 &&
     typeof raw[0] === "object" &&
@@ -107,7 +105,6 @@ function flattenVariantsForCart(product: any): VariantAny[] {
     return out.filter((v) => v && v.id);
   }
 
-  // flat shape
   return raw
     .map((v: any) => ({
       ...(v as any),
@@ -118,10 +115,59 @@ function flattenVariantsForCart(product: any): VariantAny[] {
 }
 
 /**
+ * ✅ Умный поиск варианта по "part" из variantId корзины.
+ */
+function findVariantForPart(part: string, variants: VariantAny[]) {
+  const p = String(part ?? "").trim();
+  if (!p) return null;
+
+  const hasColon = p.includes(":");
+  const group = hasColon ? String(p.split(":")[0] ?? "").trim() : "";
+  const val = hasColon ? String(p.split(":")[1] ?? "").trim() : p;
+
+  // 1) прямое совпадение по id
+  let found =
+    variants.find((v) => String(v.id) === p) ||
+    variants.find((v) => String(v.id) === val);
+
+  if (found) return found;
+
+  // 2) совпадение по group + val (если у варианта group отдельно)
+  if (group) {
+    found =
+      variants.find(
+        (v) =>
+          String(v.group ?? "").trim() === group && String(v.id).trim() === val,
+      ) || null;
+    if (found) return found;
+  }
+
+  // 3) если id варианта хранит "group:val" внутри
+  if (group) {
+    found =
+      variants.find((v) => {
+        const vid = String(v.id ?? "").trim();
+        if (!vid.includes(":")) return false;
+        const [vg, vv] = vid.split(":");
+        return String(vg).trim() === group && String(vv).trim() === val;
+      }) || null;
+    if (found) return found;
+  }
+
+  // 4) fallback: если val совпадает с концом "something:val"
+  found =
+    variants.find((v) => {
+      const vid = String(v.id ?? "").trim();
+      if (!vid.includes(":")) return false;
+      const tail = vid.split(":").pop();
+      return String(tail ?? "").trim() === val;
+    }) || null;
+
+  return found;
+}
+
+/**
  * ✅ Разбираем composite variantId из корзины:
- * - "base" => нет варианта
- * - "color:white" => один вариант
- * - "color:white|option:lift" => несколько вариантов
  */
 function parseCompositeVariantForCart(
   variantId: string,
@@ -138,26 +184,8 @@ function parseCompositeVariantForCart(
     .filter(Boolean);
 
   const picked: VariantAny[] = [];
-
   for (const part of parts) {
-    if (part.includes(":")) {
-      const [g, id] = part.split(":");
-      const group = String(g ?? "").trim();
-      const vid = String(id ?? "").trim();
-      if (!vid) continue;
-
-      const found =
-        variants.find(
-          (v) =>
-            String(v.id) === vid &&
-            (group ? String(v.group ?? "") === group : true),
-        ) ?? variants.find((v) => String(v.id) === vid);
-
-      if (found) picked.push(found);
-      continue;
-    }
-
-    const found = variants.find((v) => String(v.id) === part);
+    const found = findVariantForPart(part, variants);
     if (found) picked.push(found);
   }
 
@@ -244,24 +272,27 @@ export default function CartClient() {
         const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
 
-        // для отображения (картинки/лейблы) оставим как было:
+        // ✅ ДЛЯ ВИДА можно оставить как было
         const pDisplay = (pMock ?? pStrapi) as any;
         if (!pDisplay) return null;
 
+        // ✅ ВОТ ГЛАВНЫЙ ФИКС:
+        // для цены + variants берём Strapi (если есть), иначе моки
+        const pForCalc = (pStrapi ?? pMock ?? pDisplay) as any;
+
         const qty = shop.cart[key] ?? 1;
 
-        // ✅ ВОТ ГЛАВНЫЙ ФИКС:
-        // variants приводим к плоскому виду (чтобы капучино/белый находились)
-        const variants: VariantAny[] = flattenVariantsForCart(pDisplay);
+        // ✅ variants — строго из pForCalc (Strapi приоритет)
+        const variants: VariantAny[] = flattenVariantsForCart(pForCalc);
 
         const parsed = parseCompositeVariantForCart(vidRaw, variants);
 
-        // ✅ БАЗОВАЯ ЦЕНА: приоритет Strapi Product → потом моки
+        // ✅ БАЗОВАЯ ЦЕНА: Strapi Product -> потом моки
         const baseFromStrapi = readPriceFromObj(pStrapi, region);
         const baseFromMocks = readPriceFromObj(pMock, region);
         const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-        // ✅ delta из variants (priceDeltaUZS/RUB), с учётом group:id
+        // ✅ delta из variants (Strapi приоритет)
         const pickedForDelta: VariantAny[] = [];
         const raw = String(vidRaw).trim();
         if (raw && raw !== "base") {
@@ -271,24 +302,7 @@ export default function CartClient() {
             .filter(Boolean);
 
           for (const part of parts) {
-            if (part.includes(":")) {
-              const [g, id] = part.split(":");
-              const group = String(g ?? "").trim();
-              const pure = String(id ?? "").trim();
-              if (!pure) continue;
-
-              const found =
-                variants.find(
-                  (v) =>
-                    String(v.id) === pure &&
-                    (group ? String(v.group ?? "") === group : true),
-                ) ?? variants.find((v) => String(v.id) === pure);
-
-              if (found) pickedForDelta.push(found);
-              continue;
-            }
-
-            const found = variants.find((v) => String(v.id) === part);
+            const found = findVariantForPart(part, variants);
             if (found) pickedForDelta.push(found);
           }
         }
@@ -303,9 +317,10 @@ export default function CartClient() {
 
         const unit = baseUnit + delta;
 
-        // ✅ картинка: сначала выбранный вариант → потом базовая
+        // ✅ картинка: вариант -> Strapi product -> display fallback
         const image =
           (parsed.image ? String(parsed.image) : "") ||
+          String(pStrapi?.image || (pStrapi as any)?.gallery?.[0] || "") ||
           String(pDisplay?.image || pDisplay?.gallery?.[0] || "");
 
         const brandSlug = String(pDisplay?.brand ?? pStrapi?.brand ?? "");
