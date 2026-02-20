@@ -117,20 +117,54 @@ function flattenVariantsForCart(product: any): VariantAny[] {
 /**
  * ✅ Умный поиск варианта по "part" из variantId корзины.
  */
-function findVariantForPart(part: string, variants: VariantAny[]) {
+function findVariantForPart(part: string, variants: VariantAny[]): VariantAny | undefined {
   const p = String(part ?? "").trim();
-  if (!p) return null;
+  if (!p) return undefined;
 
   const hasColon = p.includes(":");
   const group = hasColon ? String(p.split(":")[0] ?? "").trim() : "";
   const val = hasColon ? String(p.split(":")[1] ?? "").trim() : p;
 
-  // 1) прямое совпадение по id
+  // 1) прямые совпадения
   let found =
     variants.find((v) => String(v.id) === p) ||
     variants.find((v) => String(v.id) === val);
 
   if (found) return found;
+
+  // 2) group + id (если group отдельно)
+  if (group) {
+    found =
+      variants.find(
+        (v) =>
+          String(v.group ?? "").trim() === group && String(v.id).trim() === val,
+      ) || undefined;
+    if (found) return found;
+  }
+
+  // 3) если id хранит "group:val" внутри
+  if (group) {
+    found =
+      variants.find((v) => {
+        const vid = String(v.id ?? "").trim();
+        if (!vid.includes(":")) return false;
+        const [vg, vv] = vid.split(":");
+        return String(vg).trim() === group && String(vv).trim() === val;
+      }) || undefined;
+    if (found) return found;
+  }
+
+  // 4) fallback: хвост "something:val"
+  found =
+    variants.find((v) => {
+      const vid = String(v.id ?? "").trim();
+      if (!vid.includes(":")) return false;
+      const tail = vid.split(":").pop();
+      return String(tail ?? "").trim() === val;
+    }) || undefined;
+
+  return found;
+}
 
   // 2) совпадение по group + val (если у варианта group отдельно)
   if (group) {
