@@ -1,3 +1,4 @@
+// app/checkout/CheckoutClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -60,9 +61,12 @@ function flattenVariantsForCheckout(product: any): VariantAny[] {
       const items = Array.isArray((g as any)?.items) ? (g as any).items : [];
       for (const it of items) {
         if (!it) continue;
+        const id = String((it as any).id ?? "").trim();
+        if (!id) continue;
+
         out.push({
           ...(it as any),
-          id: String((it as any).id ?? ""),
+          id,
           group:
             String((it as any).group ?? group ?? "").trim() ||
             group ||
@@ -70,14 +74,14 @@ function flattenVariantsForCheckout(product: any): VariantAny[] {
         });
       }
     }
-    return out.filter((v) => v && v.id);
+    return out;
   }
 
   return raw
     .map((v: any) => ({
       ...(v as any),
-      id: String(v?.id ?? ""),
-      group: v?.group ? String(v.group) : undefined,
+      id: String(v?.id ?? "").trim(),
+      group: v?.group ? String(v.group).trim() : undefined,
     }))
     .filter((v: any) => v && v.id);
 }
@@ -85,10 +89,16 @@ function flattenVariantsForCheckout(product: any): VariantAny[] {
 /**
  * ✅ Поиск варианта по part из composite variantId:
  * part может быть "color:white" или "white"
+ *
+ * ВАЖНО: возвращаем VariantAny | undefined (НЕ null),
+ * иначе TS падает в build.
  */
-function findVariantForPart(part: string, variants: VariantAny[]) {
+function findVariantForPart(
+  part: string,
+  variants: VariantAny[],
+): VariantAny | undefined {
   const p = String(part ?? "").trim();
-  if (!p) return null;
+  if (!p) return undefined;
 
   const hasColon = p.includes(":");
   const group = hasColon ? String(p.split(":")[0] ?? "").trim() : "";
@@ -103,34 +113,31 @@ function findVariantForPart(part: string, variants: VariantAny[]) {
 
   // 2) group + id (если group отдельно)
   if (group) {
-    found =
-      variants.find(
-        (v) =>
-          String(v.group ?? "").trim() === group && String(v.id).trim() === val,
-      ) || null;
+    found = variants.find(
+      (v) =>
+        String(v.group ?? "").trim() === group && String(v.id).trim() === val,
+    );
     if (found) return found;
   }
 
   // 3) если id хранит "group:val" внутри
   if (group) {
-    found =
-      variants.find((v) => {
-        const vid = String(v.id ?? "").trim();
-        if (!vid.includes(":")) return false;
-        const [vg, vv] = vid.split(":");
-        return String(vg).trim() === group && String(vv).trim() === val;
-      }) || null;
+    found = variants.find((v) => {
+      const vid = String(v.id ?? "").trim();
+      if (!vid.includes(":")) return false;
+      const [vg, vv] = vid.split(":");
+      return String(vg).trim() === group && String(vv).trim() === val;
+    });
     if (found) return found;
   }
 
   // 4) fallback: хвост "something:val"
-  found =
-    variants.find((v) => {
-      const vid = String(v.id ?? "").trim();
-      if (!vid.includes(":")) return false;
-      const tail = vid.split(":").pop();
-      return String(tail ?? "").trim() === val;
-    }) || null;
+  found = variants.find((v) => {
+    const vid = String(v.id ?? "").trim();
+    if (!vid.includes(":")) return false;
+    const tail = vid.split(":").pop();
+    return String(tail ?? "").trim() === val;
+  });
 
   return found;
 }
@@ -153,7 +160,6 @@ function parseCompositeVariantForCart(
     .filter(Boolean);
 
   const picked: VariantAny[] = [];
-
   for (const part of parts) {
     const found = findVariantForPart(part, variants);
     if (found) picked.push(found);
@@ -435,11 +441,12 @@ export default function CheckoutClient() {
       items: items.map((it) => ({
         productId: it.productId,
         variantId: it.variantId,
-        variantTitle: it.variantTitle, // ✅ уйдет в TG
+        variantTitle: it.variantTitle,
         qty: it.qty,
         title: it.title,
         unit: it.unit,
         sum: it.sum,
+        // ✅ на будущее (для TG фото) можно будет добавить imageUrl, но сейчас НЕ трогаем
       })),
       total,
     };
@@ -626,7 +633,6 @@ export default function CheckoutClient() {
           <div className="mt-4">
             {items.length ? (
               <>
-                {/* first row */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-black/85">
@@ -651,7 +657,6 @@ export default function CheckoutClient() {
                   </div>
                 </div>
 
-                {/* rest rows */}
                 {items.length > 1 ? (
                   <div className="mt-3 space-y-2">
                     {items.slice(1).map((it) => (
