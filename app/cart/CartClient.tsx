@@ -48,8 +48,8 @@ function SafeImg({ src, alt }: { src: string; alt: string }) {
     );
   }
 
+  // eslint-disable-next-line @next/next/no-img-element
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={alt}
@@ -92,9 +92,12 @@ function flattenVariantsForCart(product: any): VariantAny[] {
       const items = Array.isArray((g as any)?.items) ? (g as any).items : [];
       for (const it of items) {
         if (!it) continue;
+        const id = String((it as any).id ?? "").trim();
+        if (!id) continue;
+
         out.push({
           ...(it as any),
-          id: String((it as any).id ?? ""),
+          id,
           group:
             String((it as any).group ?? group ?? "").trim() ||
             group ||
@@ -102,22 +105,26 @@ function flattenVariantsForCart(product: any): VariantAny[] {
         });
       }
     }
-    return out.filter((v) => v && v.id);
+    return out;
   }
 
   return raw
     .map((v: any) => ({
       ...(v as any),
-      id: String(v?.id ?? ""),
-      group: v?.group ? String(v.group) : undefined,
+      id: String(v?.id ?? "").trim(),
+      group: v?.group ? String(v.group).trim() : undefined,
     }))
     .filter((v: any) => v && v.id);
 }
 
 /**
  * ✅ Умный поиск варианта по "part" из variantId корзины.
+ * Возвращает VariantAny | undefined (НЕ null) — чтобы TS не падал.
  */
-function findVariantForPart(part: string, variants: VariantAny[]): VariantAny | undefined {
+function findVariantForPart(
+  part: string,
+  variants: VariantAny[],
+): VariantAny | undefined {
   const p = String(part ?? "").trim();
   if (!p) return undefined;
 
@@ -125,83 +132,48 @@ function findVariantForPart(part: string, variants: VariantAny[]): VariantAny | 
   const group = hasColon ? String(p.split(":")[0] ?? "").trim() : "";
   const val = hasColon ? String(p.split(":")[1] ?? "").trim() : p;
 
-  // 1) прямые совпадения
+  // 1) прямое совпадение по id
   let found =
     variants.find((v) => String(v.id) === p) ||
     variants.find((v) => String(v.id) === val);
 
   if (found) return found;
 
-  // 2) group + id (если group отдельно)
-  if (group) {
-    found =
-      variants.find(
-        (v) =>
-          String(v.group ?? "").trim() === group && String(v.id).trim() === val,
-      ) || undefined;
-    if (found) return found;
-  }
-
-  // 3) если id хранит "group:val" внутри
-  if (group) {
-    found =
-      variants.find((v) => {
-        const vid = String(v.id ?? "").trim();
-        if (!vid.includes(":")) return false;
-        const [vg, vv] = vid.split(":");
-        return String(vg).trim() === group && String(vv).trim() === val;
-      }) || undefined;
-    if (found) return found;
-  }
-
-  // 4) fallback: хвост "something:val"
-  found =
-    variants.find((v) => {
-      const vid = String(v.id ?? "").trim();
-      if (!vid.includes(":")) return false;
-      const tail = vid.split(":").pop();
-      return String(tail ?? "").trim() === val;
-    }) || undefined;
-
-  return found;
-}
-
   // 2) совпадение по group + val (если у варианта group отдельно)
   if (group) {
-    found =
-      variants.find(
-        (v) =>
-          String(v.group ?? "").trim() === group && String(v.id).trim() === val,
-      ) || null;
+    found = variants.find(
+      (v) =>
+        String(v.group ?? "").trim() === group && String(v.id).trim() === val,
+    );
     if (found) return found;
   }
 
   // 3) если id варианта хранит "group:val" внутри
   if (group) {
-    found =
-      variants.find((v) => {
-        const vid = String(v.id ?? "").trim();
-        if (!vid.includes(":")) return false;
-        const [vg, vv] = vid.split(":");
-        return String(vg).trim() === group && String(vv).trim() === val;
-      }) || null;
+    found = variants.find((v) => {
+      const vid = String(v.id ?? "").trim();
+      if (!vid.includes(":")) return false;
+      const [vg, vv] = vid.split(":");
+      return String(vg).trim() === group && String(vv).trim() === val;
+    });
     if (found) return found;
   }
 
   // 4) fallback: если val совпадает с концом "something:val"
-  found =
-    variants.find((v) => {
-      const vid = String(v.id ?? "").trim();
-      if (!vid.includes(":")) return false;
-      const tail = vid.split(":").pop();
-      return String(tail ?? "").trim() === val;
-    }) || null;
+  found = variants.find((v) => {
+    const vid = String(v.id ?? "").trim();
+    if (!vid.includes(":")) return false;
+    const tail = vid.split(":").pop();
+    return String(tail ?? "").trim() === val;
+  });
 
   return found;
 }
 
 /**
  * ✅ Разбираем composite variantId из корзины:
+ * - title = склейка title вариантов
+ * - image = gallery[0] или image первого найденного варианта
  */
 function parseCompositeVariantForCart(
   variantId: string,
@@ -278,6 +250,7 @@ export default function CartClient() {
   const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
     {},
   );
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -306,22 +279,21 @@ export default function CartClient() {
         const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
 
-        // ✅ ДЛЯ ВИДА можно оставить как было
+        // ✅ Для отображения оставляем как у тебя: сначала моки, потом Strapi
         const pDisplay = (pMock ?? pStrapi) as any;
         if (!pDisplay) return null;
 
-        // ✅ ВОТ ГЛАВНЫЙ ФИКС:
-        // для цены + variants берём Strapi (если есть), иначе моки
+        // ✅ Для расчётов: Strapi приоритет
         const pForCalc = (pStrapi ?? pMock ?? pDisplay) as any;
 
-        const qty = shop.cart[key] ?? 1;
+        const qty = Math.max(1, Math.floor(Number(shop.cart[key] ?? 1)));
 
-        // ✅ variants — строго из pForCalc (Strapi приоритет)
+        // ✅ variants — из pForCalc (Strapi приоритет)
         const variants: VariantAny[] = flattenVariantsForCart(pForCalc);
 
         const parsed = parseCompositeVariantForCart(vidRaw, variants);
 
-        // ✅ БАЗОВАЯ ЦЕНА: Strapi Product -> потом моки
+        // ✅ базовая цена: Strapi -> моки
         const baseFromStrapi = readPriceFromObj(pStrapi, region);
         const baseFromMocks = readPriceFromObj(pMock, region);
         const baseUnit = baseFromStrapi || baseFromMocks || 0;
@@ -354,14 +326,18 @@ export default function CartClient() {
         // ✅ картинка: вариант -> Strapi product -> display fallback
         const image =
           (parsed.image ? String(parsed.image) : "") ||
-          String(pStrapi?.image || (pStrapi as any)?.gallery?.[0] || "") ||
+          String(
+            (pStrapi as any)?.image || (pStrapi as any)?.gallery?.[0] || "",
+          ) ||
           String(pDisplay?.image || pDisplay?.gallery?.[0] || "");
 
-        const brandSlug = String(pDisplay?.brand ?? pStrapi?.brand ?? "");
+        const brandSlug = String(
+          pDisplay?.brand ?? (pStrapi as any)?.brand ?? "",
+        );
         const collectionLabel = labelByBrandSlug(brandSlug);
 
         const title = String(
-          itSafeTitle(pStrapi) || itSafeTitle(pDisplay) || "",
+          itSafeTitle(pStrapi) || itSafeTitle(pDisplay) || "Товар",
         );
 
         return {
@@ -392,7 +368,7 @@ export default function CartClient() {
   }, [keys, shop, shop.cart, region, productsMap]);
 
   const total = useMemo(
-    () => items.reduce((acc, it) => acc + it.sum, 0),
+    () => items.reduce((acc, it) => acc + (Number(it.sum) || 0), 0),
     [items],
   );
 
