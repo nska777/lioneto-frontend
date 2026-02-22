@@ -5,94 +5,17 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MapPin, Phone, Clock, Check } from "lucide-react";
 
+import {
+  UZ_STORES,
+  RU_STORES,
+  type Store,
+  type RegionKey,
+} from "@/app/lib/stores/stores-data";
+
 gsap.registerPlugin(ScrollTrigger);
-
-type RegionKey = "uz" | "ru";
-
-type Store = {
-  id: string;
-  title: string;
-  phone?: string;
-  address: string;
-  hours?: string;
-  // для карты — текст запроса (Yandex maps ищет по нему)
-  mapQuery: string;
-};
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
-
-// ✅ УЗБ — ты дал базовый адрес
-const UZ_STORES: Store[] = [
-  {
-    id: "uz-1",
-    title: "Ташкент • Rich House",
-    phone: "+998 (90) 925 60 06 / +998 (90) 003 80 08",
-    address: "ул. Мирзо-Улугбека, 18 • Rich House",
-    hours: "09:00 — 18:00",
-    mapQuery: "Ташкент, улица Мирзо-Улугбека 18 Rich House",
-  },
-  {
-    id: "uz-2",
-    title: "Ташкент • Arca Mebel",
-    phone: "+998 (90) 927 40 04",
-    address: "Ташкент, Яшнабадский район, улица Махтумкули, 75",
-    hours: "09:00 — 18:00",
-    mapQuery: "г. Ташкент, Яшнабадский район, улица Махтумкули, 75",
-  },
-  {
-    id: "uz-3",
-    title: "Ташкент • Arca Premium",
-    phone: "+998 (90) 002 12 30",
-    address: "г. Ташкент, Яшнабадский район, улица Махтумкули, 75/4",
-    hours: "09:00 — 18:00",
-    mapQuery: "г. Ташкент, Яшнабадский район, улица Махтумкули, 75/4",
-  },
-  {
-    id: "uz-4",
-    title: "Ташкент • Ecobazar Atlas Mebel",
-    phone: "+998 (90) 042 68 17",
-    address: "г. Ташкент, Мирзо-Улугбекский район, улица Тимура Малика, 3А",
-    hours: "09:00 — 18:00",
-    mapQuery: "г. Ташкент, Мирзо-Улугбекский район, улица Тимура Малика, 3А",
-  },
-];
-
-// ✅ РФ — рандомные примеры (потом подставишь реальные)
-const RU_STORES: Store[] = [
-  {
-    id: "ru-1",
-    title: 'Москва • МЦ "Гранд"',
-    phone: "+7 (495) 565-37-55 доб. 101",
-    address: "Ленинградское ш., 4 • МЦ «Гранд», 3 этаж",
-    hours: "10:00 — 21:00",
-    mapQuery: "Москва МЦ Гранд Ленинградское шоссе 4",
-  },
-  {
-    id: "ru-2",
-    title: 'Москва • МЦ "Империя"',
-    phone: "+7 (495) 565-37-55 доб. 301",
-    address: "Дмитровское ш., 161Б • МЦ «Империя», 3 этаж",
-    hours: "10:00 — 21:00",
-    mapQuery: "Москва Дмитровское шоссе 161Б МЦ Империя",
-  },
-  {
-    id: "ru-3",
-    title: "Москва • ТК «ТРИ КИТА»",
-    phone: "+7 (495) 565-37-55 доб. 701",
-    address: "Одинцовский р-н, Новоивановское, ул. Луговая, 1",
-    hours: "10:00 — 21:00",
-    mapQuery: "ТК Три Кита Новоивановское Луговая 1",
-  },
-  {
-    id: "ru-4",
-    title: "Тверь • МЦ «Тандем»",
-    phone: "+7 (4822) 00-00-00",
-    address: "пр-т Октябрьский, 70 • МЦ «Тандем»",
-    hours: "10:00 — 20:00",
-    mapQuery: "Тверь проспект Октябрьский 70",
-  },
-];
 
 function RegionToggle({
   value,

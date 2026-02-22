@@ -12,6 +12,13 @@ import {
   Check,
 } from "lucide-react";
 
+import {
+  UZ_STORES,
+  RU_STORES,
+  type Store,
+  type RegionKey,
+} from "@/app/lib/stores/stores-data";
+
 type MenuLink = { label: string; href: string; isExternal?: boolean };
 
 function cn(...s: Array<string | false | null | undefined>) {
@@ -66,64 +73,6 @@ function normKey(s: string) {
    Contacts mini-block (inside burger)
 -------------------------- */
 
-type RegionKey = "uz" | "ru";
-
-type Store = {
-  id: string;
-  title: string;
-  phone?: string;
-  address: string;
-  hours?: string;
-};
-
-const UZ_STORES: Store[] = [
-  {
-    id: "uz-1",
-    title: "Ташкент • Rich House",
-    phone: "+998 (71) 000-00-00",
-    address: "ул. Мирзо-Улугбека, 18 • Rich House",
-    hours: "10:00 — 21:00",
-  },
-  {
-    id: "uz-2",
-    title: "Ташкент • Шоурум (пример)",
-    phone: "+998 (71) 111-11-11",
-    address: "пр-т Амира Темура, 15 • шоурум",
-    hours: "10:00 — 20:00",
-  },
-  {
-    id: "uz-3",
-    title: "Ташкент • Склад/выдача (пример)",
-    phone: "+998 (71) 222-22-22",
-    address: "ул. Шота Руставели, 22 • выдача заказов",
-    hours: "09:00 — 19:00",
-  },
-];
-
-const RU_STORES: Store[] = [
-  {
-    id: "ru-1",
-    title: 'Москва • МЦ "Гранд"',
-    phone: "+7 (495) 565-37-55 доб. 101",
-    address: "Ленинградское ш., 4 • МЦ «Гранд», 3 этаж",
-    hours: "10:00 — 21:00",
-  },
-  {
-    id: "ru-2",
-    title: 'Москва • МЦ "Империя"',
-    phone: "+7 (495) 565-37-55 доб. 301",
-    address: "Дмитровское ш., 161Б • МЦ «Империя», 3 этаж",
-    hours: "10:00 — 21:00",
-  },
-  {
-    id: "ru-3",
-    title: "Москва • ТК «ТРИ КИТА»",
-    phone: "+7 (495) 565-37-55 доб. 701",
-    address: "Одинцовский р-н, Новоивановское, ул. Луговая, 1",
-    hours: "10:00 — 21:00",
-  },
-];
-
 function RegionToggleMini({
   value,
   onChange,
@@ -161,6 +110,21 @@ function RegionToggleMini({
   );
 }
 
+function toTelHref(raw: string) {
+  const cleaned = String(raw || "").replace(/[^\d+]/g, "");
+  if (!cleaned) return "";
+  return cleaned.startsWith("+") ? `tel:${cleaned}` : `tel:+${cleaned}`;
+}
+
+function splitPhones(phone?: string) {
+  const s = String(phone ?? "").trim();
+  if (!s) return [];
+  return s
+    .split("/")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 function StoreRowMini({
   active,
   store,
@@ -170,6 +134,8 @@ function StoreRowMini({
   store: Store;
   onClick: () => void;
 }) {
+  const phones = splitPhones(store.phone);
+
   return (
     <button
       type="button"
@@ -197,26 +163,46 @@ function StoreRowMini({
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
+        {/* ВАЖНО: min-w-0 + w-full чтобы текст красиво занимал всю ширину */}
+        <div className="min-w-0 w-full flex-1">
           <div className="text-[13px] font-semibold tracking-[-0.01em] text-black/90">
             {store.title}
           </div>
 
-          {store.phone ? (
-            <div className="mt-2 flex items-center gap-2 text-[12px] text-black/70">
-              <Phone className="h-4 w-4 text-black/35" />
-              <span className="truncate">{store.phone}</span>
+          {phones.length ? (
+            <div className="mt-2 flex items-start gap-2 text-[12px] text-black/70">
+              <Phone className="mt-[2px] h-4 w-4 text-black/35 shrink-0" />
+              <div className="min-w-0 w-full">
+                {phones.map((ph, i) => (
+                  <a
+                    key={`${store.id}-ph-${i}`}
+                    href={toTelHref(ph)}
+                    onClick={(e) => {
+                      // чтобы тап по телефону не мешал выбору магазина
+                      e.stopPropagation();
+                    }}
+                    className={cn(
+                      "block w-full",
+                      "underline underline-offset-4 decoration-black/20",
+                      "hover:decoration-black/40 hover:text-black",
+                      "break-words",
+                    )}
+                  >
+                    {ph}
+                  </a>
+                ))}
+              </div>
             </div>
           ) : null}
 
           <div className="mt-2 flex items-start gap-2 text-[12px] text-black/70">
-            <MapPin className="mt-0.5 h-4 w-4 text-black/35" />
-            <span className="leading-5">{store.address}</span>
+            <MapPin className="mt-[2px] h-4 w-4 text-black/35 shrink-0" />
+            <span className="leading-5 break-words">{store.address}</span>
           </div>
 
           {store.hours ? (
             <div className="mt-2 flex items-center gap-2 text-[12px] text-black/70">
-              <Clock className="h-4 w-4 text-black/35" />
+              <Clock className="h-4 w-4 text-black/35 shrink-0" />
               <span>{store.hours}</span>
             </div>
           ) : null}
@@ -262,7 +248,7 @@ function ContactsMiniBlock() {
 
       <div className="px-4 pb-4">
         <div className="rounded-[22px] border border-black/10 bg-white p-3">
-          <div className="max-h-[320px] overflow-auto p-2">
+          <div className="max-h-[320px] overflow-auto overscroll-contain p-2">
             <div className="grid gap-3">
               {stores.map((s) => (
                 <StoreRowMini
@@ -276,7 +262,6 @@ function ContactsMiniBlock() {
           </div>
         </div>
 
-        {/* маленький “титл активного” как на десктопе */}
         {activeStore?.title ? (
           <div className="mt-3 text-[11px] tracking-[0.18em] text-black/45">
             Выбрано: <span className="text-black/75">{activeStore.title}</span>
@@ -302,13 +287,44 @@ export default function MobileMenu({
   links: readonly MenuLink[];
   categories?: any[];
 }) {
-  // body scroll lock
+  // ✅ body scroll lock (mobile-safe, iOS-safe)
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+
+    const body = document.body;
+    const html = document.documentElement;
+
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+
+    const prevBody = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    const prevHtmlOverflow = html.style.overflow;
+
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+
     return () => {
-      document.body.style.overflow = prev;
+      body.style.position = prevBody.position;
+      body.style.top = prevBody.top;
+      body.style.left = prevBody.left;
+      body.style.right = prevBody.right;
+      body.style.width = prevBody.width;
+      body.style.overflow = prevBody.overflow;
+
+      html.style.overflow = prevHtmlOverflow;
+
+      window.scrollTo(0, scrollY);
     };
   }, [open]);
 
@@ -339,14 +355,24 @@ export default function MobileMenu({
       .filter((r) => r.title);
   }, [categories]);
 
-  const [catalogOpen, setCatalogOpen] = useState(true);
+  // ✅ по дефолту каталог ЗАКРЫТ
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [openRoomKey, setOpenRoomKey] = useState<string>("");
 
+  // ✅ каждый раз при открытии меню — каталог закрываем и комнаты сворачиваем
   useEffect(() => {
     if (!open) return;
+    setCatalogOpen(false);
+    setOpenRoomKey("");
+  }, [open]);
+
+  // если пользователь откроет каталог — можно открыть первую комнату (опционально)
+  useEffect(() => {
+    if (!open) return;
+    if (!catalogOpen) return;
     if (!rooms.length) return;
     setOpenRoomKey((prev) => prev || rooms[0].key);
-  }, [open, rooms]);
+  }, [open, catalogOpen, rooms]);
 
   const Divider = () => <div className="h-px w-full bg-black/10" />;
 
@@ -443,7 +469,7 @@ export default function MobileMenu({
     </button>
   );
 
-  // ✅ Убираем "Каталог" и "Контакты" из обычных ссылок (они нам не нужны в списке)
+  // ✅ Убираем "Каталог" и "Контакты" из обычных ссылок
   const menuLinks = useMemo(() => {
     const safe = (links ?? []).filter((l) => l?.href && l?.label);
 
@@ -513,7 +539,7 @@ export default function MobileMenu({
         </div>
 
         {/* body (scroll) */}
-        <div className="flex-1 overflow-y-auto px-4 pb-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
           {/* ✅ общий блок меню */}
           <div className="border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
             <RowBtn
@@ -591,7 +617,7 @@ export default function MobileMenu({
             ))}
           </div>
 
-          {/* ✅ ВСТАВЛЯЕМ ВНУТРЬ drawer контактный блок (как на 2 скрине) */}
+          {/* ✅ контакты внутри drawer */}
           <div className="mt-4">
             <ContactsMiniBlock />
           </div>

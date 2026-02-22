@@ -618,7 +618,7 @@ export default function BestSellers({
                 >
                   <div
                     className={cn(
-                      "relative overflow-visible", // ✅ добавили
+                      "relative overflow-visible",
                       "flex flex-col h-full",
                       "border border-black/10 bg-white",
                       "rounded-[18px]",
@@ -662,12 +662,14 @@ export default function BestSellers({
                     </div>
 
                     <div className="px-5 pt-3 pb-3 min-h-[112px]">
-                      <div className="flex items-baseline gap-3">
+                      {/* ✅ FIX: mobile stack old price under new */}
+                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
                         <div className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black">
                           {formatPrice(price, currency)}
                         </div>
+
                         {old && old > price ? (
-                          <div className="text-[12px] text-black/40 line-through">
+                          <div className="text-[12px] sm:text-[13px] text-black/35 sm:text-black/40 line-through">
                             {formatPrice(old, currency)}
                           </div>
                         ) : null}

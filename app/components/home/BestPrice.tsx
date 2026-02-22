@@ -185,7 +185,6 @@ function SmartCover({
   const s = String(src ?? "").trim();
   const isRemote = /^https?:\/\//i.test(s);
 
-  //
   if (isRemote) {
     return (
       <img
@@ -234,7 +233,6 @@ export default function BestPrice({
   }, []);
 
   const list = useMemo<BestPriceUIItem[]>(() => {
-    //
     if (products.length) {
       const items = products
         .filter((p) => p?.isActive !== false)
@@ -277,7 +275,6 @@ export default function BestPrice({
       return items.slice(0, Math.min(10, items.length));
     }
 
-    //
     if (!priceEntries.length) return [];
 
     const best = priceEntries.filter(
@@ -335,7 +332,6 @@ export default function BestPrice({
     return items.slice(0, Math.min(10, items.length));
   }, [products, priceEntries, currency]);
 
-  // touch mode
   useLayoutEffect(() => {
     const calc = () => {
       const w = window.innerWidth;
@@ -350,7 +346,6 @@ export default function BestPrice({
     return () => window.removeEventListener("resize", calc);
   }, []);
 
-  // pages
   useLayoutEffect(() => {
     const calcPages = () => {
       const w = window.innerWidth;
@@ -365,7 +360,6 @@ export default function BestPrice({
     return () => window.removeEventListener("resize", calcPages);
   }, [list.length]);
 
-  // desktop slide
   useLayoutEffect(() => {
     if (isTouchMode) return;
     if (!rootRef.current || !trackRef.current) return;
@@ -390,7 +384,6 @@ export default function BestPrice({
     gsap.to(trackRef.current, { x: -shift, duration: 0.9, ease: "expo.out" });
   }, [page, reducedMotion, list.length, isTouchMode]);
 
-  // mobile scroll sync
   useLayoutEffect(() => {
     if (!isTouchMode) return;
     const vp = viewportRef.current;
@@ -477,7 +470,6 @@ export default function BestPrice({
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
 
-  // hover actions
   useLayoutEffect(() => {
     if (!rootRef.current) return;
     if (isTouchMode) return;
@@ -690,12 +682,14 @@ export default function BestPrice({
                     </div>
 
                     <div className="px-5 pt-3 pb-3 min-h-[112px]">
-                      <div className="flex items-baseline gap-3">
+                      {/* ✅ FIX: mobile stack old price under new */}
+                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
                         <div className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black">
                           {formatPrice(price, currency)}
                         </div>
+
                         {old && old > price ? (
-                          <div className="text-[12px] text-black/40 line-through">
+                          <div className="text-[12px] sm:text-[13px] text-black/35 sm:text-black/40 line-through">
                             {formatPrice(old, currency)}
                           </div>
                         ) : null}
