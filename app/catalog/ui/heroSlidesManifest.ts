@@ -4,7 +4,7 @@ export type HeroSlidesConf = { base: string; count: number; ext?: "jpg" | "webp"
 export const HERO_SLIDES_MANIFEST: Record<string, HeroSlidesConf> = {
   // key = `${room}:${collection}`
 
-  "bedrooms:amber": { base: "/slidermenu/bedrooms/amber", count: 3, ext: "jpg" },
+  "bedrooms:amber": { base: "/slidermenu/bedrooms/amber", count: 1, ext: "jpg" },
   "bedrooms:buongiorno": { base: "/slidermenu/bedrooms/buongiorno", count: 2, ext: "jpg" },
   "bedrooms:elizabeth": { base: "/slidermenu/bedrooms/elizabeth", count: 2, ext: "jpg" },
   "living:salvador": { base: "/slidermenu/living/salvador", count: 1, ext: "jpg" },
