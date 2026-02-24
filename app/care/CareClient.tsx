@@ -817,12 +817,7 @@ export default function CareClient() {
                 </p>
               </div>
 
-              <div className="mt-10 pt-6 border-t border-black/5">
-                <p className="text-[13px] leading-relaxed text-black/50">
-                  * Текст размещён полностью. Оглавление сверху помогает быстро
-                  переходить к нужным пунктам.
-                </p>
-              </div>
+              <div className="mt-10 pt-6 border-t border-black/5"></div>
             </div>
           </article>
 
