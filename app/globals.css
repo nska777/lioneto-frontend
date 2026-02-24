@@ -69,3 +69,31 @@ button,
 .bg-\[\#f3f3f3\] {
   background-color: var(--force-white) !important;
 }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* === Custom horizontal scrollbar === */
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 4px; /* толщина */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.15); /* фон трека */
+  border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: white; /* цвет ползунка */
+  border-radius: 999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #e5e5e5;
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: white rgba(255,255,255,0.15);
+}

@@ -59,7 +59,8 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     id: "buongiorno",
     title: "BUONGIORNO",
     description:
-      "Мягкие линии, уютные композиции и тёплая атмосфера для спальни и гостиной.",
+      "Мягкие линии, уютные композиции и тёплая атмосфера для спальни и гостиной." ,
+      
     images: [
       img("/images/collections/buongiorno/01.jpg", "BUONGIORNO интерьер"),
       img("/images/collections/buongiorno/02.jpg", "BUONGIORNO интерьер"),

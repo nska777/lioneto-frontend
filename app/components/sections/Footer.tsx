@@ -87,6 +87,7 @@ export default function Footer({ data }: { data?: FooterData }) {
               { label: "Доставка и оплата", href: "/delivery" },
               { label: "Возврат", href: "/return" },
               { label: "Гарантия", href: "/warranty" },
+              { label: "Уход за мебелью", href: "/care" },
               { label: "Контакты", href: "/contacts" },
             ],
           },
@@ -132,8 +133,8 @@ export default function Footer({ data }: { data?: FooterData }) {
           },
         ],
         legalLinks: [
-          { label: "Политика конфиденциальности", href: "/privacy" },
-          { label: "Публичная оферта", href: "/offer" },
+          { label: "Политика конфиденциальности", href: "#" },
+          { label: "Публичная оферта", href: "/#" },
         ],
       }
     );
@@ -245,7 +246,6 @@ export default function Footer({ data }: { data?: FooterData }) {
     "Доставка и оплата",
     "Возврат",
     "Гарантия",
-    "Контакты",
   ]);
 
   return (
