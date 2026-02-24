@@ -80,7 +80,7 @@ export default function CareClient() {
             toggleActions: "play none none none",
           },
         });
-        // @ts-expect-error - gsap keeps reference internally, but we also kill triggers explicitly
+        // @ts-ignore - gsap keeps reference internally, but we also keep ...
         if (tween?.scrollTrigger) revealTriggers.push(tween.scrollTrigger);
       });
     }
