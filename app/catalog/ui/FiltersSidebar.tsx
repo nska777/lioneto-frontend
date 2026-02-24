@@ -397,10 +397,6 @@ export default function FiltersSidebar({
           );
         })}
       </Section>
-
-      <div className="mt-4 rounded-xl border border-black/10 bg-black/[0.02] p-3 text-[12px] text-black/60">
-        Эти фильтры перенесём на Strapi, сохранив те же query-параметры.
-      </div>
     </aside>
   );
 }

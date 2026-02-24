@@ -184,6 +184,92 @@ function resolveCompositeVariant(
   return { title: title || null, delta, image };
 }
 
+/** ================= Related (авто) ================= */
+type LiteRelated = {
+  slug: string;
+  title: string;
+  image: string;
+  priceUZS?: number | null;
+  priceRUB?: number | null;
+};
+
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function stableSessionSeed(key: string) {
+  try {
+    const k = `lioneto:seed:${key}`;
+    const got = sessionStorage.getItem(k);
+    if (got) return Number(got) || 1;
+    const s = Math.floor(Math.random() * 1e9) + 1;
+    sessionStorage.setItem(k, String(s));
+    return s;
+  } catch {
+    return 1;
+  }
+}
+
+function resolveStrapiUrlMaybe(base: string, url: string) {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (!u.startsWith("/")) return `${base.replace(/\/$/, "")}/${u}`;
+  return `${base.replace(/\/$/, "")}${u}`;
+}
+
+function pickStrapiImage(a: any, base: string) {
+  // пробуем разные shape'ы: string | {url} | {data:{attributes:{url}}} | formats
+  const raw =
+    a?.image?.url ??
+    a?.image?.data?.attributes?.url ??
+    a?.image?.data?.[0]?.attributes?.url ??
+    a?.image?.formats?.small?.url ??
+    a?.image?.formats?.thumbnail?.url ??
+    a?.gallery?.[0]?.url ??
+    a?.gallery?.data?.[0]?.attributes?.url ??
+    a?.gallery?.data?.[0]?.attributes?.formats?.small?.url ??
+    a?.gallery?.data?.[0]?.attributes?.formats?.thumbnail?.url ??
+    a?.image ??
+    a?.cover ??
+    "";
+  return resolveStrapiUrlMaybe(base, raw);
+}
+
+async function fetchLiteRelatedProducts(limit = 24) {
+  const base = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
+  const url = `${base.replace(/\/$/, "")}/api/products?pagination[pageSize]=${encodeURIComponent(
+    String(limit),
+  )}&fields[0]=slug&fields[1]=title&fields[2]=priceUZS&fields[3]=priceRUB&populate[0]=image&populate[1]=gallery`;
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return [] as LiteRelated[];
+
+  const json = await res.json();
+  const data: any[] = Array.isArray(json?.data) ? json.data : [];
+
+  const out: LiteRelated[] = [];
+  for (const item of data) {
+    const a = item?.attributes ?? item;
+    const slug = String(a?.slug ?? "").trim();
+    if (!slug) continue;
+
+    out.push({
+      slug,
+      title: String(a?.title ?? slug),
+      image: pickStrapiImage(a, base),
+      priceUZS: toNum(a?.priceUZS),
+      priceRUB: toNum(a?.priceRUB),
+    });
+  }
+  return out;
+}
+
 export default function FavoritesClient() {
   const { region } = useRegionLang();
   const shop = useShopState();
@@ -215,6 +301,12 @@ export default function FavoritesClient() {
 
   const [priceMap, setPriceMap] = useState<Record<string, PriceEntry>>({});
   const [productsMap, setProductsMap] = useState<Record<string, any>>({});
+
+  // related
+  const [related, setRelated] = useState<LiteRelated[]>([]);
+  const [relatedPriceMap, setRelatedPriceMap] = useState<
+    Record<string, PriceEntry>
+  >({});
 
   useEffect(() => {
     let alive = true;
@@ -327,6 +419,55 @@ export default function FavoritesClient() {
       image: string;
     }>;
   }, [favKeys, shop, productsMap, priceMap, region]);
+
+  // ✅ auto-related: 24 товара из Strapi -> 3 рекомендации (стабильно в сессии)
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        // если избранное пустое — можем всё равно показать related (по желанию)
+        const favSet = new Set(productIds.map((s) => String(s)));
+
+        const pool = await fetchLiteRelatedProducts(24);
+        if (!alive) return;
+
+        const filtered = pool.filter((p) => !favSet.has(String(p.slug)));
+
+        // стабильно в сессии (и зависит от набора избранного)
+        const seed = stableSessionSeed(
+          `favorites-related:${productIds.join("|")}`,
+        );
+        const rnd = mulberry32(seed);
+
+        const shuffled = [...filtered].sort(() => rnd() - 0.5);
+        const pick = shuffled.slice(0, 3);
+
+        setRelated(pick);
+
+        // подтянем цены из price-entry (slug::base + slug)
+        const relKeys: string[] = [];
+        for (const r of pick) {
+          const s = String(r.slug).trim();
+          if (!s) continue;
+          relKeys.push(`${s}::base`);
+          relKeys.push(s);
+        }
+        const relMap = await fetchPriceMapByKeys(relKeys);
+        if (!alive) return;
+        setRelatedPriceMap(relMap);
+      } catch {
+        if (!alive) return;
+        setRelated([]);
+        setRelatedPriceMap({});
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productIds.join("|"), region]);
 
   const clearFavorites = () => {
     favKeys.forEach((key) => {
@@ -498,8 +639,80 @@ export default function FavoritesClient() {
             Рекомендуем
           </div>
           <p className="mt-1 text-sm text-black/55">
-            Это включим на Strapi в следующем шаге (related).
+            Подборка похожих товаров — чтобы собрать комплект.
           </p>
+
+          <div className="mt-4 space-y-3">
+            {related.length ? (
+              related.map((r) => {
+                const peBase = relatedPriceMap[`${r.slug}::base`];
+                const pePlain = relatedPriceMap[r.slug];
+
+                const priceFromEntry =
+                  region === "uz"
+                    ? Number(peBase?.priceUZS ?? pePlain?.priceUZS ?? 0)
+                    : Number(peBase?.priceRUB ?? pePlain?.priceRUB ?? 0);
+
+                const priceFromProduct =
+                  region === "uz"
+                    ? Number(r?.priceUZS ?? 0)
+                    : Number(r?.priceRUB ?? 0);
+
+                const price =
+                  (Number.isFinite(priceFromEntry) && priceFromEntry > 0
+                    ? priceFromEntry
+                    : 0) ||
+                  (Number.isFinite(priceFromProduct) && priceFromProduct > 0
+                    ? priceFromProduct
+                    : 0) ||
+                  0;
+
+                return (
+                  <div
+                    key={r.slug}
+                    className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-3"
+                  >
+                    <Link
+                      href={`/product/${r.slug}`}
+                      className="cursor-pointer relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-black/5"
+                      title={r.title}
+                    >
+                      <SafeImage src={r.image} alt={r.title} />
+                    </Link>
+
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/product/${r.slug}`}
+                        className="cursor-pointer block truncate text-sm font-medium text-black/85 hover:underline"
+                        title={r.title}
+                      >
+                        {r.title}
+                      </Link>
+                      <div className="mt-0.5 text-xs text-black/60">
+                        {formatMoney(price, region)}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        shop.addToCart(r.slug, 1, "base");
+                        window.location.href = "/cart";
+                      }}
+                      className="cursor-pointer inline-flex items-center justify-center rounded-full bg-black px-3 py-2 text-[12px] font-medium text-white hover:opacity-90 transition"
+                      title="В корзину"
+                    >
+                      В корзину
+                    </button>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/55">
+                Пока подбираем рекомендации…
+              </div>
+            )}
+          </div>
 
           <div className="mt-5">
             <Link
