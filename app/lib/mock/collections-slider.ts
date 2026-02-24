@@ -24,7 +24,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     id: "scandy",
     title: "SCANDY",
     description:
-      "Скандинавский стиль с акцентом на светлые оттенки, натуральные материалы и функциональность.",
+      "Плавные линии и мягкие формы, естественность, использование акварельных тонов, удобство и чувство меры.",
     images: [
       img("/images/collections/scandy/01.jpg", "SCANDY интерьер"),
       img("/images/collections/scandy/02.jpg", "SCANDY интерьер"),
@@ -36,7 +36,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     id: "amber",
     title: "AMBER",
     description:
-      "Современные формы, спокойная цветовая палитра и универсальные решения для интерьера.",
+      "Лаконичная обстановка, спокойные цветовые решения, сочетание различных текстур и функциональность.",
     images: [
       img("/images/collections/amber/01.jpg", "AMBER интерьер"),
       img("/images/collections/amber/02.jpg", "AMBER интерьер"),
@@ -48,7 +48,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     id: "elizabeth",
     title: "ELIZABETH",
     description:
-      "Элегантная коллекция с классическими пропорциями и утончёнными деталями.",
+      "Элегантность, сдержанность и душевный покой, светлые тона с яркими акцентами, легкость и воздушность.",
     images: [
       img("/images/collections/elizabeth/01.jpg", "ELIZABETH интерьер"),
     ],
@@ -59,7 +59,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     id: "buongiorno",
     title: "BUONGIORNO",
     description:
-      "Мягкие линии, уютные композиции и тёплая атмосфера для спальни и гостиной." ,
+      "Геометричность и сложность форм, изысканность и статусность, роскошь, которую можно себе позволить." ,
       
     images: [
       img("/images/collections/buongiorno/01.jpg", "BUONGIORNO интерьер"),
@@ -72,7 +72,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     id: "pitti",
     title: "PITTI",
     description:
-      "Минимализм и строгость форм, подчёркнутые качественными материалами и деталями.",
+      "Изящность в сочетании с монументальностью, характерные декоративные элементы, темная цветовая гамма.",
     images: [
       img("/images/collections/pitti/01.jpg", "PITTI интерьер"),
 			
@@ -84,7 +84,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     id: "salvador",
     title: "SALVADOR",
     description:
-      "Современный дизайн с выразительными акцентами и продуманной эргономикой.",
+      "Современная классика, утонченность и комфорт, тактильно приятные материалы, умиротворяющее цветовое решение.",
     images: [
       img("/images/collections/salvador/01.jpg", "SALVADOR интерьер"),
       img("/images/collections/salvador/02.jpg", "SALVADOR интерьер"),
