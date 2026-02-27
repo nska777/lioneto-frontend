@@ -175,7 +175,7 @@ export const megaCategories: MegaCategory[] = [
       },
       {
         labelKey: "brand.buongiorno",
-        fallback: "БОНЖОРНО",
+        fallback: "BUONGIORNO",
         href: makeCollectionHref("buongiorno", "bedrooms"),
       },
     ],
@@ -203,7 +203,7 @@ export const megaCategories: MegaCategory[] = [
       },
       {
         labelKey: "brand.bergen_white",
-        fallback: "БОНЖОРНО",
+        fallback: "BUONGIORNO",
         href: makeCollectionHref("buongiorno", "living"),
       },
     ],
@@ -340,7 +340,7 @@ export const MEGA_PREVIEWS: Record<string, MegaPreview> = {
   },
   [makeCollectionHref("buongiorno", "living")]: {
     titleKey: "mega.preview.living.bergenWhite",
-    fallback: "Гостиная «БОНЖОРНО»",
+    fallback: "Гостиная «BUONGIORNO»",
     main: "/mega/living/buongiorno/main.jpg",
     a: "/mega/living/buongiorno/1.jpg",
     b: "/mega/living/buongiorno/2.jpg",

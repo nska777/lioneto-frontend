@@ -44,13 +44,13 @@ const ru = {
   },
 
   brand: {
-    amber: "АМБЕР",
-    scandi: "СКАНДИ",
-    elizabeth: "ЭЛИЗАБЕТ",
-    salvador: "САЛЬВАДОР",
-    pitti: "ПИТТИ",
-    pitti_alt: "ПИТТИ",
-    buongiorno: "БОНЖОРНО",
+    amber: "AMBER",
+    scandi: "SCANDY",
+    elizabeth: "ELIZABETH",
+    salvador: "SALVADOR",
+    pitti: "PITTI",
+    pitti_alt: "PITTI",
+    buongiorno: "BOUNGIORNO",
   },
 
   mega: {
