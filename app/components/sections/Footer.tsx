@@ -241,12 +241,8 @@ export default function Footer({ data }: { data?: FooterData }) {
 
   /* ================= JSX ================= */
 
-  // ✅ делаем пункты "Покупателям" некликабельными (в футере)
-  const DISABLE_CUSTOMER_LINKS = new Set([
-    "Доставка и оплата",
-    "Возврат",
-    "Гарантия",
-  ]);
+  //  делаем пункты "Покупателям" некликабельными (в футере)
+  const DISABLE_CUSTOMER_LINKS = new Set(["Доставка и оплата", "Возврат"]);
 
   return (
     <footer ref={rootRef} className="bg-black text-white" aria-label="Footer">

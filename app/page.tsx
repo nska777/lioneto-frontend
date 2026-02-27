@@ -158,7 +158,7 @@ export default async function Page() {
     <main>
       <GSAPHeroSlider />
 
-      {/* ✅ priceEntries больше НЕ используем */}
+      {/* priceEntries больше НЕ используем */}
       <BestSellers products={hitProducts} />
       <BestPrice products={bestProducts} />
 

@@ -89,6 +89,97 @@ function GoldDiscountBadge({ text }: { text: string }) {
   );
 }
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function RatingStars({
+  value,
+  count,
+  className,
+}: {
+  value: number; // 0..5
+  count?: number; // reviews count
+  className?: string;
+}) {
+  const v = clamp(Number.isFinite(value) ? value : 0, 0, 5);
+  const full = Math.floor(v);
+  const frac = v - full;
+
+  // аккуратный “полузакрашенный” шаг
+  const fillForIndex = (i: number) => {
+    const idx = i + 1;
+    if (idx <= full) return 1;
+    if (idx === full + 1) return clamp(frac, 0, 1);
+    return 0;
+  };
+
+  return (
+    <div className={cn("flex items-center gap-2", className)}>
+      <div
+        className="flex items-center gap-[2px]"
+        aria-label={`Рейтинг ${v.toFixed(1)} из 5`}
+      >
+        {Array.from({ length: 5 }).map((_, i) => {
+          const fill = fillForIndex(i); // 0..1
+          return (
+            <span
+              key={i}
+              className="relative inline-flex"
+              style={{ width: 14, height: 14 }}
+            >
+              {/* пустая звезда */}
+              <svg
+                viewBox="0 0 24 24"
+                width={14}
+                height={14}
+                className="absolute inset-0"
+                aria-hidden="true"
+              >
+                <path
+                  d="M12 17.3l-6.18 3.55 1.64-7.03L2 9.24l7.19-.62L12 2l2.81 6.62 7.19.62-5.46 4.58 1.64 7.03L12 17.3z"
+                  className="fill-black/10"
+                />
+              </svg>
+
+              {/* заполнение */}
+              {fill > 0 ? (
+                <span
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ width: `${Math.round(fill * 100)}%` }}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width={14}
+                    height={14}
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M12 17.3l-6.18 3.55 1.64-7.03L2 9.24l7.19-.62L12 2l2.81 6.62 7.19.62-5.46 4.58 1.64 7.03L12 17.3z"
+                      className="fill-[#C8A04A]"
+                    />
+                  </svg>
+                </span>
+              ) : null}
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-[12px] leading-none text-black/70">
+          {v.toFixed(1)}
+        </span>
+        {typeof count === "number" ? (
+          <span className="text-[12px] leading-none text-black/40">
+            ({count})
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function n(v: any) {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
@@ -147,6 +238,21 @@ export default function CatalogCard({
 
   // ✅ один feature badge (если нет скидки)
   const featureBadge = (collectionBadge || badgeMain || "").trim();
+
+  // ⭐️ рейтинг (если нет данных — красивый дефолт)
+  const ratingValueRaw =
+    p.rating ?? p.ratingValue ?? p.stars ?? p.avgRating ?? 4.8;
+
+  const ratingValue = clamp(n(ratingValueRaw), 0, 5);
+
+  const reviewsCountRaw =
+    p.reviewsCount ?? p.reviews ?? p.ratingCount ?? p.reviews_count ?? 24;
+
+  const reviewsCount = Math.max(0, Math.round(n(reviewsCountRaw)));
+
+  // показывать всегда (как “соц.доверие”) — или можно включить условие:
+  // const showRating = ratingValue > 0;
+  const showRating = true;
 
   const snapshot = {
     title,
@@ -275,6 +381,15 @@ export default function CatalogCard({
           >
             {title}
           </div>
+
+          {/* ⭐️ РЕЙТИНГ — аккуратно под заголовком */}
+          {showRating ? (
+            <RatingStars
+              value={ratingValue}
+              count={reviewsCount}
+              className="mt-2"
+            />
+          ) : null}
 
           <div className="mt-2 flex items-baseline gap-2">
             {hasAnyPrice ? (
