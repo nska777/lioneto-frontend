@@ -5,17 +5,8 @@ import WarrantyClient from "./WarrantyClient";
 export const metadata: Metadata = {
   title: "Гарантия — LIONETO",
   description:
-    "Условия гарантийного обслуживания мебели LIONETO: срок 18 месяцев, случаи, не рассматриваемые как гарантийные, порядок обращения и гарантийный талон.",
-  alternates: {
-    canonical: "/warranty",
-  },
-  openGraph: {
-    title: "Гарантия — LIONETO",
-    description:
-      "Условия гарантийного обслуживания мебели LIONETO: срок 18 месяцев, исключения, порядок обращения.",
-    url: "/warranty",
-    type: "website",
-  },
+    "Гарантийные обязательства LIONETO: срок 18 месяцев, исключения, гарантийный талон и порядок обращения.",
+  alternates: { canonical: "/warranty" },
 };
 
 export default function Page() {
