@@ -2,7 +2,7 @@ import Link from "next/link";
 import { megaCategories } from "@/app/lib/headerData";
 
 export default function CategoryPage({ params }: { params: { slug: string } }) {
-  const slug = params.slug; // bedrooms | living | youth ...
+  const slug = params.slug;
   const cat =
     megaCategories.find((c) => c.key === slug) ??
     megaCategories.find((c) => c.href === `/category/${slug}`) ??

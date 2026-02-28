@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export const dynamic = "force-static";
 
 export default function CheckoutSuccessPage() {
@@ -17,19 +19,19 @@ export default function CheckoutSuccessPage() {
         </p>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <a
+          <Link
             href="/catalog"
             className="inline-flex items-center justify-center rounded-full bg-black px-5 py-3 text-sm font-semibold text-white hover:opacity-90"
           >
             В каталог
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/"
             className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-black/80 hover:border-black/20"
           >
             На главную
-          </a>
+          </Link>
         </div>
       </div>
     </main>
