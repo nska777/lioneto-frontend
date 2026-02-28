@@ -71,13 +71,10 @@ export default function AccountShell({
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
-  // ✅ режим редактирования телефона (открывает PhoneGate даже если телефон уже есть)
   const [editingPhone, setEditingPhone] = useState(false);
 
-  // ✅ телефон обязателен
   const phoneRequired = !profile?.phone_e164;
 
-  // ✅ загрузка профиля и автосоздание строки profiles при первом заходе
   useEffect(() => {
     let alive = true;
 
@@ -90,7 +87,6 @@ export default function AccountShell({
         .eq("user_id", userId)
         .maybeSingle();
 
-      // если профиля нет — создаём
       if (!data && !error) {
         const ins = await supabase
           .from("profiles")
@@ -116,7 +112,6 @@ export default function AccountShell({
     };
   }, [userId]);
 
-  // ✅ вместо setState-in-effect: вкладка "profile" принудительно, пока phoneRequired
   const derivedTab: TabKey = useMemo(() => {
     return phoneRequired ? "profile" : tab;
   }, [phoneRequired, tab]);
@@ -207,7 +202,7 @@ export default function AccountShell({
               </div>
             ) : (
               <>
-                {/* PhoneGate показываем, если телефона нет ИЛИ если пользователь нажал "Изменить телефон" */}
+                {/* если телефона нет ИЛИ если пользователь нажал "Изменить телефон" */}
                 {(phoneRequired || editingPhone) && (
                   <PhoneGate
                     userId={userId}
@@ -221,7 +216,7 @@ export default function AccountShell({
                   />
                 )}
 
-                {/* Блокируем остальные вкладки, пока phoneRequired */}
+                {/* Блок остальные вкладки, пока phoneRequired */}
                 <div
                   className={cn(
                     phoneRequired &&

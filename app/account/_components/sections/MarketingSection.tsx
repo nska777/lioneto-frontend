@@ -13,7 +13,6 @@ type Prefs = {
 };
 
 function readMarketing(value: unknown): Prefs {
-  // Strapi/Supabase jsonb может прийти как object | null
   if (!value || typeof value !== "object") {
     return { sms: false, whatsapp: false, email: true };
   }
@@ -23,7 +22,6 @@ function readMarketing(value: unknown): Prefs {
   const sms = typeof obj.sms === "boolean" ? obj.sms : false;
   const whatsapp = typeof obj.whatsapp === "boolean" ? obj.whatsapp : false;
 
-  // по твоей логике: если email не задан — true
   const email =
     obj.email === undefined
       ? true

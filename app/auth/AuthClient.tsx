@@ -27,6 +27,11 @@ function normalizePhoneToE164(raw: string, region: "uz" | "ru") {
   return `+998${digits}`;
 }
 
+function getErrMsg(e: unknown, fallback: string) {
+  if (e instanceof Error) return e.message || fallback;
+  return String(e || fallback);
+}
+
 export default function AuthClient() {
   const sp = useSearchParams();
   const router = useRouter();
@@ -54,7 +59,7 @@ export default function AuthClient() {
   );
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    void supabase.auth.getSession().then(({ data }) => {
       setSessionEmail(data.session?.user?.email ?? null);
       setChecking(false);
     });
@@ -82,8 +87,11 @@ export default function AuthClient() {
             : {}),
         },
       });
-    } catch (e: any) {
-      setMsg({ type: "err", text: e?.message || "Ошибка входа через Google" });
+    } catch (e: unknown) {
+      setMsg({
+        type: "err",
+        text: getErrMsg(e, "Ошибка входа через Google"),
+      });
       setLoading(false);
     }
   };
@@ -113,8 +121,8 @@ export default function AuthClient() {
       setOtpSent(true);
       setMsg({ type: "ok", text: "Код отправлен. Введите OTP из SMS." });
       setLoading(false);
-    } catch (e: any) {
-      setMsg({ type: "err", text: e?.message || "Ошибка отправки OTP" });
+    } catch (e: unknown) {
+      setMsg({ type: "err", text: getErrMsg(e, "Ошибка отправки OTP") });
       setLoading(false);
     }
   };
@@ -150,8 +158,11 @@ export default function AuthClient() {
       }
 
       setLoading(false);
-    } catch (e: any) {
-      setMsg({ type: "err", text: e?.message || "Ошибка подтверждения OTP" });
+    } catch (e: unknown) {
+      setMsg({
+        type: "err",
+        text: getErrMsg(e, "Ошибка подтверждения OTP"),
+      });
       setLoading(false);
     }
   };

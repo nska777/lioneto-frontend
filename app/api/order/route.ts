@@ -11,9 +11,54 @@ function genOrderId() {
   return `LIO-${Date.now().toString(36).toUpperCase()}-${rnd}`;
 }
 
-function toNum(v: any) {
-  const n = Number(v);
+function toNum(v: unknown) {
+  const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+type Customer = {
+  phone?: string | null;
+  name?: string | null;
+  address?: string | null;
+  comment?: string | null;
+};
+
+type OrderItem = {
+  title?: string | null;
+
+  qty?: unknown;
+  unit?: unknown;
+  sum?: unknown;
+
+  collectionLabel?: string | null;
+  collection?: string | null;
+  brandLabel?: string | null;
+  brand?: string | null;
+
+  variantTitle?: string | null;
+  variantId?: string | null;
+};
+
+type OrderMeta = {
+  mode?: string | null;
+  type?: string | null;
+};
+
+type OrderPayload = {
+  orderId?: unknown;
+  createdAt?: unknown;
+  region?: unknown;
+
+  mode?: unknown;
+  meta?: OrderMeta | null;
+
+  customer?: Customer | null;
+  items?: unknown;
+  total?: unknown;
+};
+
+function isOrderItemsArray(v: unknown): v is OrderItem[] {
+  return Array.isArray(v);
 }
 
 export async function POST(req: Request) {
@@ -31,12 +76,14 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: any;
+  let body: unknown;
   try {
-    body = await req.json();
+    body = (await req.json()) as unknown;
   } catch {
     return NextResponse.json({ ok: false, error: "Bad JSON" }, { status: 400 });
   }
+
+  const payload = (body ?? {}) as OrderPayload;
 
   const {
     orderId,
@@ -47,33 +94,43 @@ export async function POST(req: Request) {
     customer,
     items,
     total,
-  } = body || {};
+  } = payload;
 
-  // ✅ совместимость: если mode не передали, берём из meta.mode
-  const mode = modeTop ?? meta?.mode ?? meta?.type ?? null;
 
-  // ✅ НЕ валим заказ, если orderId/createdAt не пришли (как сейчас в CheckoutClient)
+  const mode =
+    (typeof modeTop === "string" ? modeTop : null) ??
+    meta?.mode ??
+    meta?.type ??
+    null;
+
   const oid = String(orderId ?? "").trim() || genOrderId();
   const cAt = String(createdAt ?? "").trim() || new Date().toISOString();
 
-  if (!customer?.phone || !Array.isArray(items) || items.length === 0) {
+  const customerSafe: Customer = customer ?? {};
+  const itemsSafe: OrderItem[] = isOrderItemsArray(items) ? items : [];
+
+  if (!customerSafe?.phone || itemsSafe.length === 0) {
     return NextResponse.json(
       { ok: false, error: "Invalid payload (need customer.phone + items[])" },
       { status: 400 },
     );
   }
 
-  const currency = region === "uz" ? "сум" : "₽";
+  const regionStr = typeof region === "string" ? region : "";
+  const currency = regionStr === "uz" ? "сум" : "₽";
   const kind = mode === "oneclick" ? "⚡️ ONE-CLICK" : "🛒 CART";
 
-  const computedTotal = items.reduce(
-    (acc: number, it: any) => acc + toNum(it?.sum ?? toNum(it?.unit) * toNum(it?.qty)),
-    0,
-  );
+  const computedTotal = itemsSafe.reduce((acc, it) => {
+    const qty = toNum(it?.qty);
+    const unit = toNum(it?.unit);
+    const sum = toNum(it?.sum) || unit * qty;
+    return acc + sum;
+  }, 0);
+
   const totalSafe = toNum(total) || computedTotal;
 
-  const lines = items
-    .map((it: any, i: number) => {
+  const lines = itemsSafe
+    .map((it, i) => {
       const collection =
         it.collectionLabel || it.collection || it.brandLabel || it.brand || "";
       const collectionPart = collection ? `${collection} / ` : "";
@@ -96,10 +153,18 @@ export async function POST(req: Request) {
     `${esc(kind)}\n` +
     `🆔 <b>${esc(oid)}</b>\n` +
     `🕒 ${esc(cAt)}\n\n` +
-    `📞 <b>Телефон:</b> ${esc(customer.phone)}\n` +
-    `${customer.name ? `👤 <b>Имя:</b> ${esc(customer.name)}\n` : ""}` +
-    `${customer.address ? `📍 <b>Адрес:</b> ${esc(customer.address)}\n` : ""}` +
-    `${customer.comment ? `💬 <b>Комментарий:</b> ${esc(customer.comment)}\n` : ""}` +
+    `📞 <b>Телефон:</b> ${esc(String(customerSafe.phone))}\n` +
+    `${customerSafe.name ? `👤 <b>Имя:</b> ${esc(customerSafe.name)}\n` : ""}` +
+    `${
+      customerSafe.address
+        ? `📍 <b>Адрес:</b> ${esc(customerSafe.address)}\n`
+        : ""
+    }` +
+    `${
+      customerSafe.comment
+        ? `💬 <b>Комментарий:</b> ${esc(customerSafe.comment)}\n`
+        : ""
+    }` +
     `\n<b>Заказ:</b>\n${esc(lines)}\n\n` +
     `💰 <b>Итого:</b> ${esc(String(totalSafe))} ${currency}`;
 
@@ -115,9 +180,10 @@ export async function POST(req: Request) {
         disable_web_page_preview: true,
       }),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
-      { ok: false, error: "Telegram request failed", details: String(e?.message ?? e) },
+      { ok: false, error: "Telegram request failed", details: msg },
       { status: 502 },
     );
   }
