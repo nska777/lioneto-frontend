@@ -8,23 +8,35 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-// ✅ preload cache (чтобы клик был мгновенным)
 const __heroImgCache = new Set<string>();
 
-function preloadImage(src: string) {
+function preloadImage(src: string): Promise<void> {
   if (!src) return Promise.resolve();
   if (__heroImgCache.has(src)) return Promise.resolve();
 
   return new Promise<void>((resolve) => {
+    if (typeof window === "undefined") {
+      resolve();
+      return;
+    }
+
     const img = new window.Image();
-    img.onload = async () => {
+
+    img.onload = () => {
       __heroImgCache.add(src);
-      try {
-        // @ts-ignore
-        if (img.decode) await img.decode();
-      } catch {}
+
+      const maybeDecode: unknown = (img as unknown as { decode?: unknown })
+        .decode;
+      if (typeof maybeDecode === "function") {
+        (maybeDecode as () => Promise<void>)()
+          .catch(() => undefined)
+          .finally(() => resolve());
+        return;
+      }
+
       resolve();
     };
+
     img.onerror = () => resolve();
     img.src = src;
   });
@@ -43,11 +55,9 @@ export default function CatalogHeroSlider({
 
   const [idx, setIdx] = useState(0);
 
-  // ✅ один источник правды для Image src
   const [srcA, setSrcA] = useState<string>("");
   const [srcB, setSrcB] = useState<string>("");
 
-  // ✅ refs чтобы клики были мгновенные и без “залипания”
   const idxRef = useRef(0);
   const frontRef = useRef<0 | 1>(0);
   const [front, setFront] = useState<0 | 1>(0);
@@ -91,7 +101,6 @@ export default function CatalogHeroSlider({
         safeSlides.length > 2 ? safeSlides[safeSlides.length - 1] : "";
       if (prev) void preloadImage(prev);
 
-      // тихо прогреем всё
       safeSlides.forEach((s) => void preloadImage(s));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,7 +114,6 @@ export default function CatalogHeroSlider({
     const ni = normIndex(targetIndex);
     if (ni === idxRef.current) return;
 
-    // если жмут быстро — запоминаем последний запрос
     if (lockRef.current) {
       pendingRef.current = ni;
       return;
@@ -115,7 +123,6 @@ export default function CatalogHeroSlider({
 
     const nextSrc = safeSlides[ni] || safeSlides[0];
 
-    // ✅ ВАЖНО: сначала прогрели картинку, потом переключили слой
     await preloadImage(nextSrc);
 
     const curFront = frontRef.current;
@@ -123,7 +130,6 @@ export default function CatalogHeroSlider({
     if (curFront === 0) setSrcB(nextSrc);
     else setSrcA(nextSrc);
 
-    // мгновенно переключаем “передний” слой
     const nextFront: 0 | 1 = curFront === 0 ? 1 : 0;
     setFront(nextFront);
     frontRef.current = nextFront;
@@ -131,7 +137,6 @@ export default function CatalogHeroSlider({
     setIdx(ni);
     idxRef.current = ni;
 
-    // прогреем соседние (след/пред)
     const n1 = safeSlides[normIndex(ni + 1)];
     const p1 = safeSlides[normIndex(ni - 1)];
     if (n1) void preloadImage(n1);

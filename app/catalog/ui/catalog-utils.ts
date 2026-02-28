@@ -3,13 +3,12 @@
 import { BRANDS, CATALOG_MOCK as MOCK } from "@/app/lib/mock/catalog-products";
 import { MODULE_ITEMS, ROOM_ITEMS } from "./catalog-constants";
 
-type ProductAny = (typeof MOCK)[number] & Record<string, any>;
+type ProductAny = (typeof MOCK)[number] & Record<string, unknown>;
 
 export function norm(s: string) {
   return String(s ?? "").trim().toLowerCase();
 }
 
-/** CSV helpers (нужны useCatalogParams) */
 export function parseCSV(v: string | null) {
   if (!v) return [];
   return v
@@ -23,11 +22,6 @@ export function setCSV(params: URLSearchParams, key: string, arr: string[]) {
   else params.set(key, arr.join(","));
 }
 
-/**
- * ✅ Канонизатор бренда.
- * В данных/папках у тебя: "scandi" (это канон)
- * А в UI/ссылках может прилетать: "scandy" или "skandy"
- */
 export function normalizeBrandSlug(v: string) {
   const s = norm(v);
   if (!s) return "";
@@ -39,7 +33,6 @@ export function normalizeBrandSlug(v: string) {
   return s;
 }
 
-// ✅ коллекции могут прилетать как slug или как title
 export function normalizeCollectionToken(v: string) {
   const t0 = normalizeBrandSlug(v);
   if (!t0) return "";
@@ -57,8 +50,7 @@ export function normalizeModuleToken(v: string) {
   let t = norm(v);
   if (!t) return "";
 
-  // ✅ алиасы для "тумбы" — приводим ВСЁ к tumbi
-  if (t === "tumby") t = "tumbi"; // важный алиас: папки tumby, UI tumbi
+  if (t === "tumby") t = "tumbi";
   if (t === "tumba" || t === "tumb") t = "tumbi";
   if (t === "тумба" || t === "тумбы") t = "tumbi";
 
@@ -104,8 +96,6 @@ export function getCollectionSlug(p: ProductAny) {
 }
 
 export function getModuleSlug(p: ProductAny) {
-  // ✅ КРИТИЧНО: модуль тоже должен проходить normalizeModuleToken
-  // иначе tumby vs tumbi никогда не совпадут
   const raw = p.type ?? p.module ?? p.kind ?? p.item_type ?? p.cat ?? "";
   return normalizeModuleToken(String(raw ?? ""));
 }

@@ -1,7 +1,7 @@
 // app/catalog/ui/CatalogClient.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import gsap from "gsap";
 
@@ -11,7 +11,7 @@ import CatalogTopBar from "./CatalogTopBar";
 import CatalogHeroSlider from "./CatalogHeroSlider";
 
 import { DOOR_ITEMS, MODULE_ITEMS } from "./catalog-constants";
-import { norm, getCollectionSlug, getModuleSlug } from "./catalog-utils";
+import { norm } from "./catalog-utils";
 import { useCatalogParams } from "./useCatalogParams";
 import { useCatalogData } from "./useCatalogData";
 
@@ -19,6 +19,47 @@ import { HERO_SLIDES_MANIFEST, makeSlidesFromConf } from "./heroSlidesManifest";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
+
+type UnknownRecord = Record<string, unknown>;
+type ProductAnyLocal = Record<string, unknown>;
+
+const isRecord = (v: unknown): v is UnknownRecord =>
+  typeof v === "object" && v !== null;
+
+const isString = (v: unknown): v is string => typeof v === "string";
+const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
+const isNumber = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+const getUnknown = (v: unknown, key: string): unknown => {
+  if (!isRecord(v)) return undefined;
+  return v[key];
+};
+
+const getRecord = (v: unknown, key: string): UnknownRecord | null => {
+  const val = getUnknown(v, key);
+  return isRecord(val) ? val : null;
+};
+
+const getString = (v: unknown, key: string): string => {
+  const val = getUnknown(v, key);
+  return isString(val) ? val : "";
+};
+
+const getOptionalString = (v: unknown, key: string): string | undefined => {
+  const s = getString(v, key).trim();
+  return s ? s : undefined;
+};
+
+const getBoolean = (v: unknown, key: string, fallback: boolean): boolean => {
+  const val = getUnknown(v, key);
+  return isBoolean(val) ? val : fallback;
+};
+
+const getNumberOr = (v: unknown, key: string, fallback: number): number => {
+  const val = getUnknown(v, key);
+  return isNumber(val) ? val : fallback;
+};
 
 function joinUrl(base: string, path: string) {
   const b = String(base || "").replace(/\/+$/, "");
@@ -28,37 +69,116 @@ function joinUrl(base: string, path: string) {
   return `${b}${p.startsWith("/") ? "" : "/"}${p}`;
 }
 
-function pickStrapiItem(item: any) {
-  const src = item?.attributes ?? item ?? {};
-  const id = src?.id ?? item?.id ?? src?.documentId ?? undefined;
+type CatalogStrapiItem = ProductAnyLocal & {
+  id: string;
+  productId: string;
+  slug?: string;
 
+  title: string;
+  brand?: string;
+  cat?: string;
+  collection?: string;
+  module?: string;
+
+  badge?: string;
+  collectionBadge?: string;
+
+  isActive: boolean;
+  sortOrder?: number;
+
+  priceUZS: number;
+  priceRUB: number;
+  oldPriceUZS?: number;
+  oldPriceRUB?: number;
+
+  image: string;
+  gallery: string[];
+
+  __source: "strapi";
+  __openKey: string;
+  __catalogHref: string;
+};
+
+function pickStrapiItem(item: unknown): CatalogStrapiItem {
+  const itemRec = isRecord(item) ? item : {};
+  const src = getRecord(itemRec, "attributes") ?? itemRec;
+
+  const rawId =
+    getUnknown(src, "id") ??
+    getUnknown(itemRec, "id") ??
+    getUnknown(src, "documentId");
+
+  const id = String(rawId ?? "").trim() || getString(src, "slug").trim() || "";
+
+  const media = getRecord(src, "media");
   const mediaUrl =
-    src?.media?.url ??
-    src?.media?.data?.attributes?.url ??
-    src?.media?.data?.url ??
+    (media ? getString(media, "url") : "") ||
+    (() => {
+      const d = media ? getRecord(media, "data") : null;
+      const a = d ? getRecord(d, "attributes") : null;
+      return (a ? getString(a, "url") : "") || (d ? getString(d, "url") : "");
+    })() ||
     "";
 
-  const galleryData = src?.gallery?.data ?? src?.gallery ?? [];
-  const galleryArr = Array.isArray(galleryData) ? galleryData : [];
+  const galleryDataRaw = getUnknown(src, "gallery");
+  const galleryData =
+    (isRecord(galleryDataRaw)
+      ? getUnknown(galleryDataRaw, "data")
+      : undefined) ?? galleryDataRaw;
 
+  const galleryArr = Array.isArray(galleryData) ? galleryData : [];
   const gallery = galleryArr
-    .map((g: any) => g?.attributes?.url ?? g?.url ?? "")
+    .map((g) => {
+      if (!isRecord(g)) return "";
+      const attrs = getRecord(g, "attributes");
+      return (
+        (attrs ? getString(attrs, "url") : "") || getString(g, "url") || ""
+      );
+    })
     .filter(Boolean);
 
-  const col = String(src?.collection ?? src?.brand ?? "")
-    .trim()
-    .toLowerCase();
-  const mod = String(src?.module ?? src?.cat ?? "")
+  const slug = getOptionalString(src, "slug");
+  const productIdRaw = getUnknown(src, "productId");
+  const productId = String(productIdRaw ?? slug ?? id ?? "").trim() || id;
+
+  const collection = getOptionalString(src, "collection");
+  const moduleSlug = getOptionalString(src, "module");
+  const brand = getOptionalString(src, "brand");
+  const cat = getOptionalString(src, "cat");
+
+  const badge =
+    getOptionalString(src, "collectionBadge") ??
+    getOptionalString(src, "badge");
+  const collectionBadge = getOptionalString(src, "collectionBadge");
+
+  const isActive = getBoolean(src, "isActive", true);
+
+  const sortOrderRaw = getUnknown(src, "sortOrder");
+  const sortOrder = isNumber(sortOrderRaw) ? sortOrderRaw : undefined;
+
+  const priceUZS = getNumberOr(src, "priceUZS", 0);
+  const priceRUB = getNumberOr(src, "priceRUB", 0);
+
+  const oldPriceUZSRaw = getUnknown(src, "oldPriceUZS");
+  const oldPriceUZS = isNumber(oldPriceUZSRaw) ? oldPriceUZSRaw : undefined;
+
+  const oldPriceRUBRaw = getUnknown(src, "oldPriceRUB");
+  const oldPriceRUB = isNumber(oldPriceRUBRaw) ? oldPriceRUBRaw : undefined;
+
+  const openKey = String(slug ?? productId ?? id ?? "")
     .trim()
     .toLowerCase();
 
-  const openKey = String(src?.slug ?? src?.productId ?? id ?? "")
+  const colQ = String(collection ?? brand ?? "")
+    .trim()
+    .toLowerCase();
+  const modQ = String(moduleSlug ?? cat ?? "")
     .trim()
     .toLowerCase();
 
   const catalogHref = `/catalog?${[
-    col ? `collections=${encodeURIComponent(col)}` : "",
-    mod ? `types=${encodeURIComponent(mod)}` : "",
+    colQ ? `collections=${encodeURIComponent(colQ)}` : "",
+    modQ ? `types=${encodeURIComponent(modQ)}` : "",
     openKey ? `open=${encodeURIComponent(openKey)}` : "",
   ]
     .filter(Boolean)
@@ -66,28 +186,27 @@ function pickStrapiItem(item: any) {
 
   return {
     id,
-    productId: src?.productId ?? src?.slug ?? id,
-    slug: src?.slug ?? undefined,
+    productId,
+    slug,
 
-    title: src?.title ?? "",
-    brand: src?.brand ?? undefined,
-    cat: src?.cat ?? undefined,
-    collection: src?.collection ?? undefined,
-    module: src?.module ?? undefined,
+    title: getString(src, "title"),
+    brand,
+    cat,
+    collection,
+    module: moduleSlug,
 
-    badge: src?.collectionBadge ?? src?.badge ?? undefined,
-    collectionBadge: src?.collectionBadge ?? undefined,
+    badge,
+    collectionBadge,
 
-    isActive: src?.isActive ?? true,
-    sortOrder: src?.sortOrder ?? undefined,
+    isActive,
+    sortOrder,
 
-    priceUZS: src?.priceUZS ?? 0,
-    priceRUB: src?.priceRUB ?? 0,
-    oldPriceUZS: src?.oldPriceUZS ?? undefined,
-    oldPriceRUB: src?.oldPriceRUB ?? undefined,
+    priceUZS,
+    priceRUB,
+    oldPriceUZS,
+    oldPriceRUB,
 
     image: mediaUrl,
-    cardImage: src?.media ?? mediaUrl,
     gallery,
 
     __source: "strapi",
@@ -106,7 +225,6 @@ function declOfGoods(n: number) {
   return "товаров";
 }
 
-// ✅ безопасные описания по коллекциям (можешь расширять)
 const HERO_DESC_BY_COLLECTION: Record<string, string> = {
   amber:
     "Коллекция AMBER — премиальный баланс эстетики, уюта и функциональности. Благородные оттенки, чистые линии и продуманные детали создают атмосферу спокойствия и превращают пространство в место для полноценного отдыха.",
@@ -152,6 +270,9 @@ export default function CatalogClient({
     heroRoom,
   } = useCatalogParams({ initialBrand, initialCategory });
 
+  type SidebarValue = typeof sidebarValue;
+  type SortValue = Parameters<typeof setSort>[0];
+
   const TEST_MODE = process.env.NEXT_PUBLIC_STRAPI_TEST_MODE === "true";
   const CATALOG_SOURCE = String(
     process.env.NEXT_PUBLIC_CATALOG_SOURCE || "mocks",
@@ -162,6 +283,7 @@ export default function CatalogClient({
   const STRAPI_URL = String(process.env.NEXT_PUBLIC_STRAPI_URL || "").trim();
 
   useEffect(() => {
+    // eslint-disable-next-line no-console
     console.log("CATALOG ENV DEBUG:", {
       CATALOG_SOURCE,
       STRAPI_URL,
@@ -169,8 +291,6 @@ export default function CatalogClient({
     });
   }, [CATALOG_SOURCE, STRAPI_URL, TEST_MODE]);
 
-  // ==========================
-  // ✅ FIX: helpers to prevent duplicated CSV params (types=tumbi,tumbi,...)
   // ==========================
   const uniq = (arr: string[]) =>
     Array.from(
@@ -196,30 +316,22 @@ export default function CatalogClient({
   };
 
   const setNumParam = (params: URLSearchParams, key: string, n: number) => {
-    const v = Number.isFinite(Number(n)) ? String(Number(n)) : "";
+    const num = Number(n);
+    const v = Number.isFinite(num) ? String(num) : "";
     if (!v || v === "0") params.delete(key);
     else params.set(key, v);
   };
 
-  // ✅ FIX: Always pass a deduped value to FiltersSidebar UI
-  const sidebarValueSafe = useMemo(() => {
+  const sidebarValueSafe: SidebarValue = useMemo(() => {
     return {
       ...sidebarValue,
       menu: uniq(sidebarValue.menu),
       collections: uniq(sidebarValue.collections),
       types: uniq(sidebarValue.types),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    sidebarValue.menu.join(","),
-    sidebarValue.collections.join(","),
-    sidebarValue.types.join(","),
-    sidebarValue.priceMin,
-    sidebarValue.priceMax,
-  ]);
+  }, [sidebarValue]);
 
-  // ✅ FIX: Intercept sidebar change and write query via params.set (no append)
-  const onSidebarChangeSafe = (next: typeof sidebarValue) => {
+  const onSidebarChangeSafe = (next: SidebarValue) => {
     pushParams((params) => {
       setCSVParam(params, "menu", next.menu);
       setCSVParam(params, "collections", next.collections);
@@ -238,9 +350,10 @@ export default function CatalogClient({
   };
 
   // ==========================
-  // ✅ Strapi Products fetch (safe + REAL pagination loop)
-  // ==========================
-  const [strapiItems, setStrapiItems] = useState<any[] | null>(null);
+
+  const [strapiItems, setStrapiItems] = useState<CatalogStrapiItem[] | null>(
+    null,
+  );
 
   useEffect(() => {
     let alive = true;
@@ -257,11 +370,11 @@ export default function CatalogClient({
       }
 
       try {
-        const pageSize = 200; // нормальный pageSize, но с циклом по pageCount
+        const pageSize = 200;
 
         let page = 1;
         let pageCount = 1;
-        const acc: any[] = [];
+        const acc: unknown[] = [];
 
         while (page <= pageCount) {
           const url = joinUrl(
@@ -288,40 +401,45 @@ export default function CatalogClient({
           const res = await fetch(url, { next: { revalidate: 60 } });
           if (!res.ok) throw new Error("Strapi products fetch failed");
 
-          const json = await res.json();
-
-          const arr = Array.isArray(json?.data) ? json.data : [];
+          const json: unknown = await res.json();
+          const data = isRecord(json) ? getUnknown(json, "data") : undefined;
+          const arr = Array.isArray(data) ? data : [];
           acc.push(...arr);
 
-          const meta = json?.meta?.pagination ?? {};
-          pageCount = Number(meta?.pageCount ?? 1) || 1;
+          const meta = isRecord(json) ? getRecord(json, "meta") : null;
+          const pagination = meta ? getRecord(meta, "pagination") : null;
+          const pc = pagination
+            ? getUnknown(pagination, "pageCount")
+            : undefined;
+          pageCount = typeof pc === "number" && pc > 0 ? pc : 1;
 
           page += 1;
-
           if (!alive) return;
         }
 
-        const mapped = acc.map((it: any) => pickStrapiItem(it)).filter(Boolean);
+        const mapped = acc.map((it) => pickStrapiItem(it));
 
         if (alive) {
+          // eslint-disable-next-line no-console
           console.log("[catalog] strapi fetched:", mapped.length);
           setStrapiItems(mapped);
         }
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error("Strapi products fetch failed", e);
         if (alive) setStrapiItems([]);
       }
     };
 
-    run();
+    void run();
     return () => {
       alive = false;
     };
   }, [CATALOG_SOURCE, STRAPI_URL]);
 
   const baseItems = useMemo(() => {
-    if (CATALOG_SOURCE !== "strapi") return [];
-    if (!Array.isArray(strapiItems)) return [];
+    if (CATALOG_SOURCE !== "strapi") return [] as CatalogStrapiItem[];
+    if (!Array.isArray(strapiItems)) return [] as CatalogStrapiItem[];
     return strapiItems;
   }, [CATALOG_SOURCE, strapiItems]);
 
@@ -348,51 +466,51 @@ export default function CatalogClient({
     baseItems,
   });
 
+  type CatalogItemRec = Record<string, unknown>;
+  const isCatalogItemActive = (p: unknown): p is CatalogItemRec => {
+    if (!isRecord(p)) return false;
+
+    if (getUnknown(p, "isActive") === false) return false;
+
+    if (Object.prototype.hasOwnProperty.call(p, "publishedAt")) {
+      if (getUnknown(p, "publishedAt") === null) return false;
+    }
+
+    return true;
+  };
+
+  const sorted3 = (sorted ?? []).filter(isCatalogItemActive);
+  const bedroomsFirstList3 = (bedroomsFirstList ?? []).filter(
+    isCatalogItemActive,
+  );
+  const collectionRest3 = (collectionRest ?? []).filter(isCatalogItemActive);
+
+  const bedroomsFirst3: CatalogItemRec | null =
+    bedroomsFirst && isCatalogItemActive(bedroomsFirst) ? bedroomsFirst : null;
+
   const activeDoor = selectedDoors[0] || "";
   const activeFacade = selectedFacades[0] || "";
 
   const heroRoomEffective = heroRoom || activeRoom;
 
-  // ✅ price-entries больше не используем вообще
-  const applyPrices = useMemo(() => {
-    return (p: any) => ({
-      ...p,
-      __hasProductPage: true,
-    });
-  }, []);
-
-  const bedroomsFirst2 = bedroomsFirst
-    ? applyPrices(bedroomsFirst as any)
-    : null;
-  const bedroomsFirstList2 = (bedroomsFirstList ?? []).map(applyPrices);
-  const collectionRest2 = (collectionRest ?? []).map(applyPrices);
-  const sorted2 = (sorted ?? []).map(applyPrices);
-
-  // ✅ ВАЖНО: показываем ВСЕ товары (задача: видеть все 485)
-  // ✅ Показываем ТОЛЬКО активные и опубликованные товары
-  const filterActive = (p: any) => {
-    if (p?.isActive === false) return false;
-    if ("publishedAt" in p && p?.publishedAt === null) return false;
-    return true;
-  };
-
-  const sorted3 = (sorted2 ?? []).filter(filterActive);
-  const bedroomsFirstList3 = (bedroomsFirstList2 ?? []).filter(filterActive);
-  const collectionRest3 = (collectionRest2 ?? []).filter(filterActive);
-
-  const bedroomsFirst3 =
-    bedroomsFirst2 && !filterActive(bedroomsFirst2 as any)
-      ? null
-      : bedroomsFirst2;
-
   const moduleItemsForCollection = useMemo(() => {
     if (!activeCollection) return [];
 
+    const getCollectionSlugSafe = (p: CatalogStrapiItem): string => {
+      const raw = String(p.collection ?? p.brand ?? "").trim();
+      return raw ? norm(raw) : "";
+    };
+
+    const getModuleSlugSafe = (p: CatalogStrapiItem): string => {
+      const raw = String(p.module ?? p.cat ?? "").trim();
+      return raw ? norm(raw) : "";
+    };
+
     const set = new Set<string>();
-    for (const p of baseItems as any[]) {
-      const col = getCollectionSlug(p);
+    for (const p of baseItems) {
+      const col = getCollectionSlugSafe(p);
       if (col && col === activeCollection) {
-        const mod = getModuleSlug(p);
+        const mod = getModuleSlugSafe(p);
         if (mod) set.add(mod);
       }
     }
@@ -408,7 +526,7 @@ export default function CatalogClient({
     return [...known, ...unknown];
   }, [activeCollection, baseItems]);
 
-  const [heroSlides, setHeroSlides] = useState<string[]>([]);
+  const doorItems = useMemo(() => [...DOOR_ITEMS], []);
 
   const roomLabel = useMemo(() => {
     const v = String(heroRoomEffective || "")
@@ -436,24 +554,25 @@ export default function CatalogClient({
     return `Коллекция ${String(activeCollection).toUpperCase()} — премиальное решение для ${rn}. Чистый дизайн, качественные материалы и продуманная функциональность создают цельный и дорогой образ пространства.`;
   }, [activeCollection, roomLabel]);
 
-  useEffect(() => {
-    if (!hero || !heroRoomEffective || !activeCollection) {
-      setHeroSlides([]);
-      return;
-    }
+  const heroSlides = useMemo((): string[] => {
+    if (!hero || !heroRoomEffective || !activeCollection) return [];
 
     const room = String(heroRoomEffective).trim().toLowerCase();
     const col = String(activeCollection).trim().toLowerCase();
     const key = `${room}:${col}`;
 
     const conf = HERO_SLIDES_MANIFEST?.[key];
-    if (!conf) {
-      setHeroSlides([]);
-      return;
-    }
+    if (!conf) return [];
 
-    setHeroSlides(makeSlidesFromConf(conf));
+    return makeSlidesFromConf(conf);
   }, [hero, heroRoomEffective, activeCollection]);
+
+  const menu = sidebarValue.menu;
+  const collections = sidebarValue.collections;
+  const types = sidebarValue.types;
+  const priceMin = sidebarValue.priceMin;
+  const priceMax = sidebarValue.priceMax;
+  const strapiLen = Array.isArray(strapiItems) ? strapiItems.length : 0;
 
   useEffect(() => {
     if (!gridRef.current) return;
@@ -461,9 +580,10 @@ export default function CatalogClient({
     gsap.killTweensOf(cards);
 
     cards.forEach((el) => {
-      (el as HTMLElement).style.opacity = "1";
-      (el as HTMLElement).style.transform = "translate3d(0,0,0)";
-      (el as HTMLElement).style.filter = "none";
+      const h = el as HTMLElement;
+      h.style.opacity = "1";
+      h.style.transform = "translate3d(0,0,0)";
+      h.style.filter = "none";
     });
 
     gsap.fromTo(
@@ -479,18 +599,18 @@ export default function CatalogClient({
       },
     );
   }, [
-    sidebarValue.menu.join(","),
-    sidebarValue.collections.join(","),
-    sidebarValue.types.join(","),
-    sidebarValue.priceMin,
-    sidebarValue.priceMax,
+    menu,
+    collections,
+    types,
+    priceMin,
+    priceMax,
     region,
     qFromUrl,
     sort,
-    selectedDoors.join(","),
-    selectedFacades.join(","),
+    selectedDoors,
+    selectedFacades,
     CATALOG_SOURCE,
-    strapiItems?.length,
+    strapiLen,
   ]);
 
   const TopBar = (
@@ -506,9 +626,9 @@ export default function CatalogClient({
       setSort={setSort}
       activeDoor={activeDoor}
       activeFacade={activeFacade}
-      doorItems={DOOR_ITEMS as any}
-      facadeItems={facadeItems as any}
-      moduleItemsForCollection={moduleItemsForCollection as any}
+      doorItems={doorItems}
+      facadeItems={facadeItems}
+      moduleItemsForCollection={moduleItemsForCollection}
       onPickRoom={(v) =>
         setSingleCSVParam(
           "menu",
@@ -568,11 +688,16 @@ export default function CatalogClient({
     sortKey.includes("high");
   const isPriceAsc = isPrice && !isPriceDesc;
 
-  const setPopularSort = () => setSort("popular" as any);
-  const setUpdatedSort = () => setSort("updated" as any);
+  const POPULAR_SORT: SortValue = "popular";
+  const UPDATED_SORT: SortValue = "updated";
+  const PRICE_ASC: SortValue = "price_asc";
+  const PRICE_DESC: SortValue = "price_desc";
+
+  const setPopularSort = () => setSort(POPULAR_SORT);
+  const setUpdatedSort = () => setSort(UPDATED_SORT);
   const togglePriceSort = () => {
-    if (isPrice) setSort((isPriceAsc ? "price_desc" : "price_asc") as any);
-    else setSort("price_asc" as any);
+    if (isPrice) setSort(isPriceAsc ? PRICE_DESC : PRICE_ASC);
+    else setSort(PRICE_ASC);
   };
 
   return (
@@ -630,9 +755,9 @@ export default function CatalogClient({
 
           <div className="catalog-filters-wrap">
             <FiltersSidebar
-              value={sidebarValueSafe as any}
+              value={sidebarValueSafe}
               meta={sidebarMeta}
-              onChange={onSidebarChangeSafe as any}
+              onChange={onSidebarChangeSafe}
               onReset={() =>
                 pushParams((params) => {
                   params.delete("menu");
@@ -714,11 +839,11 @@ export default function CatalogClient({
 
           <CatalogGrid
             gridRef={gridRef}
-            items={sorted3 as any}
+            items={sorted3}
             fmtPrice={fmtPrice}
-            bedroomsFirst={bedroomsFirst3 as any}
-            bedroomsFirstList={bedroomsFirstList3 as any}
-            collectionRest={collectionRest3 as any}
+            bedroomsFirst={bedroomsFirst3}
+            bedroomsFirstList={bedroomsFirstList3}
+            collectionRest={collectionRest3}
             collectionTitle={activeCollection}
           />
 

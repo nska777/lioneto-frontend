@@ -19,12 +19,38 @@ import { fetchProductsMap, type LiteProduct } from "@/app/lib/strapi/products";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-function formatMoney(n: number, region: "uz" | "ru") {
+type Region = "uz" | "ru";
+type CatalogProduct = (typeof CATALOG_MOCK)[number];
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+
+function asString(v: unknown): string {
+  return isString(v) ? v : "";
+}
+
+function getStr(p: unknown, key: string): string {
+  if (!isRecord(p)) return "";
+  return asString(p[key]);
+}
+
+function getArrStr(p: unknown, key: string): string[] {
+  if (!isRecord(p)) return [];
+  const v = p[key];
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === "string");
+}
+
+function formatMoney(n: number, region: Region) {
   if (region === "uz") return new Intl.NumberFormat("ru-RU").format(n) + " сум";
   return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
 }
 
-/** ✅ Лейбл коллекции по slug (brand) */
 function labelByBrandSlug(slug: string | null | undefined) {
   const s = String(slug ?? "")
     .trim()
@@ -34,7 +60,6 @@ function labelByBrandSlug(slug: string | null | undefined) {
   return found ? found.title : s.toUpperCase();
 }
 
-/** ✅ <img> вместо next/image (Strapi/localhost/remote) */
 function SafeImg({ src, alt }: { src: string; alt: string }) {
   const [broken, setBroken] = React.useState(false);
 
@@ -70,38 +95,50 @@ type VariantAny = {
   gallery?: string[];
 };
 
-/**
- * ✅ Приводим variants к ПЛОСКОМУ списку:
- * - либо variants уже плоский массив VariantAny[]
- * - либо это группы: [{group, items:[VariantAny]}]
- */
-function flattenVariantsForCart(product: any): VariantAny[] {
-  const raw = product?.variants;
+function toNum(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function flattenVariantsForCart(product: unknown): VariantAny[] {
+  if (!isRecord(product)) return [];
+  const raw = product.variants;
   if (!Array.isArray(raw)) return [];
 
+  const first = raw[0];
   const looksGrouped =
-    raw.length > 0 &&
-    typeof raw[0] === "object" &&
-    raw[0] &&
-    Array.isArray((raw[0] as any).items);
+    isRecord(first) && Array.isArray((first as Record<string, unknown>).items);
 
   if (looksGrouped) {
     const out: VariantAny[] = [];
     for (const g of raw) {
-      const group = String((g as any)?.group ?? "").trim();
-      const items = Array.isArray((g as any)?.items) ? (g as any).items : [];
+      if (!isRecord(g)) continue;
+
+      const group = String(g.group ?? "").trim();
+      const itemsRaw = g.items;
+      const items = Array.isArray(itemsRaw) ? itemsRaw : [];
+
       for (const it of items) {
-        if (!it) continue;
-        const id = String((it as any).id ?? "").trim();
+        if (!isRecord(it)) continue;
+
+        const id = String(it.id ?? "").trim();
         if (!id) continue;
 
+        const localGroup =
+          String(it.group ?? group ?? "").trim() || (group ? group : undefined);
+
         out.push({
-          ...(it as any),
           id,
-          group:
-            String((it as any).group ?? group ?? "").trim() ||
-            group ||
-            undefined,
+          title: isString(it.title) ? it.title : undefined,
+          group: localGroup,
+          priceDeltaRUB: toNum(it.priceDeltaRUB),
+          priceDeltaUZS: toNum(it.priceDeltaUZS),
+          image: isString(it.image) ? it.image : null,
+          gallery: Array.isArray(it.gallery)
+            ? (it.gallery.filter(
+                (x): x is string => typeof x === "string",
+              ) as string[])
+            : undefined,
         });
       }
     }
@@ -109,18 +146,37 @@ function flattenVariantsForCart(product: any): VariantAny[] {
   }
 
   return raw
-    .map((v: any) => ({
-      ...(v as any),
-      id: String(v?.id ?? "").trim(),
-      group: v?.group ? String(v.group).trim() : undefined,
-    }))
-    .filter((v: any) => v && v.id);
+    .map((v): VariantAny | null => {
+      if (!isRecord(v)) return null;
+
+      const id = String(v.id ?? "").trim();
+      if (!id) return null;
+
+      const title = isString(v.title) ? v.title : undefined;
+      const group = isString(v.group) ? v.group.trim() : undefined;
+
+      const priceDeltaRUB = toNum(v.priceDeltaRUB);
+      const priceDeltaUZS = toNum(v.priceDeltaUZS);
+
+      const image = isString(v.image) ? v.image : null;
+
+      const gallery = Array.isArray(v.gallery)
+        ? v.gallery.filter((x): x is string => typeof x === "string")
+        : undefined;
+
+      return {
+        id,
+        title,
+        group,
+        priceDeltaRUB,
+        priceDeltaUZS,
+        image,
+        gallery,
+      };
+    })
+    .filter((x): x is VariantAny => x !== null);
 }
 
-/**
- * ✅ Умный поиск варианта по "part" из variantId корзины.
- * Возвращает VariantAny | undefined (НЕ null) — чтобы TS не падал.
- */
 function findVariantForPart(
   part: string,
   variants: VariantAny[],
@@ -132,14 +188,12 @@ function findVariantForPart(
   const group = hasColon ? String(p.split(":")[0] ?? "").trim() : "";
   const val = hasColon ? String(p.split(":")[1] ?? "").trim() : p;
 
-  // 1) прямое совпадение по id
   let found =
     variants.find((v) => String(v.id) === p) ||
     variants.find((v) => String(v.id) === val);
 
   if (found) return found;
 
-  // 2) совпадение по group + val (если у варианта group отдельно)
   if (group) {
     found = variants.find(
       (v) =>
@@ -148,7 +202,6 @@ function findVariantForPart(
     if (found) return found;
   }
 
-  // 3) если id варианта хранит "group:val" внутри
   if (group) {
     found = variants.find((v) => {
       const vid = String(v.id ?? "").trim();
@@ -159,7 +212,6 @@ function findVariantForPart(
     if (found) return found;
   }
 
-  // 4) fallback: если val совпадает с концом "something:val"
   found = variants.find((v) => {
     const vid = String(v.id ?? "").trim();
     if (!vid.includes(":")) return false;
@@ -170,11 +222,6 @@ function findVariantForPart(
   return found;
 }
 
-/**
- * ✅ Разбираем composite variantId из корзины:
- * - title = склейка title вариантов
- * - image = gallery[0] или image первого найденного варианта
- */
 function parseCompositeVariantForCart(
   variantId: string,
   variants: VariantAny[],
@@ -209,22 +256,55 @@ function parseCompositeVariantForCart(
   return { title: title || null, image };
 }
 
-function itSafeTitle(p: any) {
-  const t = p?.title;
-  if (typeof t === "string") return t;
+function itSafeTitle(p: unknown) {
+  const t = isRecord(p) ? p.title : undefined;
+  return typeof t === "string" ? t : "";
+}
+
+function readPriceFromObj(obj: unknown, region: Region) {
+  if (!isRecord(obj)) return 0;
+
+  const uz = obj.priceUZS ?? obj.price_uzs ?? obj.priceUzs ?? null;
+  const ru = obj.priceRUB ?? obj.price_rub ?? obj.priceRub ?? null;
+
+  const raw = region === "uz" ? uz : ru;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function readBrandSlug(p: unknown): string {
+  if (!isRecord(p)) return "";
+  return asString(p.brand);
+}
+
+function readFirstImage(p: unknown): string {
+  if (!isRecord(p)) return "";
+  const img = p.image;
+  if (typeof img === "string") return img;
+
+  const g = p.gallery;
+  if (Array.isArray(g)) {
+    const first = g.find(
+      (x): x is string => typeof x === "string" && !!x.trim(),
+    );
+    return first ? first : "";
+  }
+
   return "";
 }
 
-function readPriceFromObj(obj: any, region: "uz" | "ru") {
-  if (!obj) return 0;
-
-  const uz = obj?.priceUZS ?? obj?.price_uzs ?? obj?.priceUzs ?? null;
-  const ru = obj?.priceRUB ?? obj?.price_rub ?? obj?.priceRub ?? null;
-
-  const raw = region === "uz" ? uz : ru;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
+type CartItem = {
+  key: string;
+  productId: string;
+  variantId: string;
+  variantTitle: string | null;
+  product: CatalogProduct | LiteProduct;
+  qty: number;
+  unit: number;
+  sum: number;
+  image: string;
+  collectionLabel: string | null;
+};
 
 export default function CartClient() {
   const router = useRouter();
@@ -268,37 +348,35 @@ export default function CartClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIds.join("|")]);
 
-  const items = useMemo(() => {
+  const items = useMemo((): CartItem[] => {
     return keys
       .map((key) => {
-        const { productId, variantId } = shop.parseKey(key);
+        const parsedKey = shop.parseKey(key);
+        const pid = String(parsedKey.productId);
+        const vidRaw = String(parsedKey.variantId || "base");
 
-        const pid = String(productId);
-        const vidRaw = String(variantId || "base");
+        const pMockUnknown = CATALOG_BY_ID.get(pid) as unknown;
+        const pMock = (pMockUnknown ?? undefined) as unknown;
 
-        const pMock = CATALOG_BY_ID.get(pid) as any | undefined;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
 
-        // ✅ Для отображения оставляем как у тебя: сначала моки, потом Strapi
-        const pDisplay = (pMock ?? pStrapi) as any;
+        const pDisplay: unknown = (pMockUnknown ?? pStrapi) as unknown;
         if (!pDisplay) return null;
 
-        // ✅ Для расчётов: Strapi приоритет
-        const pForCalc = (pStrapi ?? pMock ?? pDisplay) as any;
+        const pForCalc: unknown = (pStrapi ??
+          pMockUnknown ??
+          pDisplay) as unknown;
 
         const qty = Math.max(1, Math.floor(Number(shop.cart[key] ?? 1)));
 
-        // ✅ variants — из pForCalc (Strapi приоритет)
         const variants: VariantAny[] = flattenVariantsForCart(pForCalc);
 
-        const parsed = parseCompositeVariantForCart(vidRaw, variants);
+        const parsedVariant = parseCompositeVariantForCart(vidRaw, variants);
 
-        // ✅ базовая цена: Strapi -> моки
         const baseFromStrapi = readPriceFromObj(pStrapi, region);
-        const baseFromMocks = readPriceFromObj(pMock, region);
+        const baseFromMocks = readPriceFromObj(pMockUnknown, region);
         const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-        // ✅ delta из variants (Strapi приоритет)
         const pickedForDelta: VariantAny[] = [];
         const raw = String(vidRaw).trim();
         if (raw && raw !== "base") {
@@ -316,36 +394,36 @@ export default function CartClient() {
         const delta = pickedForDelta.reduce((acc, v) => {
           const d =
             region === "uz"
-              ? Number(v?.priceDeltaUZS ?? 0)
-              : Number(v?.priceDeltaRUB ?? 0);
-          return acc + (Number(d ?? 0) || 0);
+              ? toNum(v.priceDeltaUZS ?? 0)
+              : toNum(v.priceDeltaRUB ?? 0);
+          return acc + d;
         }, 0);
 
         const unit = baseUnit + delta;
 
-        // ✅ картинка: вариант -> Strapi product -> display fallback
         const image =
-          (parsed.image ? String(parsed.image) : "") ||
-          String(
-            (pStrapi as any)?.image || (pStrapi as any)?.gallery?.[0] || "",
-          ) ||
-          String(pDisplay?.image || pDisplay?.gallery?.[0] || "");
+          (parsedVariant.image ? String(parsedVariant.image) : "") ||
+          readFirstImage(pStrapi) ||
+          readFirstImage(pDisplay);
 
-        const brandSlug = String(
-          pDisplay?.brand ?? (pStrapi as any)?.brand ?? "",
-        );
+        const brandSlug = readBrandSlug(pDisplay) || readBrandSlug(pStrapi);
         const collectionLabel = labelByBrandSlug(brandSlug);
 
-        const title = String(
-          itSafeTitle(pStrapi) || itSafeTitle(pDisplay) || "Товар",
-        );
+        const title = itSafeTitle(pStrapi) || itSafeTitle(pDisplay) || "Товар";
+
+        const productForUI: CatalogProduct | LiteProduct = isRecord(pDisplay)
+          ? ({
+              ...(pDisplay as Record<string, unknown>),
+              title,
+            } as unknown as CatalogProduct | LiteProduct)
+          : (pStrapi ?? ({} as LiteProduct));
 
         return {
           key,
           productId: pid,
           variantId: vidRaw,
-          variantTitle: parsed.title,
-          product: { ...(pDisplay as any), title } as any,
+          variantTitle: parsedVariant.title,
+          product: productForUI,
           qty,
           unit,
           sum: unit * qty,
@@ -353,18 +431,7 @@ export default function CartClient() {
           collectionLabel,
         };
       })
-      .filter(Boolean) as Array<{
-      key: string;
-      productId: string;
-      variantId: string;
-      variantTitle: string | null;
-      product: (typeof CATALOG_MOCK)[number] | any;
-      qty: number;
-      unit: number;
-      sum: number;
-      image: string;
-      collectionLabel: string | null;
-    }>;
+      .filter((x): x is CartItem => !!x);
   }, [keys, shop, shop.cart, region, productsMap]);
 
   const total = useMemo(
@@ -463,7 +530,10 @@ export default function CartClient() {
                     href={`/product/${it.productId}`}
                     className="cursor-pointer relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-black/5"
                   >
-                    <SafeImg src={it.image} alt={it.product.title} />
+                    <SafeImg
+                      src={it.image}
+                      alt={getStr(it.product, "title") || "Товар"}
+                    />
                   </Link>
 
                   <div className="min-w-0 flex-1">
@@ -478,7 +548,7 @@ export default function CartClient() {
                               {it.collectionLabel} /{" "}
                             </span>
                           ) : null}
-                          {it.product.title}
+                          {getStr(it.product, "title") || "Товар"}
                         </Link>
 
                         {it.variantTitle && it.variantId !== "base" ? (

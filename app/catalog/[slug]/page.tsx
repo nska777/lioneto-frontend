@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { ComponentProps } from "react";
 import ProductClient from "@/app/product/[id]/ui/ProductClient";
 
 import { megaCategories, MEGA_PREVIEWS } from "@/app/lib/headerData";
@@ -15,7 +16,6 @@ function parseCollectionSlug(slug: string) {
   return { brand: m[1], category: m[2] };
 }
 
-// ✅ минимальный safe-reader для объектов из headerData (без правок типов)
 function pickLabel(obj: unknown): string | undefined {
   if (!obj || typeof obj !== "object") return undefined;
   const o = obj as Record<string, unknown>;
@@ -23,7 +23,6 @@ function pickLabel(obj: unknown): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
-// ✅ детерминированный "рандом" (4 модуля не прыгают)
 function xfnv1a(str: string) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < str.length; i++) {
@@ -32,6 +31,7 @@ function xfnv1a(str: string) {
   }
   return h >>> 0;
 }
+
 function mulberry32(seed: number) {
   return function () {
     let t = (seed += 0x6d2b79f5);
@@ -40,6 +40,7 @@ function mulberry32(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
 function pickDeterministic<T>(items: T[], key: string, count: number) {
   if (items.length <= count) return items;
   const rand = mulberry32(xfnv1a(key));
@@ -47,17 +48,66 @@ function pickDeterministic<T>(items: T[], key: string, count: number) {
   const out: T[] = [];
   while (out.length < count && pool.length) {
     const idx = Math.floor(rand() * pool.length);
-    out.push(pool.splice(idx, 1)[0]);
+    const picked = pool.splice(idx, 1)[0];
+    if (picked !== undefined) out.push(picked);
   }
   return out;
+}
+
+type CatalogModule = {
+  id: string | number;
+  title?: string | null;
+  image?: string | null;
+  price_rub?: number | null;
+  price_uzs?: number | null;
+  badge?: string | null;
+  collectionKey?: string | null;
+};
+
+function isCatalogModule(v: unknown): v is CatalogModule {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return "id" in o;
+}
+
+type ShowcaseShape = {
+  price_uzs?: number | null;
+  price_rub?: number | null;
+};
+
+type PreviewShape = {
+  main?: unknown;
+  a?: unknown;
+  b?: unknown;
+  label?: unknown;
+  title?: unknown;
+  name?: unknown;
+};
+
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim() ? v : undefined;
+}
+
+function toFiniteNum(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function minFinite(nums: Array<number | undefined>) {
+  let best: number | undefined;
+  for (const n of nums) {
+    if (typeof n !== "number") continue;
+    if (best === undefined || n < best) best = n;
+  }
+  return best;
 }
 
 export default async function CatalogSlugPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: { slug: string };
 }) {
-  const { slug } = await params;
+  const { slug } = params;
   if (!slug) return notFound();
 
   const href = `/catalog/${slug}`;
@@ -74,53 +124,61 @@ export default async function CatalogSlugPage({
   const collectionLabel =
     pickLabel(found?.it) ?? titleCase(parsed.brand ?? "Коллекция");
 
-  const preview = MEGA_PREVIEWS[href] as unknown;
+  const previewRaw = MEGA_PREVIEWS[href] as unknown;
+  const preview: PreviewShape | undefined =
+    previewRaw && typeof previewRaw === "object"
+      ? (previewRaw as PreviewShape)
+      : undefined;
+
   const collectionId = `col-${parsed.brand}-${parsed.category}`;
 
-  // ✅ строго: только модули этой витрины
-  const modulesAll = (CATALOG_MOCK as any[]).filter(
-    (p) => p.collectionKey === collectionId,
-  );
+  const modulesAll = (
+    Array.isArray(CATALOG_MOCK) ? (CATALOG_MOCK as unknown[]) : []
+  )
+    .filter(isCatalogModule)
+    .filter((p) => p.collectionKey === collectionId);
+
   if (!modulesAll.length) return notFound();
 
-  // ✅ цену берём из витрины
-  const showcase = CATALOG_BY_ID.get(collectionId) as any;
+  const showcaseRaw = CATALOG_BY_ID.get(collectionId) as unknown;
+  const showcase: ShowcaseShape | undefined =
+    showcaseRaw && typeof showcaseRaw === "object"
+      ? (showcaseRaw as ShowcaseShape)
+      : undefined;
+
+  const showcaseUzs = toFiniteNum(showcase?.price_uzs);
+  const showcaseRub = toFiniteNum(showcase?.price_rub);
+
+  const minUzs = minFinite(modulesAll.map((x) => toFiniteNum(x.price_uzs)));
+  const minRub = minFinite(modulesAll.map((x) => toFiniteNum(x.price_rub)));
 
   const price_uzs =
-    Number(showcase?.price_uzs ?? 0) ||
-    Math.min(...modulesAll.map((x) => Number(x.price_uzs ?? 0)));
-
+    showcaseUzs && showcaseUzs > 0 ? showcaseUzs : (minUzs ?? 0);
   const price_rub =
-    Number(showcase?.price_rub ?? 0) ||
-    Math.min(...modulesAll.map((x) => Number(x.price_rub ?? 0)));
+    showcaseRub && showcaseRub > 0 ? showcaseRub : (minRub ?? 0);
 
-  // gallery sources (preview + fallback)
-  const previewMain =
-    (preview && typeof preview === "object"
-      ? (preview as any).main
-      : undefined) ?? undefined;
+  const previewMain = asString(preview?.main);
+  const previewA = asString(preview?.a);
+  const previewB = asString(preview?.b);
 
-  const previewA =
-    preview && typeof preview === "object" ? (preview as any).a : undefined;
+  const firstImage = asString(modulesAll[0]?.image) ?? "";
 
-  const previewB =
-    preview && typeof preview === "object" ? (preview as any).b : undefined;
-
-  const gallery = [previewMain, previewA, previewB, modulesAll[0]?.image]
-    .filter(Boolean)
+  const gallery = [previewMain, previewA, previewB, firstImage]
+    .filter((v): v is string => typeof v === "string" && v.length > 0)
     .map(String);
 
-  // ✅ 4 модуля → в блок "Товары коллекции" внутри ProductClient
   const modules4 = pickDeterministic(modulesAll, collectionId, 4);
+
+  type ProductClientProduct = ComponentProps<typeof ProductClient>["product"];
 
   const product = {
     id: collectionId,
-    title: pickLabel(preview) ?? `Коллекция «${collectionLabel}»`,
+    title: pickLabel(previewRaw) ?? `Коллекция «${collectionLabel}»`,
     badge: "Коллекция",
     href,
     sku: collectionId.toUpperCase(),
-    image: (previewMain as any) || modulesAll[0].image,
-    gallery: gallery.length ? gallery : [modulesAll[0].image],
+    image: previewMain ?? firstImage,
+    gallery: gallery.length ? gallery : [firstImage],
 
     price_rub,
     price_uzs,
@@ -136,13 +194,13 @@ export default async function CatalogSlugPage({
     },
 
     related: modules4.map((x) => ({
-      id: String((x as any).id),
-      title: (x as any).title,
-      image: (x as any).image,
-      price_rub: Number((x as any).price_rub ?? 0),
-      price_uzs: Number((x as any).price_uzs ?? 0),
-      href: `/product/${(x as any).id}`,
-      badge: (x as any).badge || "",
+      id: String(x.id),
+      title: x.title ?? "",
+      image: asString(x.image) ?? "",
+      price_rub: toFiniteNum(x.price_rub) ?? 0,
+      price_uzs: toFiniteNum(x.price_uzs) ?? 0,
+      href: `/product/${String(x.id)}`,
+      badge: x.badge ?? "",
     })),
 
     brand: parsed.brand,
@@ -150,10 +208,10 @@ export default async function CatalogSlugPage({
     collectionHref: href,
     categoryLabel,
     collectionLabel,
-    collectionPreview: preview,
+    collectionPreview: previewRaw,
 
     isCollection: true,
-  };
+  } as ProductClientProduct;
 
-  return <ProductClient product={product as any} />;
+  return <ProductClient product={product} />;
 }

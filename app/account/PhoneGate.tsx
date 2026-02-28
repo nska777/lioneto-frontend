@@ -63,7 +63,6 @@ export default function PhoneGate({
 }) {
   const { region } = useRegionLang() as { region: "uz" | "ru" };
 
-  // ✅ если пришёл initialPhone — показываем его в поле (в сыром виде)
   const [raw, setRaw] = useState(initialPhone);
   const phone = useMemo(() => normalizePhoneToE164(raw, region), [raw, region]);
 

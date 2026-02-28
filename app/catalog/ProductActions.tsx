@@ -50,14 +50,26 @@ type WishlistSnapshot = {
   price_uzs?: number | null;
   price_rub?: number | null;
 
-  // ✅ вариант
   variantId?: string | null;
   variantTitle?: string | null;
 };
 
+function snapshotToRecord(s: WishlistSnapshot): Record<string, unknown> {
+  return {
+    title: s.title ?? null,
+    href: s.href ?? null,
+    imageUrl: s.imageUrl ?? null,
+    sku: s.sku ?? null,
+    price_uzs: s.price_uzs ?? null,
+    price_rub: s.price_rub ?? null,
+    variantId: s.variantId ?? null,
+    variantTitle: s.variantTitle ?? null,
+  };
+}
+
 export default function ProductActions({
   id,
-  variantId, // сюда передаём variantKey ("color:white|option:lift")
+  variantId,
   variantTitle,
   onOpenSpecs,
   snapshot,
@@ -71,7 +83,6 @@ export default function ProductActions({
   const shop = useShopState();
   const { isFav, toggleFav, isInCart, toggleCart } = shop;
 
-  // ✅ FIX: если variantId не пришёл, пробуем взять из snapshot
   const vid =
     String(variantId ?? snapshot?.variantId ?? "base").trim() || "base";
 
@@ -84,14 +95,11 @@ export default function ProductActions({
   async function toggleFavAndSync() {
     const nextFav = !fav;
 
-    // ✅ локально — С УЧЁТОМ ВАРИАНТА
     toggleFav(id, vid);
 
-    // ✅ если не залогинен — просто выходим (локально уже ок)
     const { data } = await supabase.auth.getSession();
     if (!data.session) return;
 
-    // ✅ snapshot с вариантом
     const snap: WishlistSnapshot = {
       ...(snapshot ?? {}),
       variantId: vid === "base" ? null : vid,
@@ -101,7 +109,7 @@ export default function ProductActions({
     const key = `${id}::${vid}`;
 
     if (nextFav) {
-      await wishlistUpsert(key, snap as any);
+      await wishlistUpsert(key, snapshotToRecord(snap));
     } else {
       await wishlistRemove(key);
     }
@@ -128,7 +136,7 @@ export default function ProductActions({
       <IconBtn
         title={inCart ? "Убрать из корзины" : "Добавить в корзину"}
         active={inCart}
-        onClick={() => toggleCart(id, vid)} // ✅ всегда variant-aware
+        onClick={() => toggleCart(id, vid)}
       >
         <ShoppingCart className={cn("h-4 w-4", inCart && "fill-current")} />
       </IconBtn>

@@ -14,7 +14,7 @@ export default function CatalogTopFilters({
   roomItems,
   brands,
   moduleItems,
-  moduleItemsForCollection, // ✅ NEW
+  moduleItemsForCollection,
 
   activeRoom,
   activeCollection,
@@ -69,7 +69,6 @@ export default function CatalogTopFilters({
   const activeCollectionNorm = normalizeCollectionToken(activeCollection);
   const activeModuleNorm = normalizeModuleToken(activeModule);
 
-  // ✅ используем список модулей для коллекции, если он есть
   const modulesForUI =
     moduleItemsForCollection && moduleItemsForCollection.length
       ? moduleItemsForCollection
@@ -132,7 +131,6 @@ export default function CatalogTopFilters({
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {modulesForUI.map((m) => {
-          // ✅ важно: сравнение через normalizeModuleToken (tumby/tumbi)
           const active = activeModuleNorm === normalizeModuleToken(m.value);
 
           return (

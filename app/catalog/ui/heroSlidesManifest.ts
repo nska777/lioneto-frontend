@@ -14,12 +14,12 @@ export const HERO_SLIDES_MANIFEST: Record<string, HeroSlidesConf> = {
   "youth:scandi": { base: "/slidermenu/youth/scandi", count: 1, ext: "jpg" },
   "youth:elizabeth": { base: "/slidermenu/youth/elizabeth", count: 1, ext: "jpg" },
 
-  // 🔥 уменьшили до реального количества
+
   "bedrooms:pitti": { base: "/slidermenu/bedrooms/pitti", count: 7, ext: "jpg" },
 
   "bedrooms:salvador": { base: "/slidermenu/bedrooms/salvador", count: 2, ext: "jpg" },
 
-  // 🔥 уменьшили до реального количества
+
   "bedrooms:scandi": { base: "/slidermenu/bedrooms/scandi", count: 5, ext: "jpg" },
 
   "living:scandi": { base: "/slidermenu/living/scandi", count: 2, ext: "jpg" },

@@ -186,7 +186,6 @@ export default function AboutClient() {
     const ctx = gsap.context(() => {
       const items = root.querySelectorAll<HTMLElement>("[data-reveal]");
 
-      // ✅ без `any` (ESLint no-explicit-any)
       gsap.set(items, {
         autoAlpha: 0,
         y: 16,

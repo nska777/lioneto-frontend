@@ -18,9 +18,39 @@ import {
 
 import type { FiltersMeta, FiltersValue } from "./FiltersSidebar";
 
-export type SortKey = "default" | "title_asc" | "price_asc" | "price_desc";
+export type SortKey =
+  | "default"
+  | "title_asc"
+  | "price_asc"
+  | "price_desc"
+  | "popular"
+  | "updated";
 
-type ProductAny = (typeof MOCK)[number] & Record<string, any>;
+
+type UnknownRecord = Record<string, unknown>;
+
+const isRecord = (v: unknown): v is UnknownRecord =>
+  typeof v === "object" && v !== null;
+
+const getUnknown = (v: unknown, key: string): unknown => {
+  if (!isRecord(v)) return undefined;
+  return v[key];
+};
+
+const readNumberLike = (v: unknown): number => {
+
+  const s = String(v ?? "")
+    .replace(/\u00A0/g, " ") // NBSP
+    .replace(/\u202F/g, " ") // narrow NBSP
+    .replace(/\s+/g, "") // убрать пробелы-разделители
+    .replace(/,/g, ".")
+    .trim();
+
+  if (!s) return 0;
+
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export function useCatalogParams({
   initialBrand,
@@ -35,28 +65,29 @@ export function useCatalogParams({
 
   const currencyLabel = region === "uz" ? "сум" : "руб.";
 
-  // ✅ FIX: нормальный парсер чисел (Strapi/CSV часто шлёт "5 590 000" или NBSP)
-  const num = (v: any) => {
-    const s = String(v ?? "")
-      .replace(/\u00A0/g, " ") // NBSP
-      .replace(/\u202F/g, " ") // narrow NBSP
-      .replace(/\s+/g, "") // убрать пробелы-разделители
-      .replace(/,/g, ".") // на всякий
-      .trim();
 
-    if (!s) return 0;
+  const priceOf = (p: unknown) => {
+    if (!isRecord(p)) return 0;
 
-    const n = Number(s);
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const priceOf = (p: ProductAny) => {
     if (region === "uz") {
-      const v = p.price_uzs ?? p.priceUZS ?? p.priceUz ?? p.uzs ?? 0;
-      return num(v);
+      const v =
+        getUnknown(p, "price_uzs") ??
+        getUnknown(p, "priceUZS") ??
+        getUnknown(p, "priceUz") ??
+        getUnknown(p, "uzs") ??
+        0;
+
+      return readNumberLike(v);
     }
-    const v = p.price_rub ?? p.priceRUB ?? p.priceRub ?? p.rub ?? 0;
-    return num(v);
+
+    const v =
+      getUnknown(p, "price_rub") ??
+      getUnknown(p, "priceRUB") ??
+      getUnknown(p, "priceRub") ??
+      getUnknown(p, "rub") ??
+      0;
+
+    return readNumberLike(v);
   };
 
   const fmtPrice = (rub: number, uzs: number) =>
@@ -93,7 +124,7 @@ export function useCatalogParams({
       if (!clean) params.delete(key);
       else params.set(key, clean);
 
-      // ✅ если ушли с "Шкафы" или "Витрины" — подфильтры сбрасываем
+ 
       if (key === "types") {
         const next = String(clean).toLowerCase();
         if (next !== "shkafy" && next !== "vitrini") {
@@ -111,7 +142,7 @@ export function useCatalogParams({
     [sp],
   );
 
-  // ✅ heroRoom теперь просто вычисляем (НЕ чистим menu)
+
   const heroRoom = useMemo(() => {
     if (menuFromUrl.length) return menuFromUrl[0] || "";
     const old = normalizeRoomToken(sp.get("category") || initialCategory || "");
@@ -149,9 +180,7 @@ export function useCatalogParams({
   const absMin = useMemo(() => {
     if (region === "uz") return 0;
 
-    const prices = MOCK.map((p) => priceOf(p as any)).filter((x) =>
-      Number.isFinite(x),
-    );
+    const prices = MOCK.map((p) => priceOf(p)).filter((x) => Number.isFinite(x));
 
     const nonZero = prices.filter((x) => x > 0);
     const base = nonZero.length ? nonZero : prices;
@@ -163,9 +192,7 @@ export function useCatalogParams({
   const absMax = useMemo(() => {
     if (region === "uz") return 200_000_000;
 
-    const prices = MOCK.map((p) => priceOf(p as any)).filter((x) =>
-      Number.isFinite(x),
-    );
+    const prices = MOCK.map((p) => priceOf(p)).filter((x) => Number.isFinite(x));
 
     const nonZero = prices.filter((x) => x > 0);
     const base = nonZero.length ? nonZero : prices;
@@ -204,7 +231,7 @@ export function useCatalogParams({
     priceMax: safeMax,
   };
 
-  // ✅ “Спальни” первыми по label
+  // “Спальни” первыми по label
   const menuItemsSorted = useMemo(() => {
     const raw = ROOM_ITEMS.map((x) => ({ label: x.label, value: x.value }));
     return [...raw].sort((a, b) => {
@@ -218,12 +245,18 @@ export function useCatalogParams({
     });
   }, []);
 
+  // MODULE_ITEMS часто readonly 
+  const typeItems = useMemo(
+    () => MODULE_ITEMS.map((x) => ({ label: x.label, value: x.value })),
+    [],
+  );
+
   const sidebarMeta: FiltersMeta = {
     priceAbsMin: absMin,
     priceAbsMax: absMax,
     menuItems: menuItemsSorted,
     collectionItems: BRANDS.map((x) => ({ label: x.title, value: x.slug })),
-    typeItems: MODULE_ITEMS as any,
+    typeItems,
   };
 
   function onSidebarChange(next: FiltersValue) {
@@ -257,7 +290,22 @@ export function useCatalogParams({
   }
 
   const qFromUrl = (sp.get("q") || "").trim();
-  const sort = ((sp.get("sort") || "default") as SortKey) || "default";
+  const sortFromUrl = (sp.get("sort") || "default").trim();
+
+
+  const sort: SortKey = useMemo(() => {
+    const v = sortFromUrl as SortKey;
+    const allowed: ReadonlyArray<SortKey> = [
+      "default",
+      "title_asc",
+      "price_asc",
+      "price_desc",
+      "popular",
+      "updated",
+    ];
+
+    return allowed.includes(v) ? v : "default";
+  }, [sortFromUrl]);
 
   const [q, setQ] = useState(qFromUrl);
   useEffect(() => setQ(qFromUrl), [qFromUrl]);

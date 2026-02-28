@@ -5,9 +5,6 @@ import CatalogToolbar from "./CatalogToolbar";
 import type { SortKey } from "./useCatalogParams";
 
 export default function CatalogTopBar({
-  // оставляем пропсы для совместимости — ничего не ломаем в CatalogClient
-  // но сверху мы их больше не рисуем (раздел/коллекции/модули теперь только слева)
-
   q,
   setQ,
   sort,

@@ -7,6 +7,8 @@ import CatalogCard from "./CatalogCard";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
+type CatalogItem = Record<string, unknown>;
+
 export default function CatalogGrid({
   gridRef,
   items,
@@ -18,15 +20,17 @@ export default function CatalogGrid({
   collectionTitle,
 }: {
   gridRef: React.RefObject<HTMLDivElement | null>;
-  items: Array<Record<string, any>>;
+  items: CatalogItem[];
   fmtPrice: (rub: number, uzs: number) => string;
 
-  bedroomsFirst?: Record<string, any> | null; // оставляем для совместимости
-  bedroomsFirstList?: Array<Record<string, any>> | null; // ✅ NEW
-  collectionRest?: Array<Record<string, any>>;
+  bedroomsFirst?: CatalogItem | null; // оставляем для совместимости
+  bedroomsFirstList?: CatalogItem[] | null;
+  collectionRest?: CatalogItem[];
   collectionTitle?: string;
 }) {
-  const topList = (bedroomsFirstList ?? []).filter(Boolean);
+  const topList: CatalogItem[] = (bedroomsFirstList ?? []).filter(
+    Boolean,
+  ) as CatalogItem[];
 
   // если list не передали, но передали один элемент — используем его
   if (!topList.length && bedroomsFirst) topList.push(bedroomsFirst);
@@ -40,7 +44,7 @@ export default function CatalogGrid({
     <div ref={gridRef}>
       {hasSplit ? (
         <div className="mb-6">
-          {/* ✅ TOP: все сцены (может быть 1, может 2+) */}
+          {/* TOP: все сцены (может быть 1, может 2+) */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 items-stretch [grid-auto-rows:1fr]">
             {topList.map((p, idx) => {
               const key = `scene__${String(p.id ?? "")}__${String(
@@ -48,12 +52,7 @@ export default function CatalogGrid({
               )}__${idx}`;
 
               return (
-                <CatalogCard
-                  key={key}
-                  p={p as any}
-                  idx={idx}
-                  fmtPrice={fmtPrice}
-                />
+                <CatalogCard key={key} p={p} idx={idx} fmtPrice={fmtPrice} />
               );
             })}
           </div>
@@ -73,7 +72,7 @@ export default function CatalogGrid({
         </div>
       ) : null}
 
-      {/* ✅ REST */}
+      {/* REST */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 items-stretch [grid-auto-rows:1fr]">
         {rest.map((p, idx) => {
           const key = `${String(p.id ?? "")}__${String(p.image ?? "")}__${String(

@@ -1,38 +1,30 @@
+// app/catalog/ui/CatalogToolbar.tsx
 "use client";
 
+import React from "react";
 import { X, Search } from "lucide-react";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-type SortKey = "default" | "title_asc" | "price_asc" | "price_desc";
+type SortKey =
+  | "default"
+  | "title_asc"
+  | "price_asc"
+  | "price_desc"
+  | "popular"
+  | "updated";
 
-export default function CatalogToolbar({
-  q,
-  setQ,
-  sort,
-  setSort,
-}: {
-  q: string;
-  setQ: (v: string) => void;
-  sort: SortKey;
-  setSort: (v: SortKey) => void;
-}) {
-  // ✅ “Цене” делаем переключателем (asc/desc)
-  const isPrice = sort === "price_asc" || sort === "price_desc";
-  const priceLabel = sort === "price_desc" ? "Цене ↓" : "Цене ↑";
+type SortLinkProps = {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+};
 
-  const gold = "#C9A24A"; // премиальный “золотой” (как у тебя в UI)
+function SortLink({ active, children, onClick }: SortLinkProps) {
+  const gold = "#C9A24A";
 
-  const SortLink = ({
-    active,
-    children,
-    onClick,
-  }: {
-    active: boolean;
-    children: React.ReactNode;
-    onClick: () => void;
-  }) => (
+  return (
     <button
       type="button"
       onClick={onClick}
@@ -56,6 +48,21 @@ export default function CatalogToolbar({
       {children}
     </button>
   );
+}
+
+export default function CatalogToolbar({
+  q,
+  setQ,
+  sort,
+  setSort,
+}: {
+  q: string;
+  setQ: (v: string) => void;
+  sort: SortKey;
+  setSort: (v: SortKey) => void;
+}) {
+  const isPrice = sort === "price_asc" || sort === "price_desc";
+  const priceLabel = sort === "price_desc" ? "Цене ↓" : "Цене ↑";
 
   return (
     <div
@@ -160,8 +167,8 @@ export default function CatalogToolbar({
 
           <div className="flex items-center gap-4">
             <SortLink
-              active={sort === "default"}
-              onClick={() => setSort("default")}
+              active={sort === "popular"}
+              onClick={() => setSort("popular")}
             >
               Популярности
             </SortLink>
@@ -175,11 +182,9 @@ export default function CatalogToolbar({
               {priceLabel}
             </SortLink>
 
-            {/* ✅ у тебя нет ключа “обновлению” в логике — НЕ ломаем её.
-                Делимапим на title_asc чисто ради UI. */}
             <SortLink
-              active={sort === "title_asc"}
-              onClick={() => setSort("title_asc")}
+              active={sort === "updated"}
+              onClick={() => setSort("updated")}
             >
               Обновлению
             </SortLink>

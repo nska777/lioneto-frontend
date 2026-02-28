@@ -11,10 +11,8 @@ function buildCandidateUrls(room: string, collection: string, max = 12) {
   const r = norm(room);
   const c = norm(collection);
 
-  // ⚡️ НЕ надо 4 расширения. Оставь 1-2.
-  // Лучше договориться, что hero всегда .jpg (или .webp).
-  const exts = ["webp", "jpg"]; // порядок важен
-
+ 
+  const exts = ["webp", "jpg"]; 
   const urls: string[] = [];
   for (let i = 1; i <= max; i++) {
     const n = String(i).padStart(2, "0");
@@ -59,7 +57,7 @@ async function probeWithConcurrency(
   return found;
 }
 
-// ✅ Быстро: кэш + параллель + ранний выход
+
 export async function getSliderMenuSlidesAsync(
   room: string,
   collection: string,
@@ -72,7 +70,7 @@ export async function getSliderMenuSlidesAsync(
 
   const candidates = buildCandidateUrls(room, collection, max);
 
-  // ⚡️ ищем только первые N реальных картинок и выходим
+  
   const found = await probeWithConcurrency(candidates, {
     concurrency: 8,
     limitFound: 8,
@@ -82,7 +80,6 @@ export async function getSliderMenuSlidesAsync(
   return found;
 }
 
-// ✅ Префетч на hover
 export function prefetchSliderMenuSlides(
   room: string,
   collection: string,

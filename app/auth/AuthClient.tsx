@@ -187,7 +187,6 @@ export default function AuthClient() {
     );
   }
 
-  // signed in: показываем профиль/выход (без заголовка "Вход")
   if (sessionEmail) {
     return (
       <div className="w-full max-w-[520px] rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_16px_60px_rgba(0,0,0,0.08)]">

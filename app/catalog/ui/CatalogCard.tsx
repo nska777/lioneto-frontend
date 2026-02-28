@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import ProductActions from "../ProductActions";
@@ -10,6 +10,51 @@ import { useRegionLang } from "@/app/context/region-lang";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
+
+type Currency = "RUB" | "UZS";
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+
+function getVal(obj: unknown, key: string): unknown {
+  if (!isRecord(obj)) return undefined;
+  return obj[key];
+}
+
+function getStr(obj: unknown, key: string): string {
+  const v = getVal(obj, key);
+  return isString(v) ? v : "";
+}
+
+function getNum(obj: unknown, key: string): number {
+  const v = getVal(obj, key);
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getFirstStringFromArray(v: unknown): string {
+  if (!Array.isArray(v)) return "";
+  const found = v.find((x) => typeof x === "string" && x.trim().length > 0);
+  return typeof found === "string" ? found : "";
+}
+
+function getPath(obj: unknown, path: string[]): unknown {
+  let cur: unknown = obj;
+  for (const k of path) {
+    if (!isRecord(cur)) return undefined;
+    cur = cur[k];
+  }
+  return cur;
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
 
 function GreenPremiumBadge({ text }: { text: string }) {
   return (
@@ -89,10 +134,6 @@ function GoldDiscountBadge({ text }: { text: string }) {
   );
 }
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
 function RatingStars({
   value,
   count,
@@ -106,7 +147,6 @@ function RatingStars({
   const full = Math.floor(v);
   const frac = v - full;
 
-  // аккуратный “полузакрашенный” шаг
   const fillForIndex = (i: number) => {
     const idx = i + 1;
     if (idx <= full) return 1;
@@ -121,14 +161,13 @@ function RatingStars({
         aria-label={`Рейтинг ${v.toFixed(1)} из 5`}
       >
         {Array.from({ length: 5 }).map((_, i) => {
-          const fill = fillForIndex(i); // 0..1
+          const fill = fillForIndex(i);
           return (
             <span
               key={i}
               className="relative inline-flex"
               style={{ width: 14, height: 14 }}
             >
-              {/* пустая звезда */}
               <svg
                 viewBox="0 0 24 24"
                 width={14}
@@ -142,7 +181,6 @@ function RatingStars({
                 />
               </svg>
 
-              {/* заполнение */}
               {fill > 0 ? (
                 <span
                   className="absolute inset-0 overflow-hidden"
@@ -180,8 +218,8 @@ function RatingStars({
   );
 }
 
-function n(v: any) {
-  const x = Number(v);
+function num(v: unknown): number {
+  const x = typeof v === "number" ? v : Number(v);
   return Number.isFinite(x) ? x : 0;
 }
 
@@ -190,14 +228,18 @@ export default function CatalogCard({
   idx,
   fmtPrice,
 }: {
-  p: Record<string, any>;
+  p: Record<string, unknown>;
   idx: number;
   fmtPrice: (rub: number, uzs: number) => string;
 }) {
-  const rl = useRegionLang() as any;
-  const currency: "RUB" | "UZS" =
-    (rl?.currency as "RUB" | "UZS" | undefined) ??
-    (rl?.region === "ru" ? "RUB" : "UZS");
+  const rl = useRegionLang();
+
+  const rlCurrency = isRecord(rl) ? getVal(rl, "currency") : undefined;
+  const rlRegion = isRecord(rl) ? getVal(rl, "region") : undefined;
+
+  const currency: Currency =
+    (rlCurrency === "RUB" || rlCurrency === "UZS" ? rlCurrency : undefined) ??
+    (rlRegion === "ru" ? "RUB" : "UZS");
 
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -206,21 +248,30 @@ export default function CatalogCard({
     return `${pathname}${qs ? `?${qs}` : ""}`;
   }, [pathname, sp]);
 
-  const routeKey = String(p?.productId ?? p?.slug ?? p?.id ?? "").trim();
-  const pid = routeKey || String(p?.id ?? "");
+  void catalogPath;
 
+  const routeKey = String(
+    getStr(p, "productId") || getStr(p, "slug") || getStr(p, "id"),
+  ).trim();
+
+  const pid = routeKey || String(getStr(p, "id"));
+
+  const hrefRaw = getStr(p, "href");
   const href =
-    (p as any)?.href ||
-    (pid ? `/product/${encodeURIComponent(pid)}` : "/catalog");
+    hrefRaw || (pid ? `/product/${encodeURIComponent(pid)}` : "/catalog");
 
-  const title = String(p.title ?? "").trim() || "Товар";
+  const title = String(getStr(p, "title")).trim() || "Товар";
 
-  const curRub = n(p.priceRUB ?? p.price_rub ?? 0);
-  const curUzs = n(p.priceUZS ?? p.price_uzs ?? 0);
+  const curRub = num(getVal(p, "priceRUB") ?? getVal(p, "price_rub") ?? 0);
+  const curUzs = num(getVal(p, "priceUZS") ?? getVal(p, "price_uzs") ?? 0);
   const hasAnyPrice = curRub > 0 || curUzs > 0;
 
-  const oldRub = n(p.oldPriceRUB ?? p.old_price_rub ?? 0);
-  const oldUzs = n(p.oldPriceUZS ?? p.old_price_uzs ?? 0);
+  const oldRub = num(
+    getVal(p, "oldPriceRUB") ?? getVal(p, "old_price_rub") ?? 0,
+  );
+  const oldUzs = num(
+    getVal(p, "oldPriceUZS") ?? getVal(p, "old_price_uzs") ?? 0,
+  );
 
   const cur = currency === "RUB" ? curRub || curUzs : curUzs || curRub;
   const old = currency === "RUB" ? oldRub || oldUzs : oldUzs || oldRub;
@@ -231,47 +282,51 @@ export default function CatalogCard({
     ? Math.max(1, Math.min(99, Math.round((1 - cur / old) * 100)))
     : 0;
 
-  const badgeMain = p.badge ? String(p.badge).trim() : "";
-  const collectionBadge = p.collectionBadge
-    ? String(p.collectionBadge).trim()
-    : "";
+  const badgeMain = String(getVal(p, "badge") ?? "").trim();
+  const collectionBadge = String(getVal(p, "collectionBadge") ?? "").trim();
 
-  // ✅ один feature badge (если нет скидки)
   const featureBadge = (collectionBadge || badgeMain || "").trim();
 
-  // ⭐️ рейтинг (если нет данных — красивый дефолт)
   const ratingValueRaw =
-    p.rating ?? p.ratingValue ?? p.stars ?? p.avgRating ?? 4.8;
+    getVal(p, "rating") ??
+    getVal(p, "ratingValue") ??
+    getVal(p, "stars") ??
+    getVal(p, "avgRating") ??
+    4.8;
 
-  const ratingValue = clamp(n(ratingValueRaw), 0, 5);
+  const ratingValue = clamp(num(ratingValueRaw), 0, 5);
 
   const reviewsCountRaw =
-    p.reviewsCount ?? p.reviews ?? p.ratingCount ?? p.reviews_count ?? 24;
+    getVal(p, "reviewsCount") ??
+    getVal(p, "reviews") ??
+    getVal(p, "ratingCount") ??
+    getVal(p, "reviews_count") ??
+    24;
 
-  const reviewsCount = Math.max(0, Math.round(n(reviewsCountRaw)));
-
-  // показывать всегда (как “соц.доверие”) — или можно включить условие:
-  // const showRating = ratingValue > 0;
+  const reviewsCount = Math.max(0, Math.round(num(reviewsCountRaw)));
   const showRating = true;
 
   const snapshot = {
     title,
     href,
-    imageUrl: p.image,
-    sku: p.sku ? String(p.sku) : null,
+    imageUrl: getStr(p, "image"),
+    sku: (getStr(p, "sku") || "").trim() ? getStr(p, "sku") : null,
     price_uzs: curUzs,
     price_rub: curRub,
   };
 
   const STRAPI = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 
-  // 1) Пытаемся взять “малые” форматы Strapi
-  const strapiImg =
-    p.cardImage?.formats?.small?.url ||
-    p.cardImage?.formats?.medium?.url ||
-    p.cardImage?.formats?.thumbnail?.url ||
-    p.cardImage?.url ||
-    (typeof p.cardImage === "string" ? p.cardImage : undefined);
+  const strapiImgCandidate =
+    getPath(p, ["cardImage", "formats", "small", "url"]) ??
+    getPath(p, ["cardImage", "formats", "medium", "url"]) ??
+    getPath(p, ["cardImage", "formats", "thumbnail", "url"]) ??
+    getPath(p, ["cardImage", "url"]) ??
+    (typeof getVal(p, "cardImage") === "string"
+      ? getVal(p, "cardImage")
+      : undefined);
+
+  const strapiImg = isString(strapiImgCandidate) ? strapiImgCandidate : "";
 
   const strapiSrc = strapiImg
     ? strapiImg.startsWith("http")
@@ -279,34 +334,38 @@ export default function CatalogCard({
       : `${STRAPI}${strapiImg}`
     : "";
 
-  // 2) Фолбэк на галерею/картинку
   const firstGallery =
-    (Array.isArray(p.gallery) && p.gallery[0]) ||
-    (Array.isArray(p.images) && p.images[0]) ||
-    (Array.isArray(p.photos) && p.photos[0]) ||
+    getFirstStringFromArray(getVal(p, "gallery")) ||
+    getFirstStringFromArray(getVal(p, "images")) ||
+    getFirstStringFromArray(getVal(p, "photos")) ||
     "";
 
   let imgSrcFallback =
     String(firstGallery ?? "").trim() ||
-    String(p.image ?? p.cover ?? "").trim() ||
+    String(getStr(p, "image") || getStr(p, "cover") || "").trim() ||
     "/placeholder.png";
 
-  if (
-    imgSrcFallback.startsWith("/") &&
-    (p.__source === "strapi" || strapiSrc)
-  ) {
+  const source = getStr(p, "__source");
+  if (imgSrcFallback.startsWith("/") && (source === "strapi" || !!strapiSrc)) {
     const looksLikeStrapi =
       imgSrcFallback.startsWith("/uploads/") ||
       imgSrcFallback.startsWith("/sections/");
     if (looksLikeStrapi) imgSrcFallback = `${STRAPI}${imgSrcFallback}`;
   }
 
-  // ✅ единый источник картинки
   const src = (strapiSrc || imgSrcFallback || "/placeholder.png").trim();
   const isRemote = /^https?:\/\//i.test(src);
-
-  // ✅ первые карточки — приоритет
   const eager = idx < 8;
+
+  const titleClampStyle: React.CSSProperties & {
+    WebkitBoxOrient: "vertical";
+    WebkitLineClamp: number;
+  } = {
+    display: "-webkit-box",
+    WebkitBoxOrient: "vertical",
+    WebkitLineClamp: 2,
+    maxHeight: 40,
+  };
 
   return (
     <article
@@ -319,7 +378,6 @@ export default function CatalogCard({
     >
       <Link href={href} className="flex h-full flex-col">
         <div className="relative aspect-[13/11] overflow-hidden bg-white">
-          {/* ✅ next/image остаётся, но remote не ломает доменами */}
           <Image
             key={src}
             src={src}
@@ -337,10 +395,8 @@ export default function CatalogCard({
             unoptimized={isRemote}
           />
 
-          {/* ✅ лёгкий “премиум” градиент снизу */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
 
-          {/* ✅ БЕЙДЖ: если скидка — только скидка, иначе — один feature */}
           {hasDiscount || featureBadge ? (
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               {hasDiscount ? (
@@ -372,17 +428,11 @@ export default function CatalogCard({
         <div className="flex flex-1 flex-col px-4 pb-3 pt-3">
           <div
             className="overflow-hidden text-[14px] font-medium leading-[20px] text-black/90"
-            style={{
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical" as any,
-              WebkitLineClamp: 2,
-              maxHeight: 40,
-            }}
+            style={titleClampStyle}
           >
             {title}
           </div>
 
-          {/* ⭐️ РЕЙТИНГ — аккуратно под заголовком */}
           {showRating ? (
             <RatingStars
               value={ratingValue}

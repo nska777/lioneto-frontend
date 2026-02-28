@@ -11,6 +11,7 @@ const cn = (...s: Array<string | false | null | undefined>) =>
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = React.useState(false);
+
   React.useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const onChange = () => setReduced(!!mq.matches);
@@ -18,6 +19,7 @@ function usePrefersReducedMotion() {
     mq.addEventListener?.("change", onChange);
     return () => mq.removeEventListener?.("change", onChange);
   }, []);
+
   return reduced;
 }
 
@@ -27,9 +29,7 @@ function smoothScrollToId(id: string) {
   const el = document.getElementById(id);
   if (!el) return;
 
-  // фикс: если есть активные ScrollTrigger — пересчёт перед скроллом
   ScrollTrigger.refresh(true);
-
   el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -58,10 +58,8 @@ export default function CareClient() {
     const root = rootRef.current;
     if (!root) return;
 
-    // -------------------------
-    // 1) Reveal (GSAP) — как было, но синтаксис простой и безопасный
-    // -------------------------
     const revealTriggers: ScrollTrigger[] = [];
+
     if (!reducedMotion) {
       const items = Array.from(
         root.querySelectorAll<HTMLElement>("[data-reveal]"),
@@ -80,38 +78,33 @@ export default function CareClient() {
             toggleActions: "play none none none",
           },
         });
-        // @ts-ignore - gsap keeps reference internally, but we also keep ...
-        if (tween?.scrollTrigger) revealTriggers.push(tween.scrollTrigger);
+
+        const st = tween.scrollTrigger;
+        if (st) revealTriggers.push(st);
       });
     }
 
-    // -------------------------
-    // 2) Active TOC tracker — ЖЕЛЕЗНО “сразу”
-    //    Без ScrollTrigger onEnter: считаем сами по линии 140px
-    // -------------------------
     const LINE_Y = 140;
 
     const sectionEls = toc
       .map((t) => document.getElementById(t.id))
-      .filter(Boolean) as HTMLElement[];
+      .filter((v): v is HTMLElement => Boolean(v));
 
-    let raf = 0;
+    let rafId: number | null = null;
     let last = "";
 
     const computeActiveNow = () => {
-      const y = LINE_Y; // линия от верха viewport
+      const y = LINE_Y;
       let current = sectionEls[0]?.id ?? "sec-1";
 
       for (const sec of sectionEls) {
         const r = sec.getBoundingClientRect();
 
-        // если линия внутри секции — она активная
         if (r.top <= y && r.bottom > y) {
           current = sec.id;
           break;
         }
 
-        // если секция уже выше линии — запоминаем последнюю пройденную
         if (r.top <= y) current = sec.id;
       }
 
@@ -122,9 +115,9 @@ export default function CareClient() {
     };
 
     const schedule = () => {
-      if (raf) return;
-      raf = window.requestAnimationFrame(() => {
-        raf = 0;
+      if (rafId != null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
         computeActiveNow();
       });
     };
@@ -135,16 +128,15 @@ export default function CareClient() {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
 
-    // ✅ СРАЗУ выставляем активный (без ожидания первого скролла)
     computeActiveNow();
 
-    // ✅ и ещё “контрольные” прогоны: после layout shift/шрифтов/картинок/restore scroll
-    requestAnimationFrame(() => computeActiveNow());
-    setTimeout(() => computeActiveNow(), 0);
-    setTimeout(() => computeActiveNow(), 120);
+    const r1 = window.requestAnimationFrame(() => computeActiveNow());
+    const t1 = window.setTimeout(() => computeActiveNow(), 0);
+    const t2 = window.setTimeout(() => computeActiveNow(), 120);
 
-    // ✅ поддержка входа по hash
     const hash = window.location.hash?.slice(1);
+    let hashRaf: number | null = null;
+
     if (hash) {
       let tries = 0;
 
@@ -152,29 +144,34 @@ export default function CareClient() {
         const el = document.getElementById(hash);
         if (el) {
           smoothScrollToId(hash);
-          requestAnimationFrame(() => computeActiveNow());
+          window.requestAnimationFrame(() => computeActiveNow());
           return;
         }
-        if (tries++ < 30) requestAnimationFrame(tryHash);
+        if (tries++ < 30) {
+          hashRaf = window.requestAnimationFrame(tryHash);
+        }
       };
 
-      // чуть позже, чтобы layout успел стабилизироваться
-      requestAnimationFrame(tryHash);
+      hashRaf = window.requestAnimationFrame(tryHash);
     }
 
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
-      if (raf) cancelAnimationFrame(raf);
+
+      if (rafId != null) window.cancelAnimationFrame(rafId);
+      window.cancelAnimationFrame(r1);
+      if (hashRaf != null) window.cancelAnimationFrame(hashRaf);
+
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
 
       revealTriggers.forEach((t) => t.kill());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reducedMotion, toc]);
 
   return (
     <main className="bg-white text-neutral-900">
-      {/* hero */}
       <section className="border-b border-black/5">
         <div className="max-w-5xl mx-auto px-6 pt-16 pb-10">
           <div data-reveal className="text-center">
@@ -185,7 +182,6 @@ export default function CareClient() {
         </div>
       </section>
 
-      {/* TOC (липкое, лёгкое) */}
       <section className="sticky top-0 z-50 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/70 border-b border-black/5">
         <div className="max-w-5xl mx-auto px-6 py-3">
           <div className="flex items-center gap-3">
@@ -217,10 +213,8 @@ export default function CareClient() {
         </div>
       </section>
 
-      {/* content */}
       <section>
         <div ref={rootRef} className="max-w-5xl mx-auto px-6 py-10 md:py-14">
-          {/* 1 */}
           <article
             id="sec-1"
             className="rounded-2xl border border-black/5 bg-white shadow-[0_18px_60px_-40px_rgba(0,0,0,0.18)] p-6 md:p-10 scroll-mt-[120px]"
@@ -320,7 +314,6 @@ export default function CareClient() {
 
           <div className="h-10 md:h-12" />
 
-          {/* 2 */}
           <article
             id="sec-2"
             className="rounded-2xl border border-black/5 bg-white shadow-[0_18px_60px_-40px_rgba(0,0,0,0.18)] p-6 md:p-10 scroll-mt-[120px]"

@@ -12,10 +12,33 @@ function discountPct(oldP: number, newP: number) {
   return Math.round((1 - newP / oldP) * 100);
 }
 
-export function applyPrices<T extends Record<string, any>>(
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(v: unknown): v is UnknownRecord {
+  return typeof v === "object" && v !== null;
+}
+
+function getNumNullable(obj: UnknownRecord, key: string): number | null | undefined {
+  const v = obj[key];
+  if (v === null) return null;
+  if (typeof v === "number") return v;
+  return undefined;
+}
+
+function getNum(obj: UnknownRecord, key: string): number | undefined {
+  const v = obj[key];
+  return typeof v === "number" ? v : undefined;
+}
+
+function getStr(obj: UnknownRecord, key: string): string | undefined {
+  const v = obj[key];
+  return typeof v === "string" ? v : undefined;
+}
+
+export function applyPrices<T extends UnknownRecord>(
   items: T[],
-  rows: PriceRow[],
-) {
+  rows: PriceRow[]
+): T[] {
   const map = new Map<string, PriceRow>();
   for (const r of rows) {
     const key = String(r.productId || "").trim();
@@ -23,25 +46,45 @@ export function applyPrices<T extends Record<string, any>>(
   }
 
   return items.map((p) => {
-    const r = map.get(String(p.id));
+    const id = getStr(p, "id");
+    const r = map.get(String(id ?? ""));
     if (!r) return p;
 
-    const next: T = {
+
+    const p_price_uzs = getNumNullable(p, "price_uzs") ?? getNum(p, "priceUZS") ?? 0;
+    const p_price_rub = getNumNullable(p, "price_rub") ?? getNum(p, "priceRUB") ?? 0;
+
+    const p_old_uzs = getNumNullable(p, "old_price_uzs") ?? null;
+    const p_old_rub = getNumNullable(p, "old_price_rub") ?? null;
+
+
+    const next = {
       ...p,
-      // карточка уже читает snake_case:
-      price_uzs: r.price_uzs ?? p.price_uzs ?? p.priceUZS ?? 0,
-      price_rub: r.price_rub ?? p.price_rub ?? p.priceRUB ?? 0,
-      old_price_uzs: r.old_price_uzs ?? (p as any).old_price_uzs ?? null,
-      old_price_rub: r.old_price_rub ?? (p as any).old_price_rub ?? null,
+      price_uzs: r.price_uzs ?? p_price_uzs,
+      price_rub: r.price_rub ?? p_price_rub,
+      old_price_uzs: r.old_price_uzs ?? p_old_uzs,
+      old_price_rub: r.old_price_rub ?? p_old_rub,
     };
 
+
+    const nextRec: UnknownRecord = isRecord(next) ? next : ({} as UnknownRecord);
+
     const cur =
-      Number(next.price_rub ?? 0) || Number(next.price_uzs ?? 0) || 0;
+      Number(getNumNullable(nextRec, "price_rub") ?? 0) ||
+      Number(getNumNullable(nextRec, "price_uzs") ?? 0) ||
+      0;
+
     const old =
-      Number(next.old_price_rub ?? 0) || Number(next.old_price_uzs ?? 0) || 0;
+      Number(getNumNullable(nextRec, "old_price_rub") ?? 0) ||
+      Number(getNumNullable(nextRec, "old_price_uzs") ?? 0) ||
+      0;
 
-    (next as any).discountPct = discountPct(old, cur);
+    const out = {
+      ...next,
+      discountPct: discountPct(old, cur),
+    };
 
-    return next;
+
+    return out as T;
   });
 }
