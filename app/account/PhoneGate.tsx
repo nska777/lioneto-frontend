@@ -24,6 +24,32 @@ function normalizePhoneToE164(raw: string, region: "uz" | "ru") {
   return `+998${digits}`;
 }
 
+type SavedProfile = {
+  full_name: string | null;
+  phone_e164: string | null;
+  phone_verified: boolean;
+};
+
+function normalizeSavedProfile(v: unknown): SavedProfile | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+
+  const full_name =
+    typeof o.full_name === "string" || o.full_name === null
+      ? (o.full_name as string | null)
+      : null;
+
+  const phone_e164 =
+    typeof o.phone_e164 === "string" || o.phone_e164 === null
+      ? (o.phone_e164 as string | null)
+      : null;
+
+  const phone_verified =
+    typeof o.phone_verified === "boolean" ? o.phone_verified : false;
+
+  return { full_name, phone_e164, phone_verified };
+}
+
 export default function PhoneGate({
   userId,
   initialPhone = "",
@@ -33,11 +59,7 @@ export default function PhoneGate({
   userId: string;
   initialPhone?: string;
   onClose?: () => void;
-  onSaved: (p: {
-    full_name: string | null;
-    phone_e164: string | null;
-    phone_verified: boolean;
-  }) => void;
+  onSaved: (p: SavedProfile) => void;
 }) {
   const { region } = useRegionLang() as { region: "uz" | "ru" };
 
@@ -71,7 +93,14 @@ export default function PhoneGate({
       return;
     }
 
-    onSaved(data as any);
+    const normalized = normalizeSavedProfile(data);
+    if (!normalized) {
+      setMsg("Не удалось сохранить профиль. Попробуйте ещё раз.");
+      setSaving(false);
+      return;
+    }
+
+    onSaved(normalized);
     setSaving(false);
   }
 

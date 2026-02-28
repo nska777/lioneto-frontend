@@ -56,14 +56,46 @@ export default function AddressSection({ userId }: { userId: string }) {
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    if (error) setErr(error.message);
-    setRows((data as any) ?? []);
+    if (error) {
+      setErr(error.message);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    setRows((data ?? []) as Addr[]);
     setLoading(false);
   }
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+
+    (async () => {
+      setErr(null);
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("addresses")
+        .select("id,title,city,street,house,apartment,is_default")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        setErr(error.message);
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      setRows((data ?? []) as Addr[]);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   async function add() {
@@ -92,7 +124,7 @@ export default function AddressSection({ userId }: { userId: string }) {
     setStreet("");
     setHouse("");
     setApartment("");
-    refresh();
+    void refresh();
   }
 
   function startEdit(a: Addr) {
@@ -136,7 +168,7 @@ export default function AddressSection({ userId }: { userId: string }) {
     }
 
     setEditing(null);
-    refresh();
+    void refresh();
   }
 
   async function removeAddress(id: string) {
@@ -156,10 +188,9 @@ export default function AddressSection({ userId }: { userId: string }) {
       return;
     }
 
-    //
     if (editing?.id === id) setEditing(null);
 
-    refresh();
+    void refresh();
   }
 
   function addrLine(a: Addr) {
@@ -186,7 +217,6 @@ export default function AddressSection({ userId }: { userId: string }) {
             onClick={() => {
               setErr(null);
               setOpen((v) => !v);
-              //
             }}
             className="h-10 px-4 rounded-2xl bg-black text-white transition cursor-pointer hover:translate-y-[-1px] active:translate-y-[0px]"
           >
@@ -283,7 +313,6 @@ export default function AddressSection({ userId }: { userId: string }) {
                       </div>
                     </div>
 
-                    {/* actions */}
                     <div className="flex items-center gap-2">
                       {!isEditing ? (
                         <button
@@ -304,7 +333,7 @@ export default function AddressSection({ userId }: { userId: string }) {
                       )}
 
                       <button
-                        onClick={() => removeAddress(a.id)}
+                        onClick={() => void removeAddress(a.id)}
                         disabled={deletingId === a.id}
                         className={cn(
                           "h-9 w-9 rounded-xl border border-black/10 grid place-items-center transition cursor-pointer",
@@ -319,7 +348,6 @@ export default function AddressSection({ userId }: { userId: string }) {
                     </div>
                   </div>
 
-                  {/* edit form */}
                   {isEditing && editing && (
                     <div className="mt-4 grid gap-2">
                       <div className="grid gap-2 sm:grid-cols-2">
@@ -370,7 +398,7 @@ export default function AddressSection({ userId }: { userId: string }) {
                       />
 
                       <button
-                        onClick={saveEdit}
+                        onClick={() => void saveEdit()}
                         disabled={savingEdit}
                         className={cn(
                           "mt-1 h-11 rounded-2xl bg-black text-white transition cursor-pointer hover:translate-y-[-1px] active:translate-y-[0px]",
@@ -392,7 +420,6 @@ export default function AddressSection({ userId }: { userId: string }) {
         )}
       </div>
 
-      {/* optional: quick link */}
       <div className="px-1">
         <Link
           href="/catalog"

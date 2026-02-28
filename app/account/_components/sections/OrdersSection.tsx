@@ -7,7 +7,6 @@ import { ShoppingBag } from "lucide-react";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-// пока нет таблицы orders — делаем аккуратный fallback
 type OrderRow = {
   id: string;
   status: string | null;
@@ -27,7 +26,6 @@ export default function OrdersSection({ userId }: { userId: string }) {
       setErr(null);
       setLoading(true);
 
-      // ⚠️ Если таблицы orders ещё нет — запрос вернёт ошибку.
       const { data, error } = await supabase
         .from("orders")
         .select("id,status,total,created_at")
@@ -37,14 +35,15 @@ export default function OrdersSection({ userId }: { userId: string }) {
       if (!alive) return;
 
       if (error) {
-        // Таблицы нет или RLS не настроен — покажем текст, не ломая страницу
         setErr(error.message);
         setRows([]);
         setLoading(false);
         return;
       }
 
-      setRows((data as any) ?? []);
+      // ✅ без any
+      const typedData = (data ?? []) as OrderRow[];
+      setRows(typedData);
       setLoading(false);
     })();
 

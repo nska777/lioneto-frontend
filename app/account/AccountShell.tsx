@@ -38,6 +38,27 @@ export type ProfileRow = {
   phone_verified: boolean;
 };
 
+// минимальная нормализация supabase-строки без any
+function normalizeProfileRow(v: unknown): ProfileRow | null {
+  if (!v || typeof v !== "object") return null;
+
+  const o = v as Record<string, unknown>;
+  const full_name =
+    typeof o.full_name === "string" || o.full_name === null
+      ? (o.full_name as string | null)
+      : null;
+
+  const phone_e164 =
+    typeof o.phone_e164 === "string" || o.phone_e164 === null
+      ? (o.phone_e164 as string | null)
+      : null;
+
+  const phone_verified =
+    typeof o.phone_verified === "boolean" ? o.phone_verified : false;
+
+  return { full_name, phone_e164, phone_verified };
+}
+
 export default function AccountShell({
   userId,
   email,
@@ -54,10 +75,7 @@ export default function AccountShell({
   const [editingPhone, setEditingPhone] = useState(false);
 
   // ✅ телефон обязателен
-  const phoneRequired = useMemo(
-    () => !profile?.phone_e164,
-    [profile?.phone_e164],
-  );
+  const phoneRequired = !profile?.phone_e164;
 
   // ✅ загрузка профиля и автосоздание строки profiles при первом заходе
   useEffect(() => {
@@ -81,13 +99,15 @@ export default function AccountShell({
           .single();
 
         if (!alive) return;
-        setProfile((ins.data as any) ?? null);
+
+        setProfile(normalizeProfileRow(ins.data));
         setProfileLoading(false);
         return;
       }
 
       if (!alive) return;
-      setProfile((data as any) ?? null);
+
+      setProfile(normalizeProfileRow(data));
       setProfileLoading(false);
     })();
 
@@ -96,10 +116,10 @@ export default function AccountShell({
     };
   }, [userId]);
 
-  // ✅ если телефона нет — автоматически показываем "Личные данные"
-  useEffect(() => {
-    if (phoneRequired) setTab("profile");
-  }, [phoneRequired]);
+  // ✅ вместо setState-in-effect: вкладка "profile" принудительно, пока phoneRequired
+  const derivedTab: TabKey = useMemo(() => {
+    return phoneRequired ? "profile" : tab;
+  }, [phoneRequired, tab]);
 
   const menu = [
     { key: "orders" as const, label: "История заказов", icon: ShoppingBag },
@@ -139,7 +159,7 @@ export default function AccountShell({
           <aside className="space-y-2">
             {menu.map((m) => {
               const Icon = m.icon;
-              const active = tab === m.key;
+              const active = derivedTab === m.key;
               const locked = isLocked(m.key);
 
               return (
@@ -205,13 +225,13 @@ export default function AccountShell({
                 <div
                   className={cn(
                     phoneRequired &&
-                      tab !== "profile" &&
+                      derivedTab !== "profile" &&
                       "opacity-50 pointer-events-none",
                   )}
                 >
-                  {tab === "orders" && <OrdersSection userId={userId} />}
+                  {derivedTab === "orders" && <OrdersSection userId={userId} />}
 
-                  {tab === "profile" && (
+                  {derivedTab === "profile" && (
                     <AccountProfile
                       userId={userId}
                       email={email}
@@ -221,13 +241,19 @@ export default function AccountShell({
                     />
                   )}
 
-                  {tab === "address" && <AddressSection userId={userId} />}
+                  {derivedTab === "address" && (
+                    <AddressSection userId={userId} />
+                  )}
 
-                  {tab === "payments" && <PaymentsSection />}
+                  {derivedTab === "payments" && <PaymentsSection />}
 
-                  {tab === "wishlist" && <WishlistSection userId={userId} />}
+                  {derivedTab === "wishlist" && (
+                    <WishlistSection userId={userId} />
+                  )}
 
-                  {tab === "marketing" && <MarketingSection userId={userId} />}
+                  {derivedTab === "marketing" && (
+                    <MarketingSection userId={userId} />
+                  )}
                 </div>
               </>
             )}

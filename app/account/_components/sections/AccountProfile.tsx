@@ -13,7 +13,44 @@ type ProfileRow = {
   phone_verified: boolean;
 };
 
+type CheckoutProfileLS = {
+  name: string;
+  phone: string;
+  address: string;
+  email: string;
+  updatedAt: number;
+};
+
 const LS_CHECKOUT_PROFILE = "lioneto:checkout:profile:v1";
+
+function safeReadCheckoutProfile(): Partial<CheckoutProfileLS> {
+  try {
+    const raw = localStorage.getItem(LS_CHECKOUT_PROFILE);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!parsed || typeof parsed !== "object") return {};
+    const obj = parsed as Record<string, unknown>;
+
+    return {
+      name: typeof obj.name === "string" ? obj.name : undefined,
+      phone: typeof obj.phone === "string" ? obj.phone : undefined,
+      address: typeof obj.address === "string" ? obj.address : undefined,
+      email: typeof obj.email === "string" ? obj.email : undefined,
+      updatedAt: typeof obj.updatedAt === "number" ? obj.updatedAt : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function writeCheckoutProfile(next: CheckoutProfileLS) {
+  try {
+    localStorage.setItem(LS_CHECKOUT_PROFILE, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
 
 export default function AccountProfile({
   userId,
@@ -29,36 +66,31 @@ export default function AccountProfile({
   onEditPhone: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(profile?.full_name ?? "");
+  const [name, setName] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  //
   useEffect(() => {
+    if (!profile) return;
+
+    const prev = safeReadCheckoutProfile();
+
+    const next: CheckoutProfileLS = {
+      name: profile.full_name ?? prev.name ?? "",
+      phone: profile.phone_e164 ?? prev.phone ?? "",
+      address: prev.address ?? "",
+      email: email ?? prev.email ?? "",
+      updatedAt: Date.now(),
+    };
+
+    writeCheckoutProfile(next);
+  }, [profile, email]);
+
+  function startEdit() {
     setName(profile?.full_name ?? "");
-  }, [profile?.full_name]);
-
-  //
-  useEffect(() => {
-    try {
-      if (!profile) return;
-
-      const raw = localStorage.getItem(LS_CHECKOUT_PROFILE);
-      const prev = raw ? (JSON.parse(raw) as any) : {};
-
-      //
-      const next = {
-        ...prev,
-        name: profile.full_name ?? prev?.name ?? "",
-        phone: profile.phone_e164 ?? prev?.phone ?? "",
-        address: prev?.address ?? "",
-        email: email ?? prev?.email ?? "",
-        updatedAt: Date.now(),
-      };
-
-      localStorage.setItem(LS_CHECKOUT_PROFILE, JSON.stringify(next));
-    } catch {}
-  }, [profile?.full_name, profile?.phone_e164, email, profile]);
+    setMsg(null);
+    setEditing(true);
+  }
 
   async function save() {
     setMsg(null);
@@ -77,23 +109,29 @@ export default function AccountProfile({
       return;
     }
 
-    //
-    onProfile(data as any);
+    const d = data as unknown as {
+      full_name: string | null;
+      phone_e164: string | null;
+      phone_verified: boolean;
+    };
 
-    //
-    try {
-      const raw = localStorage.getItem(LS_CHECKOUT_PROFILE);
-      const prev = raw ? (JSON.parse(raw) as any) : {};
-      const next = {
-        ...prev,
-        name: (data as any)?.full_name ?? prev?.name ?? "",
-        phone: (data as any)?.phone_e164 ?? prev?.phone ?? "",
-        address: prev?.address ?? "",
-        email: email ?? prev?.email ?? "",
-        updatedAt: Date.now(),
-      };
-      localStorage.setItem(LS_CHECKOUT_PROFILE, JSON.stringify(next));
-    } catch {}
+    const row: ProfileRow = {
+      full_name: d?.full_name ?? null,
+      phone_e164: d?.phone_e164 ?? null,
+      phone_verified: !!d?.phone_verified,
+    };
+
+    onProfile(row);
+
+    const prev = safeReadCheckoutProfile();
+    const next: CheckoutProfileLS = {
+      name: row.full_name ?? prev.name ?? "",
+      phone: row.phone_e164 ?? prev.phone ?? "",
+      address: prev.address ?? "",
+      email: email ?? prev.email ?? "",
+      updatedAt: Date.now(),
+    };
+    writeCheckoutProfile(next);
 
     setMsg({ ok: true, text: "Сохранено." });
     setSaving(false);
@@ -102,17 +140,18 @@ export default function AccountProfile({
 
   return (
     <div className="space-y-6">
-      {/*  */}
       <div className="rounded-[28px] border border-black/10 bg-white p-5 shadow-[0_16px_60px_rgba(0,0,0,0.06)]">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-black/[0.04] grid place-items-center">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-black/[0.04]">
               <UserRound className="h-5 w-5 text-black/60" />
             </div>
+
             <div>
               <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
                 О вас
               </div>
+
               {!editing ? (
                 <div className="mt-1 text-[15px] text-black/80">
                   {profile?.full_name || "—"}
@@ -130,8 +169,8 @@ export default function AccountProfile({
 
           {!editing ? (
             <button
-              onClick={() => setEditing(true)}
-              className="h-10 px-4 rounded-2xl border border-black/10 bg-white text-black/75 hover:text-black hover:bg-black/[0.03] transition cursor-pointer"
+              onClick={startEdit}
+              className="h-10 rounded-2xl border border-black/10 bg-white px-4 text-black/75 transition hover:bg-black/[0.03] hover:text-black cursor-pointer"
             >
               <span className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase">
                 <Pencil className="h-4 w-4" />
@@ -143,9 +182,9 @@ export default function AccountProfile({
               onClick={save}
               disabled={saving}
               className={cn(
-                "h-10 px-4 rounded-2xl bg-black text-white transition cursor-pointer",
+                "h-10 rounded-2xl bg-black px-4 text-white transition cursor-pointer",
                 "hover:translate-y-[-1px] active:translate-y-[0px]",
-                "disabled:opacity-60 disabled:cursor-not-allowed",
+                "disabled:cursor-not-allowed disabled:opacity-60",
               )}
             >
               <span className="inline-flex items-center gap-2 text-[12px] tracking-[0.18em] uppercase">
@@ -162,11 +201,11 @@ export default function AccountProfile({
             <span>{email ?? "—"}</span>
           </div>
 
-          {/*  */}
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-4 py-3">
             <div className="flex items-center gap-2 text-[14px] text-black/75">
               <Phone className="h-4 w-4 text-black/50" />
               <span>{profile?.phone_e164 ?? "—"}</span>
+
               {profile?.phone_e164 && (
                 <span className="ml-2 text-[12px] text-black/45">
                   {profile?.phone_verified ? "подтверждён" : "не подтверждён"}
@@ -177,7 +216,7 @@ export default function AccountProfile({
             <button
               type="button"
               onClick={onEditPhone}
-              className="h-9 px-3 rounded-2xl border border-black/10 bg-white text-black/70 hover:text-black hover:bg-black/[0.03] transition cursor-pointer"
+              className="h-9 rounded-2xl border border-black/10 bg-white px-3 text-black/70 transition hover:bg-black/[0.03] hover:text-black cursor-pointer"
             >
               <span className="text-[11px] tracking-[0.18em] uppercase">
                 Изменить
@@ -200,7 +239,6 @@ export default function AccountProfile({
         )}
       </div>
 
-      {/*  */}
       <div className="rounded-[28px] border border-black/10 bg-white p-5">
         <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
           Адресная книга

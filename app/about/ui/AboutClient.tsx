@@ -17,7 +17,6 @@ const ABOUT_SLIDES = [
     title: "ГОСТИНАЯ SALVADOR",
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=living&collections=salvador&hero=1",
-
     image: "/hero/01.jpg",
   },
   {
@@ -25,7 +24,6 @@ const ABOUT_SLIDES = [
     title: "СПАЛЬНЯ AMBER",
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=bedrooms&collections=amber&hero=1",
-
     image: "/hero/02.jpg",
   },
   {
@@ -33,7 +31,6 @@ const ABOUT_SLIDES = [
     title: "СПАЛЬНЯ BUONGIORNO",
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=bedrooms&collections=buongiorno&hero=1",
-
     image: "/hero/03.jpg",
   },
   {
@@ -188,23 +185,29 @@ export default function AboutClient() {
 
     const ctx = gsap.context(() => {
       const items = root.querySelectorAll<HTMLElement>("[data-reveal]");
-      gsap.set(items, { autoAlpha: 0, y: 16, filter: "blur(8px)" as any });
+
+      // ✅ без `any` (ESLint no-explicit-any)
+      gsap.set(items, {
+        autoAlpha: 0,
+        y: 16,
+        filter: "blur(8px)",
+      } as unknown as gsap.TweenVars);
 
       gsap.to(items, {
         autoAlpha: 1,
         y: 0,
-        filter: "blur(0px)" as any,
+        filter: "blur(0px)",
         duration: 0.9,
         ease: "power3.out",
         stagger: 0.08,
         scrollTrigger: { trigger: items[0], start: "top 86%", once: true },
-      });
+      } as unknown as gsap.TweenVars);
 
       const img = root.querySelector<HTMLElement>("[data-reveal-image]");
       if (img) {
         gsap.fromTo(
           img,
-          { autoAlpha: 0, y: 22, scale: 0.985 },
+          { autoAlpha: 0, y: 22, scale: 0.985 } as unknown as gsap.TweenVars,
           {
             autoAlpha: 1,
             y: 0,
@@ -212,7 +215,7 @@ export default function AboutClient() {
             duration: 1.0,
             ease: "power3.out",
             scrollTrigger: { trigger: img, start: "top 86%", once: true },
-          },
+          } as unknown as gsap.TweenVars,
         );
       }
     }, root);
@@ -234,12 +237,12 @@ export default function AboutClient() {
         <span className="text-black/80">О КОМПАНИИ</span>
       </nav>
 
-      {/* */}
+      {/* slider */}
       <section className="mt-6">
         <GSAPHeroSlider slides={ABOUT_SLIDES} autoMs={6500} />
       </section>
 
-      {/* */}
+      {/* content */}
       <section
         className={cn(
           "relative mt-10 overflow-hidden rounded-[20px] bg-white",
@@ -247,7 +250,6 @@ export default function AboutClient() {
           "shadow-[0_30px_120px_rgba(0,0,0,0.08)]",
         )}
       >
-        {/* */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -left-56 -top-56 h-[720px] w-[720px] rounded-full bg-black/[0.03]" />
           <div className="absolute -right-56 -bottom-56 h-[720px] w-[720px] rounded-full bg-black/[0.025]" />
@@ -255,7 +257,6 @@ export default function AboutClient() {
         </div>
 
         <div className="relative px-6 py-10 md:px-12 md:py-14">
-          {/*  */}
           <div className="mx-auto max-w-[980px] text-center">
             <div
               data-reveal
@@ -287,7 +288,6 @@ export default function AboutClient() {
             />
           </div>
 
-          {/* text */}
           <div className="mx-auto mt-10 max-w-[980px] space-y-4 text-[14px] leading-7 text-black/65 md:text-[15px]">
             <p data-reveal>
               В 2025 году в мебельной индустрии произошло знаменательное
@@ -352,7 +352,6 @@ export default function AboutClient() {
             </p>
           </div>
 
-          {/* image */}
           <div className="mx-auto mt-10 max-w-[1120px]">
             <PremiumImageBlock src={ABOUT_IMAGE_SRC} alt="Lioneto" />
           </div>

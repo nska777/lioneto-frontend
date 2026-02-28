@@ -12,6 +12,28 @@ type Prefs = {
   email?: boolean;
 };
 
+function readMarketing(value: unknown): Prefs {
+  // Strapi/Supabase jsonb может прийти как object | null
+  if (!value || typeof value !== "object") {
+    return { sms: false, whatsapp: false, email: true };
+  }
+
+  const obj = value as Record<string, unknown>;
+
+  const sms = typeof obj.sms === "boolean" ? obj.sms : false;
+  const whatsapp = typeof obj.whatsapp === "boolean" ? obj.whatsapp : false;
+
+  // по твоей логике: если email не задан — true
+  const email =
+    obj.email === undefined
+      ? true
+      : typeof obj.email === "boolean"
+        ? obj.email
+        : !!obj.email;
+
+  return { sms, whatsapp, email };
+}
+
 export default function MarketingSection({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [prefs, setPrefs] = useState<Prefs>({
@@ -22,6 +44,8 @@ export default function MarketingSection({ userId }: { userId: string }) {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       const { data } = await supabase
         .from("profiles")
@@ -29,18 +53,29 @@ export default function MarketingSection({ userId }: { userId: string }) {
         .eq("user_id", userId)
         .maybeSingle();
 
-      const m = (data?.marketing as any) || {};
+      if (cancelled) return;
+
+      const next = readMarketing(
+        (data as unknown as { marketing?: unknown } | null)?.marketing,
+      );
+
       setPrefs({
-        sms: !!m.sms,
-        whatsapp: !!m.whatsapp,
-        email: m.email === undefined ? true : !!m.email,
+        sms: !!next.sms,
+        whatsapp: !!next.whatsapp,
+        email: next.email === undefined ? true : !!next.email,
       });
+
       setLoading(false);
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   async function save() {
     setMsg(null);
+
     const { error } = await supabase
       .from("profiles")
       .update({ marketing: prefs })
@@ -58,6 +93,12 @@ export default function MarketingSection({ userId }: { userId: string }) {
     );
   }
 
+  const OPTIONS: Array<[keyof Prefs, string]> = [
+    ["sms", "SMS-уведомления"],
+    ["whatsapp", "WhatsApp"],
+    ["email", "Email-рассылка"],
+  ];
+
   return (
     <div className="rounded-[28px] border border-black/10 bg-white p-5">
       <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
@@ -65,11 +106,7 @@ export default function MarketingSection({ userId }: { userId: string }) {
       </div>
 
       <div className="mt-4 space-y-3">
-        {[
-          ["sms", "SMS-уведомления"],
-          ["whatsapp", "WhatsApp"],
-          ["email", "Email-рассылка"],
-        ].map(([k, label]) => (
+        {OPTIONS.map(([k, label]) => (
           <label
             key={k}
             className="flex items-center justify-between rounded-2xl border border-black/10 px-4 py-3 cursor-pointer hover:bg-black/[0.02] transition"
@@ -77,7 +114,7 @@ export default function MarketingSection({ userId }: { userId: string }) {
             <span className="text-[14px] text-black/75">{label}</span>
             <input
               type="checkbox"
-              checked={!!(prefs as any)[k]}
+              checked={!!prefs[k]}
               onChange={(e) =>
                 setPrefs((p) => ({ ...p, [k]: e.target.checked }))
               }
@@ -96,7 +133,14 @@ export default function MarketingSection({ userId }: { userId: string }) {
         </button>
 
         {msg && (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-3 text-[13px] text-emerald-900">
+          <div
+            className={cn(
+              "rounded-2xl border px-4 py-3 text-[13px]",
+              msg === "Сохранено."
+                ? "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-900"
+                : "border-rose-500/20 bg-rose-500/[0.06] text-rose-900",
+            )}
+          >
             {msg}
           </div>
         )}
