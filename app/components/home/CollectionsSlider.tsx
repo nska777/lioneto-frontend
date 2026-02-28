@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import gsap from "gsap";
@@ -75,9 +83,6 @@ export function resolveSrc(url?: string) {
   if (url.startsWith("/")) {
     if (url.startsWith("/uploads")) {
       const base = getStrapiBase();
-
-      // если base указывает на localhost/127 — next/image часто не любит private ip,
-      // но src всё равно вернём (у тебя может быть настроено). Если нет — будет fallback.
       return `${base}${url}`;
     }
     return url;
@@ -92,64 +97,131 @@ export function safeResolveSrc(url?: string): string | null {
   return src && src.trim().length > 0 ? src : null;
 }
 
+/** ✅ единый формат SSR/CSR */
 function formatPrice(value: number, currency: "RUB" | "UZS") {
   try {
-    const locale = currency === "RUB" ? "ru-RU" : "uz-UZ";
-    return new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
+      currencyDisplay: "code",
       maximumFractionDigits: 0,
     }).format(value);
   } catch {
-    return currency === "RUB"
-      ? `${Math.round(value).toLocaleString("ru-RU")} ₽`
-      : `${Math.round(value).toLocaleString("ru-RU")} сум`;
+    return `${currency} ${Math.round(value).toLocaleString("en-US")}`;
   }
 }
 
-function pickStrapi(item: any) {
-  return item?.attributes ?? item;
+/* ------------------------- safe guards (no any) ------------------------- */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
 }
-
-function pickStrapiImageUrl(item: any): string {
+function pickStrapi(item: unknown): Record<string, unknown> {
+  if (!isRecord(item)) return {};
+  const attrs = item["attributes"];
+  if (isRecord(attrs)) return attrs;
+  return item;
+}
+function pickStrapiImageUrl(item: unknown): string {
   const a = pickStrapi(item);
 
-  const media =
-    a?.media?.data?.attributes ||
-    a?.media?.attributes ||
-    a?.media?.data ||
-    a?.media;
+  // media
+  const mediaRaw = a["media"];
+  const media = isRecord(mediaRaw)
+    ? isRecord(mediaRaw["data"])
+      ? isRecord((mediaRaw["data"] as Record<string, unknown>)["attributes"])
+        ? ((mediaRaw["data"] as Record<string, unknown>)[
+            "attributes"
+          ] as Record<string, unknown>)
+        : (mediaRaw["data"] as Record<string, unknown>)
+      : isRecord(mediaRaw["attributes"])
+        ? (mediaRaw["attributes"] as Record<string, unknown>)
+        : mediaRaw
+    : null;
+
+  // gallery[0]
+  const galleryRaw = a["gallery"];
+  const gallery0 =
+    isRecord(galleryRaw) && Array.isArray(galleryRaw["data"])
+      ? galleryRaw["data"][0]
+      : Array.isArray(galleryRaw)
+        ? galleryRaw[0]
+        : null;
 
   const g0 =
-    a?.gallery?.data?.[0]?.attributes ||
-    a?.gallery?.[0]?.attributes ||
-    a?.gallery?.data?.[0] ||
-    a?.gallery?.[0];
+    isRecord(gallery0) && isRecord(gallery0["attributes"])
+      ? (gallery0["attributes"] as Record<string, unknown>)
+      : isRecord(gallery0)
+        ? gallery0
+        : null;
 
-  return String(media?.url || g0?.url || "").trim();
+  const mu = isRecord(media) ? media["url"] : null;
+  const gu = isRecord(g0) ? g0["url"] : null;
+
+  const picked = typeof mu === "string" ? mu : typeof gu === "string" ? gu : "";
+  return String(picked || "").trim();
 }
 
-function toLiteProduct(item: any): LiteProduct | null {
+function toLiteProduct(item: unknown): LiteProduct | null {
   const p = pickStrapi(item);
-  const slug = String(p?.slug || "").trim();
+  const slug = String(p["slug"] ?? "").trim();
   if (!slug) return null;
 
   const imgUrl = pickStrapiImageUrl(item);
 
+  const title = String(p["title"] ?? slug);
+
+  const idRaw = p["id"];
+  const id: string | number =
+    typeof idRaw === "number" || typeof idRaw === "string" ? idRaw : slug;
+
+  const priceUZSRaw = p["priceUZS"];
+  const priceRUBRaw = p["priceRUB"];
+
+  const priceUZS =
+    priceUZSRaw === null || priceUZSRaw === undefined
+      ? null
+      : Number(priceUZSRaw);
+  const priceRUB =
+    priceRUBRaw === null || priceRUBRaw === undefined
+      ? null
+      : Number(priceRUBRaw);
+
   return {
-    id: p?.id ?? item?.id ?? slug,
+    id,
     slug,
-    title: String(p?.title || slug),
+    title,
     image: imgUrl ? resolveSrc(imgUrl) : null,
-    priceUZS:
-      p?.priceUZS === null || p?.priceUZS === undefined
-        ? null
-        : Number(p.priceUZS),
-    priceRUB:
-      p?.priceRUB === null || p?.priceRUB === undefined
-        ? null
-        : Number(p.priceRUB),
+    priceUZS: Number.isFinite(priceUZS) ? priceUZS : null,
+    priceRUB: Number.isFinite(priceRUB) ? priceRUB : null,
   };
+}
+
+/* ------------------------ products cache (no setState-in-effect) ------------------------ */
+type ProductsCacheState = {
+  map: Map<string, LiteProduct>;
+  loaded: boolean;
+  loading: boolean;
+};
+
+const productsCache: ProductsCacheState = {
+  map: new Map(),
+  loaded: false,
+  loading: false,
+};
+
+const productsListeners = new Set<() => void>();
+
+function emitProducts() {
+  productsListeners.forEach((fn) => fn());
+}
+
+function subscribeProducts(fn: () => void) {
+  productsListeners.add(fn);
+  return () => productsListeners.delete(fn);
+}
+
+function getProductsSnapshot() {
+  return productsCache.map;
 }
 
 async function fetchProductsMapBySlug(): Promise<Map<string, LiteProduct>> {
@@ -172,9 +244,11 @@ async function fetchProductsMapBySlug(): Promise<Map<string, LiteProduct>> {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return map;
 
-    const json = await res.json();
-    const arr = Array.isArray(json?.data) ? json.data : [];
+    const jsonUnknown: unknown = await res.json();
+    const json = isRecord(jsonUnknown) ? jsonUnknown : {};
+    const data = (isRecord(json) ? json["data"] : null) as unknown;
 
+    const arr = Array.isArray(data) ? data : [];
     for (const item of arr) {
       const lp = toLiteProduct(item);
       if (lp) map.set(lp.slug, lp);
@@ -195,12 +269,10 @@ async function fetchOneProductBySlug(
   try {
     const qs = new URLSearchParams();
     qs.set("filters[slug][$eq]", slug);
-
     qs.set("fields[0]", "title");
     qs.set("fields[1]", "slug");
     qs.set("fields[2]", "priceUZS");
     qs.set("fields[3]", "priceRUB");
-
     qs.set("populate[0]", "media");
     qs.set("populate[1]", "gallery");
 
@@ -208,12 +280,48 @@ async function fetchOneProductBySlug(
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
 
-    const json = await res.json();
-    const item = Array.isArray(json?.data) ? json.data[0] : null;
+    const jsonUnknown: unknown = await res.json();
+    const json = isRecord(jsonUnknown) ? jsonUnknown : {};
+    const data = (isRecord(json) ? json["data"] : null) as unknown;
+
+    const item = Array.isArray(data) ? data[0] : null;
     return item ? toLiteProduct(item) : null;
   } catch {
     return null;
   }
+}
+
+function ensureProductsLoaded() {
+  if (productsCache.loaded || productsCache.loading) return;
+
+  productsCache.loading = true;
+  void fetchProductsMapBySlug()
+    .then((m) => {
+      productsCache.map = m;
+      productsCache.loaded = true;
+      productsCache.loading = false;
+      emitProducts();
+    })
+    .catch(() => {
+      productsCache.loaded = true;
+      productsCache.loading = false;
+      emitProducts();
+    });
+}
+
+function ensureOneProduct(slug: string) {
+  if (!slug) return;
+  if (productsCache.map.has(slug)) return;
+
+  void fetchOneProductBySlug(slug).then((p) => {
+    if (!p) return;
+    if (productsCache.map.has(p.slug)) return;
+
+    const next = new Map(productsCache.map);
+    next.set(p.slug, p);
+    productsCache.map = next;
+    emitProducts();
+  });
 }
 
 export default function CollectionsSlider({
@@ -239,43 +347,45 @@ export default function CollectionsSlider({
   const [openHotspotId, setOpenHotspotId] = useState<string | null>(null);
 
   const closeT = useRef<number | null>(null);
-  const cancelClose = () => {
+  const cancelClose = useCallback(() => {
     if (closeT.current) {
       window.clearTimeout(closeT.current);
       closeT.current = null;
     }
-  };
-  const scheduleClose = () => {
+  }, []);
+  const scheduleClose = useCallback(() => {
     cancelClose();
     closeT.current = window.setTimeout(() => setOpenHotspotId(null), 180);
-  };
+  }, [cancelClose]);
 
   const manualHoldRef = useRef(false);
   const holdTimeoutRef = useRef<number | null>(null);
-  const holdFor = (ms = 2500) => {
+  const holdFor = useCallback((ms = 2500) => {
     manualHoldRef.current = true;
     if (holdTimeoutRef.current) window.clearTimeout(holdTimeoutRef.current);
     holdTimeoutRef.current = window.setTimeout(() => {
       manualHoldRef.current = false;
       holdTimeoutRef.current = null;
     }, ms);
-  };
+  }, []);
 
-  // ✅ products map (Strapi)
-  const [productsBySlug, setProductsBySlug] = useState<
-    Map<string, LiteProduct>
-  >(() => new Map());
+  // ✅ products map (Strapi) — через cache + useSyncExternalStore
+  const productsBySlug = useSyncExternalStore(
+    subscribeProducts,
+    getProductsSnapshot,
+    getProductsSnapshot,
+  );
+  ensureProductsLoaded();
 
-  useEffect(() => {
-    let alive = true;
-    fetchProductsMapBySlug()
-      .then((m) => {
-        if (alive) setProductsBySlug(m);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
+  const setCollectionIndex = useCallback((nextIdx: number) => {
+    setActiveCollection(nextIdx);
+    setActiveImage(0);
+    setOpenHotspotId(null);
+  }, []);
+
+  const setImageIndex = useCallback((nextIdx: number) => {
+    setActiveImage(nextIdx);
+    setOpenHotspotId(null);
   }, []);
 
   const current = safeCollections[activeCollection];
@@ -303,27 +413,6 @@ export default function CollectionsSlider({
   const activeProduct = activeSlug
     ? (productsBySlug.get(activeSlug) ?? null)
     : null;
-
-  // ✅ если не нашли в общей мапе — докачаем точечно по hover (и положим в Map)
-  useEffect(() => {
-    if (!openHotspotId) return;
-    if (!activeSlug) return;
-    if (productsBySlug.has(activeSlug)) return;
-
-    let alive = true;
-    fetchOneProductBySlug(activeSlug).then((p) => {
-      if (!alive || !p) return;
-      setProductsBySlug((prev) => {
-        const next = new Map(prev);
-        next.set(p.slug, p);
-        return next;
-      });
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openHotspotId, activeSlug]);
 
   // Reveal
   useLayoutEffect(() => {
@@ -354,16 +443,7 @@ export default function CollectionsSlider({
     return () => ctx.revert();
   }, []);
 
-  useEffect(() => {
-    setActiveImage(0);
-    setOpenHotspotId(null);
-  }, [activeCollection]);
-
-  useEffect(() => {
-    setOpenHotspotId(null);
-  }, [activeImage]);
-
-  // hotspot card animation
+  // hotspot card animation (no setState)
   useEffect(() => {
     if (!openHotspotId) return;
     if (!cardRef.current) return;
@@ -382,8 +462,8 @@ export default function CollectionsSlider({
     );
   }, [openHotspotId]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+  const onKey = useCallback(
+    (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (openHotspotId) setOpenHotspotId(null);
         if (lightboxOpen) setLightboxOpen(false);
@@ -392,31 +472,44 @@ export default function CollectionsSlider({
 
       if (e.key === "ArrowRight") {
         holdFor(2500);
-        setActiveImage((p) => clampIndex(p + 1, currentImages.length));
+        setImageIndex(clampIndex(activeImage + 1, currentImages.length));
       }
       if (e.key === "ArrowLeft") {
         holdFor(2500);
-        setActiveImage((p) => clampIndex(p - 1, currentImages.length));
+        setImageIndex(clampIndex(activeImage - 1, currentImages.length));
       }
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [lightboxOpen, currentImages.length, openHotspotId]);
+    },
+    [
+      openHotspotId,
+      lightboxOpen,
+      holdFor,
+      setImageIndex,
+      activeImage,
+      currentImages.length,
+    ],
+  );
 
   useEffect(() => {
-    const onDown = (e: MouseEvent) => {
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onKey]);
+
+  const onOutsideHotspotDown = useCallback(
+    (e: MouseEvent) => {
       if (!openHotspotId) return;
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
       if (target.closest?.("[data-hotspot]")) return;
       if (cardRef.current && cardRef.current.contains(target)) return;
       setOpenHotspotId(null);
-    };
+    },
+    [openHotspotId],
+  );
 
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [openHotspotId]);
+  useEffect(() => {
+    window.addEventListener("mousedown", onOutsideHotspotDown);
+    return () => window.removeEventListener("mousedown", onOutsideHotspotDown);
+  }, [onOutsideHotspotDown]);
 
   useEffect(() => {
     return () => {
@@ -429,19 +522,23 @@ export default function CollectionsSlider({
 
   const goPrevCollection = () => {
     holdFor();
-    setActiveCollection((p) => clampIndex(p - 1, safeCollections.length));
+    setCollectionIndex(
+      clampIndex(activeCollection - 1, safeCollections.length),
+    );
   };
   const goNextCollection = () => {
     holdFor();
-    setActiveCollection((p) => clampIndex(p + 1, safeCollections.length));
+    setCollectionIndex(
+      clampIndex(activeCollection + 1, safeCollections.length),
+    );
   };
   const goPrevImage = () => {
     holdFor();
-    setActiveImage((p) => clampIndex(p - 1, currentImages.length));
+    setImageIndex(clampIndex(activeImage - 1, currentImages.length));
   };
   const goNextImage = () => {
     holdFor();
-    setActiveImage((p) => clampIndex(p + 1, currentImages.length));
+    setImageIndex(clampIndex(activeImage + 1, currentImages.length));
   };
 
   const computedSide: "left" | "right" =
@@ -556,7 +653,11 @@ export default function CollectionsSlider({
                   {currentHeroSrc ? (
                     <Image
                       src={currentHeroSrc}
-                      alt={currentImg?.alternativeText || current.title}
+                      alt={
+                        currentImg?.alternativeText ||
+                        current?.title ||
+                        "Коллекция"
+                      }
                       fill
                       sizes="(max-width: 768px) 100vw, 1200px"
                       className="object-cover"
@@ -582,22 +683,25 @@ export default function CollectionsSlider({
                       onMouseEnter={() => {
                         cancelClose();
                         setOpenHotspotId(h.id);
+                        ensureOneProduct(String(h.productId || "").trim());
                       }}
                       onMouseLeave={() => scheduleClose()}
                       onFocus={() => {
                         cancelClose();
                         setOpenHotspotId(h.id);
+                        ensureOneProduct(String(h.productId || "").trim());
                       }}
                       onBlur={() => scheduleClose()}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        ensureOneProduct(String(h.productId || "").trim());
                         setOpenHotspotId((prev) =>
                           prev === h.id ? null : h.id,
                         );
                       }}
                       className={cn(
-                        "absolute z-[70] h-50 w-45 -translate-x-1/2 -translate-y-1/2",
+                        "absolute z-[70] h-16 w-16 -translate-x-1/2 -translate-y-1/2",
                         "bg-transparent shadow-none ring-0",
                         "cursor-pointer focus:outline-none",
                         "focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
@@ -606,7 +710,7 @@ export default function CollectionsSlider({
                       style={{ left: `${h.xPct}%`, top: `${h.yPct}%` }}
                       aria-label="Открыть модуль"
                     >
-                      {/* ✅ видимый маркер */}
+                      {/* (маркер оставлен невидимым как hitbox) */}
                       <span
                         className="pointer-events-none absolute inset-0 rounded-full opacity-0"
                         style={{
@@ -738,9 +842,9 @@ export default function CollectionsSlider({
                   >
                     <div>
                       <div className="text-[18px] font-semibold tracking-[-0.01em] text-black">
-                        {current.title}
+                        {current?.title || "Коллекция"}
                       </div>
-                      {current.description ? (
+                      {current?.description ? (
                         <div className="mt-3 line-clamp-6 text-[13px] leading-[1.75] text-black/60">
                           {current.description}
                         </div>
@@ -748,16 +852,16 @@ export default function CollectionsSlider({
                     </div>
 
                     <div className="pointer-events-auto mt-4 flex items-center gap-2">
-                      {safeCollections.map((_, i) => (
+                      {safeCollections.map((c, i) => (
                         <button
-                          key={String(safeCollections[i].id)}
+                          key={String(c.id)}
                           type="button"
                           aria-label={`Коллекция ${i + 1}`}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             holdFor();
-                            setActiveCollection(i);
+                            setCollectionIndex(i);
                           }}
                           className={cn(
                             "h-2 w-2 rounded-full transition",
@@ -777,24 +881,24 @@ export default function CollectionsSlider({
             {/* Mobile description */}
             <div className="px-4 pb-4 pt-4 md:hidden">
               <h3 className="text-[20px] font-semibold leading-snug tracking-[-0.01em] text-black">
-                {current.title}
+                {current?.title || "Коллекция"}
               </h3>
 
-              {current.description && (
+              {current?.description && (
                 <p className="mt-3 whitespace-pre-line text-[14px] leading-[1.75] text-black/60">
                   {current.description}
                 </p>
               )}
 
               <div className="mt-4 flex items-center gap-2">
-                {safeCollections.map((_, i) => (
+                {safeCollections.map((c, i) => (
                   <button
-                    key={String(safeCollections[i].id)}
+                    key={String(c.id)}
                     type="button"
                     aria-label={`Коллекция ${i + 1}`}
                     onClick={() => {
                       holdFor();
-                      setActiveCollection(i);
+                      setCollectionIndex(i);
                     }}
                     className={cn(
                       "h-2 w-2 rounded-full transition",
@@ -817,11 +921,11 @@ export default function CollectionsSlider({
               const thumbSrc = safeResolveSrc(img?.url);
               return (
                 <button
-                  key={`${current.id}-img-${i}`}
+                  key={`${String(current?.id)}-img-${i}`}
                   type="button"
                   onClick={() => {
                     holdFor();
-                    setActiveImage(i);
+                    setImageIndex(i);
                   }}
                   className={cn(
                     "relative h-[86px] w-[140px] shrink-0 overflow-hidden rounded-xl",
@@ -863,7 +967,7 @@ export default function CollectionsSlider({
 
         {lightboxOpen && (
           <Lightbox
-            title={current.title}
+            title={current?.title || "Коллекция"}
             images={currentImages}
             activeIndex={activeImage}
             onClose={() => setLightboxOpen(false)}
@@ -871,7 +975,7 @@ export default function CollectionsSlider({
             onNext={goNextImage}
             onPick={(i) => {
               holdFor();
-              setActiveImage(i);
+              setImageIndex(i);
             }}
           />
         )}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useEffect, useLayoutEffect } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -25,39 +25,67 @@ function cn(...s: Array<string | false | null | undefined>) {
   return s.filter(Boolean).join(" ");
 }
 
-// ---- megaCategories shape is "any" (мы аккуратно читаем поля)
-function normalizeStr(v: any) {
-  return String(v ?? "").trim();
+/* -------------------------
+   Safe helpers (NO any)
+-------------------------- */
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
 }
-function catTitle(cat: any) {
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+function getProp(o: unknown, key: string): unknown {
+  return isRecord(o) ? o[key] : undefined;
+}
+function normalizeStr(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (isString(v)) return v.trim();
+  return String(v).trim();
+}
+
+function catTitle(cat: unknown): string {
   return normalizeStr(
-    cat?.title ?? cat?.label ?? cat?.name ?? cat?.fallback ?? cat?.slug ?? "",
-  );
-}
-function catItems(cat: any): any[] {
-  const a =
-    cat?.items ??
-    cat?.children ??
-    cat?.links ??
-    cat?.list ??
-    cat?.collections ??
-    [];
-  return Array.isArray(a) ? a : [];
-}
-function itemTitle(it: any) {
-  return normalizeStr(
-    it?.title ??
-      it?.label ??
-      it?.name ??
-      it?.fallback ??
-      it?.slug ??
-      it?.value ??
+    getProp(cat, "title") ??
+      getProp(cat, "label") ??
+      getProp(cat, "name") ??
+      getProp(cat, "fallback") ??
+      getProp(cat, "slug") ??
       "",
   );
 }
-function itemHref(it: any) {
+
+function catItems(cat: unknown): unknown[] {
+  const a =
+    getProp(cat, "items") ??
+    getProp(cat, "children") ??
+    getProp(cat, "links") ??
+    getProp(cat, "list") ??
+    getProp(cat, "collections") ??
+    [];
+  return Array.isArray(a) ? a : [];
+}
+
+function itemTitle(it: unknown): string {
   return normalizeStr(
-    it?.href ?? it?.url ?? it?.to ?? it?.link ?? it?.path ?? "",
+    getProp(it, "title") ??
+      getProp(it, "label") ??
+      getProp(it, "name") ??
+      getProp(it, "fallback") ??
+      getProp(it, "slug") ??
+      getProp(it, "value") ??
+      "",
+  );
+}
+
+function itemHref(it: unknown): string {
+  return normalizeStr(
+    getProp(it, "href") ??
+      getProp(it, "url") ??
+      getProp(it, "to") ??
+      getProp(it, "link") ??
+      getProp(it, "path") ??
+      "",
   );
 }
 
@@ -70,8 +98,109 @@ function normKey(s: string) {
 }
 
 /* -------------------------
-   Contacts mini-block (inside burger)
+   Shared tiny UI pieces (OUTSIDE component)
 -------------------------- */
+
+function Divider() {
+  return <div className="h-px w-full bg-black/10" />;
+}
+
+function LinkRow({
+  href,
+  label,
+  external,
+  indent = 0,
+  upper,
+  onClick,
+}: {
+  href: string;
+  label: string;
+  external?: boolean;
+  indent?: number;
+  upper?: boolean;
+  onClick: () => void;
+}) {
+  const base = cn(
+    "block w-full cursor-pointer select-none",
+    "px-4 py-3.5",
+    "transition hover:bg-black/[0.035]",
+  );
+
+  const style = indent ? { paddingLeft: 16 + indent } : undefined;
+
+  const content = (
+    <span
+      className={cn(
+        "text-[14px] text-black/85",
+        upper && "text-[12px] uppercase tracking-[0.16em] text-black/55",
+      )}
+    >
+      {label}
+    </span>
+  );
+
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={onClick}
+        className={base}
+        style={style}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} onClick={onClick} className={base} style={style}>
+      {content}
+    </Link>
+  );
+}
+
+function RowBtn({
+  children,
+  onClick,
+  right,
+  strong,
+  upper,
+  indent = 0,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  right?: ReactNode;
+  strong?: boolean;
+  upper?: boolean;
+  indent?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full text-left cursor-pointer select-none",
+        "px-4 py-3.5",
+        "flex items-center justify-between gap-3",
+        "transition hover:bg-black/[0.035]",
+      )}
+      style={indent ? { paddingLeft: 16 + indent } : undefined}
+    >
+      <span
+        className={cn(
+          "text-[14px] text-black/85",
+          strong && "font-semibold",
+          upper && "text-[12px] uppercase tracking-[0.16em] text-black/55",
+        )}
+      >
+        {children}
+      </span>
+      {right}
+    </button>
+  );
+}
 
 function RegionToggleMini({
   value,
@@ -163,7 +292,6 @@ function StoreRowMini({
           )}
         </div>
 
-        {/* ВАЖНО: min-w-0 + w-full чтобы текст красиво занимал всю ширину */}
         <div className="min-w-0 w-full flex-1">
           <div className="text-[13px] font-semibold tracking-[-0.01em] text-black/90">
             {store.title}
@@ -177,10 +305,7 @@ function StoreRowMini({
                   <a
                     key={`${store.id}-ph-${i}`}
                     href={toTelHref(ph)}
-                    onClick={(e) => {
-                      // чтобы тап по телефону не мешал выбору магазина
-                      e.stopPropagation();
-                    }}
+                    onClick={(e) => e.stopPropagation()}
                     className={cn(
                       "block w-full",
                       "underline underline-offset-4 decoration-black/20",
@@ -213,7 +338,7 @@ function StoreRowMini({
 }
 
 function ContactsMiniBlock() {
-  // ✅ дефолт УЗ
+  // дефолт УЗ
   const [region, setRegion] = useState<RegionKey>("uz");
   const stores = useMemo(
     () => (region === "ru" ? RU_STORES : UZ_STORES),
@@ -223,20 +348,23 @@ function ContactsMiniBlock() {
   const [activeId, setActiveId] = useState<string>(
     () => UZ_STORES[0]?.id ?? "",
   );
+
   const activeStore = useMemo(
     () => stores.find((s) => s.id === activeId) ?? stores[0],
     [stores, activeId],
   );
 
-  useLayoutEffect(() => {
-    setActiveId(stores[0]?.id ?? "");
-  }, [region, stores]);
+  const onRegionChange = (v: RegionKey) => {
+    setRegion(v);
+    const first = (v === "ru" ? RU_STORES : UZ_STORES)[0]?.id ?? "";
+    setActiveId(first);
+  };
 
   return (
     <div className="border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-center justify-between gap-3">
-          <RegionToggleMini value={region} onChange={setRegion} />
+          <RegionToggleMini value={region} onChange={onRegionChange} />
           <div className="text-[11px] tracking-[0.18em] text-black/45 whitespace-nowrap">
             ВЫБРАНО:{" "}
             <span className="text-black/80">
@@ -272,9 +400,8 @@ function ContactsMiniBlock() {
   );
 }
 
-/* -------------------------
-   Mobile Menu
--------------------------- */
+type RoomItem = { title: string; href: string };
+type Room = { key: string; title: string; items: RoomItem[] };
 
 export default function MobileMenu({
   open,
@@ -285,9 +412,8 @@ export default function MobileMenu({
   open: boolean;
   onClose: () => void;
   links: readonly MenuLink[];
-  categories?: any[];
+  categories?: unknown[];
 }) {
-  // ✅ body scroll lock (mobile-safe, iOS-safe)
   useEffect(() => {
     if (!open) return;
 
@@ -328,7 +454,7 @@ export default function MobileMenu({
     };
   }, [open]);
 
-  // esc close
+  // esc close (effect is fine: no setState, just event cleanup)
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -338,138 +464,48 @@ export default function MobileMenu({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const rooms = useMemo(() => {
+  const rooms = useMemo<Room[]>(() => {
     const arr = Array.isArray(categories) ? categories : [];
+
     return arr
       .filter(Boolean)
-      .map((c) => ({
-        key: (catTitle(c).toLowerCase() || Math.random().toString(16)).trim(),
-        title: catTitle(c),
-        items: catItems(c)
-          .map((it) => ({
-            title: itemTitle(it),
-            href: itemHref(it),
-          }))
-          .filter((x) => x.title && x.href),
-      }))
+      .map((c, idx) => {
+        const title = catTitle(c);
+        const items = catItems(c)
+          .map(
+            (it): RoomItem => ({
+              title: itemTitle(it),
+              href: itemHref(it),
+            }),
+          )
+          .filter((x) => x.title && x.href);
+
+        const keyBase = normKey(title) || `room-${idx}`;
+        return { key: keyBase, title, items };
+      })
       .filter((r) => r.title);
   }, [categories]);
 
-  // ✅ по дефолту каталог ЗАКРЫТ
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [openRoomKey, setOpenRoomKey] = useState<string>("");
 
-  // ✅ каждый раз при открытии меню — каталог закрываем и комнаты сворачиваем
-  useEffect(() => {
-    if (!open) return;
-    setCatalogOpen(false);
-    setOpenRoomKey("");
-  }, [open]);
-
-  // если пользователь откроет каталог — можно открыть первую комнату (опционально)
-  useEffect(() => {
-    if (!open) return;
-    if (!catalogOpen) return;
-    if (!rooms.length) return;
-    setOpenRoomKey((prev) => prev || rooms[0].key);
-  }, [open, catalogOpen, rooms]);
-
-  const Divider = () => <div className="h-px w-full bg-black/10" />;
-
-  const LinkRow = ({
-    href,
-    label,
-    external,
-    indent = 0,
-    upper,
-  }: {
-    href: string;
-    label: string;
-    external?: boolean;
-    indent?: number;
-    upper?: boolean;
-  }) => {
-    const base = cn(
-      "block w-full cursor-pointer select-none",
-      "px-4 py-3.5",
-      "transition hover:bg-black/[0.035]",
-    );
-
-    const style = indent ? { paddingLeft: 16 + indent } : undefined;
-
-    const content = (
-      <span
-        className={cn(
-          "text-[14px] text-black/85",
-          upper && "text-[12px] uppercase tracking-[0.16em] text-black/55",
-        )}
-      >
-        {label}
-      </span>
-    );
-
-    if (external) {
-      return (
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          onClick={onClose}
-          className={base}
-          style={style}
-        >
-          {content}
-        </a>
-      );
-    }
-
-    return (
-      <Link href={href} onClick={onClose} className={base} style={style}>
-        {content}
-      </Link>
-    );
+  const onToggleCatalog = () => {
+    setCatalogOpen((v) => {
+      const next = !v;
+      if (next) {
+        const firstKey = rooms[0]?.key ?? "";
+        setOpenRoomKey((prev) => prev || firstKey);
+      } else {
+        setOpenRoomKey("");
+      }
+      return next;
+    });
   };
 
-  const RowBtn = ({
-    children,
-    onClick,
-    right,
-    strong,
-    upper,
-    indent = 0,
-  }: {
-    children: React.ReactNode;
-    onClick?: () => void;
-    right?: React.ReactNode;
-    strong?: boolean;
-    upper?: boolean;
-    indent?: number;
-  }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "w-full text-left cursor-pointer select-none",
-        "px-4 py-3.5",
-        "flex items-center justify-between gap-3",
-        "transition hover:bg-black/[0.035]",
-      )}
-      style={indent ? { paddingLeft: 16 + indent } : undefined}
-    >
-      <span
-        className={cn(
-          "text-[14px] text-black/85",
-          strong && "font-semibold",
-          upper && "text-[12px] uppercase tracking-[0.16em] text-black/55",
-        )}
-      >
-        {children}
-      </span>
-      {right}
-    </button>
-  );
+  const onToggleRoom = (roomKey: string) => {
+    setOpenRoomKey((prev) => (prev === roomKey ? "" : roomKey));
+  };
 
-  // ✅ Убираем "Каталог" и "Контакты" из обычных ссылок
   const menuLinks = useMemo(() => {
     const safe = (links ?? []).filter((l) => l?.href && l?.label);
 
@@ -522,7 +558,7 @@ export default function MobileMenu({
           "flex flex-col",
         )}
       >
-        {/* header внутри drawer */}
+        {/* header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3">
           <div className="text-[12px] uppercase tracking-[0.22em] text-black/45">
             Меню
@@ -538,14 +574,13 @@ export default function MobileMenu({
           </button>
         </div>
 
-        {/* body (scroll) */}
+        {/* body */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
-          {/* ✅ общий блок меню */}
           <div className="border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
             <RowBtn
               strong
               upper
-              onClick={() => setCatalogOpen((v) => !v)}
+              onClick={onToggleCatalog}
               right={
                 catalogOpen ? (
                   <ChevronUp className="h-5 w-5 text-black/45" />
@@ -569,11 +604,7 @@ export default function MobileMenu({
 
                       <RowBtn
                         strong
-                        onClick={() =>
-                          setOpenRoomKey((prev) =>
-                            prev === r.key ? "" : r.key,
-                          )
-                        }
+                        onClick={() => onToggleRoom(r.key)}
                         right={
                           isOpen ? (
                             <ChevronUp className="h-5 w-5 text-black/45" />
@@ -589,10 +620,11 @@ export default function MobileMenu({
                         <div className="pb-2">
                           {r.items.map((it) => (
                             <LinkRow
-                              key={it.href + it.title}
+                              key={`${it.href}${it.title}`}
                               href={it.href}
                               label={it.title}
                               indent={22}
+                              onClick={onClose}
                             />
                           ))}
                         </div>
@@ -606,18 +638,18 @@ export default function MobileMenu({
             {menuLinks.length ? <Divider /> : null}
 
             {menuLinks.map((l, idx) => (
-              <div key={l.href + idx}>
+              <div key={`${l.href}${idx}`}>
                 <LinkRow
                   href={l.href}
                   label={l.label}
                   external={l.isExternal}
+                  onClick={onClose}
                 />
                 {idx !== menuLinks.length - 1 ? <Divider /> : null}
               </div>
             ))}
           </div>
 
-          {/* ✅ контакты внутри drawer */}
           <div className="mt-4">
             <ContactsMiniBlock />
           </div>

@@ -19,12 +19,23 @@ function chunkColumns(items: MegaItem[], cols: number) {
   ).filter((c) => c.length);
 }
 
+type Dict = Record<string, unknown>;
+
+function safeStr(v: unknown, fallback = ""): string {
+  return typeof v === "string" ? v : fallback;
+}
+
+// ✅ FIX: accept MegaItem[] | undefined | null (so activeCat?.items is valid)
+function safeItems(items: MegaItem[] | undefined | null): MegaItem[] {
+  return Array.isArray(items) ? items : [];
+}
+
 export default function CategoryNav({
   categories,
   dict,
 }: {
   categories: MegaCategory[];
-  dict: any; // словарь i18n (ru/uz)
+  dict: Dict; // i18n словарь (ru/uz)
 }) {
   const [active, setActive] = useState<MegaKey | null>(null);
   const open = active !== null;
@@ -44,14 +55,14 @@ export default function CategoryNav({
   );
 
   const colsCount = useMemo(() => {
-    const n = activeCat?.items?.length ?? 0;
+    const n = safeItems(activeCat?.items ?? undefined).length;
     if (n <= 6) return 3;
     if (n <= 10) return 4;
     return 5;
   }, [activeCat]);
 
   const columns = useMemo(
-    () => chunkColumns(activeCat?.items ?? [], colsCount),
+    () => chunkColumns(safeItems(activeCat?.items ?? undefined), colsCount),
     [activeCat, colsCount],
   );
 
@@ -84,7 +95,7 @@ export default function CategoryNav({
   };
 
   const cancelHoverOpen = () => {
-    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
     hoverTimer.current = null;
   };
 
@@ -142,12 +153,13 @@ export default function CategoryNav({
   }, [open]);
 
   const catLabel = (c: MegaCategory) =>
-    tF(dict, String(c.labelKey ?? ""), String(c.fallback ?? ""));
+    tF(dict, safeStr(c.labelKey, ""), safeStr(c.fallback, ""));
 
   const itemLabel = (it: MegaItem) =>
-    tF(dict, String(it.labelKey ?? ""), String(it.fallback ?? ""));
+    tF(dict, safeStr(it.labelKey, ""), safeStr(it.fallback, ""));
 
   const activeCatTitle = activeCat ? catLabel(activeCat) : "";
+  const activeItems = safeItems(activeCat?.items ?? undefined);
 
   return (
     <div className="w-full bg-[#f3f3f3]  border-black/10">
@@ -193,6 +205,7 @@ export default function CategoryNav({
                 return (
                   <button
                     key={c.key}
+                    type="button"
                     onClick={() =>
                       setActive((prev) => (prev === c.key ? null : c.key))
                     }
@@ -215,6 +228,7 @@ export default function CategoryNav({
                       {activeCatTitle}
                     </div>
                     <button
+                      type="button"
                       className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full hover:bg-black/5 transition"
                       onClick={() => setActive(null)}
                       aria-label="Close"
@@ -224,7 +238,7 @@ export default function CategoryNav({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {activeCat.items.map((it) => (
+                    {activeItems.map((it) => (
                       <Link
                         key={it.href}
                         href={it.href}
@@ -272,7 +286,7 @@ export default function CategoryNav({
                       )}
                     >
                       {columns.map((col, idx) => (
-                        <div key={idx} className="space-y-3">
+                        <div key={`col-${idx}`} className="space-y-3">
                           {col.map((it) => {
                             const label = itemLabel(it);
 

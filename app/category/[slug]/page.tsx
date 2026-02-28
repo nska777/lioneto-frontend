@@ -36,9 +36,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
         ))}
 
         {!cat && (
-          <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60">
-            {/*Нет данных по категории. Проверь slug и headerData.ts*/}
-          </div>
+          <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-black/60"></div>
         )}
       </div>
     </main>

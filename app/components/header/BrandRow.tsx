@@ -77,7 +77,7 @@ export default function BrandRow({
   return (
     <div className="py-1.5 md:py-2.5">
       <div className="mx-auto w-full max-w-[1200px] px-4">
-        {/* ✅ MOBILE: как было (stack) | ✅ MD+: 3 колонки в одну линию */}
+        {/* MOBILE: как было (stack) | MD+: 3 колонки в одну линию */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
           {/* LEFT */}
           <div className="flex items-center justify-between md:w-[360px] md:justify-start md:gap-4">

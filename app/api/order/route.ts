@@ -16,6 +16,34 @@ function toNum(v: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function toDateOrNow(isoLike: string): Date {
+  const d = new Date(isoLike);
+  return Number.isNaN(d.getTime()) ? new Date() : d;
+}
+
+function formatTashkent(d: Date): string {
+  try {
+
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Asia/Tashkent",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(d);
+  } catch {
+
+    const ms = d.getTime() + 5 * 60 * 60 * 1000;
+    const x = new Date(ms);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${pad(x.getDate())}.${pad(x.getMonth() + 1)}.${x.getFullYear()}, ${pad(
+      x.getHours(),
+    )}:${pad(x.getMinutes())}:${pad(x.getSeconds())}`;
+  }
+}
+
 type Customer = {
   phone?: string | null;
   name?: string | null;
@@ -96,7 +124,6 @@ export async function POST(req: Request) {
     total,
   } = payload;
 
-
   const mode =
     (typeof modeTop === "string" ? modeTop : null) ??
     meta?.mode ??
@@ -104,7 +131,14 @@ export async function POST(req: Request) {
     null;
 
   const oid = String(orderId ?? "").trim() || genOrderId();
-  const cAt = String(createdAt ?? "").trim() || new Date().toISOString();
+
+  // createdAt из payload (если дали) иначе now
+  const cAtIso = String(createdAt ?? "").trim() || new Date().toISOString();
+  const cAtDate = toDateOrNow(cAtIso);
+
+
+  const cAtUz = formatTashkent(cAtDate);
+  const cAtUtc = cAtDate.toISOString();
 
   const customerSafe: Customer = customer ?? {};
   const itemsSafe: OrderItem[] = isOrderItemsArray(items) ? items : [];
@@ -152,7 +186,9 @@ export async function POST(req: Request) {
     `🧾 <b>НОВЫЙ ЗАКАЗ</b>\n` +
     `${esc(kind)}\n` +
     `🆔 <b>${esc(oid)}</b>\n` +
-    `🕒 ${esc(cAt)}\n\n` +
+    // ✅ теперь всегда понятно: UZ + UTC
+    `🕒 <b>Время (UZ):</b> ${esc(cAtUz)}\n` +
+    `🕒 <b>UTC:</b> ${esc(cAtUtc)}\n\n` +
     `📞 <b>Телефон:</b> ${esc(String(customerSafe.phone))}\n` +
     `${customerSafe.name ? `👤 <b>Имя:</b> ${esc(customerSafe.name)}\n` : ""}` +
     `${

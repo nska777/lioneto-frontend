@@ -40,7 +40,6 @@ function getProp(obj: unknown, key: string): unknown {
   return obj[key];
 }
 
-/** ✅ Лейбл коллекции по slug (brand) */
 function labelByBrandSlug(slug: string | null | undefined) {
   const s = String(slug ?? "")
     .trim()
@@ -72,11 +71,6 @@ type CheckoutItem = {
   variantTitle: string | null;
 };
 
-/**
- * ✅ Плоский список вариантов:
- * - либо variants плоский VariantLite[]
- * - либо это группы: [{group, items:[...]}]
- */
 function flattenVariantsForCheckout(product: unknown): VariantLite[] {
   const raw = getProp(product, "variants");
   if (!Array.isArray(raw)) return [];
@@ -164,10 +158,6 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
   return out;
 }
 
-/**
- * ✅ Поиск варианта по part из composite variantId:
- * part может быть "color:white" или "white"
- */
 function findVariantForPart(
   part: string,
   variants: VariantLite[],
@@ -214,7 +204,7 @@ function findVariantForPart(
 }
 
 /**
- * ✅ Парсим composite variantId → title/image (если variants совпали)
+
  */
 function parseCompositeVariantForCart(
   variantId: string,
@@ -257,7 +247,6 @@ function parseCompositeVariantForCart(
   return { title: title || null, image };
 }
 
-/** ✅ Красивый fallback для id-шников вариантов (white/cappuccino и т.п.) */
 function prettyVariantToken(token: string) {
   const t = String(token || "")
     .trim()
@@ -352,7 +341,6 @@ export default function CheckoutClient() {
     else router.push("/cart");
   };
 
-  /** ✅ keys from cart or oneclick */
   const keys = useMemo(() => {
     if (mode === "oneclick" && shop.oneClick?.id) return [shop.oneClick.id];
     return Object.keys(shop.cart).filter((k) => (shop.cart[k] ?? 0) > 0);
@@ -369,7 +357,6 @@ export default function CheckoutClient() {
     return ids.join("|");
   }, [productIds]);
 
-  /** ✅ Strapi products map */
   const [productsMap, setProductsMap] = useState<Record<string, LiteProduct>>(
     {},
   );
@@ -396,7 +383,6 @@ export default function CheckoutClient() {
     };
   }, [idsKey]);
 
-  /** ✅ items */
   const items = useMemo<CheckoutItem[]>(() => {
     const out: CheckoutItem[] = [];
 
@@ -420,12 +406,10 @@ export default function CheckoutClient() {
 
       const variantTitle = resolveVariantTitle(vid, variants);
 
-      // ✅ базовая цена: Strapi Product -> mocks
       const baseFromStrapi = readPriceAny(pStrapi, region);
       const baseFromMocks = readPriceAny(pMockUnknown, region);
       const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-      // ✅ delta из variants
       const pickedForDelta: VariantLite[] = [];
       if (vid && vid !== "base") {
         const parts = vid
@@ -475,13 +459,13 @@ export default function CheckoutClient() {
     [items],
   );
 
-  /** ✅ cached customer ONCE (no setState in useEffect — satisfies react-hooks/set-state-in-effect) */
+  /** cached customer ONCE (no setState in useEffect — satisfies react-hooks/set-state-in-effect) */
   const cachedCustomer = useMemo(
     () => safeParseRecord(localStorage.getItem(LS_CUSTOMER)),
     [],
   );
 
-  /** ✅ form */
+  /**  form */
   const [name, setName] = useState(() =>
     toStringSafe(cachedCustomer.name ?? ""),
   );

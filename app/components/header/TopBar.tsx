@@ -2,15 +2,26 @@
 
 import Link from "next/link";
 import { Phone, Menu, X } from "lucide-react";
-import StoresDropdown from "./StoresDropdown";
-import CallButton from "./CallButton";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
+import type { ReactNode } from "react";
 import gsap from "gsap";
 import { usePathname } from "next/navigation";
 import { tF } from "@/i18n";
 
+import StoresDropdown from "./StoresDropdown";
+import CallButton from "./CallButton";
+
 // ✅ берём ТВОИ данные как есть (если сверху не прокинул — возьмём отсюда)
 import { megaCategories as MEGA_FALLBACK } from "@/app/lib/headerData";
+
+type Dict = Record<string, unknown>;
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
@@ -20,6 +31,62 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
+/* ------------------------- safe utils (no any) ------------------------- */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+function normalizeStr(v: unknown) {
+  return String(v ?? "").trim();
+}
+function getFirstString(obj: unknown, keys: readonly string[]): string {
+  if (!isRecord(obj)) return "";
+  for (const k of keys) {
+    const v = obj[k];
+    if (isString(v)) return v;
+  }
+  return "";
+}
+function getFirstArray(obj: unknown, keys: readonly string[]): unknown[] {
+  if (!isRecord(obj)) return [];
+  for (const k of keys) {
+    const v = obj[k];
+    if (Array.isArray(v)) return v;
+  }
+  return [];
+}
+
+// -------- dropdown utils (НЕ меняем структуру данных — просто читаем)
+function MegaTitle(cat: unknown) {
+  return getFirstString(cat, ["title", "label", "name", "fallback", "slug"]);
+}
+function MegaItems(cat: unknown): unknown[] {
+  return getFirstArray(cat, [
+    "items",
+    "children",
+    "links",
+    "list",
+    "collections",
+  ]);
+}
+function ItemTitle(it: unknown) {
+  return getFirstString(it, [
+    "title",
+    "label",
+    "name",
+    "fallback",
+    "slug",
+    "value",
+  ]);
+}
+function ItemHref(it: unknown) {
+  return getFirstString(it, ["href", "url", "to", "link", "path", "valueHref"]);
+}
+
+/* ------------------------------ TopLink ------------------------------ */
+
 function TopLink({
   href,
   children,
@@ -27,54 +94,48 @@ function TopLink({
   external,
 }: {
   href: string;
-  children: React.ReactNode;
+  children: ReactNode;
   active: boolean;
   external?: boolean;
 }) {
-  const rootRef = useRef<HTMLAnchorElement | null>(null);
   const lineRef = useRef<HTMLSpanElement | null>(null);
 
   useLayoutEffect(() => {
-    const root = rootRef.current;
     const line = lineRef.current;
-    if (!root || !line) return;
+    if (!line) return;
 
     gsap.set(line, {
       scaleX: active ? 1 : 0,
       opacity: active ? 1 : 0,
       transformOrigin: "left center",
     });
+  }, [active]);
 
-    const onEnter = () => {
-      gsap.killTweensOf(line);
-      gsap.to(line, {
-        scaleX: 1,
-        opacity: 1,
-        duration: 0.35,
-        ease: "power3.out",
-        transformOrigin: "left center",
-      });
-    };
+  const onEnter = useCallback(() => {
+    const line = lineRef.current;
+    if (!line) return;
+    gsap.killTweensOf(line);
+    gsap.to(line, {
+      scaleX: 1,
+      opacity: 1,
+      duration: 0.35,
+      ease: "power3.out",
+      transformOrigin: "left center",
+    });
+  }, []);
 
-    const onLeave = () => {
-      if (active) return;
-      gsap.killTweensOf(line);
-      gsap.to(line, {
-        scaleX: 0,
-        opacity: 0,
-        duration: 0.25,
-        ease: "power3.inOut",
-        transformOrigin: "right center",
-      });
-    };
-
-    root.addEventListener("mouseenter", onEnter);
-    root.addEventListener("mouseleave", onLeave);
-
-    return () => {
-      root.removeEventListener("mouseenter", onEnter);
-      root.removeEventListener("mouseleave", onLeave);
-    };
+  const onLeave = useCallback(() => {
+    const line = lineRef.current;
+    if (!line) return;
+    if (active) return;
+    gsap.killTweensOf(line);
+    gsap.to(line, {
+      scaleX: 0,
+      opacity: 0,
+      duration: 0.25,
+      ease: "power3.inOut",
+      transformOrigin: "right center",
+    });
   }, [active]);
 
   const klass = cn(
@@ -95,11 +156,12 @@ function TopLink({
   if (external) {
     return (
       <a
-        ref={rootRef}
         href={href}
         target="_blank"
         rel="noreferrer"
         className={klass}
+        onMouseEnter={onEnter}
+        onMouseLeave={onLeave}
       >
         {children}
         {underline}
@@ -108,57 +170,33 @@ function TopLink({
   }
 
   return (
-    <Link ref={rootRef} href={href} className={klass}>
+    <Link
+      href={href}
+      className={klass}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
       {children}
       {underline}
     </Link>
   );
 }
 
-// -------- dropdown utils (НЕ меняем структуру данных — просто читаем)
-function normalizeStr(v: any) {
-  return String(v ?? "").trim();
-}
-function MegaTitle(cat: any) {
-  return (
-    cat?.title ?? cat?.label ?? cat?.name ?? cat?.fallback ?? cat?.slug ?? ""
-  );
-}
-function MegaItems(cat: any): any[] {
-  const a =
-    cat?.items ??
-    cat?.children ??
-    cat?.links ??
-    cat?.list ??
-    cat?.collections ??
-    [];
-  return Array.isArray(a) ? a : [];
-}
-function ItemTitle(it: any) {
-  return (
-    it?.title ??
-    it?.label ??
-    it?.name ??
-    it?.fallback ??
-    it?.slug ??
-    it?.value ??
-    ""
-  );
-}
-function ItemHref(it: any) {
-  return (
-    it?.href ?? it?.url ?? it?.to ?? it?.link ?? it?.path ?? it?.valueHref ?? ""
-  );
-}
+/* --------------------------- CatalogDropdown -------------------------- */
+
+type MegaCol = {
+  title: string;
+  items: Array<{ title: string; href: string }>;
+};
 
 function CatalogDropdown({
   dict,
   label,
   categories,
 }: {
-  dict: any;
+  dict: Dict;
   label: string;
-  categories: any[];
+  categories: unknown[];
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -169,40 +207,49 @@ function CatalogDropdown({
   const active = useMemo(() => isActive(pathname, "/catalog"), [pathname]);
 
   // ✅ колонки (как на твоём примере)
-  const cols = useMemo(() => {
+  const cols: MegaCol[] = useMemo(() => {
     const arr = Array.isArray(categories) ? categories : [];
     return arr
       .filter(Boolean)
       .slice(0, 6)
-      .map((c) => ({
-        title: normalizeStr(MegaTitle(c)),
-        items: MegaItems(c)
+      .map((c) => {
+        const title = normalizeStr(MegaTitle(c));
+        const items = MegaItems(c)
           .map((it) => ({
             title: normalizeStr(ItemTitle(it)),
             href: normalizeStr(ItemHref(it)),
           }))
-          .filter((x) => x.title && x.href),
-      }))
+          .filter((x) => x.title && x.href);
+
+        return { title, items };
+      })
       .filter((c) => c.title || c.items.length);
   }, [categories]);
 
-  // ✅ close on outside + esc
+  // ✅ close on outside + esc (листенеры только когда меню открыто)
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!open) return;
-      const t = e.target as any;
+    if (!open) return;
+
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target;
+      if (!(t instanceof Node)) return;
+
       if (triggerRef.current?.contains(t)) return;
       if (panelRef.current?.contains(t)) return;
+
       setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
+
+    const onDocKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
+
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onDocKeyDown);
+
     return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onDocKeyDown);
     };
   }, [open]);
 
@@ -211,8 +258,12 @@ function CatalogDropdown({
     const panel = panelRef.current;
     if (!panel) return;
 
-    const colHeads = Array.from(panel.querySelectorAll("[data-mega-head]"));
-    const links = Array.from(panel.querySelectorAll("[data-mega-link]"));
+    const colHeads = Array.from(
+      panel.querySelectorAll<HTMLElement>("[data-mega-head]"),
+    );
+    const links = Array.from(
+      panel.querySelectorAll<HTMLElement>("[data-mega-link]"),
+    );
 
     gsap.killTweensOf(panel);
     gsap.killTweensOf([...colHeads, ...links]);
@@ -293,11 +344,7 @@ function CatalogDropdown({
       {/* ✅ ПАНЕЛЬ НА ВСЮ ШИРИНУ + золотая полоса */}
       <div
         ref={panelRef}
-        className={cn(
-          "fixed inset-x-0 top-[48px] z-[999]",
-          "bg-[#f3f3f3]",
-          "border-black/5",
-        )}
+        className={cn("fixed inset-x-0 top-[48px] z-[999]", "bg-[#f3f3f3]")}
         style={{ opacity: 0, pointerEvents: "none" }}
       >
         {/* golden top line */}
@@ -318,7 +365,7 @@ function CatalogDropdown({
             {/* колонки */}
             <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-5">
               {cols.map((c, idx) => (
-                <div key={idx} className="min-w-0">
+                <div key={`${c.title}-${idx}`} className="min-w-0">
                   {/* ✅ выделяем ТОЛЬКО заголовки колонок */}
                   <div
                     data-mega-head
@@ -336,7 +383,7 @@ function CatalogDropdown({
                     {c.items.map((it) => (
                       <Link
                         data-mega-link
-                        key={it.href + it.title}
+                        key={`${it.href}:${it.title}`}
                         href={it.href}
                         onClick={() => setOpen(false)}
                         className={cn(
@@ -345,10 +392,10 @@ function CatalogDropdown({
                         )}
                         style={{ willChange: "transform, opacity" }}
                         onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = GOLD;
+                          e.currentTarget.style.color = GOLD;
                         }}
                         onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "";
+                          e.currentTarget.style.color = "";
                         }}
                       >
                         {it.title}
@@ -367,6 +414,8 @@ function CatalogDropdown({
   );
 }
 
+/* -------------------------------- TopBar -------------------------------- */
+
 export default function TopBar({
   dict,
   topLinks,
@@ -381,7 +430,7 @@ export default function TopBar({
   onOpenCall,
   onOpenMobileMenu,
 }: {
-  dict: any;
+  dict: Dict;
   topLinks: readonly {
     labelKey?: string;
     fallback: string;
@@ -398,7 +447,7 @@ export default function TopBar({
   callCtaLabel?: string;
 
   // ✅ optional: если не передаёшь — возьмём fallback из headerData
-  catalogCategories?: any[];
+  catalogCategories?: unknown[];
 
   onPickAddress: (address: string) => void;
   onOpenCall: () => void;
@@ -416,9 +465,10 @@ export default function TopBar({
 
   const storesLabel = tF(dict, "header.stores", "Адреса магазинов");
 
-  const catsForMenu = catalogCategories?.length
-    ? catalogCategories
-    : (MEGA_FALLBACK as any[]);
+  const catsForMenu: unknown[] =
+    Array.isArray(catalogCategories) && catalogCategories.length
+      ? catalogCategories
+      : (MEGA_FALLBACK as unknown[]);
 
   return (
     <div className="border-black/10">
@@ -488,37 +538,25 @@ export default function TopBar({
             <div className="hidden items-center gap-2 lg:inline-flex whitespace-nowrap">
               <Phone className="h-4 w-4 opacity-60" />
 
+              {/* ✅ fix: underline was using group-hover but anchor wasn't a group */}
               <a
                 href={`tel:${phone.replace(/\s|\(|\)|-/g, "")}`}
-                className="
-      relative
-      text-[13px]
-      tracking-[0.02em]
-      text-black/80
-      hover:text-black
-      transition-colors
-      cursor-pointer
-    "
+                className={cn(
+                  "group relative cursor-pointer",
+                  "text-[13px] tracking-[0.02em]",
+                  "text-black/80 hover:text-black transition-colors",
+                )}
               >
                 {phone}
 
                 {/* underline как у остальных ссылок */}
                 <span
-                  className="
-        pointer-events-none
-        absolute
-        left-0
-        -bottom-[0.75px]
-        h-[0.75px]
-        w-full
-        bg-black/60
-        origin-left
-        scale-x-0
-        transition-transform
-        duration-300
-        ease-out
-        group-hover:scale-x-100
-      "
+                  className={cn(
+                    "pointer-events-none absolute left-0 -bottom-[0.75px]",
+                    "h-[0.75px] w-full bg-black/60 origin-left",
+                    "scale-x-0 transition-transform duration-300 ease-out",
+                    "group-hover:scale-x-100",
+                  )}
                 />
               </a>
             </div>

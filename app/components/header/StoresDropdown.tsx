@@ -129,7 +129,6 @@ export default function StoresDropdown({
           style={{
             top: pos.top,
 
-            // центрируем под кнопкой, но не даём выйти за экран
             left: Math.min(Math.max(12, pos.left), window.innerWidth - 392),
           }}
         >

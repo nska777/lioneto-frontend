@@ -3,20 +3,42 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageCircle, Sparkles } from "lucide-react";
 
+type OpenFn = () => boolean;
+
+type JivoApi = {
+  open?: (opts?: { start?: "chat" | string }) => void;
+};
+
+declare global {
+  interface Window {
+    __lionetoOpenJivo?: OpenFn;
+    jivo_api?: JivoApi;
+  }
+}
+
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
+function getOpenFn(): OpenFn | null {
+  const fn = window.__lionetoOpenJivo;
+  return typeof fn === "function" ? fn : null;
+}
+
 function waitForOpenFn(timeoutMs = 8000) {
-  return new Promise<() => boolean>((resolve, reject) => {
+  return new Promise<OpenFn>((resolve, reject) => {
     const start = Date.now();
+
     const tick = () => {
-      const w = window as any;
-      if (typeof w.__lionetoOpenJivo === "function")
-        return resolve(w.__lionetoOpenJivo);
-      if (Date.now() - start > timeoutMs)
+      const fn = getOpenFn();
+      if (fn) return resolve(fn);
+
+      if (Date.now() - start > timeoutMs) {
         return reject(new Error("Open fn not ready"));
+      }
+
       setTimeout(tick, 120);
     };
+
     tick();
   });
 }
@@ -26,9 +48,15 @@ export default function LionetoChatButton() {
 
   useEffect(() => {
     let alive = true;
+
     waitForOpenFn(8000)
-      .then(() => alive && setReady(true))
-      .catch(() => alive && setReady(false));
+      .then(() => {
+        if (alive) setReady(true);
+      })
+      .catch(() => {
+        if (alive) setReady(false);
+      });
+
     return () => {
       alive = false;
     };
@@ -43,12 +71,13 @@ export default function LionetoChatButton() {
     try {
       const openFn = await waitForOpenFn(8000);
       const ok = openFn();
+
       if (!ok) {
         // последняя попытка через прямой API
-        const w = window as any;
-        w?.jivo_api?.open?.({ start: "chat" });
+        window.jivo_api?.open?.({ start: "chat" });
       }
     } catch {
+      // eslint-disable-next-line no-console
       console.warn("Jivo not ready");
     }
   }, []);

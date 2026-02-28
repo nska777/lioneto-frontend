@@ -17,17 +17,29 @@ const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
 function formatPrice(value: number, currency: "RUB" | "UZS") {
+  const v = Number(value ?? 0);
+
   try {
-    const locale = currency === "RUB" ? "ru-RU" : "uz-UZ";
-    return new Intl.NumberFormat(locale, {
+    if (currency === "UZS") {
+      // ✅ всегда "UZS 34,176,000" и на SSR и на client
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "UZS",
+        currencyDisplay: "code",
+        maximumFractionDigits: 0,
+      }).format(v);
+    }
+
+    // RUB — как было, но стабильно
+    return new Intl.NumberFormat("ru-RU", {
       style: "currency",
-      currency,
+      currency: "RUB",
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(v);
   } catch {
     return currency === "RUB"
-      ? `${Math.round(value).toLocaleString("ru-RU")} ₽`
-      : `${Math.round(value).toLocaleString("ru-RU")} сум`;
+      ? `${Math.round(v).toLocaleString("ru-RU")} ₽`
+      : `UZS ${Math.round(v).toLocaleString("en-US")}`;
   }
 }
 
@@ -664,12 +676,18 @@ export default function BestSellers({
                     <div className="px-5 pt-3 pb-3 min-h-[112px]">
                       {/* ✅ FIX: mobile stack old price under new */}
                       <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
-                        <div className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black">
+                        <div
+                          className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black"
+                          suppressHydrationWarning
+                        >
                           {formatPrice(price, currency)}
                         </div>
 
                         {old && old > price ? (
-                          <div className="text-[12px] sm:text-[13px] text-black/35 sm:text-black/40 line-through">
+                          <div
+                            className="text-[12px] sm:text-[13px] text-black/35 sm:text-black/40 line-through"
+                            suppressHydrationWarning
+                          >
                             {formatPrice(old, currency)}
                           </div>
                         ) : null}

@@ -7,7 +7,6 @@ import {
   COLLECTION_PRODUCTS,
 } from "@/app/lib/mock/catalog-products";
 
-// ✅ стабильный сид из строки
 function xfnv1a(str: string) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < str.length; i++) {
@@ -26,7 +25,6 @@ function mulberry32(seed: number) {
   };
 }
 
-// ✅ не 4 — а полноценный “рандом”, но детерминированный
 function shuffleDeterministic<T>(items: T[], seedKey: string) {
   const rand = mulberry32(xfnv1a(seedKey));
   const a = [...items];
@@ -37,24 +35,64 @@ function shuffleDeterministic<T>(items: T[], seedKey: string) {
   return a;
 }
 
+type CatalogItemLite = {
+  id: string;
+  title: string;
+  image: string;
+  brand?: string;
+  category?: string;
+  collectionKey?: string;
+};
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function isString(v: unknown): v is string {
+  return typeof v === "string";
+}
+
+function toCatalogItemLite(v: unknown): CatalogItemLite | null {
+  if (!isRecord(v)) return null;
+
+  const id = v["id"];
+  const title = v["title"];
+  const image = v["image"];
+
+  if (!isString(id) || !isString(title) || !isString(image)) return null;
+
+  const brand = v["brand"];
+  const category = v["category"];
+  const collectionKey = v["collectionKey"];
+
+  return {
+    id,
+    title,
+    image,
+    brand: isString(brand) ? brand : undefined,
+    category: isString(category) ? category : undefined,
+    collectionKey: isString(collectionKey) ? collectionKey : undefined,
+  };
+}
+
 export default async function CollectionPage({
   params,
 }: {
-  params: Promise<{ key: string }>;
+  params: { key: string };
 }) {
-  const { key } = await params;
+  const { key } = params;
 
   const collection = COLLECTION_PRODUCTS.find((c) => c.id === key);
   if (!collection) return notFound();
 
-  // ✅ все модули данной коллекции
-  const modulesAll = CATALOG_MOCK.filter((p: any) => p.collectionKey === key);
+  // Берём только валидные элементы (без any)
+  const modulesAll = CATALOG_MOCK.map(toCatalogItemLite)
+    .filter((p): p is CatalogItemLite => p !== null)
+    .filter((p) => p.collectionKey === key);
 
-  // ✅ “рандомно”, но одинаково для этого key (без гидрации)
   const shuffled = shuffleDeterministic(modulesAll, key);
 
-  // ✅ СКОЛЬКО показывать внизу (поставь сколько хочешь)
-  const SHOW_COUNT = 12; // например 12
+  const SHOW_COUNT = 12;
   const modules = shuffled.slice(0, SHOW_COUNT);
 
   return (
@@ -91,9 +129,8 @@ export default async function CollectionPage({
           </Link>
         </div>
 
-        {/* ✅ карточек будет много — нормальная сетка */}
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {modules.map((p: any) => (
+          {modules.map((p) => (
             <Link
               key={p.id}
               href={`/product/${p.id}`}
@@ -116,14 +153,14 @@ export default async function CollectionPage({
                 </div>
 
                 <div className="mt-2 text-[13px] text-black/60">
-                  {p.brand} · {p.category}
+                  {(p.brand ?? "") +
+                    (p.brand && p.category ? " · " : "") +
+                    (p.category ?? "")}
                 </div>
               </div>
             </Link>
           ))}
         </div>
-
-        {/* если модулей много — можно дать кнопку “Показать все” позже */}
       </div>
     </div>
   );
