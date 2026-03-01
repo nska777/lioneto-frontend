@@ -66,23 +66,28 @@ function formatTime(ts: number): string {
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
+function loadNotesOnce(): Note[] {
+  if (typeof window === "undefined") return [];
+  return safeParseNotes(window.localStorage.getItem(STORAGE_KEY));
+}
+
 export default function WorkbookClient() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  // ✅ init from localStorage without useEffect
+  const [notes, setNotes] = useState<Note[]>(() => loadNotesOnce());
+
+  // ✅ init activeId from initial notes without useEffect
+  const [activeId, setActiveId] = useState<string | null>(() => {
+    const initial = loadNotesOnce();
+    return initial[0]?.id ?? null;
+  });
 
   const [query, setQuery] = useState("");
   const [tagInput, setTagInput] = useState("");
 
-  // load once
-  useEffect(() => {
-    const loaded = safeParseNotes(localStorage.getItem(STORAGE_KEY));
-    setNotes(loaded);
-    setActiveId(loaded[0]?.id ?? null);
-  }, []);
-
   // persist
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
   }, [notes]);
 
   const filtered = useMemo(() => {

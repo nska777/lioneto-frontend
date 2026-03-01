@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Route } from "next";
 
 type NavItem = {
-  href: string;
+  href: Route;
   label: string;
 };
 
-const NAV: NavItem[] = [
+const NAV = [
   { href: "/dealer/dashboard", label: "Главная" },
   { href: "/dealer/me", label: "Профиль" },
 
@@ -21,7 +22,7 @@ const NAV: NavItem[] = [
   { href: "/dealer/calendar", label: "Календарь мероприятий" },
   { href: "/dealer/multimedia", label: "Мультимедиа" },
   { href: "/dealer/faq", label: "F.A.Q." },
-];
+] as const satisfies ReadonlyArray<NavItem>;
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
@@ -34,8 +35,10 @@ export default function DealerSidebar() {
       <nav className="px-4 py-4">
         <ul className="space-y-2">
           {NAV.map((item) => {
+            const hrefStr = item.href as string; // только для startsWith
+
             const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+              pathname === hrefStr || pathname.startsWith(hrefStr + "/");
 
             return (
               <li key={item.href}>
@@ -46,7 +49,6 @@ export default function DealerSidebar() {
                     "transition-colors duration-200",
                     "border border-transparent",
                     "text-black/70 hover:bg-black/5",
-
                     isActive && "bg-[#F3EBD2] border-[#E4D9B8] text-black",
                   )}
                 >

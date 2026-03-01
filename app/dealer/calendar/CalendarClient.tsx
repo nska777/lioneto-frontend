@@ -10,7 +10,7 @@ type CalendarEvent = {
   title: string;
   dateISO: string; // YYYY-MM-DD
   time?: string; // "16:00"
-  durationMin?: number; // for trainings
+  durationMin?: number; // ✅ было в коде, но не было в типе
   location?: string;
   description?: string;
 
@@ -294,61 +294,54 @@ function useInAppReminders(
   }, [events, onReminder]);
 }
 
+function initEvents(): CalendarEvent[] {
+  const loaded = safeParse(localStorage.getItem(STORAGE_KEY));
+  if (loaded.length > 0) return loaded;
+
+  const iso = todayISO();
+  const seed: CalendarEvent[] = [
+    {
+      id: makeId(),
+      type: "training",
+      title: "Тренинг по коллекции SCANDY",
+      dateISO: iso,
+      time: "16:00",
+      durationMin: 60,
+      location: "Showroom / Online",
+      description: "Обзор коллекции, фишки продаж, ответы на вопросы.",
+      seatsTotal: 20,
+      seatsLeft: 12,
+      youJoined: false,
+      remindBeforeMin: 60,
+    },
+    {
+      id: makeId(),
+      type: "milestone",
+      title: "Знаменательная дата: открытие экспозиции",
+      dateISO: iso,
+      description: "Отметьте важные даты и события.",
+    },
+  ];
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+  return seed;
+}
+
 export default function CalendarClient() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [selectedISO, setSelectedISO] = useState<string>(todayISO());
+  const [events, setEvents] = useState<CalendarEvent[]>(() => initEvents());
+  const [selectedISO, setSelectedISO] = useState<string>(() => todayISO());
   const [openDay, setOpenDay] = useState(false);
 
   const [monthCursor, setMonthCursor] = useState(() => {
+    const dt = parseDateTime(todayISO(), "09:00");
+    if (dt) return { y: dt.getFullYear(), m: dt.getMonth() };
     const d = new Date();
-    return { y: d.getFullYear(), m: d.getMonth() }; // monthIndex
+    return { y: d.getFullYear(), m: d.getMonth() };
   });
 
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // initial load
-  useEffect(() => {
-    const loaded = safeParse(localStorage.getItem(STORAGE_KEY));
-
-    // If empty, seed minimal demo (like your screenshot)
-    if (loaded.length === 0) {
-      const iso = todayISO();
-      const seed: CalendarEvent[] = [
-        {
-          id: makeId(),
-          type: "training",
-          title: "Тренинг по коллекции SCANDY",
-          dateISO: iso,
-          time: "16:00",
-          durationMin: 60,
-          location: "Showroom / Online",
-          description: "Обзор коллекции, фишки продаж, ответы на вопросы.",
-          seatsTotal: 20,
-          seatsLeft: 12,
-          youJoined: false,
-          remindBeforeMin: 60,
-        },
-        {
-          id: makeId(),
-          type: "milestone",
-          title: "Знаменательная дата: открытие экспозиции",
-          dateISO: iso,
-          description: "Отметьте важные даты и события.",
-        },
-      ];
-      setEvents(seed);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-      return;
-    }
-
-    setEvents(loaded);
-
-    // Set cursor to month of first selected day
-    const dt = parseDateTime(todayISO(), "09:00");
-    if (dt) setMonthCursor({ y: dt.getFullYear(), m: dt.getMonth() });
-  }, []);
-
-  // persist
+  // persist (no setState here, ESLint ok)
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
   }, [events]);

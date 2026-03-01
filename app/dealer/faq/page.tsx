@@ -221,11 +221,10 @@ export default function Page() {
     });
   }, [q]);
 
-  // If current open item is filtered out, close it
-  useEffect(() => {
-    if (!openId) return;
-    const exists = filtered.some((x) => x.id === openId);
-    if (!exists) setOpenId(null);
+  // ✅ вместо setState в useEffect — просто “безопасный” id для рендера
+  const visibleOpenId = useMemo(() => {
+    if (!openId) return null;
+    return filtered.some((x) => x.id === openId) ? openId : null;
   }, [filtered, openId]);
 
   return (
@@ -253,7 +252,7 @@ export default function Page() {
           <FaqRow
             key={item.id}
             item={item}
-            open={openId === item.id}
+            open={visibleOpenId === item.id}
             onToggle={() => setOpenId((p) => (p === item.id ? null : item.id))}
           />
         ))}
