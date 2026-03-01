@@ -79,9 +79,9 @@ export default function BrandRow({
   return (
     <div className="py-1.5 md:py-2.5">
       <div className="mx-auto w-full max-w-[1200px] px-4">
-        {/* MOBILE: как было (stack) | MD+: 3 колонки в одну линию */}
+        {}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
-          {/* LEFT */}
+          {}
           <div className="flex items-center justify-between md:w-[360px] md:justify-start md:gap-4">
             <div className="text-[11px] md:text-[12px] tracking-[0.20em] text-black/45 whitespace-nowrap">
               {tt("header.pickRegion", "Выберите регион")}
@@ -89,13 +89,13 @@ export default function BrandRow({
 
             <div
               className="
-  inline-flex
-  shrink-0
-  rounded-full
-  bg-[#f3f3f3]
-  p-1
-  shadow-[0_4px_12px_rgba(0,0,0,0.08)]
-"
+              inline-flex
+              shrink-0
+              rounded-full
+              bg-[#f3f3f3]
+              p-1
+              shadow-[0_4px_12px_rgba(0,0,0,0.08)]
+            "
             >
               <button
                 type="button"
@@ -144,7 +144,7 @@ export default function BrandRow({
 
           {/* RIGHT */}
           <div className="flex flex-nowrap items-center justify-end gap-3 md:w-[360px]">
-            {/* ✅ Дилерам — здесь, чтобы не ломать top menu при смене языка 
+            {/*  Дилерам — здесь, чтобы не ломать top menu при смене языка 
             <Link
               href="/dealer/login"
               className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
