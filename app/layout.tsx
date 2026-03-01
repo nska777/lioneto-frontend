@@ -57,7 +57,7 @@ export default async function RootLayout({
         <BackToTop />
 
         {/* ✅ Jivo */}
-        {jivoId ? <JivoProvider widgetId={jivoId} /> : null}
+        {/* {jivoId ? <JivoProvider widgetId={jivoId} /> : null}*/}
 
         {/* ✅ Yandex.Metrika */}
         <YandexMetrika />
