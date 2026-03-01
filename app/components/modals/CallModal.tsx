@@ -33,6 +33,9 @@ export default function CallModal({
   const [phoneRaw, setPhoneRaw] = useState("");
   const [pending, setPending] = useState(false);
 
+  // ✅ КЛЮЧЕВОЙ ФИКС: когда модалка закрыта — формы в DOM нет
+  if (!open) return null;
+
   const regionKey = (region === "ru" ? "ru" : "uz") as "ru" | "uz";
   const phonePrefix = REGION_DATA[regionKey].phonePrefix;
 

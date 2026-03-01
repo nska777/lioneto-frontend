@@ -18,7 +18,6 @@ import { tF } from "@/i18n";
 import StoresDropdown from "./StoresDropdown";
 import CallButton from "./CallButton";
 
-// ✅ берём ТВОИ данные как есть (если сверху не прокинул — возьмём отсюда)
 import { megaCategories as MEGA_FALLBACK } from "@/app/lib/headerData";
 
 type Dict = Record<string, unknown>;
@@ -206,7 +205,6 @@ function CatalogDropdown({
 
   const active = useMemo(() => isActive(pathname, "/catalog"), [pathname]);
 
-  // ✅ колонки (как на твоём примере)
   const cols: MegaCol[] = useMemo(() => {
     const arr = Array.isArray(categories) ? categories : [];
     return arr
@@ -226,7 +224,6 @@ function CatalogDropdown({
       .filter((c) => c.title || c.items.length);
   }, [categories]);
 
-  // ✅ close on outside + esc (листенеры только когда меню открыто)
   useEffect(() => {
     if (!open) return;
 
@@ -253,7 +250,6 @@ function CatalogDropdown({
     };
   }, [open]);
 
-  // ✅ лёгкая анимация без лагов: panel + заголовки + пункты
   useLayoutEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
@@ -302,7 +298,6 @@ function CatalogDropdown({
     });
   }, [open, cols.length]);
 
-  // ✅ золото (как на скринах)
   const GOLD = "#B9893B";
 
   return (
@@ -341,7 +336,6 @@ function CatalogDropdown({
         />
       </button>
 
-      {/* ✅ ПАНЕЛЬ НА ВСЮ ШИРИНУ + золотая полоса */}
       <div
         ref={panelRef}
         className={cn("fixed inset-x-0 top-[48px] z-[999]", "bg-[#f3f3f3]")}
@@ -366,7 +360,6 @@ function CatalogDropdown({
             <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-5">
               {cols.map((c, idx) => (
                 <div key={`${c.title}-${idx}`} className="min-w-0">
-                  {/* ✅ выделяем ТОЛЬКО заголовки колонок */}
                   <div
                     data-mega-head
                     className={cn(
@@ -446,7 +439,6 @@ export default function TopBar({
   addresses: string[];
   callCtaLabel?: string;
 
-  // ✅ optional: если не передаёшь — возьмём fallback из headerData
   catalogCategories?: unknown[];
 
   onPickAddress: (address: string) => void;
@@ -538,7 +530,6 @@ export default function TopBar({
             <div className="hidden items-center gap-2 lg:inline-flex whitespace-nowrap">
               <Phone className="h-4 w-4 opacity-60" />
 
-              {/* ✅ fix: underline was using group-hover but anchor wasn't a group */}
               <a
                 href={`tel:${phone.replace(/\s|\(|\)|-/g, "")}`}
                 className={cn(

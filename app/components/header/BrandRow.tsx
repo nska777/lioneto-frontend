@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Search, User, ShoppingCart, Heart } from "lucide-react";
+import { User, ShoppingCart, Heart, Briefcase } from "lucide-react";
 import { useShopState } from "../../context/shop-state";
 import Image from "next/image";
 import Link from "next/link";
@@ -74,6 +74,8 @@ export default function BrandRow({
     };
   }, []);
 
+  const GOLD = "#B9893B";
+
   return (
     <div className="py-1.5 md:py-2.5">
       <div className="mx-auto w-full max-w-[1200px] px-4">
@@ -142,6 +144,23 @@ export default function BrandRow({
 
           {/* RIGHT */}
           <div className="flex flex-nowrap items-center justify-end gap-3 md:w-[360px]">
+            {/* ✅ Дилерам — здесь, чтобы не ломать top menu при смене языка 
+            <Link
+              href="/dealer/login"
+              className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = GOLD;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "";
+              }}
+            >
+              <Briefcase className="h-4 w-4 opacity-70" />
+              ДИЛЕРАМ
+            </Link>
+                  
+            <span className="hidden md:inline-block h-4 w-px bg-black/10" />
+              */}
             <div className="inline-flex min-w-[86px] rounded-full border-none bg-#f3f3f3 p-1 shadow-sm">
               <button
                 type="button"
@@ -169,17 +188,6 @@ export default function BrandRow({
                 UZ
               </button>
             </div>
-
-            {/* 
-<IconBtn
-  label={tt("header.ariaSearch", "Поиск")}
-  onClick={() => {
-    // позже: открыть модалку поиска
-  }}
->
-  <Search className="h-5 w-5" />
-</IconBtn>
-*/}
 
             <IconBtn
               label={tt("header.ariaAccount", "Кабинет")}
