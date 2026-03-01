@@ -144,7 +144,7 @@ export default function BrandRow({
 
           {/* RIGHT */}
           <div className="flex flex-nowrap items-center justify-end gap-3 md:w-[360px]">
-            {/* ✅ Дилерам — здесь, чтобы не ломать top menu при смене языка 
+            {/* ✅ Дилерам — здесь, чтобы не ломать top menu при смене языка */}
             <Link
               href="/dealer/login"
               className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
@@ -158,9 +158,9 @@ export default function BrandRow({
               <Briefcase className="h-4 w-4 opacity-70" />
               ДИЛЕРАМ
             </Link>
-                  
+
             <span className="hidden md:inline-block h-4 w-px bg-black/10" />
-              */}
+
             <div className="inline-flex min-w-[86px] rounded-full border-none bg-#f3f3f3 p-1 shadow-sm">
               <button
                 type="button"
