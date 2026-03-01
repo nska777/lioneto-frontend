@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
 import { SignJWT } from "jose";
 
-const SECRET = new TextEncoder().encode(
-  process.env.DEALER_JWT_SECRET || "dev_secret"
-);
+const secretStr = process.env.DEALER_JWT_SECRET;
+
+if (!secretStr) {
+  throw new Error("DEALER_JWT_SECRET is required");
+}
+
+const SECRET = new TextEncoder().encode(secretStr);
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { email, password } = body;
+  const email = typeof body?.email === "string" ? body.email : "";
+  const password = typeof body?.password === "string" ? body.password : "";
 
-  // ТЕСТОВЫЙ дилер
+  // ТЕСТОВЫЙ дилер (лучше тоже прятать за env, но оставлю как есть минимально)
   if (email !== "dealer@test.com" || password !== "123456") {
-    return NextResponse.json(
-      { error: "Invalid credentials" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
   const token = await new SignJWT({ role: "dealer", email })
@@ -26,6 +28,8 @@ export async function POST(req: Request) {
 
   res.cookies.set("dealer_token", token, {
     httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
   });
 
