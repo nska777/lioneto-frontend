@@ -211,10 +211,11 @@ async function fetchStrapiProductBySlug(
       slug: typeof src.slug === "string" ? src.slug : "",
       isActive: !!src.isActive,
 
-      brand: typeof src.brand === "string" ? src.brand : null,
-      cat: typeof src.cat === "string" ? src.cat : null,
-      module: typeof src.module === "string" ? src.module : null,
-      collection: typeof src.collection === "string" ? src.collection : null,
+      brand: typeof src.brand === "string" ? src.brand : undefined,
+      cat: typeof src.cat === "string" ? src.cat : undefined,
+      module: typeof src.module === "string" ? src.module : undefined,
+      collection:
+        typeof src.collection === "string" ? src.collection : undefined,
 
       collectionBadge:
         typeof src.collectionBadge === "string" || src.collectionBadge === null
