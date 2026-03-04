@@ -34,30 +34,22 @@ function setCookie(name: string, value: string, days = 365) {
 }
 
 function isRegion(v: string | null): v is Region {
-  return v === "uz" || v === "ru";
+  return v === "ru" || v === "uz";
 }
 function isLang(v: string | null): v is Lang {
   return v === "ru" || v === "uz";
 }
 
-/**
- * Авто-детект региона по IP (только если нет cookie region).
- * Если определение не получилось — вернём null (оставим дефолт "uz").
- */
-async function detectRegionByIp(): Promise<Region | null> {
+async function detectRegionFromCloudflare(): Promise<Region | null> {
   try {
-    // ipwho.is — простой public geoip. Можно заменить на другой сервис или Cloudflare later.
-    const res = await fetch("https://ipwho.is/", { cache: "no-store" });
+    const res = await fetch("/api/geo", { cache: "no-store" });
     if (!res.ok) return null;
 
     const data: unknown = await res.json();
     if (!data || typeof data !== "object") return null;
 
-    const cc = (data as Record<string, unknown>).country_code;
-    if (typeof cc !== "string") return null;
-
-    const code = cc.toUpperCase();
-    return code === "RU" ? "ru" : "uz";
+    const region = (data as Record<string, unknown>).region;
+    return region === "ru" || region === "uz" ? region : null;
   } catch {
     return null;
   }
@@ -74,27 +66,32 @@ export function RegionLangProvider({
   useEffect(() => {
     const r = getCookie("region");
     const l = getCookie("lang");
+    const manual = getCookie("region_manual");
 
-    // 1) Всегда восстанавливаем язык из cookie (если есть)
-    const nextLang: Lang = isLang(l) ? l : "ru";
-    setLangState(nextLang);
+    // Язык
+    setLangState(isLang(l) ? l : "ru");
 
-    // 2) Если регион уже выбран пользователем (cookie есть) — просто применяем
+    // Если юзер выбирал руками — закрепляем его выбор
+    if (manual === "1") {
+      setRegionState(isRegion(r) ? r : "uz");
+      return;
+    }
+
+    // Если регион уже есть в cookie — применяем и не дергаем авто
     if (isRegion(r)) {
       setRegionState(r);
       return;
     }
 
-    // 3) Если cookie region нет — пробуем определить по IP и один раз сохранить
+    // Иначе: авто-определение по Cloudflare (RU => ru, иначе uz)
     let cancelled = false;
-
     (async () => {
-      const detected = await detectRegionByIp();
+      const detected = await detectRegionFromCloudflare();
       if (cancelled) return;
 
-      const nextRegion: Region = detected ?? "uz";
-      setRegionState(nextRegion);
-      setCookie("region", nextRegion);
+      const next: Region = detected ?? "uz";
+      setRegionState(next);
+      setCookie("region", next);
     })();
 
     return () => {
@@ -102,10 +99,10 @@ export function RegionLangProvider({
     };
   }, []);
 
-  // РУЧНОЙ выбор региона — это приоритет, просто ставим cookie
   const setRegion = (r: Region) => {
     setRegionState(r);
     setCookie("region", r);
+    setCookie("region_manual", "1"); // ручной выбор — приоритет
   };
 
   const setLang = (l: Lang) => {
