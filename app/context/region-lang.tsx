@@ -33,6 +33,36 @@ function setCookie(name: string, value: string, days = 365) {
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${d.toUTCString()}; path=/`;
 }
 
+function isRegion(v: string | null): v is Region {
+  return v === "uz" || v === "ru";
+}
+function isLang(v: string | null): v is Lang {
+  return v === "ru" || v === "uz";
+}
+
+/**
+ * Авто-детект региона по IP (только если нет cookie region).
+ * Если определение не получилось — вернём null (оставим дефолт "uz").
+ */
+async function detectRegionByIp(): Promise<Region | null> {
+  try {
+    // ipwho.is — простой public geoip. Можно заменить на другой сервис или Cloudflare later.
+    const res = await fetch("https://ipwho.is/", { cache: "no-store" });
+    if (!res.ok) return null;
+
+    const data: unknown = await res.json();
+    if (!data || typeof data !== "object") return null;
+
+    const cc = (data as Record<string, unknown>).country_code;
+    if (typeof cc !== "string") return null;
+
+    const code = cc.toUpperCase();
+    return code === "RU" ? "ru" : "uz";
+  } catch {
+    return null;
+  }
+}
+
 export function RegionLangProvider({
   children,
 }: {
@@ -45,13 +75,34 @@ export function RegionLangProvider({
     const r = getCookie("region");
     const l = getCookie("lang");
 
-    const nextRegion: Region = r === "ru" ? "ru" : "uz";
-    const nextLang: Lang = l === "uz" ? "uz" : "ru";
-
-    setRegionState(nextRegion);
+    // 1) Всегда восстанавливаем язык из cookie (если есть)
+    const nextLang: Lang = isLang(l) ? l : "ru";
     setLangState(nextLang);
+
+    // 2) Если регион уже выбран пользователем (cookie есть) — просто применяем
+    if (isRegion(r)) {
+      setRegionState(r);
+      return;
+    }
+
+    // 3) Если cookie region нет — пробуем определить по IP и один раз сохранить
+    let cancelled = false;
+
+    (async () => {
+      const detected = await detectRegionByIp();
+      if (cancelled) return;
+
+      const nextRegion: Region = detected ?? "uz";
+      setRegionState(nextRegion);
+      setCookie("region", nextRegion);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // РУЧНОЙ выбор региона — это приоритет, просто ставим cookie
   const setRegion = (r: Region) => {
     setRegionState(r);
     setCookie("region", r);
