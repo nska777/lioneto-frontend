@@ -84,14 +84,29 @@ export type ProductPageModel = {
 
 type Accent = "white" | "cappuccino" | "default";
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function asNonEmptyString(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  return s ? s : null;
+}
+
 /** ✅ Определяем акцент только по выбранному цвету/variantKey (без ломки логики) */
 function getAccentFromVariant(
   variantKey?: string | null,
-  selectedByGroup?: Record<string, any> | null,
+  selectedByGroup?: Record<string, unknown> | null,
 ): Accent {
-  const c = String((selectedByGroup as any)?.color ?? "")
-    .trim()
-    .toLowerCase();
+  const rawColor = selectedByGroup ? selectedByGroup["color"] : undefined;
+  const c =
+    asNonEmptyString(rawColor)?.toLowerCase() ??
+    (isRecord(rawColor)
+      ? asNonEmptyString(rawColor["id"])?.toLowerCase()
+      : "") ??
+    "";
+
   if (c) {
     if (c.includes("white") || c.includes("бел")) return "white";
     if (c.includes("cappuccino") || c.includes("капуч")) return "cappuccino";
@@ -104,6 +119,83 @@ function getAccentFromVariant(
   if (k.includes("cappuccino") || k.includes("капуч")) return "cappuccino";
 
   return "default";
+}
+
+/**
+ * ✅ ЦВЕТ ДЛЯ "Дополнительная информация"
+ * Правила:
+ * 1) Есть варианты kind="color" → показываем ТЕКУЩИЙ выбранный цвет (и он меняется при переключении).
+ * 2) Нет вариантов цвета → берем product.extra?.color (Strapi поле color).
+ * 3) Нет ни того ни другого → "—"
+ */
+function getDisplayColor(args: {
+  product: ProductPageModel;
+  selectedByGroup: Record<string, unknown> | null | undefined;
+  selectedVariants: Array<ProductVariant> | null | undefined;
+  groupsForUI:
+    | Array<{ group: string; items: ProductVariant[] }>
+    | null
+    | undefined;
+}): string {
+  const { product, selectedByGroup, selectedVariants, groupsForUI } = args;
+
+  const hasColorVariants =
+    (Array.isArray(product.variants) &&
+      product.variants.some((v) => v && v.kind === "color")) ||
+    (Array.isArray(groupsForUI) &&
+      groupsForUI.some(
+        (g) =>
+          g &&
+          g.group === "color" &&
+          Array.isArray(g.items) &&
+          g.items.some((v) => v && v.kind === "color"),
+      ));
+
+  if (hasColorVariants) {
+    // 1) Самый надежный источник — selectedVariants (хуком уже выбрано)
+    const fromSelectedVariants = Array.isArray(selectedVariants)
+      ? selectedVariants.find((v) => v && v.kind === "color")?.title
+      : undefined;
+
+    const t1 = asNonEmptyString(fromSelectedVariants);
+    if (t1) return t1;
+
+    // 2) Если по какой-то причине selectedVariants не содержит color — берем выбранный id из selectedByGroup.color
+    const rawSel = selectedByGroup ? selectedByGroup["color"] : undefined;
+
+    const selectedColorId =
+      asNonEmptyString(rawSel) ??
+      (isRecord(rawSel) ? asNonEmptyString(rawSel["id"]) : null);
+
+    if (selectedColorId) {
+      // 2a) пробуем найти в groupsForUI
+      const group = Array.isArray(groupsForUI)
+        ? groupsForUI.find((g) => g && g.group === "color")
+        : undefined;
+
+      const fromGroup = group?.items?.find(
+        (v) => v && String(v.id) === selectedColorId,
+      )?.title;
+
+      const t2 = asNonEmptyString(fromGroup);
+      if (t2) return t2;
+
+      // 2b) пробуем найти в product.variants
+      const fromProductVariants = Array.isArray(product.variants)
+        ? product.variants.find((v) => v && String(v.id) === selectedColorId)
+            ?.title
+        : undefined;
+
+      const t3 = asNonEmptyString(fromProductVariants);
+      if (t3) return t3;
+    }
+
+    return "—";
+  }
+
+  // Нет вариантов цвета → берем Strapi поле color (у тебя сейчас лежит в product.extra?.color)
+  const strapiColor = asNonEmptyString(product.extra?.color);
+  return strapiColor ?? "—";
 }
 
 export default function ProductClient({
@@ -163,11 +255,26 @@ export default function ProductClient({
     return entries.map(([g, v]) => `${g}:${v}`).join("|");
   }, [selectedByGroup]);
 
-  // ✅ Акцент (white / cappuccino) — ВОТ ЭТОГО НЕ ХВАТАЛО
+  // ✅ Акцент (white / cappuccino)
   const accent: Accent = useMemo(
     () => getAccentFromVariant(variantKey, selectedByGroup as any),
     [variantKey, selectedByGroup],
   );
+
+  // ✅ ДИНАМИЧЕСКИЙ ЦВЕТ ДЛЯ "Доп. информация"
+  const displayColor = useMemo(() => {
+    return getDisplayColor({
+      product,
+      selectedByGroup:
+        (selectedByGroup as unknown as Record<string, unknown>) ?? null,
+      selectedVariants,
+      groupsForUI:
+        (groupsForUI as unknown as Array<{
+          group: string;
+          items: ProductVariant[];
+        }>) ?? null,
+    });
+  }, [product, selectedByGroup, selectedVariants, groupsForUI]);
 
   // ✅ Берём галерею/картинку выбранного варианта (цвета)
   const variantGallery = useMemo(() => {
@@ -541,7 +648,8 @@ export default function ProductClient({
               value={product.extra?.article || product.sku || "—"}
             />
             <Row label="Размер" value={product.extra?.size || "—"} />
-            <Row label="Цвет" value={product.extra?.color || "—"} />
+            {/* ✅ ВОТ ТУТ: динамический цвет по выбранному color-variant, иначе Strapi поле, иначе "—" */}
+            <Row label="Цвет" value={displayColor} />
             <Row label="Материал" value={product.extra?.material || "—"} />
           </div>
         </section>

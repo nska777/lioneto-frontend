@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const email = typeof body?.email === "string" ? body.email : "";
   const password = typeof body?.password === "string" ? body.password : "";
 
-  // ТЕСТОВЫЙ дилер (лучше тоже прятать за env, но оставлю как есть минимально)
+
   if (email !== "dealer@test.com" || password !== "123456") {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }

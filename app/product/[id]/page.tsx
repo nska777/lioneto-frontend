@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import ProductClient from "./ui/ProductClient";
 import { resolveStrapiImage } from "@/app/lib/strapi/resolveImage";
 
-function norm(v: any) {
+function norm(v: unknown) {
   return String(v ?? "")
     .trim()
     .toLowerCase();
@@ -20,65 +20,154 @@ type StrapiProduct = {
   collection?: string;
   collectionBadge?: string | null;
 
-  media?: any;
-  gallery?: any;
-  variants?: any[];
+  media?: unknown;
+  gallery?: unknown;
+  variants?: unknown[];
 
   priceUZS?: number | null;
   priceRUB?: number | null;
   oldPriceUZS?: number | null;
   oldPriceRUB?: number | null;
 
-  description?: string | null;
+  // description может быть string или blocks/json
+  description?: unknown;
+
+  // новые поля
   sku?: string | null;
+  size?: string | null;
+  color?: string | null;
+  material?: string | null;
+
+  // старые (fallback)
   sizeText?: string | null;
   colorText?: string | null;
   materialText?: string | null;
 };
 
-function pickStrapiMediaUrl(m: any): string | undefined {
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function pickStrapiMediaUrl(m: unknown): string | undefined {
   if (!m) return undefined;
-  const a = m?.data?.attributes ?? m?.attributes ?? m;
+  const rec = isRecord(m) ? m : null;
+  const data = rec && isRecord(rec.data) ? rec.data : null;
+  const attrs =
+    (data && isRecord(data.attributes) ? data.attributes : null) ??
+    (rec && isRecord(rec.attributes) ? rec.attributes : null) ??
+    rec;
+
+  const a = isRecord(attrs) ? attrs : null;
+  if (!a) return undefined;
+
+  const formats = isRecord(a.formats) ? a.formats : null;
+  const large = formats && isRecord(formats.large) ? formats.large : null;
+  const medium = formats && isRecord(formats.medium) ? formats.medium : null;
+  const small = formats && isRecord(formats.small) ? formats.small : null;
+
   const url =
-    a?.formats?.large?.url ||
-    a?.formats?.medium?.url ||
-    a?.formats?.small?.url ||
-    a?.url;
+    (large && typeof large.url === "string" ? large.url : "") ||
+    (medium && typeof medium.url === "string" ? medium.url : "") ||
+    (small && typeof small.url === "string" ? small.url : "") ||
+    (typeof a.url === "string" ? a.url : "");
 
   return url ? resolveStrapiImage(String(url)) : undefined;
 }
 
-function pickStrapiGalleryUrls(g: any): string[] {
+function pickStrapiGalleryUrls(g: unknown): string[] {
   if (!g) return [];
-  const arr = Array.isArray(g?.data) ? g.data : Array.isArray(g) ? g : [];
+  const rec = isRecord(g) ? g : null;
+
+  const data = rec ? rec.data : undefined;
+  const arr = Array.isArray(data) ? data : Array.isArray(g) ? g : [];
   const out: string[] = [];
 
   for (const item of arr) {
-    const a = item?.attributes ?? item;
-    const url =
-      a?.formats?.large?.url ||
-      a?.formats?.medium?.url ||
-      a?.formats?.small?.url ||
-      a?.url;
+    const it = isRecord(item) ? item : null;
+    const attrs = it && isRecord(it.attributes) ? it.attributes : it;
 
-    if (url) out.push(resolveStrapiImage(String(url))!);
+    if (!isRecord(attrs)) continue;
+
+    const formats = isRecord(attrs.formats) ? attrs.formats : null;
+    const large = formats && isRecord(formats.large) ? formats.large : null;
+    const medium = formats && isRecord(formats.medium) ? formats.medium : null;
+    const small = formats && isRecord(formats.small) ? formats.small : null;
+
+    const url =
+      (large && typeof large.url === "string" ? large.url : "") ||
+      (medium && typeof medium.url === "string" ? medium.url : "") ||
+      (small && typeof small.url === "string" ? small.url : "") ||
+      (typeof attrs.url === "string" ? attrs.url : "");
+
+    if (url) out.push(resolveStrapiImage(String(url)));
   }
 
   return out.filter(Boolean);
 }
 
-function pickVariantImageUrl(v: any) {
-  const a =
-    v?.image?.data?.attributes ?? v?.image?.attributes ?? v?.image ?? null;
+function pickVariantImageUrl(v: unknown) {
+  if (!v || !isRecord(v)) return undefined;
+
+  const image = v.image;
+  const imgRec = isRecord(image) ? image : null;
+
+  const data = imgRec && isRecord(imgRec.data) ? imgRec.data : null;
+  const attrs =
+    (data && isRecord(data.attributes) ? data.attributes : null) ??
+    (imgRec && isRecord(imgRec.attributes) ? imgRec.attributes : null) ??
+    imgRec;
+
+  if (!attrs || !isRecord(attrs)) return undefined;
+
+  const formats = isRecord(attrs.formats) ? attrs.formats : null;
+  const large = formats && isRecord(formats.large) ? formats.large : null;
+  const medium = formats && isRecord(formats.medium) ? formats.medium : null;
+  const small = formats && isRecord(formats.small) ? formats.small : null;
 
   const url =
-    a?.formats?.large?.url ||
-    a?.formats?.medium?.url ||
-    a?.formats?.small?.url ||
-    a?.url ||
-    null;
+    (large && typeof large.url === "string" ? large.url : "") ||
+    (medium && typeof medium.url === "string" ? medium.url : "") ||
+    (small && typeof small.url === "string" ? small.url : "") ||
+    (typeof attrs.url === "string" ? attrs.url : "");
 
   return url ? resolveStrapiImage(String(url)) : undefined;
+}
+
+function extractTextFromRich(v: unknown): string {
+  if (typeof v === "string") return v.trim();
+
+  if (Array.isArray(v)) {
+    const parts: string[] = [];
+    for (const b of v) {
+      if (!isRecord(b)) continue;
+
+      const children = b.children;
+      if (Array.isArray(children)) {
+        for (const ch of children) {
+          if (!isRecord(ch)) continue;
+          const t = ch.text;
+          if (typeof t === "string" && t.trim()) parts.push(t.trim());
+        }
+      }
+
+      const t2 = b.text;
+      if (typeof t2 === "string" && t2.trim()) parts.push(t2.trim());
+    }
+    return parts.join("\n").trim();
+  }
+
+  if (isRecord(v)) {
+    const blocks = v.blocks;
+    if (Array.isArray(blocks)) return extractTextFromRich(blocks);
+
+    const content = v.content;
+    if (content) return extractTextFromRich(content);
+
+    const text = v.text;
+    if (typeof text === "string") return text.trim();
+  }
+
+  return "";
 }
 
 async function fetchStrapiProductBySlug(
@@ -90,7 +179,7 @@ async function fetchStrapiProductBySlug(
     "http://localhost:1337";
 
   const url =
-    `${base.replace(/\/$/, "")}` +
+    `${String(base).replace(/\/$/, "")}` +
     `/api/products?filters[slug][$eq]=${encodeURIComponent(slug)}` +
     `&populate[0]=media` +
     `&populate[1]=gallery` +
@@ -101,34 +190,57 @@ async function fetchStrapiProductBySlug(
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;
 
-    const json = await res.json();
-    const item = json?.data?.[0];
-    if (!item) return null;
+    const json: unknown = await res.json();
+    const root = isRecord(json) ? json : null;
+    const data = root && Array.isArray(root.data) ? root.data : [];
+    const item = data[0];
 
-    const src = item?.attributes ?? item;
+    if (!item || !isRecord(item)) return null;
+
+    const src = (isRecord(item.attributes) ? item.attributes : item) as Record<
+      string,
+      unknown
+    >;
 
     return {
-      id: src?.id ?? item?.id,
-      title: src?.title ?? "",
-      slug: src?.slug ?? "",
-      isActive: !!src?.isActive,
-      brand: src?.brand ?? null,
-      cat: src?.cat ?? null,
-      module: src?.module ?? null,
-      collection: src?.collection ?? null,
-      collectionBadge: src?.collectionBadge ?? null,
-      media: src?.media ?? null,
-      gallery: src?.gallery ?? null,
-      variants: Array.isArray(src?.variants) ? src.variants : [],
-      priceUZS: src?.priceUZS ?? null,
-      priceRUB: src?.priceRUB ?? null,
-      oldPriceUZS: src?.oldPriceUZS ?? null,
-      oldPriceRUB: src?.oldPriceRUB ?? null,
-      description: src?.description ?? null,
-      sku: src?.sku ?? null,
-      sizeText: src?.sizeText ?? null,
-      colorText: src?.colorText ?? null,
-      materialText: src?.materialText ?? null,
+      id:
+        (src.id as string | number | undefined) ??
+        (item.id as string | number | undefined),
+
+      title: typeof src.title === "string" ? src.title : "",
+      slug: typeof src.slug === "string" ? src.slug : "",
+      isActive: !!src.isActive,
+
+      brand: typeof src.brand === "string" ? src.brand : null,
+      cat: typeof src.cat === "string" ? src.cat : null,
+      module: typeof src.module === "string" ? src.module : null,
+      collection: typeof src.collection === "string" ? src.collection : null,
+
+      collectionBadge:
+        typeof src.collectionBadge === "string" || src.collectionBadge === null
+          ? (src.collectionBadge as string | null)
+          : null,
+
+      media: src.media ?? null,
+      gallery: src.gallery ?? null,
+      variants: Array.isArray(src.variants) ? (src.variants as unknown[]) : [],
+
+      priceUZS: typeof src.priceUZS === "number" ? src.priceUZS : null,
+      priceRUB: typeof src.priceRUB === "number" ? src.priceRUB : null,
+      oldPriceUZS: typeof src.oldPriceUZS === "number" ? src.oldPriceUZS : null,
+      oldPriceRUB: typeof src.oldPriceRUB === "number" ? src.oldPriceRUB : null,
+
+      description: src.description ?? null,
+
+      sku: typeof src.sku === "string" ? src.sku : null,
+      size: typeof src.size === "string" ? src.size : null,
+      color: typeof src.color === "string" ? src.color : null,
+      material: typeof src.material === "string" ? src.material : null,
+
+      sizeText: typeof src.sizeText === "string" ? src.sizeText : null,
+      colorText: typeof src.colorText === "string" ? src.colorText : null,
+      materialText:
+        typeof src.materialText === "string" ? src.materialText : null,
     };
   } catch {
     return null;
@@ -155,25 +267,31 @@ async function fetchRelatedStrapiProducts(seed: {
   else if (seed.brand) params.set("filters[brand][$eq]", seed.brand);
   else if (seed.cat) params.set("filters[cat][$eq]", seed.cat);
 
-  const url = `${base.replace(/\/$/, "")}/api/products?${params.toString()}`;
+  const url = `${String(base).replace(/\/$/, "")}/api/products?${params.toString()}`;
 
   try {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return [];
 
-    const json = await res.json();
-    const data: any[] = Array.isArray(json?.data) ? json.data : [];
+    const json: unknown = await res.json();
+    const root = isRecord(json) ? json : null;
+    const data =
+      root && Array.isArray(root.data) ? (root.data as unknown[]) : [];
 
     return data
       .map((item) => {
-        const src = item?.attributes ?? item;
+        const it = isRecord(item) ? item : null;
+        const src = it && isRecord(it.attributes) ? it.attributes : it;
+
         return {
-          title: src?.title ?? "",
-          slug: src?.slug ?? "",
-          brand: src?.brand ?? null,
-          media: src?.media ?? null,
-          priceUZS: src?.priceUZS ?? null,
-          priceRUB: src?.priceRUB ?? null,
+          title: src && typeof src.title === "string" ? src.title : "",
+          slug: src && typeof src.slug === "string" ? src.slug : "",
+          brand: src && typeof src.brand === "string" ? src.brand : null,
+          media: src ? (src.media as unknown) : null,
+          priceUZS:
+            src && typeof src.priceUZS === "number" ? src.priceUZS : null,
+          priceRUB:
+            src && typeof src.priceRUB === "number" ? src.priceRUB : null,
         };
       })
       .filter((p) => p.slug && p.slug !== seed.currentSlug);
@@ -216,6 +334,15 @@ export default async function ProductPage({
     currentSlug: slug,
   });
 
+  const desc = extractTextFromRich(sp.description);
+
+  const skuVal = String(sp.sku ?? slug).trim();
+  const sizeVal = String(sp.size ?? sp.sizeText ?? "").trim();
+  const colorVal = String(sp.color ?? sp.colorText ?? "").trim();
+  const materialVal = String(sp.material ?? sp.materialText ?? "").trim();
+
+  const descriptionFinal = desc || "Описание скоро будет.";
+
   const product = {
     id: slug,
     productId: slug,
@@ -227,7 +354,19 @@ export default async function ProductPage({
     hasDiscount: false,
     href: `/product/${slug}`,
 
-    sku: String(sp.sku ?? slug),
+    // ✅ основные поля
+    sku: skuVal,
+    description: descriptionFinal,
+
+    // ✅ aliases (на случай, если ProductClient ждёт другие названия)
+    article: skuVal,
+    size: sizeVal || "—",
+    color: colorVal || "—",
+    material: materialVal || "—",
+    descriptionText: descriptionFinal,
+    sizeText: sizeVal || null,
+    colorText: colorVal || null,
+    materialText: materialVal || null,
 
     image,
     gallery: (galleryFinal.length ? galleryFinal : ["/placeholder.png"]).filter(
@@ -244,38 +383,50 @@ export default async function ProductPage({
 
     variants: Array.isArray(sp.variants)
       ? sp.variants
-          .map((v: any) => {
-            const vid = String(v?.variantKey || v?.id || "");
+          .map((v) => {
+            if (!isRecord(v)) return null;
+
+            const variantKey =
+              typeof v.variantKey === "string"
+                ? v.variantKey
+                : typeof v.id === "string" || typeof v.id === "number"
+                  ? String(v.id)
+                  : "";
+
             const img = pickVariantImageUrl(v);
 
+            const title = typeof v.title === "string" ? v.title : variantKey;
+
+            const type = typeof v.type === "string" ? v.type : "";
+            const group = typeof v.group === "string" ? v.group : undefined;
+
+            const pdr =
+              typeof v.priceDeltaRUB === "number" ? v.priceDeltaRUB : undefined;
+            const pdu =
+              typeof v.priceDeltaUZS === "number" ? v.priceDeltaUZS : undefined;
+
             return {
-              id: vid,
-              title: String(v?.title || vid || ""),
-              kind: v?.type === "color" ? "color" : "option",
-              group: v?.group ? String(v.group) : undefined,
-              priceDeltaRUB:
-                v?.priceDeltaRUB !== undefined
-                  ? Number(v.priceDeltaRUB)
-                  : undefined,
-              priceDeltaUZS:
-                v?.priceDeltaUZS !== undefined
-                  ? Number(v.priceDeltaUZS)
-                  : undefined,
+              id: String(variantKey || ""),
+              title: String(title || ""),
+              kind: type === "color" ? "color" : "option",
+              group,
+              priceDeltaRUB: pdr !== undefined ? Number(pdr) : undefined,
+              priceDeltaUZS: pdu !== undefined ? Number(pdu) : undefined,
               image: img,
             };
           })
-          .filter((x: any) => x.id)
+          .filter((x): x is NonNullable<typeof x> => !!x && !!x.id)
       : [],
 
     brand: norm(sp.brand),
     collectionLabel: String(sp.brand ?? "").toUpperCase(),
 
-    description: String(sp.description ?? "Описание скоро будет."),
+    // ✅ extra (как ты хочешь в блоке "Дополнительная информация")
     extra: {
-      article: String(sp.sku ?? slug),
-      size: String(sp.sizeText ?? "—"),
-      color: String(sp.colorText ?? "—"),
-      material: String(sp.materialText ?? "—"),
+      article: skuVal,
+      size: sizeVal || "—",
+      color: colorVal || "—",
+      material: materialVal || "—",
     },
 
     related: relatedStrapi.slice(0, 4).map((rp) => {
@@ -298,8 +449,9 @@ export default async function ProductPage({
       };
     }),
   };
-  const variantsFixed = (product.variants ?? []).map((v: any) => {
-    const rawKind = String(v?.kind ?? v?.type ?? "").toLowerCase();
+
+  const variantsFixed = (product.variants ?? []).map((v) => {
+    const rawKind = String((v as { kind?: unknown })?.kind ?? "").toLowerCase();
     return {
       ...v,
       kind: (rawKind === "color" ? "color" : "option") as "color" | "option",

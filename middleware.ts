@@ -9,7 +9,7 @@ const SECRET = new TextEncoder().encode(
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ❗ НЕ защищаем login страницу
+  //  НЕ защищаем login страницу
   if (pathname.startsWith("/dealer/login")) {
     return NextResponse.next();
   }

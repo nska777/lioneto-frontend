@@ -38,16 +38,32 @@ function IconBtn({
   );
 }
 
+type LangKey = "ru" | "uz";
+
+type LangUiConfig = {
+  showLanguageToggle?: boolean; // показать/скрыть RU/UZ
+  enabledLanguages?: LangKey[]; // какие языки вообще доступны
+  labels?: Partial<Record<LangKey, string>>; // можно переименовать RU/UZ
+};
+
+function uniqLangs(list: LangKey[]) {
+  const s = new Set<LangKey>();
+  for (const v of list) s.add(v);
+  return Array.from(s);
+}
+
 export default function BrandRow({
   region,
   setRegion,
   lang,
   setLang,
+  langUi,
 }: {
   region: "uz" | "ru";
   setRegion: (v: "uz" | "ru") => void;
-  lang: "ru" | "uz";
-  setLang: (v: "ru" | "uz") => void;
+  lang: LangKey;
+  setLang: (v: LangKey) => void;
+  langUi?: LangUiConfig; // 👈 Strapi-config (прокидываем сверху)
 }) {
   const { favCount, cartCount } = useShopState();
 
@@ -76,12 +92,25 @@ export default function BrandRow({
 
   const GOLD = "#B9893B";
 
+  const langUiResolved = useMemo(() => {
+    const show = langUi?.showLanguageToggle !== false;
+    const enabled = uniqLangs(
+      langUi?.enabledLanguages?.length ? langUi.enabledLanguages : ["ru", "uz"],
+    );
+    const labels: Record<LangKey, string> = {
+      ru: (langUi?.labels?.ru ?? "RU").toString(),
+      uz: (langUi?.labels?.uz ?? "UZ").toString(),
+    };
+    return { show, enabled, labels };
+  }, [langUi]);
+
+  const canShowLang = langUiResolved.show && langUiResolved.enabled.length > 0;
+
   return (
     <div className="py-1.5 md:py-2.5">
       <div className="mx-auto w-full max-w-[1200px] px-4">
-        {}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
-          {}
+          {/* LEFT */}
           <div className="flex items-center justify-between md:w-[360px] md:justify-start md:gap-4">
             <div className="text-[11px] md:text-[12px] tracking-[0.20em] text-black/45 whitespace-nowrap">
               {tt("header.pickRegion", "Выберите регион")}
@@ -89,13 +118,13 @@ export default function BrandRow({
 
             <div
               className="
-              inline-flex
-              shrink-0
-              rounded-full
-              bg-[#f3f3f3]
-              p-1
-              shadow-[0_4px_12px_rgba(0,0,0,0.08)]
-            "
+                inline-flex
+                shrink-0
+                rounded-full
+                bg-[#f3f3f3]
+                p-1
+                shadow-[0_4px_12px_rgba(0,0,0,0.08)]
+              "
             >
               <button
                 type="button"
@@ -125,7 +154,7 @@ export default function BrandRow({
             </div>
           </div>
 
-          {/* CENTER (на md занимает всё оставшееся и держит лого строго по центру) */}
+          {/* CENTER */}
           <div className="text-center md:flex-1">
             <Link
               href="/"
@@ -144,7 +173,7 @@ export default function BrandRow({
 
           {/* RIGHT */}
           <div className="flex flex-nowrap items-center justify-end gap-3 md:w-[360px]">
-            {/*  Дилерам — здесь, чтобы не ломать top menu при смене языка 
+            {/* Дилерам */}
             <Link
               href="/dealer/login"
               className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
@@ -157,37 +186,44 @@ export default function BrandRow({
             >
               <Briefcase className="h-4 w-4 opacity-70" />
               ДИЛЕРАМ
-            </Link> */}
+            </Link>
 
             <span className="hidden md:inline-block h-4 w-px bg-black/10" />
 
-            <div className="inline-flex min-w-[86px] rounded-full border-none bg-#f3f3f3 p-1 shadow-sm">
-              <button
-                type="button"
-                onClick={() => setLang("ru")}
-                className={[
-                  "h-8 px-3 rounded-full text-[12px] tracking-[0.14em] transition cursor-pointer whitespace-nowrap",
-                  lang === "ru"
-                    ? "bg-black text-white"
-                    : "text-black/70 hover:text-black hover:bg-black/5",
-                ].join(" ")}
-              >
-                RU
-              </button>
+            {/* LANG TOGGLE (Strapi-driven show/hide) */}
+            {canShowLang && (
+              <div className="inline-flex min-w-[86px] rounded-full border-none bg-[#f3f3f3] p-1 shadow-sm">
+                {langUiResolved.enabled.includes("ru") && (
+                  <button
+                    type="button"
+                    onClick={() => setLang("ru")}
+                    className={[
+                      "h-8 px-3 rounded-full text-[12px] tracking-[0.14em] transition cursor-pointer whitespace-nowrap",
+                      lang === "ru"
+                        ? "bg-black text-white"
+                        : "text-black/70 hover:text-black hover:bg-black/5",
+                    ].join(" ")}
+                  >
+                    {langUiResolved.labels.ru}
+                  </button>
+                )}
 
-              <button
-                type="button"
-                onClick={() => setLang("uz")}
-                className={[
-                  "h-8 px-3 rounded-full text-[12px] tracking-[0.14em] transition cursor-pointer whitespace-nowrap",
-                  lang === "uz"
-                    ? "bg-black text-white"
-                    : "text-black/70 hover:text-black hover:bg-black/5",
-                ].join(" ")}
-              >
-                UZ
-              </button>
-            </div>
+                {langUiResolved.enabled.includes("uz") && (
+                  <button
+                    type="button"
+                    onClick={() => setLang("uz")}
+                    className={[
+                      "h-8 px-3 rounded-full text-[12px] tracking-[0.14em] transition cursor-pointer whitespace-nowrap",
+                      lang === "uz"
+                        ? "bg-black text-white"
+                        : "text-black/70 hover:text-black hover:bg-black/5",
+                    ].join(" ")}
+                  >
+                    {langUiResolved.labels.uz}
+                  </button>
+                )}
+              </div>
+            )}
 
             <IconBtn
               label={tt("header.ariaAccount", "Кабинет")}
