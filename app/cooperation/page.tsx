@@ -1,51 +1,44 @@
 // app/cooperation/page.tsx
-import type { Metadata } from "next";
-import Link from "next/link";
-import CooperationClient from "../cooperation/CooperationClient";
+import CooperationClient from "./CooperationClient";
 
-export const metadata: Metadata = {
-  title: "Сотрудничество — Lioneto",
-  description:
-    "Сотрудничество с Lioneto: для дизайнеров, дилеров, застройщиков и B2B. Условия, форматы и заявка.",
-  openGraph: {
-    title: "Сотрудничество — Lioneto",
-    description:
-      "Программы сотрудничества Lioneto для дизайнеров, дилеров, застройщиков и B2B.",
-    type: "website",
-    locale: "ru_RU",
-  },
-  robots: { index: true, follow: true },
-};
+type StrapiItem<T> = { id: number; attributes?: T } & T;
 
-export default function CooperationPage() {
-  return (
-    <main className="bg-white text-black">
-      <div className="mx-auto w-full max-w-[1200px] px-4">
-        {/* Breadcrumbs */}
-        <nav className="pt-6 text-[12px] tracking-[0.18em] text-black/50">
-          <Link className="hover:text-black/80" href="/">
-            ГЛАВНАЯ
-          </Link>
-          <span className="px-2">/</span>
-          <span className="text-black/80">СОТРУДНИЧЕСТВО</span>
-        </nav>
+function pick<T>(item: StrapiItem<T>): T & { id: number } {
+  const attrs = (item as unknown as { attributes?: T }).attributes ?? item;
+  const id = (item as unknown as { id: number }).id;
+  return { id, ...(attrs as T) };
+}
 
-        <header className="mt-6 md:mt-10">
-          <h1 className="text-balance text-[28px] font-semibold leading-[1.06] tracking-[-0.02em] md:text-[44px]">
-            Сотрудничество
-          </h1>
-          <p className="mt-4 max-w-3xl text-[14px] leading-7 text-black/70 md:text-[16px]">
-            Для дизайнеров, дилеров, застройщиков и корпоративных клиентов.
-            Выберите формат — и оставьте заявку.
-          </p>
-        </header>
+async function fetchStrapi<T>(url: string): Promise<T | null> {
+  const base =
+    process.env.NEXT_PUBLIC_STRAPI_URL ||
+    process.env.STRAPI_URL ||
+    "http://localhost:1337";
 
-        <div className="mt-8 md:mt-10">
-          <CooperationClient />
-        </div>
+  const full = `${base}${url}`;
 
-        <div className="h-14 md:h-20" />
-      </div>
-    </main>
+  const res = await fetch(full, { cache: "no-store" });
+
+  if (!res.ok) {
+    // Не роняем страницу (404/403/500), просто показываем пусто + лог в серверную консоль
+    console.error("[cooperation] Strapi fetch failed", res.status, full);
+    return null;
+  }
+
+  return res.json();
+}
+
+export default async function CooperationPage() {
+  const tracksJson = await fetchStrapi<{ data: Array<StrapiItem<unknown>> }>(
+    "/api/partner-tracks?pagination[pageSize]=100&sort=order:asc",
   );
+
+  const blocksJson = await fetchStrapi<{ data: Array<StrapiItem<unknown>> }>(
+    "/api/partner-blocks?pagination[pageSize]=1000&sort=order:asc",
+  );
+
+  const tracks = (tracksJson?.data ?? []).map((x) => pick(x));
+  const blocks = (blocksJson?.data ?? []).map((x) => pick(x));
+
+  return <CooperationClient tracks={tracks} blocks={blocks} />;
 }

@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const token = process.env.TELEGRAM_REQUESTS_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_REQUESTS_CHAT_ID;
-
+    const threadId = process.env.TELEGRAM_REQUESTS_THREAD_ID;
 
     if (!token || !chatId) {
       return NextResponse.json(
@@ -35,14 +35,14 @@ export async function POST(req: Request) {
 🕒 *Время:* ${new Date().toLocaleString("ru-RU")}
     `.trim();
 
-    // ✅ ВАЖНО: токен НЕ вставляем как текст в ${...}
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
     const tgRes = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: chatId, // ✅ Requests
+        chat_id: chatId,
+        message_thread_id: threadId ? Number(threadId) : undefined,
         text,
         parse_mode: "Markdown",
       }),
