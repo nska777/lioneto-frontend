@@ -10,6 +10,35 @@ function cn(...s: Array<string | false | null | undefined>) {
   return s.filter(Boolean).join(" ");
 }
 
+function onlyDigits(s: string) {
+  return s.replace(/\D/g, "");
+}
+
+function formatPhone(digits: string, regionKey: "ru" | "uz") {
+  const max = regionKey === "uz" ? 9 : 10;
+  const d = digits.slice(0, max);
+
+  if (regionKey === "uz") {
+    const a = d.slice(0, 2);
+    const b = d.slice(2, 5);
+    const c = d.slice(5, 7);
+    const e = d.slice(7, 9);
+    return [a, b, c, e].filter(Boolean).join(" ");
+  }
+
+  const a = d.slice(0, 3);
+  const b = d.slice(3, 6);
+  const c = d.slice(6, 8);
+  const e = d.slice(8, 10);
+  return [a, b, c, e].filter(Boolean).join(" ");
+}
+
+function isValidPhone(digits: string, regionKey: "ru" | "uz") {
+  const d = onlyDigits(digits);
+  if (regionKey === "uz") return d.length === 9;
+  return d.length === 10;
+}
+
 export default function CallModal({
   open,
   onClose,
@@ -30,10 +59,9 @@ export default function CallModal({
   const dict = useMemo(() => getDict(lang as any), [lang]);
   const tt = (key: string, fallback: string) => tF(dict as any, key, fallback);
 
-  const [phoneRaw, setPhoneRaw] = useState("");
+  const [phoneDigits, setPhoneDigits] = useState("");
   const [pending, setPending] = useState(false);
 
-  // ✅ КЛЮЧЕВОЙ ФИКС: когда модалка закрыта — формы в DOM нет
   if (!open) return null;
 
   const regionKey = (region === "ru" ? "ru" : "uz") as "ru" | "uz";
@@ -44,19 +72,21 @@ export default function CallModal({
       ? tt("region.uz", "Узбекистан")
       : tt("region.ru", "Россия");
 
-  const placeholder = regionKey === "uz" ? "90 123 45 67" : "999 123-45-67";
+  const placeholder = regionKey === "uz" ? "90 123 45 67" : "999 123 45 67";
+
+  const phoneView = formatPhone(phoneDigits, regionKey);
+  const phoneOk = isValidPhone(phoneDigits, regionKey);
 
   return (
     <Modal
       open={open}
       onClose={() => {
-        if (pending) return; // чтобы не закрыть во время отправки
+        if (pending) return;
         onClose();
       }}
       title={tt("header.ui.callMe", "ЗАКАЗАТЬ ЗВОНОК")}
       widthClass="max-w-[720px]"
     >
-      {/* Переключатель региона внутри модалки */}
       <div className="mb-5 flex items-center justify-between gap-3">
         <div className="text-[12px] tracking-[0.18em] text-black/50">
           {tt("header.pickRegion", "Выберите регион").toUpperCase()}
@@ -95,12 +125,13 @@ export default function CallModal({
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (pending) return;
+          if (pending || !phoneOk) return;
 
           const form = new FormData(e.currentTarget);
           const lastName = String(form.get("lastName") ?? "").trim();
           const firstName = String(form.get("firstName") ?? "").trim();
-          const phone = `${phonePrefix} ${phoneRaw}`.trim();
+
+          const phone = `${phonePrefix} ${phoneDigits}`.trim();
 
           const payload = {
             lastName,
@@ -113,7 +144,6 @@ export default function CallModal({
           try {
             setPending(true);
 
-            // 1) основной путь — отправка в твой API, который шлёт в Telegram
             const res = await fetch("/api/call-request", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -126,9 +156,7 @@ export default function CallModal({
               return;
             }
 
-            // 2) если тебе нужно ещё что-то сделать — коллбек
             onSubmit?.(payload);
-
             onClose();
           } catch (err) {
             console.error("CALL REQUEST ERROR:", err);
@@ -172,12 +200,17 @@ export default function CallModal({
             <div className="inline-flex items-center px-4 text-[13px] tracking-[0.14em] text-black/60">
               {phonePrefix}
             </div>
+
             <input
               required
-              name="phone"
-              inputMode="tel"
-              value={phoneRaw}
-              onChange={(e) => setPhoneRaw(e.target.value)}
+              type="tel"
+              inputMode="numeric"
+              value={phoneView}
+              onChange={(e) => {
+                const digits = onlyDigits(e.target.value);
+                const limit = regionKey === "uz" ? 9 : 10;
+                setPhoneDigits(digits.slice(0, limit));
+              }}
               className="h-full w-full px-3 text-[14px] outline-none"
               placeholder={placeholder}
             />
@@ -192,16 +225,19 @@ export default function CallModal({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || !phoneOk}
             className={cn(
               "w-full cursor-pointer rounded-2xl bg-black py-3 text-[13px] tracking-[0.18em] text-white transition",
-              pending ? "opacity-60 cursor-not-allowed" : "hover:opacity-90",
+              pending || !phoneOk
+                ? "opacity-60 cursor-not-allowed"
+                : "hover:opacity-90",
             )}
           >
             {pending
               ? tt("form.sending", "ОТПРАВКА...")
               : tt("form.send", "ОТПРАВИТЬ")}
           </button>
+
           <div className="mt-3 text-center text-[12px] text-black/45">.</div>
         </div>
       </form>
