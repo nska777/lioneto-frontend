@@ -69,6 +69,7 @@ type CheckoutItem = {
   title: string;
   collectionLabel: string | null;
   variantTitle: string | null;
+  imageUrl: string | null; // ✅ для TG
 };
 
 function flattenVariantsForCheckout(product: unknown): VariantLite[] {
@@ -204,7 +205,8 @@ function findVariantForPart(
 }
 
 /**
-
+ * variantId может быть "color:white|option:lift" и т.п.
+ * Мы вытаскиваем человекочитаемый title и картинку (если есть).
  */
 function parseCompositeVariantForCart(
   variantId: string,
@@ -294,6 +296,55 @@ function fallbackVariantTitleFromId(variantId: string) {
 function resolveVariantTitle(variantId: string, variants: VariantLite[]) {
   const parsed = parseCompositeVariantForCart(variantId, variants);
   return parsed.title || fallbackVariantTitleFromId(variantId);
+}
+
+function resolveVariantImage(variantId: string, variants: VariantLite[]) {
+  const parsed = parseCompositeVariantForCart(variantId, variants);
+  return parsed.image || null;
+}
+
+/** берём картинку товара: вариант -> галерея -> image */
+function resolveProductImage(
+  p: unknown,
+  variantId: string,
+  variants: VariantLite[],
+) {
+  const fromVariant = resolveVariantImage(variantId, variants);
+  if (fromVariant) return String(fromVariant);
+
+  const galleryRaw = getProp(p, "gallery");
+  if (Array.isArray(galleryRaw)) {
+    const first = galleryRaw.map((x) => toStringSafe(x)).find(Boolean);
+    if (first) return first;
+  }
+
+  const imgRaw = getProp(p, "image");
+  const img = toStringSafe(imgRaw).trim();
+  if (img) return img;
+
+  // иногда бывает "media" / "thumbnail"
+  const mediaRaw = getProp(p, "media");
+  const media = toStringSafe(mediaRaw).trim();
+  if (media) return media;
+
+  return null;
+}
+
+/** абсолютный URL для TG */
+function toAbsoluteUrlClient(urlLike: string | null) {
+  const raw = String(urlLike ?? "").trim();
+  if (!raw) return null;
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+
+  // local/public path -> делаем абсолютным через origin
+  if (raw.startsWith("/")) {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}${raw}`;
+    }
+    return raw;
+  }
+
+  return raw;
 }
 
 const LS_CUSTOMER = "lioneto:checkout:customer:v2";
@@ -438,6 +489,9 @@ export default function CheckoutClient() {
 
       const title = toStringSafe(getProp(p, "title")).trim() || "Товар";
 
+      const imageRaw = resolveProductImage(p, vid, variants);
+      const imageUrl = toAbsoluteUrlClient(imageRaw);
+
       out.push({
         key,
         productId: pid,
@@ -448,6 +502,7 @@ export default function CheckoutClient() {
         title,
         collectionLabel,
         variantTitle,
+        imageUrl,
       });
     }
 
@@ -512,6 +567,8 @@ export default function CheckoutClient() {
       },
       items: items.map((it) => ({
         productId: it.productId,
+        collectionLabel: it.collectionLabel, // ✅ теперь AMBER/SCANDY уйдёт в TG
+        imageUrl: it.imageUrl, // ✅ фото для TG
         variantId: it.variantId,
         variantTitle: it.variantTitle,
         qty: it.qty,
@@ -618,7 +675,7 @@ export default function CheckoutClient() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
         {/* LEFT: FORM */}
-        <section className="rounded-3xl border border-black/10 bg-white p-6">
+        <section className="rounded-3xl border borderblack/10 bg-white p-6">
           <div className="text-base font-semibold tracking-[-0.01em]">
             Данные клиента
           </div>
@@ -794,10 +851,6 @@ export default function CheckoutClient() {
           >
             Вернуться в корзину
           </Link>
-
-          <p className="mt-4 text-xs leading-relaxed text-black/45">
-            * Оплаты нет — заказ улетает менеджеру в Telegram.
-          </p>
         </aside>
       </div>
     </main>

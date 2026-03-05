@@ -23,7 +23,6 @@ function toDateOrNow(isoLike: string): Date {
 
 function formatTashkent(d: Date): string {
   try {
-
     return new Intl.DateTimeFormat("ru-RU", {
       timeZone: "Asia/Tashkent",
       year: "numeric",
@@ -34,7 +33,6 @@ function formatTashkent(d: Date): string {
       second: "2-digit",
     }).format(d);
   } catch {
-
     const ms = d.getTime() + 5 * 60 * 60 * 1000;
     const x = new Date(ms);
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -42,6 +40,84 @@ function formatTashkent(d: Date): string {
       x.getHours(),
     )}:${pad(x.getMinutes())}:${pad(x.getSeconds())}`;
   }
+}
+
+function digitsOnly(s: string): string {
+  return s.replace(/\D+/g, "");
+}
+
+function normalizePhone(
+  raw: string,
+  regionRaw: string,
+): { pretty: string; tel: string; digits: string } {
+  const region = regionRaw.trim().toUpperCase();
+  const d = digitsOnly(raw);
+
+  if (region === "UZ") {
+    let dd = d;
+    if (dd.startsWith("998")) dd = dd.slice(3);
+    if (dd.length > 9) dd = dd.slice(dd.length - 9);
+
+    const a = dd.slice(0, 2);
+    const b = dd.slice(2, 5);
+    const c = dd.slice(5, 7);
+    const e = dd.slice(7, 9);
+
+    const pretty =
+      dd.length === 9 ? `+998 ${a} ${b} ${c} ${e}` : raw.trim() || raw;
+    const tel = dd.length === 9 ? `+998${dd}` : `+${d}`;
+    return { pretty, tel, digits: d };
+  }
+
+  let dd = d;
+  if (dd.startsWith("8") && dd.length === 11) dd = "7" + dd.slice(1);
+  if (dd.startsWith("7") && dd.length === 11) dd = dd.slice(1);
+  if (dd.length > 10) dd = dd.slice(dd.length - 10);
+
+  const a = dd.slice(0, 3);
+  const b = dd.slice(3, 6);
+  const c = dd.slice(6, 8);
+  const e = dd.slice(8, 10);
+
+  const pretty =
+    dd.length === 10 ? `+7 (${a}) ${b}-${c}-${e}` : raw.trim() || raw;
+  const tel = dd.length === 10 ? `+7${dd}` : `+${d}`;
+  return { pretty, tel, digits: d };
+}
+
+function asIntFromEnv(v: string | undefined): number | null {
+  if (!v) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function regionToCurrency(regionRaw: string): "сум" | "₽" {
+  const r = regionRaw.trim().toUpperCase();
+  return r === "UZ" ? "сум" : "₽";
+}
+
+function formatMoney(n: number): string {
+  const x = Math.round(n);
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(x);
+}
+
+/** абсолютим URL для TG (Strapi / сайт) */
+function resolveAbsUrl(urlLike: string): string {
+  const raw = String(urlLike ?? "").trim();
+  if (!raw) return "";
+
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+
+  // Strapi base (серверный). Не заставляем тебя ничего добавлять — просто используем если есть.
+  const base =
+    process.env.NEXT_PUBLIC_STRAPI_URL ||
+    process.env.STRAPI_URL ||
+    process.env.PUBLIC_URL ||
+    "https://lioneto-cms.ru" ||
+    "http://localhost:1337";
+
+  if (raw.startsWith("/")) return `${String(base).replace(/\/+$/, "")}${raw}`;
+  return raw;
 }
 
 type Customer = {
@@ -54,6 +130,8 @@ type Customer = {
 type OrderItem = {
   title?: string | null;
 
+  productId?: string | null;
+
   qty?: unknown;
   unit?: unknown;
   sum?: unknown;
@@ -65,6 +143,9 @@ type OrderItem = {
 
   variantTitle?: string | null;
   variantId?: string | null;
+
+  /** ✅ картинка (абсолютная или относительная) */
+  imageUrl?: string | null;
 };
 
 type OrderMeta = {
@@ -89,9 +170,22 @@ function isOrderItemsArray(v: unknown): v is OrderItem[] {
   return Array.isArray(v);
 }
 
+async function tgCall(
+  token: string,
+  method: string,
+  bodyObj: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(bodyObj),
+  });
+}
+
 export async function POST(req: Request) {
   const token = process.env.TELEGRAM_ORDERS_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_ORDERS_CHAT_ID;
+  const threadId = asIntFromEnv(process.env.TELEGRAM_ORDERS_THREAD_ID);
 
   if (!token || !chatId) {
     return NextResponse.json(
@@ -113,16 +207,8 @@ export async function POST(req: Request) {
 
   const payload = (body ?? {}) as OrderPayload;
 
-  const {
-    orderId,
-    createdAt,
-    region,
-    mode: modeTop,
-    meta,
-    customer,
-    items,
-    total,
-  } = payload;
+  const { orderId, createdAt, region, mode: modeTop, meta, customer, items, total } =
+    payload;
 
   const mode =
     (typeof modeTop === "string" ? modeTop : null) ??
@@ -132,10 +218,8 @@ export async function POST(req: Request) {
 
   const oid = String(orderId ?? "").trim() || genOrderId();
 
-  // createdAt из payload (если дали) иначе now
   const cAtIso = String(createdAt ?? "").trim() || new Date().toISOString();
   const cAtDate = toDateOrNow(cAtIso);
-
 
   const cAtUz = formatTashkent(cAtDate);
   const cAtUtc = cAtDate.toISOString();
@@ -151,8 +235,15 @@ export async function POST(req: Request) {
   }
 
   const regionStr = typeof region === "string" ? region : "";
-  const currency = regionStr === "uz" ? "сум" : "₽";
-  const kind = mode === "oneclick" ? "⚡️ ONE-CLICK" : "🛒 CART";
+  const regionUpper = regionStr.trim().toUpperCase() || "RU";
+  const currency = regionToCurrency(regionStr);
+
+  const kind =
+    mode === "oneclick"
+      ? "⚡️ <b>ONE-CLICK</b>"
+      : "🛒 <b>КОРЗИНА</b>";
+
+  const phoneNorm = normalizePhone(String(customerSafe.phone), regionUpper);
 
   const computedTotal = itemsSafe.reduce((acc, it) => {
     const qty = toNum(it?.qty);
@@ -163,59 +254,62 @@ export async function POST(req: Request) {
 
   const totalSafe = toNum(total) || computedTotal;
 
-  const lines = itemsSafe
+  const itemsLines = itemsSafe
     .map((it, i) => {
       const collection =
         it.collectionLabel || it.collection || it.brandLabel || it.brand || "";
-      const collectionPart = collection ? `${collection} / ` : "";
 
+      const pid = String(it.productId ?? "").trim();
+      const idPart = pid ? `\n   ID: ${pid}` : "";
+
+      const vTitle = String(it.variantTitle ?? "").trim();
+      const vId = String(it.variantId ?? "").trim();
       const variant =
-        it.variantTitle && it.variantId && it.variantId !== "base"
-          ? ` (Вариант: ${it.variantTitle})`
-          : "";
+        vTitle && vId && vId !== "base"
+          ? `\n   Вариант: ${vTitle} (${vId})`
+          : vTitle
+            ? `\n   Вариант: ${vTitle}`
+            : "";
 
       const qty = toNum(it?.qty);
       const unit = toNum(it?.unit);
       const sum = toNum(it?.sum) || unit * qty;
 
-      return `${i + 1}) ${collectionPart}${it.title ?? "Товар"}${variant} — ${qty} × ${unit} = ${sum} ${currency}`;
+      const title = it.title ?? "Товар";
+      const header = collection ? `${collection} / ${title}` : `${title}`;
+
+      return `${i + 1}. ${header}${variant}${idPart}\n   ${qty} × ${formatMoney(unit)} = ${formatMoney(sum)} ${currency}`;
     })
-    .join("\n");
+    .join("\n\n");
 
   const text =
     `🧾 <b>НОВЫЙ ЗАКАЗ</b>\n` +
-    `${esc(kind)}\n` +
+    `—————————————\n` +
+    `${kind}\n` +
     `🆔 <b>${esc(oid)}</b>\n` +
-    // ✅ теперь всегда понятно: UZ + UTC
     `🕒 <b>Время (UZ):</b> ${esc(cAtUz)}\n` +
-    `🕒 <b>UTC:</b> ${esc(cAtUtc)}\n\n` +
-    `📞 <b>Телефон:</b> ${esc(String(customerSafe.phone))}\n` +
+    `🕒 <b>UTC:</b> ${esc(cAtUtc)}\n` +
+    `🌍 <b>Регион:</b> ${esc(regionUpper)}\n\n` +
+    `📞 <b>Телефон:</b> <a href="tel:${esc(phoneNorm.tel)}">${esc(phoneNorm.pretty)}</a>\n` +
     `${customerSafe.name ? `👤 <b>Имя:</b> ${esc(customerSafe.name)}\n` : ""}` +
-    `${
-      customerSafe.address
-        ? `📍 <b>Адрес:</b> ${esc(customerSafe.address)}\n`
-        : ""
-    }` +
-    `${
-      customerSafe.comment
-        ? `💬 <b>Комментарий:</b> ${esc(customerSafe.comment)}\n`
-        : ""
-    }` +
-    `\n<b>Заказ:</b>\n${esc(lines)}\n\n` +
-    `💰 <b>Итого:</b> ${esc(String(totalSafe))} ${currency}`;
+    `${customerSafe.address ? `📍 <b>Адрес:</b> ${esc(customerSafe.address)}\n` : ""}` +
+    `${customerSafe.comment ? `💬 <b>Комментарий:</b> ${esc(customerSafe.comment)}\n` : ""}` +
+    `\n<b>Состав заказа:</b>\n<pre>${esc(itemsLines)}</pre>\n` +
+    `💰 <b>Итого:</b> ${esc(formatMoney(totalSafe))} ${currency}`;
 
+  // 1) Основное сообщение (в тему)
   let tgRes: Response;
   try {
-    tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
-    });
+    const bodyObj: Record<string, unknown> = {
+      chat_id: chatId,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    };
+
+    if (threadId) bodyObj.message_thread_id = threadId;
+
+    tgRes = await tgCall(token, "sendMessage", bodyObj);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
@@ -235,6 +329,65 @@ export async function POST(req: Request) {
       },
       { status: 502 },
     );
+  }
+
+  // 2) Фото товаров (альбом до 10 шт) — тоже в эту тему
+  const media = itemsSafe
+    .map((it) => {
+      const img = resolveAbsUrl(String(it.imageUrl ?? "").trim());
+      if (!img) return null;
+
+      const collection =
+        it.collectionLabel || it.collection || it.brandLabel || it.brand || "";
+      const title = String(it.title ?? "Товар").trim();
+      const vTitle = String(it.variantTitle ?? "").trim();
+      const vId = String(it.variantId ?? "").trim();
+
+      const qty = toNum(it?.qty);
+      const unit = toNum(it?.unit);
+      const sum = toNum(it?.sum) || unit * qty;
+
+      const header = collection ? `${collection} / ${title}` : title;
+      const variant =
+        vTitle && vId && vId !== "base"
+          ? `\nВариант: ${vTitle}`
+          : vTitle
+            ? `\nВариант: ${vTitle}`
+            : "";
+
+      const caption =
+        `🪑 <b>${esc(header)}</b>` +
+        `${variant ? `\n${esc(variant)}` : ""}` +
+        `\n${esc(String(qty))} × ${esc(formatMoney(unit))} = ${esc(formatMoney(sum))} ${esc(currency)}`;
+
+      return {
+        type: "photo",
+        media: img,
+        caption,
+        parse_mode: "HTML",
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 10) as Array<Record<string, unknown>>;
+
+  if (media.length) {
+    try {
+      const bodyObj: Record<string, unknown> = {
+        chat_id: chatId,
+        media,
+      };
+      if (threadId) bodyObj.message_thread_id = threadId;
+
+      const res2 = await tgCall(token, "sendMediaGroup", bodyObj);
+
+      // если альбом не прошёл — не валим заказ (пусть хотя бы текст пришёл)
+      if (!res2.ok) {
+        // можно логировать, но ответ ok всё равно отдаём
+        // const err = await res2.text().catch(() => "");
+      }
+    } catch {
+      // тоже не валим
+    }
   }
 
   return NextResponse.json({ ok: true, orderId: oid });
