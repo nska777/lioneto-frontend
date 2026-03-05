@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   Store,
   Palette,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 type ContactMethod = "telegram" | "call" | "whatsapp";
+type Region = "UZ" | "RU";
 
 type Chip = {
   id: string;
@@ -186,24 +187,130 @@ function SectionTitle({
   );
 }
 
-function formatUzPhoneDisplay(raw: string) {
-  // хранение: только 9 цифр
-  const d = raw.replace(/\D/g, "").slice(0, 9);
+function digitsOnly(s: string) {
+  return s.replace(/\D/g, "");
+}
+
+function isValidEmail(s: string) {
+  const v = s.trim();
+  if (!v) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+// читаем регион из localStorage (без знания точного ключа)
+function readRegionFromStorage(): Region {
+  if (typeof window === "undefined") return "UZ";
+  const keys = [
+    "lioneto:region",
+    "region",
+    "LIONETO_REGION",
+    "selectedRegion",
+    "lioneto_region",
+  ];
+  for (const k of keys) {
+    const v = window.localStorage.getItem(k);
+    if (!v) continue;
+    const up = v.trim().toUpperCase();
+    if (up === "RU" || up === "RUSSIA") return "RU";
+    if (up === "UZ" || up === "UZBEKISTAN") return "UZ";
+  }
+  return "UZ";
+}
+
+function writeRegionToStorage(r: Region) {
+  if (typeof window === "undefined") return;
+  // Пишем в самый вероятный ключ, но не ломаем сайт: это только помощь форме.
+  window.localStorage.setItem("lioneto:region", r);
+}
+
+function formatUzPhone(digitsRaw: string) {
+  const d = digitsOnly(digitsRaw).slice(0, 9);
   const p1 = d.slice(0, 2);
   const p2 = d.slice(2, 5);
   const p3 = d.slice(5, 7);
   const p4 = d.slice(7, 9);
-  const parts = [p1, p2, p3, p4].filter(Boolean);
-  const spaced =
-    parts.length >= 2
-      ? `${parts[0]} ${parts[1]}${p3 ? ` ${p3}` : ""}${p4 ? ` ${p4}` : ""}`
-      : parts.join(" ");
-  return { digits: d, display: `+998 ${spaced}`.trimEnd() };
+  const spaced = [p1, p2, p3, p4].filter(Boolean).join(" ").trim();
+  return {
+    digits: d,
+    display: spaced ? `+998 ${spaced}` : "+998",
+    placeholder: "90 123 45 67",
+    maxLen: 9,
+    prefix: "+998",
+    fullE164: `+998${d}`,
+  };
+}
+
+function formatRuPhone(digitsRaw: string) {
+  const d = digitsOnly(digitsRaw).slice(0, 10);
+  const p1 = d.slice(0, 3);
+  const p2 = d.slice(3, 6);
+  const p3 = d.slice(6, 8);
+  const p4 = d.slice(8, 10);
+  const spaced = [p1, p2, p3, p4].filter(Boolean).join(" ").trim();
+  return {
+    digits: d,
+    display: spaced ? `+7 ${spaced}` : "+7",
+    placeholder: "999 123 45 67",
+    maxLen: 10,
+    prefix: "+7",
+    fullE164: `+7${d}`,
+  };
+}
+
+// пытаемся “перевести” уже введённый номер при смене региона, чтобы не сбрасывало
+function convertDigitsForRegion(prev: Region, next: Region, digits: string) {
+  const d = digitsOnly(digits);
+  if (!d) return "";
+
+  // если был UZ и переключили на RU — возьмём последние 10 цифр (или обрежем)
+  if (prev === "UZ" && next === "RU") {
+    // UZ хранит 9 цифр без 998, RU надо 10 цифр без 7
+    // не выдумываем лишнюю цифру — просто переносим как есть, добивать не нужно
+    return d.slice(0, 10);
+  }
+
+  // если был RU и переключили на UZ — возьмём первые 9 цифр
+  if (prev === "RU" && next === "UZ") {
+    return d.slice(0, 9);
+  }
+
+  return d;
+}
+
+function RegionSwitch({
+  value,
+  onChange,
+}: {
+  value: Region;
+  onChange: (r: Region) => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white p-1">
+      {(
+        [
+          { id: "UZ" as const, label: "Узбекистан" },
+          { id: "RU" as const, label: "Россия" },
+        ] as const
+      ).map((x) => (
+        <button
+          key={x.id}
+          type="button"
+          onClick={() => onChange(x.id)}
+          className={cn(
+            "rounded-full px-4 py-2 text-[12px] font-medium tracking-[0.14em] transition cursor-pointer",
+            value === x.id
+              ? "bg-black text-white"
+              : "bg-transparent text-black/60 hover:text-black",
+          )}
+        >
+          {x.label.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export default function CooperationClient({
-  // пока не используем Strapi для контента в этом UI (он уже статично задан ТЗ)
-  // но пропсы оставляем, чтобы страница не ломалась и ты мог позже подключить
   tracks,
   blocks,
 }: {
@@ -212,16 +319,31 @@ export default function CooperationClient({
 }) {
   const startRef = useRef<HTMLDivElement | null>(null);
 
+  const [region, setRegion] = useState<Region>("UZ");
+
+  // при монтировании читаем регион
+  useEffect(() => {
+    setRegion(readRegionFromStorage());
+  }, []);
+
+  // слушаем смену региона из других вкладок/скриптов (storage event)
+  useEffect(() => {
+    const onStorage = () => setRegion(readRegionFromStorage());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const [formats, setFormats] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
-
   const [sending, setSending] = useState(false);
 
   const [form, setForm] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
+    email: "",
     company: "",
     city: "",
-    phoneDigits: "", // 9 цифр
+    phoneDigits: "",
     method: "telegram" as ContactMethod,
     comment: "",
   });
@@ -236,7 +358,29 @@ export default function CooperationClient({
     return interests.map((id) => m.get(id)).filter(Boolean) as string[];
   }, [interests]);
 
-  const canSend = form.name.trim().length > 0 && form.phoneDigits.length === 9;
+  const phoneView =
+    region === "RU"
+      ? formatRuPhone(form.phoneDigits)
+      : formatUzPhone(form.phoneDigits);
+
+  // при смене региона: подрежем/переведём номер под новую длину
+  useEffect(() => {
+    setForm((p) => {
+      const converted = convertDigitsForRegion(region, region, p.phoneDigits);
+      // convertDigitsForRegion здесь не нужен, но оставим чисто для будущей логики.
+      // фактическую обрезку делаем ниже.
+      const trimmed = digitsOnly(converted).slice(0, phoneView.maxLen);
+      if (trimmed === p.phoneDigits) return p;
+      return { ...p, phoneDigits: trimmed };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [region]);
+
+  const canSend =
+    form.firstName.trim().length > 0 &&
+    form.lastName.trim().length > 0 &&
+    isValidEmail(form.email) &&
+    phoneView.digits.length === phoneView.maxLen;
 
   const toggle = (arr: string[], id: string) =>
     arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id];
@@ -253,17 +397,22 @@ export default function CooperationClient({
   const submit = async () => {
     if (!canSend) return;
 
-    const phone = `+998${form.phoneDigits}`;
+    const pageUrl =
+      typeof window !== "undefined" ? window.location.href : "/cooperation";
 
     const payload = {
-      name: form.name,
-      phone,
-      company: form.company,
-      city: form.city,
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim(),
+      phone: phoneView.fullE164, // +998... / +7...
+      company: form.company.trim(),
+      city: form.city.trim(),
       contactMethod: form.method,
-      comment: form.comment,
+      comment: form.comment.trim(),
       formats: pickedFormats,
       interests: pickedInterests,
+      region,
+      pageUrl,
     };
 
     try {
@@ -282,7 +431,9 @@ export default function CooperationClient({
 
       alert("Отправлено ✅");
       setForm({
-        name: "",
+        firstName: "",
+        lastName: "",
+        email: "",
         company: "",
         city: "",
         phoneDigits: "",
@@ -295,11 +446,21 @@ export default function CooperationClient({
     }
   };
 
-  const phoneView = formatUzPhoneDisplay(form.phoneDigits);
+  const onChangeRegion = (next: Region) => {
+    setRegion((prev) => {
+      // перенос цифр при смене
+      setForm((p) => ({
+        ...p,
+        phoneDigits: convertDigitsForRegion(prev, next, p.phoneDigits),
+      }));
+      writeRegionToStorage(next);
+      return next;
+    });
+  };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 space-y-10 md:space-y-14">
-      {/* 1) HERO */}
+      {/* HERO */}
       <section className="rounded-3xl border border-black/10 bg-white p-6 md:p-10 relative overflow-hidden">
         <div
           aria-hidden
@@ -333,7 +494,7 @@ export default function CooperationClient({
             ))}
           </div>
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={onStart}
@@ -346,22 +507,28 @@ export default function CooperationClient({
               <ArrowDown className="h-4 w-4" />
               НАЧАТЬ
             </button>
+
+            {/* Регион прямо в hero (как ты просил) */}
+            <div className="ml-0 md:ml-2">
+              <div className="mb-2 text-[11px] tracking-[0.14em] text-black/45">
+                РЕГИОН ДЛЯ СВЯЗИ
+              </div>
+              <RegionSwitch value={region} onChange={onChangeRegion} />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 2-5) MAIN GRID */}
+      {/* MAIN */}
       <section ref={startRef} className="grid gap-6 md:grid-cols-12">
-        {/* Left content */}
         <div className="md:col-span-7 space-y-10">
-          {/* 2) Formats */}
+          {/* Formats */}
           <div>
             <SectionTitle
               eyebrow="ШАГ 1"
               title="Выберите формат сотрудничества"
               desc="Можно выбрать несколько — они автоматически появятся в собранной заявке."
             />
-
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               {FORMATS.map((c) => (
                 <ChipCard
@@ -375,14 +542,13 @@ export default function CooperationClient({
             </div>
           </div>
 
-          {/* 3) Interests */}
+          {/* Interests */}
           <div>
             <SectionTitle
               eyebrow="ШАГ 2"
               title="Что именно вам нужно?"
               desc="Отметьте детали — менеджер сразу поймёт, что подготовить."
             />
-
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               {INTERESTS.map((c) => (
                 <ChipCard
@@ -396,22 +562,42 @@ export default function CooperationClient({
             </div>
           </div>
 
-          {/* 5) Form */}
+          {/* Contacts */}
           <div>
             <SectionTitle
               eyebrow="ШАГ 3"
               title="Контакты"
-              desc="Оставьте телефон — мы свяжемся в удобном формате."
+              desc="Оставьте контакты — мы свяжемся в удобном формате."
             />
 
             <div className="mt-5 rounded-3xl border border-black/10 bg-white p-5 md:p-6">
               <div className="grid gap-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    value={form.firstName}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, firstName: e.target.value }))
+                    }
+                    placeholder="Имя*"
+                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
+                  />
+                  <input
+                    value={form.lastName}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, lastName: e.target.value }))
+                    }
+                    placeholder="Фамилия*"
+                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
+                  />
+                </div>
+
                 <input
-                  value={form.name}
+                  value={form.email}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, name: e.target.value }))
+                    setForm((p) => ({ ...p, email: e.target.value }))
                   }
-                  placeholder="Имя*"
+                  placeholder="Email*"
+                  inputMode="email"
                   className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
                 />
 
@@ -434,7 +620,7 @@ export default function CooperationClient({
                   />
                 </div>
 
-                {/* UZ phone */}
+                {/* Phone */}
                 <div className="grid gap-2">
                   <div className="text-[12px] tracking-[0.14em] text-black/45">
                     Телефон*
@@ -442,18 +628,19 @@ export default function CooperationClient({
 
                   <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 flex items-center gap-3">
                     <div className="text-[14px] text-black/55 select-none">
-                      +998
+                      {phoneView.prefix}
                     </div>
                     <input
                       inputMode="numeric"
                       value={phoneView.digits}
                       onChange={(e) => {
-                        const next = e.target.value
-                          .replace(/\D/g, "")
-                          .slice(0, 9);
+                        const next = digitsOnly(e.target.value).slice(
+                          0,
+                          phoneView.maxLen,
+                        );
                         setForm((p) => ({ ...p, phoneDigits: next }));
                       }}
-                      placeholder="90 123 45 67"
+                      placeholder={phoneView.placeholder}
                       className="w-full bg-transparent text-[14px] text-black/80 outline-none"
                     />
                   </div>
@@ -461,7 +648,7 @@ export default function CooperationClient({
                   <div className="text-[12px] text-black/45">
                     {phoneView.digits.length
                       ? `Ввод: ${phoneView.display}`
-                      : "Пример: +998 90 123 45 67"}
+                      : `Пример: ${phoneView.prefix} ${phoneView.placeholder}`}
                   </div>
                 </div>
 
@@ -509,12 +696,23 @@ export default function CooperationClient({
           </div>
         </div>
 
-        {/* 4) Sticky summary */}
+        {/* Summary */}
         <div className="md:col-span-5">
           <div className="md:sticky md:top-6">
             <div className="rounded-3xl border border-black/10 bg-white p-6">
               <div className="text-[12px] tracking-[0.18em] text-black/45">
                 СОБРАННАЯ ЗАЯВКА
+              </div>
+
+              <div className="mt-4">
+                <div className="text-[12px] tracking-[0.14em] text-black/45">
+                  Регион:
+                </div>
+                <div className="mt-2 rounded-2xl border border-black/10 bg-black/[0.02] px-4 py-3 text-[13px] text-black/75">
+                  {region === "RU"
+                    ? "Россия (телефон +7)"
+                    : "Узбекистан (телефон +998)"}
+                </div>
               </div>
 
               <div className="mt-4">
@@ -592,13 +790,15 @@ export default function CooperationClient({
               </button>
 
               <div className="mt-3 text-[11px] leading-5 text-black/45">
-                Для отправки нужно: <b>имя</b> и <b>телефон</b>.
+                Для отправки нужно: <b>имя</b>, <b>фамилия</b>, <b>email</b> и{" "}
+                <b>телефон</b>.
               </div>
-            </div>
 
-            {/* Mobile bottom feel (optional) */}
-            <div className="mt-3 md:hidden text-[12px] text-black/45">
-              Подсказка: собранная заявка всегда под рукой.
+              {!isValidEmail(form.email) && form.email.trim().length > 0 ? (
+                <div className="mt-2 text-[11px] text-black/50">
+                  Проверьте email — должен быть в формате name@domain.com
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
