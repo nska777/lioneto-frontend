@@ -5,8 +5,20 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import {
+  buildAbandonedPayload,
+  clearAbandonedSignature,
+  hasCartLeadCapture,
+  pruneCartLineMeta,
+  readCartActivityTs,
+  readLastAbandonedSignature,
+  touchCartActivity,
+  writeLastAbandonedSignature,
+} from "@/app/lib/cart-lead";
+import { useRegionLang } from "@/app/context/region-lang";
 
 /**
  * ✅ КАК РАНЬШЕ:
@@ -16,11 +28,11 @@ import React, {
  */
 
 export type VariantRef = {
-  id: string; // variantId
+  id: string;
   title?: string;
 };
 
-export type ItemKey = string; // "productId::variantId"
+export type ItemKey = string;
 type CartMap = Record<ItemKey, number>;
 type OneClick = { id: ItemKey; qty: number } | null;
 
@@ -139,6 +151,101 @@ function migrateOneClick(raw: any): OneClick {
   return { id: key, qty };
 }
 
+function AbandonedCartTracker({ cart }: { cart: CartMap }) {
+  const { region } = useRegionLang();
+  const sentRef = useRef(false);
+
+  const sendAbandoned = async (reason: "idle" | "beforeunload") => {
+    if (sentRef.current) return;
+
+    const hasLead = hasCartLeadCapture();
+    const hasItems = Object.values(cart).some((qty) => (qty ?? 0) > 0);
+
+    if (!hasLead || !hasItems) return;
+
+    const payload = buildAbandonedPayload({
+      cart,
+      region,
+      pathname: typeof window !== "undefined" ? window.location.pathname : "",
+    });
+
+    if (!payload.lead || payload.items.length === 0) return;
+
+    const lastSig = readLastAbandonedSignature();
+    if (lastSig && lastSig === payload.signature) return;
+
+    sentRef.current = true;
+    writeLastAbandonedSignature(payload.signature);
+
+    const body = JSON.stringify({
+      ...payload,
+      reason,
+    });
+
+    try {
+      if (reason === "beforeunload" && navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon("/api/abandoned-cart", blob);
+        return;
+      }
+
+      await fetch("/api/abandoned-cart", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+        keepalive: true,
+      });
+    } catch {
+      sentRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    const hasItems = Object.values(cart).some((qty) => (qty ?? 0) > 0);
+
+    if (!hasItems) {
+      clearAbandonedSignature();
+      pruneCartLineMeta({});
+      return;
+    }
+
+    pruneCartLineMeta(cart);
+  }, [cart]);
+
+  useEffect(() => {
+    const hasItems = Object.values(cart).some((qty) => (qty ?? 0) > 0);
+    if (!hasItems) return;
+
+    const onBeforeUnload = () => {
+      void sendAbandoned("beforeunload");
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [cart]);
+
+  useEffect(() => {
+    const hasItems = Object.values(cart).some((qty) => (qty ?? 0) > 0);
+    if (!hasItems || !hasCartLeadCapture()) return;
+
+    const interval = window.setInterval(() => {
+      const last = readCartActivityTs();
+      const now = Date.now();
+      const idleMs = now - last;
+
+      if (idleMs >= 10 * 60 * 1000) {
+        void sendAbandoned("idle");
+      }
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [cart]);
+
+  return null;
+}
+
 export function ShopStateProvider({ children }: { children: React.ReactNode }) {
   const [favorites, setFavorites] = useState<ItemKey[]>([]);
   const [cart, setCart] = useState<CartMap>({});
@@ -152,6 +259,7 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
     setFavorites(migrateFavorites(favRaw));
     setCart(migrateCart(cartRaw));
     setOneClickState(migrateOneClick(ocRaw));
+    touchCartActivity();
   }, []);
 
   useEffect(() => {
@@ -160,6 +268,7 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem(LS_CART, JSON.stringify(cart));
+    touchCartActivity();
   }, [cart]);
 
   useEffect(() => {
@@ -186,7 +295,6 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
       return (cart[key] ?? 0) > 0;
     };
 
-    // ✅ как раньше: разные варианты = разные строки
     const addToCart = (
       productId: string,
       qty = 1,
@@ -243,7 +351,10 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
       });
     };
 
-    const clearCart = () => setCart({});
+    const clearCart = () => {
+      setCart({});
+      clearAbandonedSignature();
+    };
 
     const setOneClick = (
       productId: string,
@@ -284,7 +395,12 @@ export function ShopStateProvider({ children }: { children: React.ReactNode }) {
     };
   }, [favorites, cart, oneClick]);
 
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={api}>
+      {children}
+      <AbandonedCartTracker cart={cart} />
+    </Ctx.Provider>
+  );
 }
 
 export function useShopState() {
