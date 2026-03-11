@@ -118,53 +118,14 @@ function PremiumImageBlock({
   alt?: string;
 }) {
   return (
-    <div
-      data-reveal-image
-      className={cn(
-        "relative overflow-hidden",
-        "rounded-[18px]",
-        "bg-white",
-        "ring-1 ring-black/[0.08]",
-        "shadow-[0_28px_110px_rgba(0,0,0,0.10)]",
-      )}
-    >
-      <div className="relative aspect-[16/9] w-full bg-[#f4f4f4]">
-        {src ? (
-          <>
-            {/* подложка */}
-            <Image
-              src={src}
-              alt=""
-              fill
-              aria-hidden
-              className="object-cover scale-[1.06] blur-[16px] opacity-55"
-              sizes="(max-width: 1280px) 100vw, 1280px"
-              priority={false}
-            />
-            <div className="absolute inset-0 bg-white/25" />
-            {/* основной слой */}
-            <Image
-              src={src}
-              alt={alt}
-              fill
-              className="object-cover"
-              sizes="(max-width: 1280px) 100vw, 1280px"
-              priority={false}
-            />
-            {/* лёгкая виньетка */}
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute inset-0 bg-[radial-gradient(900px_340px_at_50%_0%,rgba(0,0,0,0.06),transparent_60%)]" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),transparent_55%)]" />
-            </div>
-          </>
-        ) : (
-          <div className="grid h-full w-full place-items-center">
-            <div className="rounded-[16px] px-6 py-4 text-[20px] font-medium text-black/45 ring-1 ring-black/10">
-              картинка
-            </div>
-          </div>
-        )}
-      </div>
+    <div data-reveal-image className="mx-auto max-w-[980px]">
+      <Image
+        src="/images/1.png"
+        alt={alt}
+        width={980}
+        height={600}
+        className="w-full h-auto"
+      />
     </div>
   );
 }

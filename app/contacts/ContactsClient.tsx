@@ -245,11 +245,6 @@ export default function ContactsClient() {
               />
             </div>
           </div>
-
-          <div className="mt-3 text-[11px] leading-5 text-black/45">
-            Карта загружается через виджет. При необходимости подключим
-            полноценный SDK (пины/кластер/свой стиль).
-          </div>
         </div>
       </div>
     </div>
