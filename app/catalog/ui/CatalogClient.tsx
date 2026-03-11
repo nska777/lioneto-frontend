@@ -233,7 +233,7 @@ const HERO_DESC_BY_COLLECTION: Record<string, string> = {
   salvador:
     "SALVADOR — выразительный дизайн и статусные материалы. Коллекция собирает интерьер в цельный образ и подчёркивает премиальный характер пространства.",
   scandi:
-    "SCANDI — чистый северный стиль: лаконичность, тёплые фактуры и визуальная лёгкость. Универсальная база для премиального интерьера.",
+    "SCANDY — чистый северный стиль: лаконичность, тёплые фактуры и визуальная лёгкость. Универсальная база для премиального интерьера.",
 };
 
 export default function CatalogClient({
@@ -699,7 +699,8 @@ export default function CatalogClient({
     if (isPrice) setSort(isPriceAsc ? PRICE_DESC : PRICE_ASC);
     else setSort(PRICE_ASC);
   };
-
+  const safeTitle =
+    heroTitle?.toLowerCase() === "scandi" ? "SCANDY" : heroTitle;
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-2 pb-24">
       {!hero ? (
@@ -741,7 +742,7 @@ export default function CatalogClient({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3">
                     <h1 className="whitespace-nowrap text-[22px] font-semibold tracking-[-0.03em] leading-none">
-                      {heroTitle || "Коллекция"}
+                      {safeTitle || "Коллекция"}
                     </h1>
 
                     <span className="shrink-0 whitespace-nowrap inline-flex h-7 items-center rounded-none border border-black/10 bg-[#f3f3f3] px-3 text-[11px] font-medium tracking-[0.22em] uppercase text-black/55 leading-none">

@@ -445,10 +445,6 @@ export default function AuthClient() {
             {msg.text}
           </div>
         )}
-
-        <div className="mt-5 text-center text-[12px] text-black/45">
-          Никаких паролей. Сессия хранится в браузере (client-only).
-        </div>
       </div>
     </div>
   );
