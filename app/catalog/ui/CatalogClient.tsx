@@ -845,7 +845,11 @@ export default function CatalogClient({
             bedroomsFirst={bedroomsFirst3}
             bedroomsFirstList={bedroomsFirstList3}
             collectionRest={collectionRest3}
-            collectionTitle={activeCollection}
+            collectionTitle={
+              activeCollection?.toLowerCase() === "scandi"
+                ? "SCANDY"
+                : activeCollection
+            }
           />
 
           {sorted3.length === 0 ? (
