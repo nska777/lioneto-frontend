@@ -150,27 +150,27 @@ export const megaCategories: MegaCategory[] = [
     items: [
       {
         labelKey: "brand.amber",
-        fallback: "АМБЕР",
+        fallback: "AMBER",
         href: makeCollectionHref("amber", "bedrooms"),
       },
       {
         labelKey: "brand.scandi",
-        fallback: "СКАНДИ",
+        fallback: "SCANDY",
         href: makeCollectionHref("scandi", "bedrooms"),
       },
       {
         labelKey: "brand.elizabeth",
-        fallback: "ЭЛИЗАБЕТ",
+        fallback: "ELIZABETH",
         href: makeCollectionHref("elizabeth", "bedrooms"),
       },
       {
         labelKey: "brand.salvador",
-        fallback: "САЛЬВАДОР",
+        fallback: "SALVADOR",
         href: makeCollectionHref("salvador", "bedrooms"),
       },
       {
         labelKey: "brand.pitti",
-        fallback: "ПИТТИ",
+        fallback: "PITTI",
         href: makeCollectionHref("pitti", "bedrooms"),
       },
       {
@@ -188,17 +188,17 @@ export const megaCategories: MegaCategory[] = [
     items: [
       {
         labelKey: "brand.scandi",
-        fallback: "СКАНДИ",
+        fallback: "SCANDY",
         href: makeCollectionHref("scandi", "living"),
       },
       {
         labelKey: "brand.pitti_alt",
-        fallback: "ПИТТИ",
+        fallback: "PITTI",
         href: makeCollectionHref("pitti", "living"),
       },
       {
         labelKey: "brand.salvador",
-        fallback: "САЛЬВАДОР",
+        fallback: "SALVADOR",
         href: makeCollectionHref("salvador", "living"),
       },
       {
@@ -218,12 +218,12 @@ export const megaCategories: MegaCategory[] = [
     items: [
       {
         labelKey: "brand.scandi",
-        fallback: "СКАНДИ",
+        fallback: "SCANDY",
         href: makeCollectionHref("scandi", "youth"),
       },
       {
         labelKey: "brand.elizabeth",
-        fallback: "ЭЛИЗАБЕТ",
+        fallback: "ELIZABETH",
         href: makeCollectionHref("elizabeth", "youth"),
       },
     ],
