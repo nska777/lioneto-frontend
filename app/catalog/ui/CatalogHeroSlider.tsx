@@ -165,14 +165,14 @@ export default function CatalogHeroSlider({
   return (
     <div
       className="
-        relative w-full overflow-hidden
-        border border-black/10 bg-white
-        shadow-[0_18px_60px_-40px_rgba(0,0,0,0.35)]
-        rounded-[0px]
-        h-[260px]
-        sm:h-[420px]
-        xl:h-[532px]
-      "
+    relative w-full overflow-hidden
+    border border-black/10 bg-white
+    shadow-[0_18px_60px_-40px_rgba(0,0,0,0.35)]
+    rounded-[0px]
+    h-[260px]
+    sm:h-[420px]
+    xl:h-[430px]
+  "
     >
       {/* Слои */}
       <div className="absolute inset-0">
@@ -187,7 +187,6 @@ export default function CatalogHeroSlider({
             alt={title || "collection"}
             fill
             priority
-            className="object-cover"
             sizes="100vw"
           />
         </div>
