@@ -120,7 +120,7 @@ function PremiumImageBlock({
   return (
     <div data-reveal-image className="mx-auto max-w-[980px]">
       <Image
-        src="/images/1.png"
+        src="/images/1.jpg"
         alt={alt}
         width={980}
         height={600}
