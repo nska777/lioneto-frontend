@@ -28,6 +28,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     images: [
       img("/images/collections/scandy/01.jpg", "SCANDY интерьер"),
       img("/images/collections/scandy/02.jpg", "SCANDY интерьер"),
+      img("/images/collections/scandy/03.jpg", "SCANDY интерьер"),
     ],
     href: "/catalog?brand=skandy",
   },
@@ -40,6 +41,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
     images: [
       img("/images/collections/amber/01.jpg", "AMBER интерьер"),
       img("/images/collections/amber/02.jpg", "AMBER интерьер"),
+      img("/images/collections/amber/03.jpg", "AMBER интерьер"),
     ],
     href: "/catalog?brand=amber",
   },
@@ -51,6 +53,8 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
       "Элегантность, сдержанность и душевный покой, светлые тона с яркими акцентами, легкость и воздушность.",
     images: [
       img("/images/collections/elizabeth/01.jpg", "ELIZABETH интерьер"),
+      img("/images/collections/elizabeth/02.jpg", "ELIZABETH интерьер"),
+      img("/images/collections/elizabeth/03.jpg", "ELIZABETH интерьер"),
     ],
     href: "/catalog?brand=elizabeth",
   },
@@ -75,6 +79,7 @@ export const COLLECTIONS_SLIDER_MOCK: SliderCollection[] = [
       "Изящность в сочетании с монументальностью, характерные декоративные элементы, темная цветовая гамма.",
     images: [
       img("/images/collections/pitti/01.jpg", "PITTI интерьер"),
+      img("/images/collections/pitti/02.jpg", "PITTI интерьер"),
 			
     ],
     href: "/catalog?brand=pitti",
