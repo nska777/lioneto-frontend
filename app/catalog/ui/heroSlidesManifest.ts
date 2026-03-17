@@ -20,7 +20,7 @@ export const HERO_SLIDES_MANIFEST: Record<string, HeroSlidesConf> = {
   "bedrooms:salvador": { base: "/slidermenu/bedrooms/salvador", count: 2, ext: "jpg" },
 
 
-  "bedrooms:scandi": { base: "/slidermenu/bedrooms/scandi", count: 3, ext: "jpg" },
+  "bedrooms:scandi": { base: "/slidermenu/bedrooms/scandi", count: 2, ext: "jpg" },
 
   "living:scandi": { base: "/slidermenu/living/scandi", count: 2, ext: "jpg" },
 };
