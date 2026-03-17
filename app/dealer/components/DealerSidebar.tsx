@@ -27,7 +27,11 @@ const NAV = [
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-export default function DealerSidebar() {
+export default function DealerSidebar({
+  canAccessAdmin,
+}: {
+  canAccessAdmin: boolean;
+}) {
   const pathname = usePathname();
 
   return (
@@ -35,7 +39,7 @@ export default function DealerSidebar() {
       <nav className="px-4 py-4">
         <ul className="space-y-2">
           {NAV.map((item) => {
-            const hrefStr = item.href as string; // только для startsWith
+            const hrefStr = item.href as string;
 
             const isActive =
               pathname === hrefStr || pathname.startsWith(hrefStr + "/");
@@ -49,7 +53,7 @@ export default function DealerSidebar() {
                     "transition-colors duration-200",
                     "border border-transparent",
                     "text-black/70 hover:bg-black/5",
-                    isActive && "bg-[#F3EBD2] border-[#E4D9B8] text-black",
+                    isActive && "border-[#E4D9B8] bg-[#F3EBD2] text-black",
                   )}
                 >
                   {item.label}
@@ -58,6 +62,26 @@ export default function DealerSidebar() {
             );
           })}
         </ul>
+        {canAccessAdmin ? (
+          <div className="mt-6 border-t border-black/10 pt-4">
+            <div className="mb-2 px-3 text-[10px] uppercase tracking-[0.14em] text-black/35">
+              Owner panel
+            </div>
+
+            <Link
+              href="/dealer-admin/activity"
+              className={cn(
+                "block rounded-[10px] border px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.08em]",
+                "transition-colors duration-200",
+                pathname.startsWith("/dealer-admin")
+                  ? "border-[#DCCFA8] bg-[#F3EBD2] text-black"
+                  : "border-black/10 bg-white text-black/70 hover:bg-black/5 hover:text-black",
+              )}
+            >
+              Панель владельца
+            </Link>
+          </div>
+        ) : null}
       </nav>
     </aside>
   );

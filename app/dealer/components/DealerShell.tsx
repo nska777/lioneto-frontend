@@ -1,4 +1,3 @@
-// app/dealer/components/DealerShell.tsx
 "use client";
 
 import type { ReactNode } from "react";
@@ -12,7 +11,13 @@ const AUTH_PATHS = [
   "/dealer/reset-password",
 ];
 
-export default function DealerShell({ children }: { children: ReactNode }) {
+export default function DealerShell({
+  children,
+  canAccessAdmin,
+}: {
+  children: ReactNode;
+  canAccessAdmin: boolean;
+}) {
   const pathname = usePathname();
   const isAuthPage = AUTH_PATHS.includes(pathname);
 
@@ -22,7 +27,7 @@ export default function DealerShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen">
       <div className="mx-auto flex min-h-screen max-w-[1400px]">
         <aside className="hidden w-[280px] border-r border-black/10 bg-white md:block">
-          <DealerSidebar />
+          <DealerSidebar canAccessAdmin={canAccessAdmin} />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">

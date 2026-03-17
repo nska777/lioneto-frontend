@@ -1,6 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
+
+import { writeDealerActivity } from "@/app/lib/dealer/activity";
+import { getRequestIp, getRequestUserAgent } from "@/app/lib/dealer/request-meta";
 
 type StrapiDealer = {
   id: number;
@@ -42,7 +45,7 @@ function esc(value: string) {
   return encodeURIComponent(value);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
@@ -137,6 +140,20 @@ export async function POST(req: Request) {
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("1d")
       .sign(SECRET);
+
+    await writeDealerActivity({
+      dealerId: dealer.id,
+      actionType: "login_success",
+      entityType: "auth",
+      entityId: String(dealer.id),
+      entityTitle: dealer.login || dealer.title || "dealer-login",
+      url: "/dealer/login",
+      ip: getRequestIp(req),
+      userAgent: getRequestUserAgent(req),
+      payload: {
+        dealerLogin: dealer.login || "",
+      },
+    });
 
     const res = NextResponse.json({ success: true });
 

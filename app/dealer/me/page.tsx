@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type DealerMe = {
   dealerId: number | null;
@@ -34,6 +34,7 @@ export default function Page() {
   const [dealer, setDealer] = useState<DealerMe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loggedViewRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -75,6 +76,30 @@ export default function Page() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!dealer || loggedViewRef.current) return;
+
+    loggedViewRef.current = true;
+
+    void fetch("/api/dealer/activity", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        actionType: "view_profile",
+        entityType: "page",
+        entityId: "/dealer/me",
+        entityTitle: "Dealer Profile",
+        url: window.location.pathname,
+        payload: {
+          dealerLogin: dealer.login,
+        },
+      }),
+    });
+  }, [dealer]);
 
   const regionLabel = useMemo(() => {
     return getRegionLabel(dealer?.region ?? "");
