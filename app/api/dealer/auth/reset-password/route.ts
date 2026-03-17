@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 
 type ResetPayload = {
   role?: string;
-  dealerId?: number;
+  dealerDocumentId?: string;
   login?: string;
   phone?: string;
   region?: string;
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const verified = await jwtVerify(token, SECRET);
     const payload = verified.payload as ResetPayload;
 
-    if (payload.role !== "dealer_reset" || !payload.dealerId) {
+    if (payload.role !== "dealer_reset" || !payload.dealerDocumentId) {
       return NextResponse.json(
         { error: "Недействительный токен восстановления" },
         { status: 401 }
@@ -69,17 +69,20 @@ export async function POST(req: NextRequest) {
       headers.Authorization = `Bearer ${STRAPI_TOKEN}`;
     }
 
-    const res = await fetch(`${STRAPI_URL}/api/dealers/${payload.dealerId}`, {
-      method: "PUT",
-      headers,
-      cache: "no-store",
-      body: JSON.stringify({
-        data: {
-          passwordHash,
-          mustChangePassword: false,
-        },
-      }),
-    });
+    const res = await fetch(
+      `${STRAPI_URL}/api/dealers/${payload.dealerDocumentId}`,
+      {
+        method: "PUT",
+        headers,
+        cache: "no-store",
+        body: JSON.stringify({
+          data: {
+            passwordHash,
+            mustChangePassword: false,
+          },
+        }),
+      }
+    );
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
