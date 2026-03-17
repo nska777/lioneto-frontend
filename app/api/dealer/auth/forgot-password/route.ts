@@ -5,6 +5,7 @@ type DealerRegion = "russia" | "uzbekistan" | "kazakhstan" | "tajikistan" | "";
 
 type StrapiDealer = {
   id: number;
+  documentId?: string;
   login?: string;
   phone?: string;
   region?: DealerRegion;
@@ -127,6 +128,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!dealer.documentId) {
+      return NextResponse.json(
+        { error: "У дилера отсутствует documentId в Strapi" },
+        { status: 500 }
+      );
+    }
+
     const region = dealer.region || "";
     const storedPhone = normalizePhoneByRegion(dealer.phone || "", region);
     const incomingPhone = normalizePhoneByRegion(phone, region);
@@ -143,7 +151,7 @@ export async function POST(req: NextRequest) {
 
     const resetToken = await new SignJWT({
       role: "dealer_reset",
-      dealerId: dealer.id,
+      dealerDocumentId: dealer.documentId,
       login: dealer.login || "",
       phone: storedPhone,
       region,
