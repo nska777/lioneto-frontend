@@ -134,7 +134,7 @@ export default function DealerLoginPage() {
             "disabled:cursor-not-allowed disabled:opacity-60",
           )}
         >
-          {loading ? "Входим..." : "Sign in"}
+          {loading ? "Входим..." : "Войти "}
         </button>
       </form>
     </div>
