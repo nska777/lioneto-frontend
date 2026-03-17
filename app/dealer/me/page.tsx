@@ -1,11 +1,114 @@
 "use client";
 
-import { useRegionLang } from "@/app/context/region-lang";
+import { useEffect, useMemo, useState } from "react";
+
+type DealerMe = {
+  dealerId: number | null;
+  login: string;
+  title: string;
+  email: string;
+  phone: string;
+  city: string;
+  region: string;
+  roleLabel: string;
+  managerName: string;
+  mustChangePassword: boolean;
+};
+
+function getRegionLabel(region: string) {
+  switch (region) {
+    case "russia":
+      return "Россия";
+    case "uzbekistan":
+      return "Узбекистан";
+    case "kazakhstan":
+      return "Казахстан";
+    case "tajikistan":
+      return "Таджикистан";
+    default:
+      return region || "—";
+  }
+}
 
 export default function Page() {
-  const { region } = useRegionLang();
+  const [dealer, setDealer] = useState<DealerMe | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const regionLabel = region === "ru" ? "Россия" : "Узбекистан";
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMe() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await fetch("/api/dealer/auth/me", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          const j = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(j?.error || `Request failed (${res.status})`);
+        }
+
+        const j = (await res.json()) as { dealer?: DealerMe };
+
+        if (!isMounted) return;
+
+        setDealer(j.dealer ?? null);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err instanceof Error ? err.message : "Failed to load dealer");
+      } finally {
+        if (!isMounted) return;
+        setLoading(false);
+      }
+    }
+
+    loadMe();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const regionLabel = useMemo(() => {
+    return getRegionLabel(dealer?.region ?? "");
+  }, [dealer?.region]);
+
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-[34px] leading-[1.06] font-semibold tracking-[-0.02em]">
+            Загрузка...
+          </h1>
+          <p className="mt-2 text-[14px] text-black/60">
+            Получаем данные дилера.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !dealer) {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-[34px] leading-[1.06] font-semibold tracking-[-0.02em]">
+            Ошибка
+          </h1>
+          <p className="mt-2 text-[14px] text-red-600">
+            {error || "Не удалось загрузить профиль дилера."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -25,7 +128,16 @@ export default function Page() {
               Компания
             </div>
             <div className="mt-1 text-[15px] font-semibold text-black">
-              Lioneto Dealer
+              {dealer.title || "—"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
+              Login
+            </div>
+            <div className="mt-1 text-[15px] font-semibold text-black">
+              {dealer.login || "—"}
             </div>
           </div>
 
@@ -34,7 +146,25 @@ export default function Page() {
               Email
             </div>
             <div className="mt-1 text-[15px] font-semibold text-black">
-              dealer@example.com
+              {dealer.email || "—"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
+              Телефон
+            </div>
+            <div className="mt-1 text-[15px] font-semibold text-black">
+              {dealer.phone || "—"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
+              Город
+            </div>
+            <div className="mt-1 text-[15px] font-semibold text-black">
+              {dealer.city || "—"}
             </div>
           </div>
 
@@ -52,10 +182,27 @@ export default function Page() {
               Роль
             </div>
             <div className="mt-1 text-[15px] font-semibold text-black">
-              Официальный дилер
+              {dealer.roleLabel || "—"}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
+              Менеджер
+            </div>
+            <div className="mt-1 text-[15px] font-semibold text-black">
+              {dealer.managerName || "—"}
             </div>
           </div>
         </div>
+
+        {dealer.mustChangePassword ? (
+          <div className="border-t border-black/10 px-6 py-4">
+            <div className="rounded-xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+              Для этого аккаунта включена обязательная смена пароля.
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 export default function DealerLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,11 +14,12 @@ export default function DealerLoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
       const res = await fetch("/api/dealer/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ login, password }),
       });
 
       if (!res.ok) {
@@ -45,11 +46,11 @@ export default function DealerLoginPage() {
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="text-[13px] text-black/60">Email</label>
+          <label className="text-[13px] text-black/60">Login</label>
           <input
             className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-[15px] outline-none focus:border-black/25"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
             autoComplete="username"
           />
         </div>
