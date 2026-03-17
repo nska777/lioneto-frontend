@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 
 export default function DealerResetPasswordPage() {
   const router = useRouter();
@@ -16,10 +17,22 @@ export default function DealerResetPasswordPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!success) return;
+
+    const timer = window.setTimeout(() => {
+      router.push("/dealer/login");
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [success, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
 
     if (!token) {
       setError("Токен восстановления отсутствует");
@@ -59,7 +72,10 @@ export default function DealerResetPasswordPage() {
         throw new Error(j?.error || "Не удалось изменить пароль");
       }
 
-      router.push("/dealer/login");
+      setPassword("");
+      setConfirmPassword("");
+      setError(null);
+      setSuccess("Пароль успешно изменён. Перенаправляем на страницу входа...");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка сброса пароля");
     } finally {
@@ -88,11 +104,13 @@ export default function DealerResetPasswordPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
               placeholder="Введите новый пароль"
+              disabled={loading || !!success}
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-black/45 hover:text-black"
+              disabled={loading || !!success}
+              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-black/45 hover:text-black disabled:cursor-default disabled:opacity-50"
             >
               {showPassword ? (
                 <EyeOff className="h-5 w-5" />
@@ -113,11 +131,13 @@ export default function DealerResetPasswordPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
               placeholder="Повторите новый пароль"
+              disabled={loading || !!success}
             />
             <button
               type="button"
               onClick={() => setShowConfirmPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-black/45 hover:text-black"
+              disabled={loading || !!success}
+              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-black/45 hover:text-black disabled:cursor-default disabled:opacity-50"
             >
               {showConfirmPassword ? (
                 <EyeOff className="h-5 w-5" />
@@ -134,9 +154,33 @@ export default function DealerResetPasswordPage() {
           </div>
         ) : null}
 
+        {success ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-emerald-800">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-[15px] font-medium">
+                  Пароль успешно изменён
+                </div>
+                <div className="mt-1 text-[13px] text-emerald-800/80">
+                  Теперь вы можете войти в дилерский кабинет с новым паролем.
+                </div>
+                <div className="mt-3">
+                  <Link
+                    href="/dealer/login"
+                    className="inline-flex items-center rounded-full border border-emerald-300 bg-white px-4 py-2 text-[13px] font-medium text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100"
+                  >
+                    Перейти ко входу
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !!success}
           className="w-full rounded-xl bg-black px-4 py-3 text-[14px] font-medium text-white disabled:opacity-60"
         >
           {loading ? "Сохраняем..." : "Сохранить новый пароль"}
