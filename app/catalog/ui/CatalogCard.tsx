@@ -264,7 +264,7 @@ export default function CatalogCard({
 
   const curRub = num(getVal(p, "priceRUB") ?? getVal(p, "price_rub") ?? 0);
   const curUzs = num(getVal(p, "priceUZS") ?? getVal(p, "price_uzs") ?? 0);
-  const hasAnyPrice = curRub > 0 || curUzs > 0;
+  const hasAnyPrice = currency === "RUB" ? curRub > 0 : curUzs > 0;
 
   const oldRub = num(
     getVal(p, "oldPriceRUB") ?? getVal(p, "old_price_rub") ?? 0,
@@ -273,8 +273,8 @@ export default function CatalogCard({
     getVal(p, "oldPriceUZS") ?? getVal(p, "old_price_uzs") ?? 0,
   );
 
-  const cur = currency === "RUB" ? curRub || curUzs : curUzs || curRub;
-  const old = currency === "RUB" ? oldRub || oldUzs : oldUzs || oldRub;
+  const cur = currency === "RUB" ? curRub : curUzs;
+  const old = currency === "RUB" ? oldRub : oldUzs;
 
   const hasDiscount = old > 0 && cur > 0 && old > cur;
 
