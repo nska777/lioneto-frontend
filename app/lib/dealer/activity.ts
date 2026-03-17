@@ -25,42 +25,37 @@ export async function writeDealerActivity(
   const base = getStrapiBase();
 
   if (!token) {
-    console.error("[dealer-activity] Missing STRAPI_TOKEN");
-    return;
+    throw new Error("[dealer-activity] Missing STRAPI_TOKEN");
   }
 
-  try {
-    const res = await fetch(`${base}/api/dealer-activity-logs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-      body: JSON.stringify({
-        data: {
-          dealer: input.dealerId ?? null,
-          actionType: input.actionType,
-          entityType: input.entityType ?? "",
-          entityId: input.entityId ?? "",
-          entityTitle: input.entityTitle ?? "",
-          url: input.url ?? "",
-          ip: input.ip ?? "",
-          userAgent: input.userAgent ?? "",
-          payload: input.payload ?? {},
-        },
-      }),
-    });
+  const body = {
+    data: {
+      dealer: input.dealerId ?? null,
+      actionType: input.actionType,
+      entityType: input.entityType ?? "",
+      entityId: input.entityId ?? "",
+      entityTitle: input.entityTitle ?? "",
+      url: input.url ?? "",
+      ip: input.ip ?? "",
+      userAgent: input.userAgent ?? "",
+      payload: input.payload ?? {},
+    },
+  };
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.error(
-        "[dealer-activity] Strapi create failed:",
-        res.status,
-        text
-      );
-    }
-  } catch (error) {
-    console.error("[dealer-activity] Unexpected error:", error);
+  const res = await fetch(`${base}/api/dealer-activity-logs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `[dealer-activity] Strapi create failed: ${res.status} ${text}`
+    );
   }
 }
