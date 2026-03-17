@@ -173,7 +173,7 @@ export default function BrandRow({
 
           {/* RIGHT */}
           <div className="flex flex-nowrap items-center justify-end gap-3 md:w-[360px]">
-            {/* Дилерам 
+            {/* Дилерам */}
             <Link
               href="/dealer/login"
               className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
@@ -186,7 +186,7 @@ export default function BrandRow({
             >
               <Briefcase className="h-4 w-4 opacity-70" />
               ДИЛЕРАМ
-            </Link>*/}
+            </Link>
 
             <span className="hidden md:inline-block h-4 w-px bg-black/10" />
 
