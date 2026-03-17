@@ -18,17 +18,25 @@ function getAdminLogins(): string[] {
     .filter(Boolean);
 }
 
+function isPublicDealerRoute(pathname: string) {
+  return (
+    pathname === "/dealer/login" ||
+    pathname === "/dealer/forgot-password" ||
+    pathname === "/dealer/reset-password"
+  );
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
-  if (pathname.startsWith("/dealer/login")) {
-    return NextResponse.next();
-  }
 
   if (
     !pathname.startsWith("/dealer") &&
     !pathname.startsWith("/dealer-admin")
   ) {
+    return NextResponse.next();
+  }
+
+  if (isPublicDealerRoute(pathname)) {
     return NextResponse.next();
   }
 

@@ -3,7 +3,10 @@ import { SignJWT } from "jose";
 import bcrypt from "bcryptjs";
 
 import { writeDealerActivity } from "@/app/lib/dealer/activity";
-import { getRequestIp, getRequestUserAgent } from "@/app/lib/dealer/request-meta";
+import {
+  getRequestIp,
+  getRequestUserAgent,
+} from "@/app/lib/dealer/request-meta";
 
 type StrapiDealer = {
   id: number;
@@ -47,20 +50,26 @@ function esc(value: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = (await req.json().catch(() => ({}))) as {
+      login?: unknown;
+      email?: unknown;
+      password?: unknown;
+      rememberMe?: unknown;
+    };
 
     const login =
-      typeof body?.login === "string"
+      typeof body.login === "string"
         ? body.login.trim()
-        : typeof body?.email === "string"
+        : typeof body.email === "string"
           ? body.email.trim()
           : "";
 
-    const password = typeof body?.password === "string" ? body.password : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const rememberMe = Boolean(body.rememberMe);
 
     if (!login || !password) {
       return NextResponse.json(
-        { error: "Login and password are required" },
+        { error: "Введите логин и пароль" },
         { status: 400 }
       );
     }
@@ -87,9 +96,7 @@ export async function POST(req: NextRequest) {
     if (!strapiRes.ok) {
       const text = await strapiRes.text().catch(() => "");
       return NextResponse.json(
-        {
-          error: `Strapi dealers request failed (${strapiRes.status}) ${text}`,
-        },
+        { error: `Strapi dealers request failed (${strapiRes.status}) ${text}` },
         { status: 500 }
       );
     }
@@ -97,13 +104,16 @@ export async function POST(req: NextRequest) {
     const json = (await strapiRes.json()) as StrapiListResponse;
     const dealer = Array.isArray(json.data) ? json.data[0] : undefined;
 
-    if (!dealer) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    if (!dealer || !dealer.login) {
+      return NextResponse.json(
+        { error: "Неверный логин или пароль" },
+        { status: 401 }
+      );
     }
 
     if (!dealer.isActive) {
       return NextResponse.json(
-        { error: "Dealer account is disabled" },
+        { error: "Аккаунт дилера отключен" },
         { status: 403 }
       );
     }
@@ -113,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     if (!storedPasswordHash) {
       return NextResponse.json(
-        { error: "Dealer password is not configured" },
+        { error: "Пароль дилера не настроен" },
         { status: 500 }
       );
     }
@@ -121,7 +131,10 @@ export async function POST(req: NextRequest) {
     const isValidPassword = await bcrypt.compare(password, storedPasswordHash);
 
     if (!isValidPassword) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Неверный логин или пароль" },
+        { status: 401 }
+      );
     }
 
     const token = await new SignJWT({
@@ -138,7 +151,7 @@ export async function POST(req: NextRequest) {
       mustChangePassword: Boolean(dealer.mustChangePassword),
     })
       .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("1d")
+      .setExpirationTime(rememberMe ? "30d" : "1d")
       .sign(SECRET);
 
     await writeDealerActivity({
@@ -162,12 +175,14 @@ export async function POST(req: NextRequest) {
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
+      maxAge: rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24,
     });
 
     return res;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Dealer login failed";
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

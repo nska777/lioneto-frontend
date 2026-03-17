@@ -1,12 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
+
+const cn = (...s: Array<string | false | null | undefined>) =>
+  s.filter(Boolean).join(" ");
 
 export default function DealerLoginPage() {
   const router = useRouter();
+
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,55 +28,100 @@ export default function DealerLoginPage() {
       const res = await fetch("/api/dealer/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login, password }),
+        body: JSON.stringify({ login, password, rememberMe }),
       });
 
+      const j = (await res.json().catch(() => null)) as {
+        error?: string;
+        success?: boolean;
+      } | null;
+
       if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(j?.error || `Login failed (${res.status})`);
+        throw new Error(j?.error || "Неверный логин или пароль");
       }
 
       router.push("/dealer/me");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login error");
+      setError(
+        err instanceof Error ? err.message : "Не удалось выполнить вход",
+      );
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="mx-auto max-w-[520px] px-6 py-14">
+    <div className="mx-auto max-w-[560px] px-6 py-14">
       <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-black">
         Dealer Login
       </h1>
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      <p className="mt-2 text-[14px] text-black/55">
+        Войдите в дилерский кабинет Lioneto.
+      </p>
+
+      <form onSubmit={onSubmit} className="mt-8 space-y-5">
         <div>
           <label className="text-[13px] text-black/60">Login</label>
           <input
-            className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-[15px] outline-none focus:border-black/25"
+            className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-[15px] outline-none transition-colors focus:border-black/25"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
             autoComplete="username"
+            placeholder="Введите логин"
           />
         </div>
 
         <div>
           <label className="text-[13px] text-black/60">Password</label>
-          <input
-            className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-[15px] outline-none focus:border-black/25"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
+
+          <div className="relative mt-1">
+            <input
+              className="w-full rounded-xl border border-black/10 px-4 py-3 pr-12 text-[15px] outline-none transition-colors focus:border-black/25"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              placeholder="Введите пароль"
+            />
+
+            <button
+              type="button"
+              aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-black/45 transition-colors hover:text-black"
+            >
+              {showPassword ? (
+                <EyeOff className="h-5 w-5" />
+              ) : (
+                <Eye className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[13px] text-black/65">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-black/20"
+            />
+            <span>Запомнить меня</span>
+          </label>
+
+          <Link
+            href="/dealer/forgot-password"
+            className="text-[13px] text-black/60 underline-offset-4 transition-colors hover:text-black hover:underline"
+          >
+            Забыли пароль?
+          </Link>
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-500/25 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          <div className="rounded-xl border border-red-500/20 bg-red-50 px-4 py-3 text-[13px] text-red-700">
             {error}
           </div>
         ) : null}
@@ -75,9 +129,12 @@ export default function DealerLoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-xl bg-black px-4 py-3 text-[14px] font-medium text-white disabled:opacity-60"
+          className={cn(
+            "w-full rounded-xl bg-black px-4 py-3 text-[14px] font-medium text-white transition-opacity",
+            "disabled:cursor-not-allowed disabled:opacity-60",
+          )}
         >
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? "Входим..." : "Sign in"}
         </button>
       </form>
     </div>
