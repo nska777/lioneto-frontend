@@ -39,6 +39,7 @@ export async function GET() {
         email: typeof payload.email === "string" ? payload.email : "",
         phone: typeof payload.phone === "string" ? payload.phone : "",
         city: typeof payload.city === "string" ? payload.city : "",
+        address: typeof payload.address === "string" ? payload.address : "",
         region: typeof payload.region === "string" ? payload.region : "",
         role: normalizeRole(payload.role),
         managerName:

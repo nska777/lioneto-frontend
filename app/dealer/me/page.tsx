@@ -1,48 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-
-type DealerRole = "dealer" | "admin" | "owner";
+import { useEffect, useRef, useState } from "react";
 
 type DealerMe = {
   dealerId: number | null;
-  login: string;
   title: string;
   email: string;
   phone: string;
   city: string;
+  address: string;
   region: string;
-  role: DealerRole | "";
   managerName: string;
   mustChangePassword: boolean;
 };
 
-function getRegionLabel(region: string) {
-  switch (region) {
-    case "russia":
-      return "Россия";
-    case "uzbekistan":
-      return "Узбекистан";
-    case "kazakhstan":
-      return "Казахстан";
-    case "tajikistan":
-      return "Таджикистан";
-    default:
-      return region || "—";
-  }
-}
-
-function getRoleLabel(role: string) {
-  switch (role) {
-    case "dealer":
-      return "Дилер";
-    case "admin":
-      return "Администратор";
-    case "owner":
-      return "Владелец";
-    default:
-      return "—";
-  }
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
+        {label}
+      </div>
+      <div className="mt-1 text-[15px] font-semibold text-black">
+        {value || "—"}
+      </div>
+    </div>
+  );
 }
 
 export default function Page() {
@@ -110,19 +92,11 @@ export default function Page() {
         entityTitle: "Dealer Profile",
         url: window.location.pathname,
         payload: {
-          dealerLogin: dealer.login,
+          dealerTitle: dealer.title,
         },
       }),
     });
   }, [dealer]);
-
-  const regionLabel = useMemo(() => {
-    return getRegionLabel(dealer?.region ?? "");
-  }, [dealer?.region]);
-
-  const roleLabel = useMemo(() => {
-    return getRoleLabel(dealer?.role ?? "");
-  }, [dealer?.role]);
 
   if (loading) {
     return (
@@ -167,77 +141,12 @@ export default function Page() {
 
       <div className="rounded-[18px] border border-black/10 bg-white shadow-[0_14px_40px_-26px_rgba(0,0,0,0.35)]">
         <div className="grid gap-4 p-6 sm:grid-cols-2">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Компания
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {dealer.title || "—"}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Login
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {dealer.login || "—"}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Email
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {dealer.email || "—"}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Телефон
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {dealer.phone || "—"}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Город
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {dealer.city || "—"}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Регион
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {regionLabel}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Роль
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {roleLabel}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-              Менеджер
-            </div>
-            <div className="mt-1 text-[15px] font-semibold text-black">
-              {dealer.managerName || "—"}
-            </div>
-          </div>
+          <Field label="Компания" value={dealer.title} />
+          <Field label="Контактное лицо" value={dealer.managerName} />
+          <Field label="Email" value={dealer.email} />
+          <Field label="Рабочий телефон" value={dealer.phone} />
+          <Field label="Город" value={dealer.city} />
+          <Field label="Полный адрес" value={dealer.address} />
         </div>
 
         {dealer.mustChangePassword ? (

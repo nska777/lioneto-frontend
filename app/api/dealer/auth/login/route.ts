@@ -20,6 +20,7 @@ type StrapiDealer = {
   email?: string;
   phone?: string;
   city?: string;
+  address?: string;
   region?: string;
   isActive?: boolean;
   mustChangePassword?: boolean;
@@ -157,6 +158,7 @@ export async function POST(req: NextRequest) {
       email: dealer.email || "",
       phone: dealer.phone || "",
       city: dealer.city || "",
+      address: dealer.address || "",
       region: dealer.region || "",
       managerName: dealer.managerName || "",
       mustChangePassword: Boolean(dealer.mustChangePassword),
