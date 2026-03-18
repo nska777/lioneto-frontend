@@ -11,7 +11,7 @@ const cn = (...s: Array<string | false | null | undefined>) =>
 export default function DealerLoginPage() {
   const router = useRouter();
 
-  const [login, setLogin] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -28,7 +28,7 @@ export default function DealerLoginPage() {
       const res = await fetch("/api/dealer/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login, password, rememberMe }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
 
       const j = (await res.json().catch(() => null)) as {
@@ -37,7 +37,7 @@ export default function DealerLoginPage() {
       } | null;
 
       if (!res.ok) {
-        throw new Error(j?.error || "Неверный логин или пароль");
+        throw new Error(j?.error || "Неверный email или пароль");
       }
 
       router.push("/dealer/me");
@@ -63,13 +63,15 @@ export default function DealerLoginPage() {
 
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
         <div>
-          <label className="text-[13px] text-black/60">Login</label>
+          <label className="text-[13px] text-black/60">Email</label>
           <input
             className="mt-1 w-full rounded-xl border border-black/10 px-4 py-3 text-[15px] outline-none transition-colors focus:border-black/25"
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             autoComplete="username"
-            placeholder="Введите логин"
+            inputMode="email"
+            placeholder="Введите email"
           />
         </div>
 
@@ -134,7 +136,7 @@ export default function DealerLoginPage() {
             "disabled:cursor-not-allowed disabled:opacity-60",
           )}
         >
-          {loading ? "Входим..." : "Войти "}
+          {loading ? "Входим..." : "Войти"}
         </button>
       </form>
     </div>

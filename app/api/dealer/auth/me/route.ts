@@ -10,6 +10,16 @@ if (!secretStr) {
 
 const SECRET = new TextEncoder().encode(secretStr);
 
+type DealerRole = "dealer" | "admin" | "owner";
+
+function normalizeRole(value: unknown): DealerRole | "" {
+  if (value === "dealer" || value === "admin" || value === "owner") {
+    return value;
+  }
+
+  return "";
+}
+
 export async function GET() {
   try {
     const cookieStore = await cookies();
@@ -23,15 +33,16 @@ export async function GET() {
 
     return NextResponse.json({
       dealer: {
-        dealerId: payload.dealerId ?? null,
-        login: payload.login ?? "",
-        title: payload.title ?? "",
-        email: payload.email ?? "",
-        phone: payload.phone ?? "",
-        city: payload.city ?? "",
-        region: payload.region ?? "",
-        roleLabel: payload.roleLabel ?? "",
-        managerName: payload.managerName ?? "",
+        dealerId: typeof payload.dealerId === "number" ? payload.dealerId : null,
+        login: typeof payload.login === "string" ? payload.login : "",
+        title: typeof payload.title === "string" ? payload.title : "",
+        email: typeof payload.email === "string" ? payload.email : "",
+        phone: typeof payload.phone === "string" ? payload.phone : "",
+        city: typeof payload.city === "string" ? payload.city : "",
+        region: typeof payload.region === "string" ? payload.region : "",
+        role: normalizeRole(payload.role),
+        managerName:
+          typeof payload.managerName === "string" ? payload.managerName : "",
         mustChangePassword: Boolean(payload.mustChangePassword),
       },
     });

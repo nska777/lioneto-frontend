@@ -13,10 +13,10 @@ import Footer from "./components/sections/Footer";
 
 import { getGlobal } from "./lib/strapi";
 
-// ✅ Jivo
+// Jivo
 import JivoProvider from "./components/chat/JivoProvider";
 
-// ✅ Metrika (client)
+//  Metrika (client)
 import YandexMetrika from "./components/analytics/YandexMetrika";
 
 console.log("ENV STRAPI URL:", process.env.NEXT_PUBLIC_STRAPI_URL);
@@ -56,10 +56,10 @@ export default async function RootLayout({
 
         <BackToTop />
 
-        {/* ✅ Jivo */}
+        {/* Jivo */}
         {/* {jivoId ? <JivoProvider widgetId={jivoId} /> : null}*/}
 
-        {/* ✅ Yandex.Metrika */}
+        {/* Yandex.Metrika */}
         <YandexMetrika />
       </body>
     </html>

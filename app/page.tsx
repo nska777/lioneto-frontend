@@ -55,7 +55,7 @@ function pickGalleryUrls(base: string, galleryAny: any): string[] {
     .filter(Boolean);
 }
 
-// ✅ берём featured продукты прямо из Strapi "product"
+//  берём featured продукты прямо из Strapi "product"
 async function fetchFeaturedProducts(
   badge: "Хит продаж" | "Лучшая цена",
 ): Promise<FeaturedProduct[]> {
@@ -106,7 +106,7 @@ async function fetchFeaturedProducts(
         const image = mediaUrl || galleryUrls[0] || "";
 
         const out: FeaturedProduct = {
-          // ✅ у тебя сейчас ключом везде должен быть slug (Strapi-only)
+          //  ключом везде должен быть slug (Strapi-only)
           id: slug,
           slug,
           title: String(src?.title ?? "").trim() || slug,
@@ -144,7 +144,7 @@ export default async function Page() {
     fetchFeaturedProducts("Лучшая цена"),
   ]);
 
-  // ✅ новости из Strapi (для секции на главной)
+  // новости из Strapi (для секции на главной)
   const newsFromStrapi = await fetchNews({ limit: 6 });
   const newsItems =
     newsFromStrapi.length > 0

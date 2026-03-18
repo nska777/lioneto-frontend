@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+type DealerRole = "dealer" | "admin" | "owner";
+
 type DealerMe = {
   dealerId: number | null;
   login: string;
@@ -10,7 +12,7 @@ type DealerMe = {
   phone: string;
   city: string;
   region: string;
-  roleLabel: string;
+  role: DealerRole | "";
   managerName: string;
   mustChangePassword: boolean;
 };
@@ -27,6 +29,19 @@ function getRegionLabel(region: string) {
       return "Таджикистан";
     default:
       return region || "—";
+  }
+}
+
+function getRoleLabel(role: string) {
+  switch (role) {
+    case "dealer":
+      return "Дилер";
+    case "admin":
+      return "Администратор";
+    case "owner":
+      return "Владелец";
+    default:
+      return "—";
   }
 }
 
@@ -104,6 +119,10 @@ export default function Page() {
   const regionLabel = useMemo(() => {
     return getRegionLabel(dealer?.region ?? "");
   }, [dealer?.region]);
+
+  const roleLabel = useMemo(() => {
+    return getRoleLabel(dealer?.role ?? "");
+  }, [dealer?.role]);
 
   if (loading) {
     return (
@@ -207,7 +226,7 @@ export default function Page() {
               Роль
             </div>
             <div className="mt-1 text-[15px] font-semibold text-black">
-              {dealer.roleLabel || "—"}
+              {roleLabel}
             </div>
           </div>
 

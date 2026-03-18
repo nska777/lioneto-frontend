@@ -8,6 +8,8 @@ import {
   getRequestUserAgent,
 } from "@/app/lib/dealer/request-meta";
 
+type DealerRole = "dealer" | "admin" | "owner";
+
 type StrapiDealer = {
   id: number;
   documentId?: string;
@@ -21,7 +23,7 @@ type StrapiDealer = {
   region?: string;
   isActive?: boolean;
   mustChangePassword?: boolean;
-  roleLabel?: string;
+  role?: DealerRole;
   managerName?: string;
   notes?: string;
 };
@@ -48,6 +50,14 @@ function esc(value: string) {
   return encodeURIComponent(value);
 }
 
+function normalizeRole(value: unknown): DealerRole {
+  if (value === "dealer" || value === "admin" || value === "owner") {
+    return value;
+  }
+
+  return "dealer";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -57,27 +67,28 @@ export async function POST(req: NextRequest) {
       rememberMe?: unknown;
     };
 
-    const login =
-      typeof body.login === "string"
-        ? body.login.trim()
-        : typeof body.email === "string"
-          ? body.email.trim()
+    const email =
+      typeof body.email === "string"
+        ? body.email.trim().toLowerCase()
+        : typeof body.login === "string"
+          ? body.login.trim().toLowerCase()
           : "";
 
     const password = typeof body.password === "string" ? body.password : "";
     const rememberMe = Boolean(body.rememberMe);
 
-    if (!login || !password) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: "Введите логин и пароль" },
-        { status: 400 }
+        { error: "Введите email и пароль" },
+        { status: 400 },
       );
     }
 
     const url =
       `${STRAPI_URL}/api/dealers` +
-      `?filters[login][$eq]=${esc(login)}` +
-      `&pagination[pageSize]=1`;
+      `?filters[email][$eq]=${esc(email)}` +
+      `&pagination[pageSize]=1` +
+      `&sort[0]=createdAt:desc`;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -97,24 +108,24 @@ export async function POST(req: NextRequest) {
       const text = await strapiRes.text().catch(() => "");
       return NextResponse.json(
         { error: `Strapi dealers request failed (${strapiRes.status}) ${text}` },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     const json = (await strapiRes.json()) as StrapiListResponse;
     const dealer = Array.isArray(json.data) ? json.data[0] : undefined;
 
-    if (!dealer || !dealer.login) {
+    if (!dealer || !dealer.email) {
       return NextResponse.json(
-        { error: "Неверный логин или пароль" },
-        { status: 401 }
+        { error: "Неверный email или пароль" },
+        { status: 401 },
       );
     }
 
     if (!dealer.isActive) {
       return NextResponse.json(
         { error: "Аккаунт дилера отключен" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -124,7 +135,7 @@ export async function POST(req: NextRequest) {
     if (!storedPasswordHash) {
       return NextResponse.json(
         { error: "Пароль дилера не настроен" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -132,21 +143,21 @@ export async function POST(req: NextRequest) {
 
     if (!isValidPassword) {
       return NextResponse.json(
-        { error: "Неверный логин или пароль" },
-        { status: 401 }
+        { error: "Неверный email или пароль" },
+        { status: 401 },
       );
     }
 
     const token = await new SignJWT({
-      role: "dealer",
+      role: normalizeRole(dealer.role),
       dealerId: dealer.id,
+      documentId: dealer.documentId || "",
       login: dealer.login || "",
       title: dealer.title || "",
       email: dealer.email || "",
       phone: dealer.phone || "",
       city: dealer.city || "",
       region: dealer.region || "",
-      roleLabel: dealer.roleLabel || "",
       managerName: dealer.managerName || "",
       mustChangePassword: Boolean(dealer.mustChangePassword),
     })
@@ -159,12 +170,14 @@ export async function POST(req: NextRequest) {
       actionType: "login_success",
       entityType: "auth",
       entityId: String(dealer.id),
-      entityTitle: dealer.login || dealer.title || "dealer-login",
+      entityTitle: dealer.login || dealer.title || dealer.email || "dealer-login",
       url: "/dealer/login",
       ip: getRequestIp(req),
       userAgent: getRequestUserAgent(req),
       payload: {
         dealerLogin: dealer.login || "",
+        dealerEmail: dealer.email || "",
+        dealerRole: normalizeRole(dealer.role),
       },
     });
 
