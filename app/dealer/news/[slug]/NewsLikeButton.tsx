@@ -70,7 +70,6 @@ export default function NewsLikeButton({
       if (!res.ok || !json.ok) {
         setLiked(prevLiked);
         setLikesCount(prevCount);
-        console.error("Like request failed:", json);
         return;
       }
 
@@ -83,10 +82,9 @@ export default function NewsLikeButton({
       } catch {}
 
       router.refresh();
-    } catch (error) {
+    } catch {
       setLiked(prevLiked);
       setLikesCount(prevCount);
-      console.error("Like request error:", error);
     } finally {
       setLoading(false);
     }
@@ -100,7 +98,7 @@ export default function NewsLikeButton({
       aria-pressed={liked}
       aria-label={liked ? "Лайк уже поставлен" : "Поставить лайк"}
       className={cn(
-        "group inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-[14px] font-medium transition-all duration-200",
+        "group inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-all duration-200 disabled:cursor-default",
         liked
           ? "border-red-200 bg-red-50 text-red-600"
           : "border-black/10 bg-white text-black hover:border-red-200 hover:bg-red-50/70 hover:text-red-600",
@@ -110,14 +108,14 @@ export default function NewsLikeButton({
     >
       <Heart
         className={cn(
-          "h-4 w-4 transition-all duration-200",
+          "h-[15px] w-[15px] transition-all duration-200",
           liked ? "fill-red-500 text-red-500" : "text-current",
         )}
       />
-      <span>{liked ? "Вам понравилось" : "Нравится"}</span>
+      <span>{liked ? "Понравилось" : "Нравится"}</span>
       <span
         className={cn(
-          "min-w-[18px] text-left",
+          "min-w-[10px] text-left",
           liked ? "text-red-600" : "text-black/55 group-hover:text-red-600",
         )}
       >

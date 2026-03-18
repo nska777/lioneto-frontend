@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Heart, Eye } from "lucide-react";
 
 export type DashboardNewsItem = {
   id: number;
@@ -64,7 +65,7 @@ export default function DashboardNewsFeed({ news }: DashboardNewsFeedProps) {
           {news.map((item) => (
             <article
               key={item.id}
-              className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm"
+              className="group rounded-[28px] border border-black/10 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-[3px] hover:border-black/15 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,1)_100%)] hover:shadow-[0_24px_60px_-32px_rgba(0,0,0,0.22)]"
             >
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <span
@@ -91,23 +92,37 @@ export default function DashboardNewsFeed({ news }: DashboardNewsFeedProps) {
                 ) : null}
               </div>
 
-              <h3 className="text-[24px] font-semibold tracking-[-0.02em] text-black">
+              <h3 className="text-[24px] font-semibold tracking-[-0.02em] text-black transition-colors duration-300 group-hover:text-black/80">
                 {item.title}
               </h3>
 
               {item.excerpt ? (
-                <p className="mt-3 max-w-[900px] text-[16px] leading-7 text-black/70">
+                <p className="mt-3 max-w-[900px] text-[16px] leading-7 text-black/70 transition-colors duration-300 group-hover:text-black/78">
                   {item.excerpt}
                 </p>
               ) : null}
 
               <div className="mt-5 flex flex-wrap items-center gap-4 text-[14px] text-black/45">
-                <span>👁 {item.viewsCount}</span>
-                <span>♡ {item.likesCount}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Eye className="h-[16px] w-[16px] text-black/35 transition-colors duration-300 group-hover:text-black/45" />
+                  <span>{item.viewsCount ?? 0}</span>
+                </span>
+
+                <span className="inline-flex items-center gap-1">
+                  <Heart
+                    className={cn(
+                      "h-[17px] w-[17px] transition-transform duration-300 group-hover:scale-110",
+                      (item.likesCount ?? 0) > 0
+                        ? "fill-red-500 text-red-500"
+                        : "text-black/30 group-hover:text-red-400",
+                    )}
+                  />
+                  <span className="text-black/45">{item.likesCount ?? 0}</span>
+                </span>
 
                 <Link
                   href={`/dealer/news/${item.slug}`}
-                  className="font-medium text-black transition hover:opacity-60"
+                  className="font-medium text-black transition-all duration-300 group-hover:translate-x-[2px] group-hover:text-black/75"
                 >
                   Читать подробнее →
                 </Link>
