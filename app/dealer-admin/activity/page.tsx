@@ -221,6 +221,17 @@ function ActionBadge({ value }: { value: string }) {
   );
 }
 
+function getActionLabel(actionType?: string) {
+  switch (actionType) {
+    case "login_success":
+      return "Успешный вход";
+    case "password_changed":
+      return "Пароль изменен";
+    default:
+      return actionType || "—";
+  }
+}
+
 export default async function DealerAdminActivityPage({
   searchParams,
 }: {
@@ -402,7 +413,7 @@ export default async function DealerAdminActivityPage({
                     action,
                     range: selectedRange,
                   })}
-                  label={action}
+                  label={getActionLabel(action)}
                   active={selectedAction === action}
                 />
               ))}
@@ -440,7 +451,7 @@ export default async function DealerAdminActivityPage({
             </thead>
 
             <tbody>
-              {items.length === 0 ? (
+              {items.length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
@@ -449,7 +460,9 @@ export default async function DealerAdminActivityPage({
                     По текущим фильтрам записей нет.
                   </td>
                 </tr>
-              ) : (
+              )}
+
+              {items.length > 0 &&
                 items.map((item) => {
                   const dealerLogin = getDealerLogin(item);
                   const dealerTitle = getDealerTitle(item);
@@ -495,7 +508,7 @@ export default async function DealerAdminActivityPage({
                       </td>
 
                       <td className="px-5 py-4">
-                        <ActionBadge value={item.actionType || "—"} />
+                        <ActionBadge value={getActionLabel(item.actionType)} />
                       </td>
 
                       <td className="px-5 py-4">
@@ -522,8 +535,7 @@ export default async function DealerAdminActivityPage({
                       </td>
                     </tr>
                   );
-                })
-              )}
+                })}
             </tbody>
           </table>
         </div>

@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     if (!email || !password) {
       return NextResponse.json(
         { error: "Введите email и пароль" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       const text = await strapiRes.text().catch(() => "");
       return NextResponse.json(
         { error: `Strapi dealers request failed (${strapiRes.status}) ${text}` },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -118,14 +118,14 @@ export async function POST(req: NextRequest) {
     if (!dealer || !dealer.email) {
       return NextResponse.json(
         { error: "Неверный email или пароль" },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
     if (!dealer.isActive) {
       return NextResponse.json(
         { error: "Аккаунт дилера отключен" },
-        { status: 403 },
+        { status: 403 }
       );
     }
 
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     if (!storedPasswordHash) {
       return NextResponse.json(
         { error: "Пароль дилера не настроен" },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
     if (!isValidPassword) {
       return NextResponse.json(
         { error: "Неверный email или пароль" },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
@@ -165,21 +165,26 @@ export async function POST(req: NextRequest) {
       .setExpirationTime(rememberMe ? "30d" : "1d")
       .sign(SECRET);
 
-    await writeDealerActivity({
-      dealerId: dealer.id,
-      actionType: "login_success",
-      entityType: "auth",
-      entityId: String(dealer.id),
-      entityTitle: dealer.login || dealer.title || dealer.email || "dealer-login",
-      url: "/dealer/login",
-      ip: getRequestIp(req),
-      userAgent: getRequestUserAgent(req),
-      payload: {
-        dealerLogin: dealer.login || "",
-        dealerEmail: dealer.email || "",
-        dealerRole: normalizeRole(dealer.role),
-      },
-    });
+    try {
+      await writeDealerActivity({
+        dealerId: dealer.id,
+        actionType: "login_success",
+        entityType: "auth",
+        entityId: String(dealer.id),
+        entityTitle:
+          dealer.login || dealer.title || dealer.email || "dealer-login",
+        url: "/dealer/login",
+        ip: getRequestIp(req),
+        userAgent: getRequestUserAgent(req),
+        payload: {
+          dealerLogin: dealer.login || "",
+          dealerEmail: dealer.email || "",
+          dealerRole: normalizeRole(dealer.role),
+        },
+      });
+    } catch (activityError) {
+      console.error("[dealer-login] activity log failed", activityError);
+    }
 
     const res = NextResponse.json({ success: true });
 

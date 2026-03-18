@@ -2,12 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 
+import { writeDealerActivity } from "@/app/lib/dealer/activity";
+import {
+  getRequestIp,
+  getRequestUserAgent,
+} from "@/app/lib/dealer/request-meta";
+
 type ResetPayload = {
   role?: string;
   dealerDocumentId?: string;
   login?: string;
   phone?: string;
   region?: string;
+};
+
+type StrapiDealerItem = {
+  id: number;
+  documentId?: string;
+  title?: string;
+  email?: string;
+  login?: string;
+  phone?: string;
+};
+
+type StrapiSingleResponse<T> = {
+  data?: T;
 };
 
 const secretStr = process.env.DEALER_JWT_SECRET;
@@ -25,6 +44,18 @@ const STRAPI_URL =
 
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN || "";
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (STRAPI_TOKEN) {
+    headers.Authorization = `Bearer ${STRAPI_TOKEN}`;
+  }
+
+  return headers;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -34,6 +65,11 @@ export async function POST(req: NextRequest) {
 
     const token = typeof body.token === "string" ? body.token : "";
     const password = typeof body.password === "string" ? body.password : "";
+
+    console.log("[dealer-reset-password] request received", {
+      hasToken: Boolean(token),
+      passwordLength: password.length,
+    });
 
     if (!token || !password) {
       return NextResponse.json(
@@ -52,6 +88,12 @@ export async function POST(req: NextRequest) {
     const verified = await jwtVerify(token, SECRET);
     const payload = verified.payload as ResetPayload;
 
+    console.log("[dealer-reset-password] token ok", {
+      role: payload.role || "",
+      dealerDocumentId: payload.dealerDocumentId || "",
+      login: payload.login || "",
+    });
+
     if (payload.role !== "dealer_reset" || !payload.dealerDocumentId) {
       return NextResponse.json(
         { error: "Недействительный токен восстановления" },
@@ -59,17 +101,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const headers = getAuthHeaders();
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const dealerRes = await fetch(
+      `${STRAPI_URL}/api/dealers/${payload.dealerDocumentId}`,
+      {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      }
+    );
 
-    if (STRAPI_TOKEN) {
-      headers.Authorization = `Bearer ${STRAPI_TOKEN}`;
+    if (!dealerRes.ok) {
+      const text = await dealerRes.text().catch(() => "");
+      console.error("[dealer-reset-password] dealer fetch failed", {
+        status: dealerRes.status,
+        text,
+      });
+
+      return NextResponse.json(
+        { error: `Dealer fetch failed (${dealerRes.status}) ${text}` },
+        { status: 500 }
+      );
     }
 
-    const res = await fetch(
+    const dealerJson = (await dealerRes.json().catch(() => ({}))) as StrapiSingleResponse<StrapiDealerItem>;
+    const dealer = dealerJson.data;
+
+    console.log("[dealer-reset-password] dealer fetched", dealer);
+
+    if (!dealer?.id) {
+      console.error(
+        "[dealer-reset-password] dealer not found in response",
+        dealerJson
+      );
+
+      return NextResponse.json({ error: "Дилер не найден" }, { status: 404 });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const updateRes = await fetch(
       `${STRAPI_URL}/api/dealers/${payload.dealerDocumentId}`,
       {
         method: "PUT",
@@ -84,18 +156,76 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
+    if (!updateRes.ok) {
+      const text = await updateRes.text().catch(() => "");
+      console.error("[dealer-reset-password] password update failed", {
+        status: updateRes.status,
+        text,
+      });
+
       return NextResponse.json(
-        { error: `Strapi update failed (${res.status}) ${text}` },
+        { error: `Strapi update failed (${updateRes.status}) ${text}` },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ success: true });
+    console.log("[dealer-reset-password] password updated", {
+      dealerId: dealer.id,
+      dealerLogin: dealer.login || "",
+      dealerEmail: dealer.email || "",
+    });
+
+    try {
+      const activityPayload = {
+        dealerId: dealer.id,
+        actionType: "password_changed",
+        entityType: "dealer_account",
+        entityId: String(dealer.id),
+        entityTitle:
+          dealer.title ||
+          dealer.email ||
+          dealer.login ||
+          payload.login ||
+          `Dealer #${dealer.id}`,
+        url: "/dealer/reset-password",
+        ip: getRequestIp(req),
+        userAgent: getRequestUserAgent(req),
+        payload: {
+          email: dealer.email || "",
+          changedVia: "reset",
+          status: "success",
+          dealerDocumentId: payload.dealerDocumentId,
+          dealerLogin: dealer.login || payload.login || "",
+          dealerTitle: dealer.title || "",
+        },
+      };
+
+      console.log("[dealer-reset-password] writing activity", activityPayload);
+
+      await writeDealerActivity(activityPayload);
+
+      console.log("[dealer-reset-password] activity written");
+    } catch (activityError) {
+      console.error(
+        "[dealer-reset-password] activity log failed",
+        activityError
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      debug: {
+        dealerId: dealer.id,
+        dealerLogin: dealer.login || "",
+        dealerEmail: dealer.email || "",
+        activityAttempted: true,
+      },
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Reset password failed";
+
+    console.error("[dealer-reset-password] fatal error", error);
 
     return NextResponse.json({ error: message }, { status: 500 });
   }
