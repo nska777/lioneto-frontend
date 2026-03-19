@@ -15,6 +15,7 @@ export type DealerNewsItem = {
   createdAt: string;
   updatedAt: string;
   coverUrl: string | null;
+  hashtags: string[];
 };
 
 type StrapiMedia = {
@@ -36,6 +37,7 @@ type StrapiDealerNews = {
   createdAt?: string;
   updatedAt?: string;
   cover?: StrapiMedia | null;
+  hashtags?: unknown;
 };
 
 type StrapiListResponse<T> = {
@@ -56,6 +58,48 @@ function getMediaUrl(url?: string): string | null {
   return `${STRAPI_URL}${url}`;
 }
 
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function normalizeHashtags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter(isString)
+      .map((tag) => tag.trim().replace(/^#/, ""))
+      .filter(Boolean);
+  }
+
+  if (isString(value)) {
+    return value
+      .split(",")
+      .map((tag) => tag.trim().replace(/^#/, ""))
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function mapDealerNewsItem(item: StrapiDealerNews): DealerNewsItem {
+  return {
+    id: item.id,
+    documentId: item.documentId || "",
+    title: item.title || "",
+    slug: item.slug || "",
+    excerpt: item.excerpt || "",
+    content: item.content || "",
+    kind: item.kind === "promo" ? "promo" : "news",
+    isPinned: Boolean(item.isPinned),
+    viewsCount: typeof item.viewsCount === "number" ? item.viewsCount : 0,
+    likesCount: typeof item.likesCount === "number" ? item.likesCount : 0,
+    publishedAt: item.publishedAt || "",
+    createdAt: item.createdAt || "",
+    updatedAt: item.updatedAt || "",
+    coverUrl: getMediaUrl(item.cover?.url),
+    hashtags: normalizeHashtags(item.hashtags),
+  };
+}
+
 export async function getDealerNews(): Promise<DealerNewsItem[]> {
   const params = new URLSearchParams();
   params.set("sort[0]", "isPinned:desc");
@@ -72,6 +116,7 @@ export async function getDealerNews(): Promise<DealerNewsItem[]> {
   params.set("fields[8]", "publishedAt");
   params.set("fields[9]", "createdAt");
   params.set("fields[10]", "updatedAt");
+  params.set("fields[11]", "hashtags");
   params.set("populate[cover][fields][0]", "url");
 
   const url = `${STRAPI_URL}/api/dealer-newses?${params.toString()}`;
@@ -92,22 +137,7 @@ export async function getDealerNews(): Promise<DealerNewsItem[]> {
 
   const json = (await res.json()) as StrapiListResponse<StrapiDealerNews>;
 
-  return (json.data || []).map((item) => ({
-    id: item.id,
-    documentId: item.documentId || "",
-    title: item.title || "",
-    slug: item.slug || "",
-    excerpt: item.excerpt || "",
-    content: item.content || "",
-    kind: item.kind === "promo" ? "promo" : "news",
-    isPinned: Boolean(item.isPinned),
-    viewsCount: typeof item.viewsCount === "number" ? item.viewsCount : 0,
-    likesCount: typeof item.likesCount === "number" ? item.likesCount : 0,
-    publishedAt: item.publishedAt || "",
-    createdAt: item.createdAt || "",
-    updatedAt: item.updatedAt || "",
-    coverUrl: getMediaUrl(item.cover?.url),
-  }));
+  return (json.data || []).map(mapDealerNewsItem);
 }
 
 export async function getDealerNewsBySlug(
@@ -131,6 +161,7 @@ export async function getDealerNewsBySlug(
   params.set("fields[8]", "publishedAt");
   params.set("fields[9]", "createdAt");
   params.set("fields[10]", "updatedAt");
+  params.set("fields[11]", "hashtags");
   params.set("populate[cover][fields][0]", "url");
 
   const url = `${STRAPI_URL}/api/dealer-newses?${params.toString()}`;
@@ -154,20 +185,5 @@ export async function getDealerNewsBySlug(
 
   if (!item) return null;
 
-  return {
-    id: item.id,
-    documentId: item.documentId || "",
-    title: item.title || "",
-    slug: item.slug || "",
-    excerpt: item.excerpt || "",
-    content: item.content || "",
-    kind: item.kind === "promo" ? "promo" : "news",
-    isPinned: Boolean(item.isPinned),
-    viewsCount: typeof item.viewsCount === "number" ? item.viewsCount : 0,
-    likesCount: typeof item.likesCount === "number" ? item.likesCount : 0,
-    publishedAt: item.publishedAt || "",
-    createdAt: item.createdAt || "",
-    updatedAt: item.updatedAt || "",
-    coverUrl: getMediaUrl(item.cover?.url),
-  };
+  return mapDealerNewsItem(item);
 }

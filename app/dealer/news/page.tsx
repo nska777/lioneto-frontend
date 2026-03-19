@@ -1,28 +1,7 @@
 import Link from "next/link";
-import { Eye, Heart } from "lucide-react";
 
+import DealerNewsList from "./DealerNewsList";
 import { getDealerNews } from "@/app/lib/dealer/news";
-
-const cn = (...classes: Array<string | false | null | undefined>) =>
-  classes.filter(Boolean).join(" ");
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "";
-
-  try {
-    return new Intl.DateTimeFormat("ru-RU", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }).format(new Date(dateString));
-  } catch {
-    return "";
-  }
-}
-
-function kindLabel(kind: "news" | "promo"): string {
-  return kind === "promo" ? "АКЦИЯ" : "НОВОСТЬ";
-}
 
 export default async function DealerNewsPage() {
   const items = await getDealerNews();
@@ -51,89 +30,7 @@ export default async function DealerNewsPage() {
         </Link>
       </div>
 
-      {items.length === 0 ? (
-        <div className="rounded-[28px] border border-black/10 bg-white p-8 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.3)]">
-          <h2 className="text-[22px] font-semibold tracking-[-0.03em] text-black">
-            Пока новостей нет
-          </h2>
-          <p className="mt-2 text-[15px] leading-6 text-black/55">
-            Когда в Strapi будут опубликованы новости для дилеров, они появятся
-            здесь.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {items.map((item) => {
-            const dateLabel = formatDate(item.publishedAt || item.createdAt);
-
-            return (
-              <article
-                key={item.id}
-                className="group rounded-[28px] border border-black/10 bg-white p-6 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.3)] transition-all duration-300 hover:-translate-y-[3px] hover:border-black/15 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,1)_100%)] hover:shadow-[0_24px_60px_-32px_rgba(0,0,0,0.22)] md:p-7"
-              >
-                <div className="flex flex-wrap items-center gap-3 text-[12px] uppercase tracking-[0.18em]">
-                  <span className="rounded-full bg-black/5 px-3 py-1 text-black/55">
-                    {kindLabel(item.kind)}
-                  </span>
-
-                  {item.isPinned ? (
-                    <span className="rounded-full bg-black px-3 py-1 text-white">
-                      Важно
-                    </span>
-                  ) : null}
-
-                  {dateLabel ? (
-                    <span className="normal-case text-[14px] tracking-normal text-black/40">
-                      {dateLabel}
-                    </span>
-                  ) : null}
-                </div>
-
-                <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80">
-                  {item.title}
-                </h2>
-
-                {item.excerpt ? (
-                  <p className="mt-4 max-w-[900px] text-[16px] leading-7 text-black/70 transition-colors duration-300 group-hover:text-black/78">
-                    {item.excerpt}
-                  </p>
-                ) : null}
-
-                <div className="mt-6 flex flex-wrap items-center gap-5">
-                  <div className="flex items-center gap-4 text-[14px] text-black/45">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Eye className="h-4 w-4 transition-colors duration-300 group-hover:text-black/55" />
-                      {item.viewsCount}
-                    </span>
-
-                    <span className="inline-flex items-center gap-1">
-                      <Heart
-                        className={cn(
-                          "h-[16px] w-[16px] transition-transform duration-300 group-hover:scale-110",
-                          (item.likesCount ?? 0) > 0
-                            ? "fill-red-500 text-red-500"
-                            : "text-black/30 group-hover:text-red-400",
-                        )}
-                      />
-                      <span className="text-black/45">
-                        {item.likesCount ?? 0}
-                      </span>
-                    </span>
-                  </div>
-
-                  <Link
-                    href={`/dealer/news/${item.slug}`}
-                    className="inline-flex items-center gap-2 text-[15px] font-medium text-black transition-all duration-300 group-hover:translate-x-[2px] group-hover:text-black/75"
-                  >
-                    Читать подробнее
-                    <span aria-hidden="true">→</span>
-                  </Link>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+      <DealerNewsList items={items} />
     </main>
   );
 }
