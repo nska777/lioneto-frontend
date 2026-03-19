@@ -22,6 +22,7 @@ type StrapiDealer = {
   city?: string;
   address?: string;
   region?: string;
+  countryCode?: string;
   isActive?: boolean;
   mustChangePassword?: boolean;
   role?: DealerRole;
@@ -57,6 +58,23 @@ function normalizeRole(value: unknown): DealerRole {
   }
 
   return "dealer";
+}
+
+function normalizeCountryCode(value: unknown): string {
+  if (
+    value === "RU" ||
+    value === "UZ" ||
+    value === "KZ" ||
+    value === "TJ" ||
+    value === "KG" ||
+    value === "AM" ||
+    value === "BY" ||
+    value === "AZ"
+  ) {
+    return value;
+  }
+
+  return "RU";
 }
 
 export async function POST(req: NextRequest) {
@@ -160,6 +178,7 @@ export async function POST(req: NextRequest) {
       city: dealer.city || "",
       address: dealer.address || "",
       region: dealer.region || "",
+      countryCode: normalizeCountryCode(dealer.countryCode),
       managerName: dealer.managerName || "",
       mustChangePassword: Boolean(dealer.mustChangePassword),
     })
@@ -182,6 +201,7 @@ export async function POST(req: NextRequest) {
           dealerLogin: dealer.login || "",
           dealerEmail: dealer.email || "",
           dealerRole: normalizeRole(dealer.role),
+          dealerCountryCode: normalizeCountryCode(dealer.countryCode),
         },
       });
     } catch (activityError) {

@@ -11,6 +11,7 @@ if (!secretStr) {
 const SECRET = new TextEncoder().encode(secretStr);
 
 type DealerRole = "dealer" | "admin" | "owner";
+type DealerCountryCode = "RU" | "UZ" | "KZ" | "TJ" | "KG" | "AM" | "BY" | "AZ";
 
 function normalizeRole(value: unknown): DealerRole | "" {
   if (value === "dealer" || value === "admin" || value === "owner") {
@@ -18,6 +19,23 @@ function normalizeRole(value: unknown): DealerRole | "" {
   }
 
   return "";
+}
+
+function normalizeCountryCode(value: unknown): DealerCountryCode {
+  if (
+    value === "RU" ||
+    value === "UZ" ||
+    value === "KZ" ||
+    value === "TJ" ||
+    value === "KG" ||
+    value === "AM" ||
+    value === "BY" ||
+    value === "AZ"
+  ) {
+    return value;
+  }
+
+  return "RU";
 }
 
 export async function GET() {
@@ -34,6 +52,7 @@ export async function GET() {
     return NextResponse.json({
       dealer: {
         dealerId: typeof payload.dealerId === "number" ? payload.dealerId : null,
+        documentId: typeof payload.documentId === "string" ? payload.documentId : "",
         login: typeof payload.login === "string" ? payload.login : "",
         title: typeof payload.title === "string" ? payload.title : "",
         email: typeof payload.email === "string" ? payload.email : "",
@@ -41,6 +60,7 @@ export async function GET() {
         city: typeof payload.city === "string" ? payload.city : "",
         address: typeof payload.address === "string" ? payload.address : "",
         region: typeof payload.region === "string" ? payload.region : "",
+        countryCode: normalizeCountryCode(payload.countryCode),
         role: normalizeRole(payload.role),
         managerName:
           typeof payload.managerName === "string" ? payload.managerName : "",

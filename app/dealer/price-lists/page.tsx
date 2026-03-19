@@ -1,40 +1,37 @@
-// app/dealer/price-lists/page.tsx
 import type { CSSProperties } from "react";
 
-type PriceListItem = {
+import { getCurrentDealer } from "@/app/lib/get-current-dealer";
+import {
+  getDealerPriceListsByCountry,
+  type DealerPriceListItem,
+} from "@/app/lib/dealer/price-lists";
+
+type PriceListCardItem = {
   id: string;
   title: string;
   fileHref: string;
-  subtitle?: string;
+  subtitle: string;
 };
 
-const PRICE_LISTS: PriceListItem[] = [
-  { id: "amber", title: "AMBER", fileHref: "/dealer/price-lists/amber.xlsx" },
-  {
-    id: "scandy",
-    title: "SCANDY",
-    fileHref: "/dealer/price-lists/scandy.xlsx",
-  },
-  {
-    id: "elizabeth",
-    title: "ELIZABETH",
-    fileHref: "/dealer/price-lists/elizabeth.xlsx",
-  },
-  {
-    id: "salvador",
-    title: "SALVADOR",
-    fileHref: "/dealer/price-lists/salvador.xlsx",
-  },
-  { id: "pitti", title: "PITTI", fileHref: "/dealer/price-lists/pitti.xlsx" },
-  {
-    id: "buongiorno",
-    title: "BUONGIORNO",
-    fileHref: "/dealer/price-lists/buongiorno.xlsx",
-  },
-];
+const COLLECTION_ORDER = [
+  "amber",
+  "scandy",
+  "elizabeth",
+  "salvador",
+  "pitti",
+  "buongiorno",
+] as const;
+
+const COLLECTION_LABELS: Record<(typeof COLLECTION_ORDER)[number], string> = {
+  amber: "AMBER",
+  scandy: "SCANDY",
+  elizabeth: "ELIZABETH",
+  salvador: "SALVADOR",
+  pitti: "PITTI",
+  buongiorno: "BUONGIORNO",
+};
 
 const cardStyle: CSSProperties = {
-  // тонкая "шампань" рамка всегда → без дерганий
   borderColor: "rgba(189, 160, 86, 0.28)",
 };
 
@@ -69,7 +66,38 @@ function DownloadIcon() {
   );
 }
 
-export default function Page() {
+function buildCards(items: DealerPriceListItem[]): PriceListCardItem[] {
+  const bySlug = new Map<string, DealerPriceListItem>();
+
+  for (const item of items) {
+    if (!bySlug.has(item.collectionSlug)) {
+      bySlug.set(item.collectionSlug, item);
+    }
+  }
+
+  return COLLECTION_ORDER.map((slug) => {
+    const item = bySlug.get(slug);
+
+    if (!item) {
+      return null;
+    }
+
+    return {
+      id: slug,
+      title: COLLECTION_LABELS[slug],
+      fileHref: item.fileUrl,
+      subtitle: "Скачать Excel (.xlsx)",
+    };
+  }).filter((item): item is PriceListCardItem => item !== null);
+}
+
+export default async function Page() {
+  const dealer = await getCurrentDealer();
+  const countryCode = dealer?.countryCode?.trim().toUpperCase() || "RU";
+
+  const priceLists = await getDealerPriceListsByCountry(countryCode);
+  const cards = buildCards(priceLists);
+
   return (
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-6">
@@ -84,50 +112,54 @@ export default function Page() {
         </div>
       </header>
 
-      <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {PRICE_LISTS.map((it) => (
-          <a
-            key={it.id}
-            href={it.fileHref}
-            download
-            className={[
-              "group relative overflow-hidden",
-              "h-[112px] rounded-[20px] border bg-white",
-              "px-6",
-              "flex items-center justify-between",
-              "transition-transform duration-200",
-              "hover:-translate-y-[1px]",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
-            ].join(" ")}
-            style={cardStyle}
-            aria-label={`Скачать прайс-лист ${it.title}`}
-          >
-            {/* мягкий gold sheen на hover */}
-            <span
-              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-              style={goldGlowStyle}
-            />
+      {cards.length > 0 ? (
+        <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {cards.map((it) => (
+            <a
+              key={it.id}
+              href={it.fileHref}
+              download
+              target="_blank"
+              rel="noreferrer"
+              className={[
+                "group relative overflow-hidden",
+                "h-[112px] rounded-[20px] border bg-white",
+                "px-6",
+                "flex items-center justify-between",
+                "transition-transform duration-200",
+                "hover:-translate-y-[1px]",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
+              ].join(" ")}
+              style={cardStyle}
+              aria-label={`Скачать прайс-лист ${it.title}`}
+            >
+              <span
+                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                style={goldGlowStyle}
+              />
 
-            {/* лёгкая тень — только визуально, без скачков */}
-            <span className="pointer-events-none absolute inset-0 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.22)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+              <span className="pointer-events-none absolute inset-0 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.22)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
 
-            <div className="relative z-[1]">
-              <div className="text-[14px] font-extrabold tracking-[0.18em] text-black">
-                {it.title}
+              <div className="relative z-[1]">
+                <div className="text-[14px] font-extrabold tracking-[0.18em] text-black">
+                  {it.title}
+                </div>
+                <div className="mt-1 text-xs text-black/45">{it.subtitle}</div>
               </div>
-              <div className="mt-1 text-xs text-black/45">
-                Скачать Excel (.xlsx)
-              </div>
-            </div>
 
-            <div className="relative z-[1] flex items-center gap-3">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-black/70 transition-colors duration-200 group-hover:text-black">
-                <DownloadIcon />
-              </span>
-            </div>
-          </a>
-        ))}
-      </section>
+              <div className="relative z-[1] flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-black/70 transition-colors duration-200 group-hover:text-black">
+                  <DownloadIcon />
+                </span>
+              </div>
+            </a>
+          ))}
+        </section>
+      ) : (
+        <div className="rounded-[20px] border border-black/10 bg-white px-5 py-6 text-sm text-black/55">
+          Для вашего региона прайс-листы пока не добавлены.
+        </div>
+      )}
 
       <div className="pt-2 text-center text-xs text-black/45">
         При клике на карточку загрузка начинается сразу.

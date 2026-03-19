@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 
 type DealerMe = {
-  dealerId?: string;
+  dealerId?: number | null;
   documentId?: string;
   title?: string;
   managerName?: string;
@@ -10,6 +10,15 @@ type DealerMe = {
   city?: string;
   address?: string;
   isActive?: boolean;
+  countryCode?: string;
+  role?: "dealer" | "admin" | "owner" | "";
+  login?: string;
+  region?: string;
+  mustChangePassword?: boolean;
+};
+
+type DealerMeResponse = {
+  dealer?: DealerMe;
 };
 
 export async function getCurrentDealer(): Promise<DealerMe | null> {
@@ -35,8 +44,8 @@ export async function getCurrentDealer(): Promise<DealerMe | null> {
       return null;
     }
 
-    const json = (await res.json()) as DealerMe | null;
-    return json ?? null;
+    const json = (await res.json()) as DealerMeResponse | null;
+    return json?.dealer ?? null;
   } catch {
     return null;
   }
