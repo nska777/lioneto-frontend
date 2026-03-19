@@ -22,7 +22,9 @@ const COLLECTION_ORDER = [
   "buongiorno",
 ] as const;
 
-const COLLECTION_LABELS: Record<(typeof COLLECTION_ORDER)[number], string> = {
+type CollectionSlug = (typeof COLLECTION_ORDER)[number];
+
+const COLLECTION_LABELS: Record<CollectionSlug, string> = {
   amber: "AMBER",
   scandy: "SCANDY",
   elizabeth: "ELIZABETH",
@@ -75,20 +77,24 @@ function buildCards(items: DealerPriceListItem[]): PriceListCardItem[] {
     }
   }
 
-  return COLLECTION_ORDER.map((slug) => {
+  const result: PriceListCardItem[] = [];
+
+  for (const slug of COLLECTION_ORDER) {
     const item = bySlug.get(slug);
 
     if (!item) {
-      return null;
+      continue;
     }
 
-    return {
+    result.push({
       id: slug,
       title: COLLECTION_LABELS[slug],
       fileHref: item.fileUrl,
       subtitle: "Скачать Excel (.xlsx)",
-    };
-  }).filter((item): item is PriceListCardItem => item !== null);
+    });
+  }
+
+  return result;
 }
 
 export default async function Page() {
