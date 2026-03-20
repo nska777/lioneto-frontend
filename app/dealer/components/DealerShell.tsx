@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
+
 import DealerSidebar from "./DealerSidebar";
 import DealerTopbar from "./DealerTopbar";
 
@@ -24,7 +25,7 @@ export default function DealerShell({
   if (isAuthPage) return <>{children}</>;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#f7f7f5]">
       <div className="mx-auto flex min-h-screen max-w-[1400px]">
         <aside className="hidden w-[280px] border-r border-black/10 bg-white md:block">
           <DealerSidebar canAccessAdmin={canAccessAdmin} />

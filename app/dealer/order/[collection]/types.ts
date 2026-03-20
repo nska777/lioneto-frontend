@@ -1,0 +1,91 @@
+export type ProductDraft = {
+  quantity: number;
+  markupPercent: number;
+  isMarkupDirty: boolean;
+};
+
+export type AddonDraft = {
+  quantity: number;
+  markupPercent: number;
+  isInCart: boolean;
+};
+
+export type CartEntry =
+  | {
+      kind: "product";
+      id: string;
+      productId: string;
+      collectionSlug: string;
+      title: string;
+      article: string;
+      color?: string;
+      quantity: number;
+      markupPercent: number;
+      unitBasePrice: number;
+      unitFinalPrice: number;
+      totalBasePrice: number;
+      totalFinalPrice: number;
+    }
+  | {
+      kind: "addon";
+      id: string;
+      parentProductId: string;
+      addonId: string;
+      collectionSlug: string;
+      title: string;
+      article: string;
+      color?: string;
+      quantity: number;
+      markupPercent: number;
+      unitBasePrice: number;
+      unitFinalPrice: number;
+      totalBasePrice: number;
+      totalFinalPrice: number;
+    };
+
+export type DealerOrderVisibleItem = {
+  id: string;
+  kind: "product" | "addon";
+  collectionSlug: string;
+  title: string;
+  article: string;
+  color?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+};
+
+export type DealerOrderInternalItem = {
+  id: string;
+  kind: "product" | "addon";
+  collectionSlug: string;
+  title: string;
+  article: string;
+  color?: string;
+  quantity: number;
+  markupPercent: number;
+  unitBasePrice: number;
+  unitFinalPrice: number;
+  totalBasePrice: number;
+  totalFinalPrice: number;
+};
+
+export type DealerOrder = {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  country: "RU" | "UZ" | "KZ" | "TJ";
+  collectionSlug: string;
+  collectionSlugs: string[];
+  totalQty: number;
+
+  visibleSubtotal: number;
+  visibleItems: DealerOrderVisibleItem[];
+
+  internalSubtotal: number;
+  internalTotalWithItemMarkup: number;
+  globalMarkupPercent: number;
+  globalMarkupAmount: number;
+  internalTotal: number;
+  internalItems: DealerOrderInternalItem[];
+};
