@@ -10,7 +10,7 @@ export type DealerCountryCode =
   | "BY"
   | "AZ";
 
-export type DealerFileType = "price" | "tech_catalog";
+export type DealerFileType = "price" | "tech_catalog" | "instruction";
 
 export type DealerCollectionSlug =
   | "amber"
@@ -24,11 +24,13 @@ export type DealerFileItem = {
   id: number;
   documentId: string;
   title: string;
+  type: DealerFileType;
   countryCode: DealerCountryCode | null;
   collectionSlug: DealerCollectionSlug;
   collectionTitle: string;
   description: string;
   isActive: boolean;
+  sortOrder: number;
   fileName: string;
   fileUrl: string;
   fileExt: string;
@@ -38,6 +40,13 @@ export type DealerFileItem = {
 
 export type DealerPriceListItem = DealerFileItem;
 export type DealerTechCatalogItem = DealerFileItem;
+export type DealerInstructionItem = DealerFileItem;
+
+export type DealerInstructionCollection = {
+  slug: DealerCollectionSlug;
+  title: string;
+  count: number;
+};
 
 type StrapiMediaItem = {
   id?: unknown;
@@ -55,8 +64,10 @@ type StrapiDealerFileItem = {
   type?: unknown;
   countryCode?: unknown;
   collectionSlug?: unknown;
+  collectionTitle?: unknown;
   description?: unknown;
   isActive?: unknown;
+  sortOrder?: unknown;
   file?: StrapiMediaItem | null;
 };
 
@@ -101,19 +112,19 @@ export function getCollectionTitle(
 ): string {
   switch (slug) {
     case "amber":
-      return "Amber";
+      return "AMBER";
     case "scandy":
-      return "Scandy";
+      return "SCANDY";
     case "elizabeth":
-      return "Elizabeth";
+      return "ELIZABETH";
     case "salvador":
-      return "Salvador";
+      return "SALVADOR";
     case "pitti":
-      return "Pitti";
+      return "PITTI";
     case "buongiorno":
-      return "Buongiorno";
+      return "BUONGIORNO";
     default:
-      return slug;
+      return String(slug || "").toUpperCase();
   }
 }
 
@@ -148,6 +159,19 @@ function normalizeCollectionSlug(value: unknown): DealerCollectionSlug {
       return slug;
     default:
       return "amber";
+  }
+}
+
+function normalizeFileType(value: unknown): DealerFileType | null {
+  const type = getString(value).trim().toLowerCase();
+
+  switch (type) {
+    case "price":
+    case "tech_catalog":
+    case "instruction":
+      return type;
+    default:
+      return null;
   }
 }
 
@@ -187,14 +211,17 @@ function normalizeDealerFileItem(
 ): DealerFileItem | null {
   const id = typeof item.id === "number" ? item.id : 0;
   const documentId = getString(item.documentId);
-  const title = getString(item.title);
+  const title = getString(item.title).trim();
+  const type = normalizeFileType(item.type);
   const description = getString(item.description);
   const isActive = getBoolean(item.isActive, false);
   const countryCode = normalizeCountryCode(item.countryCode);
   const collectionSlug = normalizeCollectionSlug(item.collectionSlug);
+  const collectionTitleRaw = getString(item.collectionTitle).trim();
+  const sortOrder = getNumber(item.sortOrder) ?? 0;
   const file = normalizeFile(item.file);
 
-  if (!id || !documentId || !title || !file.fileUrl) {
+  if (!id || !documentId || !title || !type || !file.fileUrl) {
     return null;
   }
 
@@ -202,11 +229,13 @@ function normalizeDealerFileItem(
     id,
     documentId,
     title,
+    type,
     countryCode,
     collectionSlug,
-    collectionTitle: getCollectionTitle(collectionSlug),
+    collectionTitle: collectionTitleRaw || getCollectionTitle(collectionSlug),
     description,
     isActive,
+    sortOrder,
     fileName: file.fileName,
     fileUrl: file.fileUrl,
     fileExt: file.fileExt,
@@ -241,6 +270,24 @@ async function fetchDealerFiles(
     .filter((item): item is DealerFileItem => item !== null);
 }
 
+function appendCommonFields(params: URLSearchParams): void {
+  params.set("fields[0]", "title");
+  params.set("fields[1]", "type");
+  params.set("fields[2]", "countryCode");
+  params.set("fields[3]", "collectionSlug");
+  params.set("fields[4]", "description");
+  params.set("fields[5]", "isActive");
+  params.set("fields[6]", "documentId");
+  params.set("fields[7]", "collectionTitle");
+  params.set("fields[8]", "sortOrder");
+
+  params.set("populate[file][fields][0]", "name");
+  params.set("populate[file][fields][1]", "url");
+  params.set("populate[file][fields][2]", "ext");
+  params.set("populate[file][fields][3]", "mime");
+  params.set("populate[file][fields][4]", "size");
+}
+
 export async function getDealerPriceListsByCountry(
   countryCode: string,
 ): Promise<DealerPriceListItem[]> {
@@ -256,19 +303,7 @@ export async function getDealerPriceListsByCountry(
   params.set("filters[countryCode][$eq]", normalizedCountryCode);
   params.set("filters[isActive][$eq]", "true");
 
-  params.set("fields[0]", "title");
-  params.set("fields[1]", "type");
-  params.set("fields[2]", "countryCode");
-  params.set("fields[3]", "collectionSlug");
-  params.set("fields[4]", "description");
-  params.set("fields[5]", "isActive");
-  params.set("fields[6]", "documentId");
-
-  params.set("populate[file][fields][0]", "name");
-  params.set("populate[file][fields][1]", "url");
-  params.set("populate[file][fields][2]", "ext");
-  params.set("populate[file][fields][3]", "mime");
-  params.set("populate[file][fields][4]", "size");
+  appendCommonFields(params);
 
   return fetchDealerFiles(params);
 }
@@ -282,19 +317,68 @@ export async function getDealerTechCatalogs(): Promise<DealerTechCatalogItem[]> 
   params.set("filters[type][$eq]", "tech_catalog");
   params.set("filters[isActive][$eq]", "true");
 
-  params.set("fields[0]", "title");
-  params.set("fields[1]", "type");
-  params.set("fields[2]", "countryCode");
-  params.set("fields[3]", "collectionSlug");
-  params.set("fields[4]", "description");
-  params.set("fields[5]", "isActive");
-  params.set("fields[6]", "documentId");
-
-  params.set("populate[file][fields][0]", "name");
-  params.set("populate[file][fields][1]", "url");
-  params.set("populate[file][fields][2]", "ext");
-  params.set("populate[file][fields][3]", "mime");
-  params.set("populate[file][fields][4]", "size");
+  appendCommonFields(params);
 
   return fetchDealerFiles(params);
+}
+
+export async function getDealerInstructions(): Promise<DealerInstructionItem[]> {
+  const params = new URLSearchParams();
+  params.set("status", "published");
+  params.set("sort[0]", "collectionSlug:asc");
+  params.set("sort[1]", "sortOrder:asc");
+  params.set("sort[2]", "title:asc");
+  params.set("pagination[pageSize]", "500");
+
+  params.set("filters[type][$eq]", "instruction");
+  params.set("filters[isActive][$eq]", "true");
+
+  appendCommonFields(params);
+
+  return fetchDealerFiles(params);
+}
+
+export async function getDealerInstructionCollections(): Promise<
+  DealerInstructionCollection[]
+> {
+  const items = await getDealerInstructions();
+
+  const map = new Map<DealerCollectionSlug, DealerInstructionCollection>();
+
+  for (const item of items) {
+    const existing = map.get(item.collectionSlug);
+
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+
+    map.set(item.collectionSlug, {
+      slug: item.collectionSlug,
+      title: item.collectionTitle || getCollectionTitle(item.collectionSlug),
+      count: 1,
+    });
+  }
+
+  return Array.from(map.values()).sort((a, b) =>
+    a.title.localeCompare(b.title, "ru"),
+  );
+}
+
+export async function getDealerInstructionsByCollection(
+  collectionSlug: string,
+): Promise<DealerInstructionItem[]> {
+  const normalizedSlug = normalizeCollectionSlug(collectionSlug);
+
+  const items = await getDealerInstructions();
+
+  return items
+    .filter((item) => item.collectionSlug === normalizedSlug)
+    .sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) {
+        return a.sortOrder - b.sortOrder;
+      }
+
+      return a.title.localeCompare(b.title, "ru");
+    });
 }
