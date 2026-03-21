@@ -10,20 +10,22 @@ export type DealerCountryCode =
   | "BY"
   | "AZ";
 
-export type DealerFileType = "price" | "catalog";
+export type DealerFileType = "price" | "tech_catalog";
 
-export type DealerPriceListItem = {
+export type DealerCollectionSlug =
+  | "amber"
+  | "scandy"
+  | "elizabeth"
+  | "salvador"
+  | "pitti"
+  | "buongiorno";
+
+export type DealerFileItem = {
   id: number;
   documentId: string;
   title: string;
-  countryCode: DealerCountryCode;
-  collectionSlug:
-    | "amber"
-    | "scandy"
-    | "elizabeth"
-    | "salvador"
-    | "pitti"
-    | "buongiorno";
+  countryCode: DealerCountryCode | null;
+  collectionSlug: DealerCollectionSlug;
   collectionTitle: string;
   description: string;
   isActive: boolean;
@@ -34,9 +36,8 @@ export type DealerPriceListItem = {
   sizeKb: number | null;
 };
 
-type StrapiMediaFormat = {
-  url?: unknown;
-};
+export type DealerPriceListItem = DealerFileItem;
+export type DealerTechCatalogItem = DealerFileItem;
 
 type StrapiMediaItem = {
   id?: unknown;
@@ -45,13 +46,13 @@ type StrapiMediaItem = {
   ext?: unknown;
   mime?: unknown;
   size?: unknown;
-  formats?: unknown;
 };
 
 type StrapiDealerFileItem = {
   id?: unknown;
   documentId?: unknown;
   title?: unknown;
+  type?: unknown;
   countryCode?: unknown;
   collectionSlug?: unknown;
   description?: unknown;
@@ -72,10 +73,6 @@ const STRAPI_TOKEN =
   process.env.STRAPI_DEALER_TOKEN ||
   process.env.STRAPI_API_TOKEN ||
   "";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function getString(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -100,7 +97,7 @@ function joinUrl(base: string, path: string): string {
 }
 
 export function getCollectionTitle(
-  slug: DealerPriceListItem["collectionSlug"] | string,
+  slug: DealerCollectionSlug | string,
 ): string {
   switch (slug) {
     case "amber":
@@ -120,8 +117,8 @@ export function getCollectionTitle(
   }
 }
 
-function normalizeCountryCode(value: unknown): DealerCountryCode {
-  const code = getString(value).toUpperCase();
+function normalizeCountryCode(value: unknown): DealerCountryCode | null {
+  const code = getString(value).trim().toUpperCase();
 
   switch (code) {
     case "RU":
@@ -134,14 +131,12 @@ function normalizeCountryCode(value: unknown): DealerCountryCode {
     case "AZ":
       return code;
     default:
-      return "RU";
+      return null;
   }
 }
 
-function normalizeCollectionSlug(
-  value: unknown,
-): DealerPriceListItem["collectionSlug"] {
-  const slug = getString(value).toLowerCase();
+function normalizeCollectionSlug(value: unknown): DealerCollectionSlug {
+  const slug = getString(value).trim().toLowerCase();
 
   switch (slug) {
     case "amber":
@@ -159,10 +154,10 @@ function normalizeCollectionSlug(
 function normalizeFile(
   rawFile: StrapiMediaItem | null | undefined,
 ): Pick<
-  DealerPriceListItem,
+  DealerFileItem,
   "fileName" | "fileUrl" | "fileExt" | "mimeType" | "sizeKb"
 > {
-  if (!rawFile || !isRecord(rawFile)) {
+  if (!rawFile) {
     return {
       fileName: "",
       fileUrl: "",
@@ -187,9 +182,9 @@ function normalizeFile(
   };
 }
 
-function normalizeDealerPriceListItem(
+function normalizeDealerFileItem(
   item: StrapiDealerFileItem,
-): DealerPriceListItem | null {
+): DealerFileItem | null {
   const id = typeof item.id === "number" ? item.id : 0;
   const documentId = getString(item.documentId);
   const title = getString(item.title);
@@ -220,10 +215,37 @@ function normalizeDealerPriceListItem(
   };
 }
 
+async function fetchDealerFiles(
+  params: URLSearchParams,
+): Promise<DealerFileItem[]> {
+  const response = await fetch(
+    `${STRAPI_URL}/api/dealer-files?${params.toString()}`,
+    {
+      headers: {
+        ...(STRAPI_TOKEN ? { Authorization: `Bearer ${STRAPI_TOKEN}` } : {}),
+      },
+      cache: "no-store",
+      next: { revalidate: 0 },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to load dealer files: ${response.status}`);
+  }
+
+  const json = (await response.json()) as StrapiListResponse<StrapiDealerFileItem>;
+  const items = Array.isArray(json.data) ? json.data : [];
+
+  return items
+    .map(normalizeDealerFileItem)
+    .filter((item): item is DealerFileItem => item !== null);
+}
+
 export async function getDealerPriceListsByCountry(
   countryCode: string,
 ): Promise<DealerPriceListItem[]> {
-  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedCountryCode =
+    normalizeCountryCode(countryCode?.trim().toUpperCase()) ?? "RU";
 
   const params = new URLSearchParams();
   params.set("status", "published");
@@ -235,11 +257,12 @@ export async function getDealerPriceListsByCountry(
   params.set("filters[isActive][$eq]", "true");
 
   params.set("fields[0]", "title");
-  params.set("fields[1]", "countryCode");
-  params.set("fields[2]", "collectionSlug");
-  params.set("fields[3]", "description");
-  params.set("fields[4]", "isActive");
-  params.set("fields[5]", "documentId");
+  params.set("fields[1]", "type");
+  params.set("fields[2]", "countryCode");
+  params.set("fields[3]", "collectionSlug");
+  params.set("fields[4]", "description");
+  params.set("fields[5]", "isActive");
+  params.set("fields[6]", "documentId");
 
   params.set("populate[file][fields][0]", "name");
   params.set("populate[file][fields][1]", "url");
@@ -247,25 +270,31 @@ export async function getDealerPriceListsByCountry(
   params.set("populate[file][fields][3]", "mime");
   params.set("populate[file][fields][4]", "size");
 
-  const response = await fetch(
-    `${STRAPI_URL}/api/dealer-files?${params.toString()}`,
-    {
-      headers: {
-        ...(STRAPI_TOKEN ? { Authorization: `Bearer ${STRAPI_TOKEN}` } : {}),
-      },
-      next: { revalidate: 0 },
-      cache: "no-store",
-    },
-  );
+  return fetchDealerFiles(params);
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to load dealer price lists: ${response.status}`);
-  }
+export async function getDealerTechCatalogs(): Promise<DealerTechCatalogItem[]> {
+  const params = new URLSearchParams();
+  params.set("status", "published");
+  params.set("sort[0]", "collectionSlug:asc");
+  params.set("pagination[pageSize]", "100");
 
-  const json = (await response.json()) as StrapiListResponse<StrapiDealerFileItem>;
-  const items = Array.isArray(json.data) ? json.data : [];
+  params.set("filters[type][$eq]", "tech_catalog");
+  params.set("filters[isActive][$eq]", "true");
 
-  return items
-    .map(normalizeDealerPriceListItem)
-    .filter((item): item is DealerPriceListItem => item !== null);
+  params.set("fields[0]", "title");
+  params.set("fields[1]", "type");
+  params.set("fields[2]", "countryCode");
+  params.set("fields[3]", "collectionSlug");
+  params.set("fields[4]", "description");
+  params.set("fields[5]", "isActive");
+  params.set("fields[6]", "documentId");
+
+  params.set("populate[file][fields][0]", "name");
+  params.set("populate[file][fields][1]", "url");
+  params.set("populate[file][fields][2]", "ext");
+  params.set("populate[file][fields][3]", "mime");
+  params.set("populate[file][fields][4]", "size");
+
+  return fetchDealerFiles(params);
 }
