@@ -14,6 +14,38 @@ function getSafeFileName(value: string): string {
   return value.replace(/[\\/:*?"<>|]+/g, "_").trim() || "file";
 }
 
+function joinWithStrapi(pathname: string): string {
+  const base = STRAPI_URL.replace(/\/+$/, "");
+  const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return `${base}${path}`;
+}
+
+function resolveTargetUrl(fileUrl: string): string {
+  const trimmed = fileUrl.trim();
+
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("/")) {
+    return joinWithStrapi(trimmed);
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const parsed = new URL(trimmed);
+
+      if (parsed.pathname.startsWith("/uploads/")) {
+        return joinWithStrapi(parsed.pathname);
+      }
+
+      return trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return joinWithStrapi(trimmed);
+}
+
 export async function GET(request: NextRequest) {
   const fileUrl = request.nextUrl.searchParams.get("url");
   const fileNameParam = request.nextUrl.searchParams.get("name");
@@ -25,9 +57,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const targetUrl = fileUrl.startsWith("http://") || fileUrl.startsWith("https://")
-    ? fileUrl
-    : `${STRAPI_URL.replace(/\/+$/, "")}${fileUrl.startsWith("/") ? "" : "/"}${fileUrl}`;
+  const targetUrl = resolveTargetUrl(fileUrl);
+
+  if (!targetUrl) {
+    return NextResponse.json(
+      { error: "Invalid file url" },
+      { status: 400 },
+    );
+  }
 
   const upstream = await fetch(targetUrl, {
     headers: {
@@ -38,7 +75,13 @@ export async function GET(request: NextRequest) {
 
   if (!upstream.ok) {
     return NextResponse.json(
-      { error: `Failed to fetch file: ${upstream.status}` },
+      {
+        error: `Failed to fetch file: ${upstream.status}`,
+        debug: {
+          originalUrl: fileUrl,
+          targetUrl,
+        },
+      },
       { status: upstream.status },
     );
   }
@@ -53,7 +96,11 @@ export async function GET(request: NextRequest) {
     targetUrl.split("/").pop() ||
     "file";
 
-  fileName = getSafeFileName(decodeURIComponent(fileName));
+  try {
+    fileName = decodeURIComponent(fileName);
+  } catch {}
+
+  fileName = getSafeFileName(fileName);
 
   return new NextResponse(arrayBuffer, {
     status: 200,
