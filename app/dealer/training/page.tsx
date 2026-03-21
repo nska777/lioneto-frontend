@@ -1,6 +1,8 @@
-// app/dealer/training/page.tsx
+import { getDealerTrainingData } from "@/app/lib/dealer/training";
 import TrainingClient from "./TrainingClient";
 
-export default function Page() {
-  return <TrainingClient />;
+export default async function Page() {
+  const data = await getDealerTrainingData();
+
+  return <TrainingClient data={data} />;
 }

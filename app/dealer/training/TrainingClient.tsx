@@ -1,167 +1,166 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
-type TrainingSectionKey = "presentations" | "sales" | "style";
+import type {
+  DealerTrainingData,
+  DealerTrainingItem,
+} from "@/app/lib/dealer/training";
 
-type TrainingFile = {
+type TrainingSectionKey = "presentations" | "sales" | "interior";
+type KindUi = "PDF" | "PPTX" | "VIDEO" | "DOC";
+
+type FileListItem = {
   id: string;
   title: string;
-  kind: "PDF" | "PPTX" | "VIDEO" | "DOC";
+  kind: KindUi;
   size?: string;
-  fileHref: string;
+  href: string | null;
+  download?: boolean;
   tags?: string[];
+  description?: string | null;
+  isAvailable: boolean;
 };
 
 type PresentationTile = {
-  id: string; // can be "workbook"
+  id: string;
   title: string;
-  meta?: string; // "PPTX", etc.
-  // If href is internal route -> open page (no download)
+  meta?: string;
   href: string;
-  // For download tiles
   download?: boolean;
 };
 
-type TrainingSection = {
-  key: TrainingSectionKey;
+type VideoModalState = {
   title: string;
-  subtitle: string;
-  items?: TrainingFile[];
+  src: string;
+} | null;
+
+type Props = {
+  data: DealerTrainingData;
 };
-
-const PRESENTATION_TILES: PresentationTile[] = [
-  {
-    id: "amber",
-    title: "AMBER",
-    meta: "PPTX",
-    href: "/dealer/training/presentations/by-collection/amber.pptx",
-    download: true,
-  },
-  {
-    id: "scandy",
-    title: "SCANDY",
-    meta: "PPTX",
-    href: "/dealer/training/presentations/by-collection/scandy.pptx",
-    download: true,
-  },
-  {
-    id: "elizabeth",
-    title: "ELIZABETH",
-    meta: "PPTX",
-    href: "/dealer/training/presentations/by-collection/elizabeth.pptx",
-    download: true,
-  },
-  {
-    id: "salvador",
-    title: "SALVADOR",
-    meta: "PPTX",
-    href: "/dealer/training/presentations/by-collection/salvador.pptx",
-    download: true,
-  },
-  {
-    id: "pitti",
-    title: "PITTI",
-    meta: "PPTX",
-    href: "/dealer/training/presentations/by-collection/pitti.pptx",
-    download: true,
-  },
-  {
-    id: "buongiorno",
-    title: "BUONGIORNO",
-    meta: "PPTX",
-    href: "/dealer/training/presentations/by-collection/buongiorno.pptx",
-    download: true,
-  },
-
-  // ✅ workbook is NOT download. It's an internal Notes page.
-  {
-    id: "workbook",
-    title: "РАБОЧАЯ ТЕТРАДЬ",
-    meta: "NOTES",
-    href: "/dealer/training/workbook",
-    download: false,
-  },
-];
-
-const SECTIONS: TrainingSection[] = [
-  {
-    key: "presentations",
-    title: "Учебные презентации",
-    subtitle:
-      "Выберите коллекцию — скачивание начнётся сразу. Рабочая тетрадь — для ваших заметок.",
-  },
-  {
-    key: "sales",
-    title: "Материалы по продажам",
-    subtitle: "Скрипты, чек-листы, стандарты и быстрые ответы клиенту.",
-    items: [
-      {
-        id: "sales-script-1",
-        title: "Скрипт встречи в салоне — контакт → подбор → закрытие",
-        kind: "PDF",
-        size: "1.2 MB",
-        fileHref: "/dealer/training/sales/salon-script.pdf",
-        tags: ["скрипт", "салон"],
-      },
-      {
-        id: "sales-checklist",
-        title: "Чек-лист презентации товара — 10 шагов",
-        kind: "PDF",
-        size: "0.6 MB",
-        fileHref: "/dealer/training/sales/presentation-checklist.pdf",
-        tags: ["чек-лист"],
-      },
-      {
-        id: "sales-qa",
-        title: "FAQ продавца — короткие ответы на частые вопросы",
-        kind: "DOC",
-        size: "0.4 MB",
-        fileHref: "/dealer/training/sales/sales-faq.docx",
-        tags: ["FAQ", "ответы"],
-      },
-    ],
-  },
-  {
-    key: "style",
-    title: "Стиль и интерьер",
-    subtitle: "Сочетания, визуальные аргументы и подбор под интерьер клиента.",
-    items: [
-      {
-        id: "style-lookbook",
-        title: "Lookbook — сочетания цветов и материалов",
-        kind: "PDF",
-        size: "22 MB",
-        fileHref: "/dealer/training/style/lookbook.pdf",
-        tags: ["lookbook", "интерьер"],
-      },
-      {
-        id: "style-room-guides",
-        title: "Гайды по комнатам — спальня / гостиная / прихожая",
-        kind: "PDF",
-        size: "7 MB",
-        fileHref: "/dealer/training/style/room-guides.pdf",
-        tags: ["гайд", "комнаты"],
-      },
-      {
-        id: "style-video",
-        title: "Видео — как презентовать мебель в интерьере (2–3 минуты)",
-        kind: "VIDEO",
-        size: "—",
-        fileHref: "/dealer/training/style/presentation-video.mp4",
-        tags: ["видео"],
-      },
-    ],
-  },
-];
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-function KindPill({ kind }: { kind: TrainingFile["kind"] }) {
+function mapKind(type: DealerTrainingItem["resolvedType"]): KindUi {
+  switch (type) {
+    case "pptx":
+      return "PPTX";
+    case "pdf":
+      return "PDF";
+    case "doc":
+      return "DOC";
+    case "video":
+      return "VIDEO";
+  }
+}
+
+function getKindStyles(kind: KindUi) {
+  switch (kind) {
+    case "PDF":
+      return {
+        pill: "border-[#E7C8C8] bg-[#FFF3F3] text-[#8F3D3D]",
+        accent: "from-[#FFF1F1] to-white",
+      };
+    case "PPTX":
+      return {
+        pill: "border-[#E8D8B6] bg-[#FFF9ED] text-[#8A6333]",
+        accent: "from-[#FFF7E7] to-white",
+      };
+    case "DOC":
+      return {
+        pill: "border-[#CFE0F4] bg-[#F2F8FF] text-[#345D8C]",
+        accent: "from-[#F2F8FF] to-white",
+      };
+    case "VIDEO":
+      return {
+        pill: "border-[#D5D1F6] bg-[#F6F4FF] text-[#5645A3]",
+        accent: "from-[#F7F4FF] to-white",
+      };
+  }
+}
+
+function getSectionTone(key: TrainingSectionKey) {
+  switch (key) {
+    case "presentations":
+      return {
+        chip: "Коллекции",
+        glow: "radial-gradient(120% 120% at 10% 0%, rgba(235, 213, 164, 0.28) 0%, rgba(235, 213, 164, 0) 60%)",
+        chipClass: "border-[#E5D4AA] bg-[#FFF7E3] text-[#8A6732]",
+      };
+
+    case "sales":
+      return {
+        chip: "Продажи",
+        glow: "radial-gradient(120% 120% at 10% 0%, rgba(205, 227, 245, 0.28) 0%, rgba(205, 227, 245, 0) 60%)",
+        chipClass: "border-[#CFE0F4] bg-[#F2F8FF] text-[#3A648F]",
+      };
+
+    case "interior":
+      return {
+        chip: "Интерьер",
+        glow: "radial-gradient(120% 120% at 10% 0%, rgba(220, 214, 245, 0.28) 0%, rgba(220, 214, 245, 0) 60%)",
+        chipClass: "border-[#D9D1F6] bg-[#F6F3FF] text-[#5B4AA2]",
+      };
+  }
+}
+
+function mapPresentationTiles(items: DealerTrainingItem[]): PresentationTile[] {
+  const cmsTiles = items.map((item) => ({
+    id: item.slug || String(item.id),
+    title: (item.collectionTitle || item.title).toUpperCase(),
+    meta: mapKind(item.resolvedType),
+    href: item.downloadUrl || "#",
+    download: true,
+  }));
+
+  return [
+    ...cmsTiles,
+    {
+      id: "workbook",
+      title: "РАБОЧАЯ ТЕТРАДЬ",
+      meta: "NOTES",
+      href: "/dealer/training/workbook",
+      download: false,
+    },
+  ];
+}
+
+function mapFileList(items: DealerTrainingItem[]): FileListItem[] {
+  return items.map((item) => {
+    const isDownload = Boolean(item.downloadUrl);
+    const href =
+      item.resolvedType === "video"
+        ? item.fileUrl || item.downloadUrl
+        : item.downloadUrl;
+
+    return {
+      id: item.slug || String(item.id),
+      title: item.title,
+      kind: mapKind(item.resolvedType),
+      size: item.fileSizeLabel ?? undefined,
+      href,
+      download: item.resolvedType === "video" ? false : isDownload,
+      isAvailable: Boolean(href),
+      tags: [...(item.label ? [item.label] : []), ...(item.tags ?? [])].filter(
+        Boolean,
+      ),
+      description: item.description,
+    };
+  });
+}
+
+function KindPill({ kind }: { kind: KindUi }) {
+  const styles = getKindStyles(kind);
+
   return (
-    <span className="inline-flex cursor-pointer items-center rounded-full border border-black/10 bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.08em] text-black/65">
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-[0.08em]",
+        styles.pill,
+      )}
+    >
       {kind}
     </span>
   );
@@ -171,7 +170,7 @@ function PlusMark({ open }: { open: boolean }) {
   return (
     <span
       className={cn(
-        "relative inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/70",
+        "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-black/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]",
         "transition-transform duration-300 ease-out",
         open && "rotate-45",
       )}
@@ -184,37 +183,51 @@ function PlusMark({ open }: { open: boolean }) {
 }
 
 function SectionCard({
+  toneKey,
   open,
   title,
   subtitle,
   onToggle,
   children,
 }: {
+  toneKey: TrainingSectionKey;
   open: boolean;
   title: string;
   subtitle: string;
   onToggle: () => void;
   children: React.ReactNode;
 }) {
+  const tone = getSectionTone(toneKey);
+
   return (
     <div
-      className="overflow-hidden rounded-[18px] border bg-white"
-      style={{ borderColor: "rgba(189, 160, 86, 0.22)" }}
+      className="relative overflow-hidden rounded-[24px] border bg-white shadow-[0_18px_50px_rgba(64,48,20,0.04)]"
+      style={{ borderColor: "rgba(189, 160, 86, 0.20)" }}
     >
+      <span
+        className="pointer-events-none absolute inset-0"
+        style={{ background: tone.glow }}
+      />
+
       <button
         type="button"
         onClick={onToggle}
         className={cn(
-          "w-full cursor-pointer text-left",
-          "px-5 py-5",
-          "flex items-center justify-between gap-4",
-          "bg-white",
-          "transition-colors duration-300 ease-out",
-          "hover:bg-black/[0.02]",
+          "relative z-[1] flex w-full cursor-pointer items-center justify-between gap-4 bg-white/70 px-6 py-5 text-left backdrop-blur-[1px]",
+          "transition-colors duration-300 ease-out hover:bg-black/[0.02]",
         )}
       >
         <div className="min-w-0">
-          <div className="text-[14px] font-extrabold tracking-[0.12em] text-black">
+          <div
+            className={cn(
+              "mb-2 inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
+              tone.chipClass,
+            )}
+          >
+            {tone.chip}
+          </div>
+
+          <div className="text-[15px] font-extrabold tracking-[0.14em] text-black">
             {title.toUpperCase()}
           </div>
           <div className="mt-1 text-sm text-black/55">{subtitle}</div>
@@ -222,17 +235,15 @@ function SectionCard({
         <PlusMark open={open} />
       </button>
 
-      {/* ultra-smooth: grid rows + opacity (no DOM measuring, no lag) */}
       <div
         className={cn(
-          "grid",
-          "transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(0.2,0.9,0.2,1)]",
+          "grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(0.2,0.9,0.2,1)]",
           open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="px-5 pb-5">
-            <div className="mb-4 h-px w-full bg-black/10" />
+          <div className="relative z-[1] px-6 pb-6">
+            <div className="mb-5 h-px w-full bg-black/10" />
             {children}
           </div>
         </div>
@@ -242,43 +253,48 @@ function SectionCard({
 }
 
 function PresentationTileCard({ it }: { it: PresentationTile }) {
+  const isWorkbook = it.id === "workbook";
+
   const inner = (
     <>
-      {/* subtle champagne sheen on hover */}
       <span
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
         style={{
-          background:
-            "radial-gradient(120% 120% at 22% 0%, rgba(232, 208, 148, 0.26) 0%, rgba(232, 208, 148, 0) 60%)",
+          background: isWorkbook
+            ? "radial-gradient(120% 120% at 20% 0%, rgba(214, 197, 160, 0.30) 0%, rgba(214, 197, 160, 0) 62%)"
+            : "radial-gradient(120% 120% at 22% 0%, rgba(232, 208, 148, 0.26) 0%, rgba(232, 208, 148, 0) 60%)",
         }}
       />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-[5px] bg-gradient-to-r from-[#E9D7A6] via-[#F4E9CC] to-[#E9D7A6]" />
       <div className="relative z-[1] text-center">
         <div className="text-[14px] font-extrabold tracking-[0.18em] text-black">
           {it.title}
         </div>
-        <div className="mt-1 text-xs text-black/45">{it.meta ?? "FILE"}</div>
+        <div className="mt-2 inline-flex rounded-full border border-black/10 bg-white/85 px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-black/55">
+          {it.meta ?? "FILE"}
+        </div>
 
-        {it.id === "workbook" ? (
-          <div className="mt-2 text-[11px] font-semibold tracking-[0.1em] text-black/55">
+        {isWorkbook ? (
+          <div className="mt-3 text-[11px] font-semibold tracking-[0.12em] text-black/55">
             ОТКРЫТЬ
           </div>
-        ) : null}
+        ) : (
+          <div className="mt-3 text-[11px] font-semibold tracking-[0.12em] text-black/45">
+            СКАЧАТЬ
+          </div>
+        )}
       </div>
     </>
   );
 
   const baseCls = cn(
-    "group relative cursor-pointer overflow-hidden",
-    "h-[112px] rounded-[18px] border bg-white",
-    "px-6",
-    "flex items-center justify-center",
-    "transition-transform duration-200 hover:-translate-y-[1px]",
+    "group relative flex h-[126px] cursor-pointer items-center justify-center overflow-hidden rounded-[22px] border bg-[linear-gradient(180deg,#fffdf8_0%,#ffffff_100%)] px-6 shadow-[0_16px_32px_rgba(40,28,10,0.04)]",
+    "transition-all duration-200 hover:-translate-y-[2px] hover:shadow-[0_22px_38px_rgba(40,28,10,0.08)]",
     "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
   );
 
   const borderStyle = { borderColor: "rgba(189, 160, 86, 0.22)" as const };
 
-  // Download tile
   if (it.download) {
     return (
       <a
@@ -293,7 +309,6 @@ function PresentationTileCard({ it }: { it: PresentationTile }) {
     );
   }
 
-  // Internal navigation tile (workbook)
   return (
     <Link
       href={it.href}
@@ -306,225 +321,317 @@ function PresentationTileCard({ it }: { it: PresentationTile }) {
   );
 }
 
-export default function TrainingClient() {
+function FileRow({
+  item,
+  onOpenVideo,
+}: {
+  item: FileListItem;
+  onOpenVideo: (title: string, src: string) => void;
+}) {
+  const styles = getKindStyles(item.kind);
+
+  if (!item.isAvailable) {
+    return (
+      <div className="flex items-center justify-between gap-4 rounded-[18px] border border-dashed border-black/10 bg-white/70 px-4 py-4 text-sm text-black/45">
+        <div className="min-w-0">
+          <div className="font-semibold text-black/60">{item.title}</div>
+          <div className="mt-1 text-xs text-black/40">
+            Материал обновляется или файл еще не привязан.
+          </div>
+        </div>
+
+        <span className="text-xs font-semibold tracking-[0.10em] text-black/35">
+          НЕДОСТУПНО
+        </span>
+      </div>
+    );
+  }
+
+  const content = (
+    <>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-black">{item.title}</div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-black/45">
+          <KindPill kind={item.kind} />
+          {item.size ? <span>{item.size}</span> : null}
+          {item.tags && item.tags.length ? (
+            <span className="truncate">• {item.tags.join(" • ")}</span>
+          ) : null}
+        </div>
+        {item.description ? (
+          <div className="mt-2 line-clamp-2 text-xs text-black/45">
+            {item.description}
+          </div>
+        ) : null}
+      </div>
+
+      <span className="text-xs font-semibold tracking-[0.10em] text-black/45 group-hover:text-black/75">
+        {item.download ? "Скачать" : "Открыть"}
+      </span>
+    </>
+  );
+
+  const baseClass = cn(
+    "group relative flex cursor-pointer items-center justify-between gap-4 overflow-hidden rounded-[18px] border px-4 py-4 shadow-[0_10px_24px_rgba(50,40,18,0.03)]",
+    "transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[0_16px_30px_rgba(50,40,18,0.06)]",
+    "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
+    `bg-gradient-to-r ${styles.accent}`,
+    "border-black/10",
+  );
+
+  if (item.kind === "VIDEO" && item.href) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenVideo(item.title, item.href!)}
+        className={cn(baseClass, "w-full text-left")}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  if (item.download) {
+    return (
+      <a href={item.href ?? "#"} download className={baseClass}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={item.href ?? "#"}
+      target="_blank"
+      rel="noreferrer"
+      className={baseClass}
+    >
+      {content}
+    </a>
+  );
+}
+
+function VideoModal({
+  video,
+  onClose,
+}: {
+  video: VideoModalState;
+  onClose: () => void;
+}) {
+  if (!video) return null;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-4 py-6 backdrop-blur-[2px]">
+      <div className="relative w-full max-w-4xl overflow-hidden rounded-[24px] border border-white/15 bg-[#121212] shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4 text-white">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+              Видео
+            </div>
+            <div className="mt-1 truncate text-base font-semibold">
+              {video.title}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/80 transition hover:bg-white/10 hover:text-white"
+            aria-label="Закрыть видео"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="bg-black p-3">
+          <video
+            key={video.src}
+            controls
+            autoPlay
+            className="aspect-video w-full rounded-[18px] bg-black"
+            src={video.src}
+          >
+            Ваш браузер не поддерживает видео.
+          </video>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute inset-0 -z-10 cursor-default"
+        aria-label="Закрыть"
+      />
+    </div>
+  );
+}
+
+export default function TrainingClient({ data }: Props) {
   const [openKey, setOpenKey] = useState<TrainingSectionKey | null>(
     "presentations",
   );
-
-  // Search controls only for file lists
   const [q, setQ] = useState("");
-  const [kindFilter, setKindFilter] = useState<"ALL" | TrainingFile["kind"]>(
-    "ALL",
+  const [videoModal, setVideoModal] = useState<VideoModalState>(null);
+
+  const presentationTiles = useMemo(
+    () => mapPresentationTiles(data.presentations),
+    [data.presentations],
+  );
+
+  const salesItems = useMemo(() => mapFileList(data.sales), [data.sales]);
+  const interiorItems = useMemo(
+    () => mapFileList(data.interior),
+    [data.interior],
   );
 
   const filteredFilesBySection = useMemo(() => {
     const query = q.trim().toLowerCase();
 
-    const filterList = (items: TrainingFile[]): TrainingFile[] =>
-      items.filter((it) => {
-        const okKind = kindFilter === "ALL" ? true : it.kind === kindFilter;
-        if (!okKind) return false;
+    const filterList = (items: FileListItem[]) =>
+      items.filter((item) => {
         if (!query) return true;
-        const inTitle = it.title.toLowerCase().includes(query);
-        const inTags = (it.tags ?? []).some((t) =>
-          t.toLowerCase().includes(query),
-        );
-        return inTitle || inTags;
-      });
 
-    const salesItems = SECTIONS.find((s) => s.key === "sales")?.items ?? [];
-    const styleItems = SECTIONS.find((s) => s.key === "style")?.items ?? [];
+        const inTitle = item.title.toLowerCase().includes(query);
+        const inTags = (item.tags ?? []).some((tag) =>
+          tag.toLowerCase().includes(query),
+        );
+        const inDesc = item.description?.toLowerCase().includes(query) ?? false;
+
+        return inTitle || inTags || inDesc;
+      });
 
     return {
       sales: filterList(salesItems),
-      style: filterList(styleItems),
+      interior: filterList(interiorItems),
     };
-  }, [q, kindFilter]);
+  }, [interiorItems, q, salesItems]);
+
+  const isSearching = q.trim().length > 0;
 
   return (
-    <div className="space-y-6">
-      <header>
-        <div className="text-sm text-black/45">Dealer Portal</div>
-        <h1 className="mt-1 text-[22px] font-semibold tracking-[-0.02em] text-black">
-          Учебные материалы
-        </h1>
-        <p className="mt-1 text-sm text-black/55">
-          Откройте раздел — выберите материал — скачивание начнётся сразу.
-        </p>
-      </header>
-
-      {/* Search controls (only for file lists) */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative w-full max-w-[520px]">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Поиск по файлам (продажи / интерьер)…"
-            className="w-full cursor-pointer rounded-[14px] border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-black/35 focus:border-black/20"
-          />
-          {q ? (
-            <button
-              type="button"
-              onClick={() => setQ("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full px-3 py-1 text-xs text-black/55 hover:text-black"
-            >
-              Очистить
-            </button>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setKindFilter("ALL")}
-            className={cn(
-              "cursor-pointer rounded-full border px-3 py-2 text-xs font-semibold tracking-[0.06em] transition-colors",
-              "border-black/10 bg-white text-black/65 hover:text-black",
-              kindFilter === "ALL" &&
-                "bg-[#F3EBD2] border-[#E4D9B8] text-black",
-            )}
-          >
-            ALL
-          </button>
-          {(["PDF", "PPTX", "VIDEO", "DOC"] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setKindFilter(k)}
-              className={cn(
-                "cursor-pointer rounded-full border px-3 py-2 text-xs font-semibold tracking-[0.06em] transition-colors",
-                "border-black/10 bg-white text-black/65 hover:text-black",
-                kindFilter === k && "bg-[#F3EBD2] border-[#E4D9B8] text-black",
-              )}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Accordion */}
-      <div className="space-y-4">
-        {/* 1) Presentations -> tiles (6 collections + workbook) */}
-        <SectionCard
-          open={openKey === "presentations"}
-          title="Учебные презентации"
-          subtitle="Коллекции (6) + рабочая тетрадь для заметок."
-          onToggle={() =>
-            setOpenKey(openKey === "presentations" ? null : "presentations")
-          }
-        >
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {PRESENTATION_TILES.map((it) => (
-              <PresentationTileCard key={it.id} it={it} />
-            ))}
+    <>
+      <div className="space-y-6">
+        <header className="relative overflow-hidden rounded-[26px] border border-[#E7DCC2] bg-[linear-gradient(180deg,#fffdf8_0%,#fffaf1_100%)] px-6 py-6 shadow-[0_18px_40px_rgba(61,46,17,0.04)]">
+          <span className="absolute inset-0 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(236,218,175,0.34)_0%,rgba(236,218,175,0)_52%)]" />
+          <div className="relative z-[1]">
+            <div className="inline-flex rounded-full border border-black/10 bg-white/85 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/50">
+              Dealer Portal
+            </div>
+            <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.03em] text-black">
+              Учебные материалы
+            </h1>
+            <p className="mt-2 max-w-[760px] text-sm text-black/55">
+              Презентации, материалы по продажам, интерьерные гайды и рабочая
+              тетрадь для заметок. Выберите нужный материал — действие
+              выполнится сразу.
+            </p>
           </div>
-        </SectionCard>
+        </header>
 
-        {/* 2) Sales -> file list */}
-        <SectionCard
-          open={openKey === "sales"}
-          title="Материалы по продажам"
-          subtitle="Скрипты, чек-листы, стандарты — скачивание сразу."
-          onToggle={() => setOpenKey(openKey === "sales" ? null : "sales")}
-        >
-          {filteredFilesBySection.sales.length === 0 ? (
-            <div className="rounded-[14px] border border-black/10 bg-white px-4 py-3 text-sm text-black/55">
-              Ничего не найдено.
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {filteredFilesBySection.sales.map((it) => (
-                <li key={it.id}>
-                  <a
-                    href={it.fileHref}
-                    download
-                    className={cn(
-                      "group flex cursor-pointer items-center justify-between gap-4",
-                      "rounded-[14px] border border-black/10 bg-white px-4 py-3",
-                      "transition-colors duration-200 hover:bg-black/[0.02]",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-black">
-                        {it.title}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-black/45">
-                        <KindPill kind={it.kind} />
-                        {it.size ? <span>{it.size}</span> : null}
-                        {it.tags && it.tags.length ? (
-                          <span className="truncate">
-                            • {it.tags.join(" • ")}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
+        <div className="flex flex-col gap-3">
+          <div className="relative w-full max-w-[680px]">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Поиск по файлам (продажи / интерьер)..."
+              className="w-full rounded-[16px] border border-[#E4D7B8] bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-black/35 shadow-[0_8px_20px_rgba(40,30,10,0.03)] focus:border-[#D9C38C]"
+            />
+            {q ? (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full px-3 py-1 text-xs text-black/55 hover:text-black"
+              >
+                Очистить
+              </button>
+            ) : null}
+          </div>
+        </div>
 
-                    <span className="text-xs font-semibold tracking-[0.08em] text-black/45 group-hover:text-black/70">
-                      Скачать
-                    </span>
-                  </a>
-                </li>
+        <div className="space-y-5">
+          <SectionCard
+            toneKey="presentations"
+            open={!isSearching && openKey === "presentations"}
+            title="Учебные презентации"
+            subtitle={`Коллекции (${data.presentations.length}) + рабочая тетрадь для заметок.`}
+            onToggle={() =>
+              setOpenKey(openKey === "presentations" ? null : "presentations")
+            }
+          >
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {presentationTiles.map((it) => (
+                <PresentationTileCard key={it.id} it={it} />
               ))}
-            </ul>
-          )}
-        </SectionCard>
-
-        {/* 3) Style -> file list */}
-        <SectionCard
-          open={openKey === "style"}
-          title="Стиль и интерьер"
-          subtitle="Lookbook, гайды, видео — скачивание сразу."
-          onToggle={() => setOpenKey(openKey === "style" ? null : "style")}
-        >
-          {filteredFilesBySection.style.length === 0 ? (
-            <div className="rounded-[14px] border border-black/10 bg-white px-4 py-3 text-sm text-black/55">
-              Ничего не найдено.
             </div>
-          ) : (
-            <ul className="space-y-2">
-              {filteredFilesBySection.style.map((it) => (
-                <li key={it.id}>
-                  <a
-                    href={it.fileHref}
-                    download
-                    className={cn(
-                      "group flex cursor-pointer items-center justify-between gap-4",
-                      "rounded-[14px] border border-black/10 bg-white px-4 py-3",
-                      "transition-colors duration-200 hover:bg-black/[0.02]",
-                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-black">
-                        {it.title}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-black/45">
-                        <KindPill kind={it.kind} />
-                        {it.size ? <span>{it.size}</span> : null}
-                        {it.tags && it.tags.length ? (
-                          <span className="truncate">
-                            • {it.tags.join(" • ")}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
+          </SectionCard>
 
-                    <span className="text-xs font-semibold tracking-[0.08em] text-black/45 group-hover:text-black/70">
-                      Скачать
-                    </span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
+          <SectionCard
+            toneKey="sales"
+            open={
+              isSearching
+                ? filteredFilesBySection.sales.length > 0
+                : openKey === "sales"
+            }
+            title="Материалы по продажам"
+            subtitle="Скрипты, чек-листы, стандарты"
+            onToggle={() => setOpenKey(openKey === "sales" ? null : "sales")}
+          >
+            {filteredFilesBySection.sales.length === 0 ? (
+              <div className="rounded-[16px] border border-black/10 bg-white px-4 py-3 text-sm text-black/55">
+                Пока нет доступных материалов.
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {filteredFilesBySection.sales.map((item) => (
+                  <li key={item.id}>
+                    <FileRow
+                      item={item}
+                      onOpenVideo={(title, src) =>
+                        setVideoModal({ title, src })
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            toneKey="interior"
+            open={
+              isSearching
+                ? filteredFilesBySection.interior.length > 0
+                : openKey === "interior"
+            }
+            title="Стиль и интерьер"
+            subtitle="Lookbook, гайды, видео — скачивание сразу."
+            onToggle={() =>
+              setOpenKey(openKey === "interior" ? null : "interior")
+            }
+          >
+            {filteredFilesBySection.interior.length === 0 ? (
+              <div className="rounded-[16px] border border-black/10 bg-white px-4 py-3 text-sm text-black/55">
+                Пока нет доступных материалов.
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {filteredFilesBySection.interior.map((item) => (
+                  <li key={item.id}>
+                    <FileRow
+                      item={item}
+                      onOpenVideo={(title, src) =>
+                        setVideoModal({ title, src })
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        </div>
       </div>
 
-      <div className="pt-1 text-center text-xs text-black/45">
-        Нажмите на элемент — действие выполнится сразу.
-      </div>
-    </div>
+      <VideoModal video={videoModal} onClose={() => setVideoModal(null)} />
+    </>
   );
 }

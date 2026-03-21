@@ -19,31 +19,44 @@ function now() {
 }
 
 function makeId(): string {
-  // stable enough for local notes
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function safeParseNotes(raw: string | null): Note[] {
   if (!raw) return [];
+
   try {
-    const v: unknown = JSON.parse(raw);
-    if (!Array.isArray(v)) return [];
-    return v
-      .map((x): Note | null => {
-        if (!x || typeof x !== "object") return null;
-        const r = x as Record<string, unknown>;
-        const id = typeof r.id === "string" ? r.id : "";
-        const title = typeof r.title === "string" ? r.title : "";
-        const body = typeof r.body === "string" ? r.body : "";
-        const tags = Array.isArray(r.tags)
-          ? r.tags.filter((t): t is string => typeof t === "string")
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return [];
+
+    return value
+      .map((item): Note | null => {
+        if (!item || typeof item !== "object") return null;
+
+        const record = item as Record<string, unknown>;
+        const id = typeof record.id === "string" ? record.id : "";
+        const title = typeof record.title === "string" ? record.title : "";
+        const body = typeof record.body === "string" ? record.body : "";
+        const tags = Array.isArray(record.tags)
+          ? record.tags.filter((tag): tag is string => typeof tag === "string")
           : [];
-        const pinned = typeof r.pinned === "boolean" ? r.pinned : false;
-        const updatedAt = typeof r.updatedAt === "number" ? r.updatedAt : 0;
+        const pinned =
+          typeof record.pinned === "boolean" ? record.pinned : false;
+        const updatedAt =
+          typeof record.updatedAt === "number" ? record.updatedAt : 0;
+
         if (!id) return null;
-        return { id, title, body, tags, pinned, updatedAt };
+
+        return {
+          id,
+          title,
+          body,
+          tags,
+          pinned,
+          updatedAt,
+        };
       })
-      .filter((x): x is Note => !!x);
+      .filter((item): item is Note => Boolean(item));
   } catch {
     return [];
   }
@@ -72,19 +85,17 @@ function loadNotesOnce(): Note[] {
 }
 
 export default function WorkbookClient() {
-  // ✅ init from localStorage without useEffect
   const [notes, setNotes] = useState<Note[]>(() => loadNotesOnce());
 
-  // ✅ init activeId from initial notes without useEffect
   const [activeId, setActiveId] = useState<string | null>(() => {
     const initial = loadNotesOnce();
     return initial[0]?.id ?? null;
   });
 
   const [query, setQuery] = useState("");
-  const [tagInput, setTagInput] = useState("");
+  const [filterTag, setFilterTag] = useState("");
+  const [newTagInput, setNewTagInput] = useState("");
 
-  // persist
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
@@ -92,36 +103,38 @@ export default function WorkbookClient() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const t = tagInput.trim().toLowerCase();
+    const t = filterTag.trim().toLowerCase();
 
-    const base = notes.filter((n) => {
+    const base = notes.filter((note) => {
       const okQ =
         !q ||
-        n.title.toLowerCase().includes(q) ||
-        n.body.toLowerCase().includes(q) ||
-        n.tags.some((x) => x.toLowerCase().includes(q));
+        note.title.toLowerCase().includes(q) ||
+        note.body.toLowerCase().includes(q) ||
+        note.tags.some((tag) => tag.toLowerCase().includes(q));
 
-      const okT = !t || n.tags.some((x) => x.toLowerCase() === t);
+      const okT = !t || note.tags.some((tag) => tag.toLowerCase() === t);
+
       return okQ && okT;
     });
 
     const pinned = base
-      .filter((n) => n.pinned)
+      .filter((note) => note.pinned)
       .sort((a, b) => b.updatedAt - a.updatedAt);
+
     const rest = base
-      .filter((n) => !n.pinned)
+      .filter((note) => !note.pinned)
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     return [...pinned, ...rest];
-  }, [notes, query, tagInput]);
+  }, [filterTag, notes, query]);
 
   const active = useMemo(
-    () => notes.find((n) => n.id === activeId) ?? null,
+    () => notes.find((note) => note.id === activeId) ?? null,
     [notes, activeId],
   );
 
   function createNote() {
-    const n: Note = {
+    const note: Note = {
       id: makeId(),
       title: "Новая заметка",
       body: "",
@@ -129,134 +142,159 @@ export default function WorkbookClient() {
       pinned: false,
       updatedAt: now(),
     };
-    setNotes((prev) => [n, ...prev]);
-    setActiveId(n.id);
+
+    setNotes((prev) => [note, ...prev]);
+    setActiveId(note.id);
+    setNewTagInput("");
   }
 
   function deleteNote(id: string) {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
-    setActiveId((prev) => (prev === id ? null : prev));
+    setNotes((prev) => {
+      const next = prev.filter((note) => note.id !== id);
+
+      if (activeId === id) {
+        setActiveId(next[0]?.id ?? null);
+      }
+
+      return next;
+    });
   }
 
   function updateActive(
     patch: Partial<Pick<Note, "title" | "body" | "tags" | "pinned">>,
   ) {
     if (!active) return;
+
     setNotes((prev) =>
-      prev.map((n) =>
-        n.id === active.id
+      prev.map((note) =>
+        note.id === active.id
           ? {
-              ...n,
+              ...note,
               ...patch,
               updatedAt: now(),
             }
-          : n,
+          : note,
       ),
     );
   }
 
   function addTag(tag: string) {
     if (!active) return;
+
     const clean = tag.trim();
     if (!clean) return;
+
     const next = Array.from(new Set([...(active.tags ?? []), clean]));
     updateActive({ tags: next });
   }
 
   function removeTag(tag: string) {
     if (!active) return;
-    updateActive({ tags: active.tags.filter((t) => t !== tag) });
+    updateActive({ tags: active.tags.filter((item) => item !== tag) });
   }
 
   return (
     <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm text-black/45">Dealer Portal</div>
-          <h1 className="mt-1 text-[22px] font-semibold tracking-[-0.02em] text-black">
-            Рабочая тетрадь
-          </h1>
-          <p className="mt-1 text-sm text-black/55">
-            Личные заметки сохраняются на этом устройстве.
-          </p>
-        </div>
+      <header className="relative overflow-hidden rounded-[26px] border border-[#E7DCC2] bg-[linear-gradient(180deg,#fffdf8_0%,#fffaf1_100%)] px-6 py-6 shadow-[0_18px_40px_rgba(61,46,17,0.04)]">
+        <span className="absolute inset-0 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(236,218,175,0.34)_0%,rgba(236,218,175,0)_52%)]" />
+        <div className="relative z-[1] flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="inline-flex rounded-full border border-black/10 bg-white/85 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/50">
+              Dealer Portal
+            </div>
+            <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.03em] text-black">
+              Рабочая тетрадь
+            </h1>
+            <p className="mt-2 max-w-[720px] text-sm text-black/55">
+              Личные заметки по встречам, возражениям и клиентским кейсам. Всё
+              сохраняется на этом устройстве автоматически.
+            </p>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Link
-            href="/dealer/training"
-            className="cursor-pointer rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-black/70 hover:text-black transition-colors"
-          >
-            Назад
-          </Link>
-          <button
-            type="button"
-            onClick={createNote}
-            className="cursor-pointer rounded-full border border-black/10 bg-[#F3EBD2] px-4 py-2 text-sm font-semibold text-black hover:bg-[#efe4c6] transition-colors"
-            style={{ borderColor: "rgba(189, 160, 86, 0.28)" }}
-          >
-            + Новая заметка
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dealer/training"
+              className="cursor-pointer rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-black/70 transition-all hover:-translate-y-[1px] hover:text-black hover:shadow-[0_8px_18px_rgba(40,30,10,0.06)]"
+            >
+              Назад
+            </Link>
+
+            <button
+              type="button"
+              onClick={createNote}
+              className="cursor-pointer rounded-full border border-black/10 bg-[#F3EBD2] px-4 py-2 text-sm font-semibold text-black transition-all hover:-translate-y-[1px] hover:bg-[#efe4c6] hover:shadow-[0_8px_18px_rgba(40,30,10,0.08)]"
+              style={{ borderColor: "rgba(189, 160, 86, 0.28)" }}
+            >
+              + Новая заметка
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        {/* Sidebar */}
+      <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
         <aside
-          className="rounded-[18px] border bg-white p-4"
+          className="rounded-[24px] border bg-[linear-gradient(180deg,#fffdf9_0%,#ffffff_100%)] p-4 shadow-[0_18px_42px_rgba(61,46,17,0.04)]"
           style={{ borderColor: "rgba(189, 160, 86, 0.22)" }}
         >
+          <div className="mb-3 inline-flex rounded-full border border-black/10 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/50">
+            Мои заметки
+          </div>
+
           <div className="flex flex-col gap-2">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Поиск по заметкам…"
-              className="w-full cursor-pointer rounded-[14px] border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none placeholder:text-black/35 focus:border-black/20"
+              placeholder="Поиск по заметкам..."
+              className="w-full rounded-[14px] border border-[#E4D7B8] bg-white px-3 py-2 text-sm text-black outline-none placeholder:text-black/35 focus:border-[#D9C38C]"
             />
+
             <input
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
+              value={filterTag}
+              onChange={(e) => setFilterTag(e.target.value)}
               placeholder="Фильтр по тегу (например: возражения)"
-              className="w-full cursor-pointer rounded-[14px] border border-black/10 bg-white px-3 py-2 text-sm text-black outline-none placeholder:text-black/35 focus:border-black/20"
+              className="w-full rounded-[14px] border border-[#E4D7B8] bg-white px-3 py-2 text-sm text-black outline-none placeholder:text-black/35 focus:border-[#D9C38C]"
             />
           </div>
 
-          <div className="mt-3 space-y-2">
+          <div className="mt-4 space-y-2">
             {filtered.length === 0 ? (
-              <div className="rounded-[14px] border border-black/10 bg-white px-3 py-3 text-sm text-black/55">
+              <div className="rounded-[16px] border border-dashed border-[#D8C79D] bg-[#FFF9EC] px-3 py-4 text-sm text-black/55">
                 Пусто. Создайте первую заметку.
               </div>
             ) : (
-              filtered.map((n) => {
-                const isActive = n.id === activeId;
+              filtered.map((note) => {
+                const isActive = note.id === activeId;
+
                 return (
                   <button
-                    key={n.id}
+                    key={note.id}
                     type="button"
-                    onClick={() => setActiveId(n.id)}
+                    onClick={() => setActiveId(note.id)}
                     className={cn(
-                      "w-full cursor-pointer text-left",
-                      "rounded-[14px] border px-3 py-3",
-                      "transition-colors",
+                      "w-full cursor-pointer rounded-[16px] border px-3 py-3 text-left transition-all",
                       isActive
-                        ? "bg-[#F3EBD2] text-black"
-                        : "bg-white text-black hover:bg-black/[0.02]",
+                        ? "bg-[#F6EDD6] text-black shadow-[0_10px_22px_rgba(80,60,20,0.06)]"
+                        : "bg-white text-black hover:-translate-y-[1px] hover:bg-[#fffdf8] hover:shadow-[0_8px_18px_rgba(40,30,10,0.04)]",
                       "border-black/10",
                     )}
                     style={
                       isActive
-                        ? { borderColor: "rgba(189, 160, 86, 0.28)" }
+                        ? { borderColor: "rgba(189, 160, 86, 0.30)" }
                         : undefined
                     }
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold">
-                          {n.pinned ? "★ " : ""}
-                          {n.title || "Без названия"}
+                          {note.pinned ? "★ " : ""}
+                          {note.title || "Без названия"}
                         </div>
+
                         <div className="mt-1 truncate text-xs text-black/45">
-                          {formatTime(n.updatedAt)}
-                          {n.tags.length ? ` • ${n.tags.join(" • ")}` : ""}
+                          {formatTime(note.updatedAt)}
+                          {note.tags.length
+                            ? ` • ${note.tags.join(" • ")}`
+                            : ""}
                         </div>
                       </div>
                     </div>
@@ -267,103 +305,111 @@ export default function WorkbookClient() {
           </div>
         </aside>
 
-        {/* Editor */}
         <section
-          className="rounded-[18px] border bg-white p-5"
+          className="relative overflow-hidden rounded-[26px] border bg-[linear-gradient(180deg,#fffefb_0%,#fffdfa_100%)] p-0 shadow-[0_18px_42px_rgba(61,46,17,0.04)]"
           style={{ borderColor: "rgba(189, 160, 86, 0.22)" }}
         >
+          <span className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(180deg,transparent_0px,transparent_34px,rgba(225,214,184,0.42)_35px)]" />
+          <span className="pointer-events-none absolute left-[54px] top-0 h-full w-px bg-[#E8D4C5]" />
+
           {!active ? (
-            <div className="rounded-[14px] border border-black/10 bg-white px-4 py-4 text-sm text-black/55">
-              Выберите заметку слева или создайте новую.
+            <div className="relative z-[1] p-6">
+              <div className="rounded-[16px] border border-black/10 bg-white px-4 py-4 text-sm text-black/55">
+                Выберите заметку слева или создайте новую.
+              </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <input
-                  value={active.title}
-                  onChange={(e) => updateActive({ title: e.target.value })}
-                  className="w-full cursor-pointer rounded-[14px] border border-black/10 bg-white px-4 py-3 text-[16px] font-semibold text-black outline-none focus:border-black/20"
-                  placeholder="Название заметки…"
-                />
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => updateActive({ pinned: !active.pinned })}
-                    className={cn(
-                      "cursor-pointer rounded-full border px-3 py-2 text-xs font-semibold tracking-[0.08em] transition-colors",
-                      "border-black/10 bg-white text-black/70 hover:text-black",
-                      active.pinned && "bg-[#F3EBD2]",
-                    )}
-                    style={
-                      active.pinned
-                        ? { borderColor: "rgba(189, 160, 86, 0.28)" }
-                        : undefined
-                    }
-                  >
-                    {active.pinned ? "ЗАКРЕПЛЕНО" : "ЗАКРЕПИТЬ"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => deleteNote(active.id)}
-                    className="cursor-pointer rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold tracking-[0.08em] text-black/60 hover:text-black transition-colors"
-                  >
-                    УДАЛИТЬ
-                  </button>
-                </div>
-              </div>
-
-              {/* Tags */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-xs font-semibold tracking-[0.12em] text-black/45">
-                  ТЕГИ:
-                </div>
-
-                {active.tags.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => removeTag(t)}
-                    className="cursor-pointer rounded-full border border-black/10 bg-white px-3 py-1 text-xs text-black/70 hover:text-black transition-colors"
-                    title="Нажмите, чтобы убрать тег"
-                  >
-                    {t} ✕
-                  </button>
-                ))}
-
-                <div className="flex items-center gap-2">
+            <div className="relative z-[1] p-6 pl-[74px]">
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <input
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    placeholder="добавить тег…"
-                    className="w-[180px] cursor-pointer rounded-[12px] border border-black/10 bg-white px-3 py-2 text-xs text-black outline-none placeholder:text-black/35 focus:border-black/20"
+                    value={active.title}
+                    onChange={(e) => updateActive({ title: e.target.value })}
+                    className="w-full rounded-[14px] border border-[#E4D7B8] bg-white/90 px-4 py-3 text-[17px] font-semibold text-black outline-none focus:border-[#D9C38C]"
+                    placeholder="Название заметки..."
                   />
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateActive({ pinned: !active.pinned })}
+                      className={cn(
+                        "cursor-pointer rounded-full border px-3 py-2 text-xs font-semibold tracking-[0.08em] transition-all",
+                        "border-black/10 bg-white text-black/70 hover:-translate-y-[1px] hover:text-black hover:shadow-[0_8px_18px_rgba(40,30,10,0.06)]",
+                        active.pinned && "bg-[#F3EBD2]",
+                      )}
+                      style={
+                        active.pinned
+                          ? { borderColor: "rgba(189, 160, 86, 0.28)" }
+                          : undefined
+                      }
+                    >
+                      {active.pinned ? "ЗАКРЕПЛЕНО" : "ЗАКРЕПИТЬ"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteNote(active.id)}
+                      className="cursor-pointer rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold tracking-[0.08em] text-black/60 transition-all hover:-translate-y-[1px] hover:text-black hover:shadow-[0_8px_18px_rgba(40,30,10,0.06)]"
+                    >
+                      УДАЛИТЬ
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-xs font-semibold tracking-[0.12em] text-black/45">
+                    ТЕГИ:
+                  </div>
+
+                  {active.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#D8C79D] bg-[#FFF9EC] px-3 py-1.5 text-xs text-black/70"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="cursor-pointer text-black/40 transition-colors hover:text-black"
+                        aria-label={`Удалить тег ${tag}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+
+                  <input
+                    value={newTagInput}
+                    onChange={(e) => setNewTagInput(e.target.value)}
+                    placeholder="добавить тег..."
+                    className="w-[190px] rounded-[12px] border border-[#E4D7B8] bg-white px-3 py-2 text-xs text-black outline-none placeholder:text-black/35 focus:border-[#D9C38C]"
+                  />
+
                   <button
                     type="button"
                     onClick={() => {
-                      addTag(tagInput);
-                      setTagInput("");
+                      addTag(newTagInput);
+                      setNewTagInput("");
                     }}
-                    className="cursor-pointer rounded-full border border-black/10 bg-[#F3EBD2] px-3 py-2 text-xs font-semibold text-black hover:bg-[#efe4c6] transition-colors"
+                    className="cursor-pointer rounded-full border border-black/10 bg-[#F3EBD2] px-3 py-2 text-xs font-semibold text-black transition-all hover:-translate-y-[1px] hover:bg-[#efe4c6]"
                     style={{ borderColor: "rgba(189, 160, 86, 0.28)" }}
                   >
                     + ТЕГ
                   </button>
                 </div>
-              </div>
 
-              {/* Body */}
-              <textarea
-                value={active.body}
-                onChange={(e) => updateActive({ body: e.target.value })}
-                placeholder="Пишите заметки по работе: что спросил клиент, что предложили, какие возражения, что сработало…"
-                className="min-h-[360px] w-full cursor-pointer resize-y rounded-[16px] border border-black/10 bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-black/35 focus:border-black/20"
-              />
+                <textarea
+                  value={active.body}
+                  onChange={(e) => updateActive({ body: e.target.value })}
+                  placeholder="Пишите заметки по работе: что спросил клиент, что предложили, какие возражения, что сработало..."
+                  className="min-h-[440px] w-full resize-y rounded-[18px] border border-[#E4D7B8] bg-white/75 px-4 py-4 text-sm leading-9 text-black outline-none placeholder:text-black/35 focus:border-[#D9C38C]"
+                />
 
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-black/45">
-                <div>Последнее изменение: {formatTime(active.updatedAt)}</div>
-                <div>Сохраняется автоматически</div>
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-black/45">
+                  <div>Последнее изменение: {formatTime(active.updatedAt)}</div>
+                  <div>Сохраняется автоматически</div>
+                </div>
               </div>
             </div>
           )}
