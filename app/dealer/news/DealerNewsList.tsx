@@ -38,17 +38,50 @@ function toInputDate(dateString: string | null): string {
   }
 }
 
-function getTodayInputDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = `${now.getMonth() + 1}`.padStart(2, "0");
-  const day = `${now.getDate()}`.padStart(2, "0");
+function kindLabel(item: DealerNewsItem): string {
+  if (item.source === "calendar") {
+    switch (item.eventType) {
+      case "training":
+        return "ОБУЧЕНИЕ";
+      case "webinar":
+        return "ВЕБИНАР";
+      case "meeting":
+        return "ВСТРЕЧА";
+      case "exhibition":
+        return "СОБЫТИЕ";
+      case "important":
+        return "ВАЖНО";
+      case "industry":
+        return "ИНДУСТРИЯ";
+      default:
+        return "СОБЫТИЕ";
+    }
+  }
 
-  return `${year}-${month}-${day}`;
+  return item.kind === "promo" ? "АКЦИЯ" : "НОВОСТЬ";
 }
 
-function kindLabel(kind: "news" | "promo"): string {
-  return kind === "promo" ? "АКЦИЯ" : "НОВОСТЬ";
+function kindBadgeClass(item: DealerNewsItem): string {
+  if (item.source === "calendar") {
+    return "bg-red-500 text-white border-red-500";
+  }
+
+  return "bg-[#F3E7C4] text-[#7A5A16] border-[#E2C982]";
+}
+
+function canShowApplyBadge(item: DealerNewsItem): boolean {
+  return (
+    item.source === "calendar" &&
+    item.isRegistrationOpen &&
+    (item.eventType === "training" || item.eventType === "webinar")
+  );
+}
+
+function getApplyHref(item: DealerNewsItem): string {
+  if (!item.href) return "/dealer/calendar";
+  return item.href.includes("?")
+    ? `${item.href}&apply=1`
+    : `${item.href}?apply=1`;
 }
 
 type Props = {
@@ -57,7 +90,7 @@ type Props = {
 
 export default function DealerNewsList({ items }: Props) {
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
-  const [selectedDate, setSelectedDate] = useState(getTodayInputDate());
+  const [selectedDate, setSelectedDate] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
 
   const allTags = useMemo(() => {
@@ -90,6 +123,10 @@ export default function DealerNewsList({ items }: Props) {
     });
 
     next.sort((a, b) => {
+      if (a.isPinned !== b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+
       const aTime = new Date(a.publishedAt || a.createdAt).getTime();
       const bTime = new Date(b.publishedAt || b.createdAt).getTime();
 
@@ -105,7 +142,7 @@ export default function DealerNewsList({ items }: Props) {
 
   const resetFilters = () => {
     setSortOrder("newest");
-    setSelectedDate(getTodayInputDate());
+    setSelectedDate("");
     setSelectedTag("");
   };
 
@@ -226,12 +263,23 @@ export default function DealerNewsList({ items }: Props) {
 
             return (
               <article
-                key={item.id}
-                className="group rounded-[24px] border border-black/10 bg-white p-5 shadow-[0_18px_50px_-40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-[2px] hover:border-black/15 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,1)_100%)] hover:shadow-[0_22px_50px_-34px_rgba(0,0,0,0.2)] md:p-6"
+                key={`${item.source}-${item.id}`}
+                className="group relative overflow-hidden rounded-[24px] border border-black/10 bg-white p-5 shadow-[0_18px_50px_-40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-[2px] hover:border-black/15 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,1)_100%)] hover:shadow-[0_22px_50px_-34px_rgba(0,0,0,0.2)] md:p-6"
               >
+                {item.source === "calendar" ? (
+                  <div className="pointer-events-none absolute right-[-74px] top-[34px] rotate-[38deg] rounded-none border border-[#E7D8A8] bg-[#F6EBCF] px-20 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6E5520] shadow-sm">
+                    Календарь событий
+                  </div>
+                ) : null}
+
                 <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em]">
-                  <span className="rounded-full bg-black/5 px-2.5 py-1 text-black/55">
-                    {kindLabel(item.kind)}
+                  <span
+                    className={cn(
+                      "rounded-full border px-2.5 py-1",
+                      kindBadgeClass(item),
+                    )}
+                  >
+                    {kindLabel(item)}
                   </span>
 
                   {item.isPinned ? (
@@ -245,9 +293,18 @@ export default function DealerNewsList({ items }: Props) {
                       {dateLabel}
                     </span>
                   ) : null}
+
+                  {canShowApplyBadge(item) ? (
+                    <Link
+                      href={getApplyHref(item)}
+                      className="inline-flex animate-pulse items-center rounded-full border border-emerald-400 bg-emerald-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[0_10px_30px_-14px_rgba(16,185,129,0.9)] transition hover:bg-emerald-600"
+                    >
+                      Успейте записаться
+                    </Link>
+                  ) : null}
                 </div>
 
-                <h2 className="mt-4 text-[24px] font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80 md:text-[26px]">
+                <h2 className="mt-4 pr-28 text-[24px] font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80 md:text-[26px]">
                   {item.title}
                 </h2>
 
@@ -261,7 +318,7 @@ export default function DealerNewsList({ items }: Props) {
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {item.hashtags.map((tag) => (
                       <button
-                        key={`${item.id}-${tag}`}
+                        key={`${item.source}-${item.id}-${tag}`}
                         type="button"
                         onClick={() =>
                           setSelectedTag(tag.trim().replace(/^#/, ""))
@@ -275,32 +332,34 @@ export default function DealerNewsList({ items }: Props) {
                 ) : null}
 
                 <div className="mt-4 flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-3 text-[13px] text-black/45">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Eye className="h-4 w-4 transition-colors duration-300 group-hover:text-black/55" />
-                      {item.viewsCount}
-                    </span>
-
-                    <span className="inline-flex items-center gap-1">
-                      <Heart
-                        className={cn(
-                          "h-[15px] w-[15px] transition-transform duration-300 group-hover:scale-110",
-                          (item.likesCount ?? 0) > 0
-                            ? "fill-red-500 text-red-500"
-                            : "text-black/30 group-hover:text-red-400",
-                        )}
-                      />
-                      <span className="text-black/45">
-                        {item.likesCount ?? 0}
+                  {item.source === "news" ? (
+                    <div className="flex items-center gap-3 text-[13px] text-black/45">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Eye className="h-4 w-4 transition-colors duration-300 group-hover:text-black/55" />
+                        {item.viewsCount}
                       </span>
-                    </span>
-                  </div>
+
+                      <span className="inline-flex items-center gap-1">
+                        <Heart
+                          className={cn(
+                            "h-[15px] w-[15px] transition-transform duration-300 group-hover:scale-110",
+                            (item.likesCount ?? 0) > 0
+                              ? "fill-red-500 text-red-500"
+                              : "text-black/30 group-hover:text-red-400",
+                          )}
+                        />
+                        <span className="text-black/45">
+                          {item.likesCount ?? 0}
+                        </span>
+                      </span>
+                    </div>
+                  ) : null}
 
                   <Link
-                    href={`/dealer/news/${item.slug}`}
+                    href={item.href}
                     className="inline-flex items-center gap-2 text-[14px] font-medium text-black transition-all duration-300 group-hover:translate-x-[2px] group-hover:text-black/75"
                   >
-                    Читать подробнее
+                    {item.ctaLabel || "Читать подробнее"}
                     <span aria-hidden="true">→</span>
                   </Link>
                 </div>
