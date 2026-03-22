@@ -40,7 +40,7 @@ export default function DealerLoginPage() {
         throw new Error(j?.error || "Неверный email или пароль");
       }
 
-      router.push("/dealer/me");
+      router.push("/dealer/news");
       router.refresh();
     } catch (err) {
       setError(
