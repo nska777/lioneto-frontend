@@ -161,7 +161,7 @@ export default function DealerNewsList({ items }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <section className="rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_18px_50px_-40px_rgba(0,0,0,0.28)] md:p-5">
         <div className="flex flex-col gap-3">
           <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
@@ -245,6 +245,12 @@ export default function DealerNewsList({ items }: Props) {
             </div>
           ) : null}
         </div>
+      </section>
+
+      <section className="px-1 pt-1">
+        <h2 className="text-[30px] leading-[1.08] font-semibold tracking-[-0.02em] text-black">
+          Новости и акции
+        </h2>
       </section>
 
       {filteredItems.length === 0 ? (

@@ -10,12 +10,8 @@ type NavItem = {
 };
 
 const NAV = [
-  { href: "/dealer/dashboard", label: "Главная" },
-  { href: "/dealer/me", label: "Профиль" },
-
   { href: "/dealer/news", label: "Новости и акции" },
   { href: "/dealer/price-lists", label: "Прайс-листы" },
-
   { href: "/dealer/tech-catalogs", label: "Технические каталоги" },
   { href: "/dealer/instructions", label: "Инструкции по сборке" },
   { href: "/dealer/training", label: "Учебные материалы" },
@@ -36,7 +32,18 @@ export default function DealerSidebar({
 
   return (
     <aside className="w-[260px] shrink-0 border-r border-black/10 bg-white">
-      <nav className="px-4 py-4">
+      <div className="px-4 pt-5 pb-3">
+        <div className="px-3 pb-2 overflow-hidden">
+          <div
+            className="dealer-portal-black-gold relative inline-block whitespace-nowrap text-[13px] font-medium uppercase tracking-[0.08em] text-black"
+            data-text="LIONETO DEALER PORTAL"
+          >
+            LIONETO DEALER PORTAL
+          </div>
+        </div>
+      </div>
+
+      <nav className="px-4 py-2">
         <ul className="space-y-2">
           {NAV.map((item) => {
             const hrefStr = item.href as string;
@@ -62,6 +69,7 @@ export default function DealerSidebar({
             );
           })}
         </ul>
+
         {canAccessAdmin ? (
           <div className="mt-6 border-t border-black/10 pt-4">
             <div className="mb-2 px-3 text-[10px] uppercase tracking-[0.14em] text-black/35">
