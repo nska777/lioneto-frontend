@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 import { getDealerCalendarEventById } from "@/app/lib/dealer/calendar";
 
@@ -41,8 +41,12 @@ const DEALER_JWT_SECRET = process.env.DEALER_JWT_SECRET || "";
 const CALENDAR_REQUEST_TO_EMAIL =
   process.env.CALENDAR_REQUEST_TO_EMAIL ||
   process.env.DEALER_REQUEST_TO_EMAIL ||
-  process.env.SMTP_TO_EMAIL ||
   "";
+
+const EMAIL_FROM =
+  process.env.EMAIL_FROM || "Lioneto <noreply@lioneto.com>";
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 
 const COOKIE_CANDIDATES = [
   "dealer_token",
@@ -50,6 +54,8 @@ const COOKIE_CANDIDATES = [
   "dealer_session",
   "dealer_jwt",
 ];
+
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 function getJwtSecret(): Uint8Array {
   if (!DEALER_JWT_SECRET) {
@@ -103,6 +109,15 @@ function formatDateLabel(dateISO?: string, time?: string): string {
   return time ? `${formatted} в ${time}` : formatted;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 async function createCalendarRequestInStrapi(params: {
   dealer: DealerSessionPayload;
   eventTitle: string;
@@ -115,7 +130,8 @@ async function createCalendarRequestInStrapi(params: {
     throw new Error("STRAPI token is missing");
   }
 
-  const { dealer, eventTitle, eventDate, eventSlug, employees, comment } = params;
+  const { dealer, eventTitle, eventDate, eventSlug, employees, comment } =
+    params;
 
   const payload = {
     data: {
@@ -146,7 +162,9 @@ async function createCalendarRequestInStrapi(params: {
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Failed to create request in Strapi: ${response.status} ${text}`);
+    throw new Error(
+      `Failed to create request in Strapi: ${response.status} ${text}`
+    );
   }
 
   try {
@@ -163,35 +181,18 @@ async function sendCalendarRequestEmail(params: {
   employees: string[];
   comment: string;
 }) {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from =
-    process.env.SMTP_FROM ||
-    process.env.SMTP_USER ||
-    "no-reply@lioneto.local";
-
-  if (!host || !user || !pass || !CALENDAR_REQUEST_TO_EMAIL) {
+  if (!resend || !RESEND_API_KEY || !CALENDAR_REQUEST_TO_EMAIL || !EMAIL_FROM) {
     return {
       sent: false,
-      reason: "SMTP is not configured",
+      reason: "Resend is not configured",
     };
   }
 
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
-  });
-
   const { dealer, eventTitle, eventDateLabel, employees, comment } = params;
 
-  const employeeLines = employees.map((name, index) => `${index + 1}. ${name}`).join("\n");
+  const employeeLines = employees
+    .map((name, index) => `${index + 1}. ${name}`)
+    .join("\n");
 
   const subject = `Новая заявка на обучение — ${dealer.title || "Дилер"}`;
 
@@ -215,13 +216,55 @@ async function sendCalendarRequestEmail(params: {
     comment || "—",
   ].join("\n");
 
-  await transporter.sendMail({
-    from,
+  const htmlEmployees =
+    employees.length > 0
+      ? employees.map((name) => `<li>${escapeHtml(name)}</li>`).join("")
+      : "<li>Не указаны</li>";
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111;">
+      <h2 style="margin:0 0 16px;">Новая заявка из дилерского календаря</h2>
+
+      <p><strong>Дилер:</strong> ${escapeHtml(
+        dealer.title || "Не указан"
+      )}</p>
+      <p><strong>Email:</strong> ${escapeHtml(dealer.email || "Не указан")}</p>
+      <p><strong>Телефон:</strong> ${escapeHtml(
+        dealer.phone || "Не указан"
+      )}</p>
+      <p><strong>Логин:</strong> ${escapeHtml(dealer.login || "Не указан")}</p>
+      <p><strong>Город:</strong> ${escapeHtml(dealer.city || "Не указан")}</p>
+      <p><strong>Регион:</strong> ${escapeHtml(
+        dealer.region || "Не указан"
+      )}</p>
+
+      <hr style="margin:16px 0;" />
+
+      <p><strong>Событие:</strong> ${escapeHtml(eventTitle)}</p>
+      <p><strong>Дата:</strong> ${escapeHtml(eventDateLabel)}</p>
+
+      <p><strong>Сотрудники:</strong></p>
+      <ol>${htmlEmployees}</ol>
+
+      <p><strong>Комментарий:</strong><br />${escapeHtml(comment || "—")}</p>
+    </div>
+  `;
+
+  const result = await resend.emails.send({
+    from: EMAIL_FROM,
     to: CALENDAR_REQUEST_TO_EMAIL,
     replyTo: dealer.email || undefined,
     subject,
     text,
+    html,
   });
+
+  if (result.error) {
+    return {
+      sent: false,
+      reason: result.error.message || "Failed to send via Resend",
+    };
+  }
 
   return {
     sent: true,
