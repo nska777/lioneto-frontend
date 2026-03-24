@@ -18,6 +18,7 @@ import {
 } from "../lib/headerData";
 
 type RegionKey = "uz" | "ru";
+type LangKey = "ru" | "uz";
 
 type GlobalFromStrapi = {
   callCtaLabel?: string | null;
@@ -181,7 +182,6 @@ export default function Header({
 
   return (
     <>
-      {/* ✅ CategoryNav теперь внутри header, фон один */}
       <header className="w-full bg-[#f3f3f3]">
         <TopBar
           dict={dict}
@@ -211,8 +211,8 @@ export default function Header({
         <BrandRow
           region={regionKey}
           setRegion={setRegion}
-          lang={lang}
-          setLang={setLang}
+          lang={lang as LangKey}
+          setLang={setLang as (v: LangKey) => void}
         />
 
         <CategoryNav categories={megaCategories} dict={dict} />
@@ -228,6 +228,8 @@ export default function Header({
       <MobileMenu
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
+        lang={lang as LangKey}
+        setLang={setLang as (v: LangKey) => void}
         links={topLinks.map((x) => ({
           label: x.labelKey ? safeTF(dict, x.labelKey, x.fallback) : x.fallback,
           href: x.href,

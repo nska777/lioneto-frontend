@@ -41,15 +41,35 @@ function IconBtn({
 type LangKey = "ru" | "uz";
 
 type LangUiConfig = {
-  showLanguageToggle?: boolean; // показать/скрыть RU/UZ
-  enabledLanguages?: LangKey[]; // какие языки вообще доступны
-  labels?: Partial<Record<LangKey, string>>; // можно переименовать RU/UZ
+  showLanguageToggle?: boolean;
+  enabledLanguages?: LangKey[];
+  labels?: Partial<Record<LangKey, string>>;
 };
 
 function uniqLangs(list: LangKey[]) {
   const s = new Set<LangKey>();
   for (const v of list) s.add(v);
   return Array.from(s);
+}
+
+function DealerLink() {
+  const GOLD = "#B9893B";
+
+  return (
+    <Link
+      href="/dealer/login"
+      className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = GOLD;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = "";
+      }}
+    >
+      <Briefcase className="h-4 w-4 opacity-70" />
+      ДИЛЕРАМ
+    </Link>
+  );
 }
 
 export default function BrandRow({
@@ -63,7 +83,7 @@ export default function BrandRow({
   setRegion: (v: "uz" | "ru") => void;
   lang: LangKey;
   setLang: (v: LangKey) => void;
-  langUi?: LangUiConfig; // 👈 Strapi-config (прокидываем сверху)
+  langUi?: LangUiConfig;
 }) {
   const { favCount, cartCount } = useShopState();
 
@@ -89,8 +109,6 @@ export default function BrandRow({
       sub.subscription.unsubscribe();
     };
   }, []);
-
-  const GOLD = "#B9893B";
 
   const langUiResolved = useMemo(() => {
     const show = langUi?.showLanguageToggle !== false;
@@ -169,28 +187,58 @@ export default function BrandRow({
                 className="transition-transform duration-300 hover:scale-[1.03]"
               />
             </Link>
+
+            {/* MOBILE DEALER LINK */}
+            <div className="mt-4 flex items-center justify-between md:hidden">
+              <DealerLink />
+
+              <div className="flex items-center gap-1">
+                <IconBtn
+                  label={tt("header.ariaAccount", "Кабинет")}
+                  href={accountHref}
+                >
+                  <User className="h-5 w-5" />
+                </IconBtn>
+
+                <div className="relative">
+                  <IconBtn
+                    label={tt("header.ariaFavorites", "Избранное")}
+                    href="/favorites"
+                  >
+                    <Heart className="h-5 w-5" />
+                  </IconBtn>
+
+                  {favCount > 0 && (
+                    <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] text-white shadow">
+                      {favCount}
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <IconBtn
+                    label={tt("header.ariaCart", "Корзина")}
+                    href="/cart"
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                  </IconBtn>
+
+                  {cartCount > 0 && (
+                    <span className="pointer-events-none absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-black px-1 text-[11px] text-white shadow">
+                      {cartCount}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* RIGHT */}
-          <div className="flex flex-nowrap items-center justify-end gap-3 md:w-[360px]">
-            {/* Дилерам */}
-            <Link
-              href="/dealer/login"
-              className="hidden md:inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = GOLD;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "";
-              }}
-            >
-              <Briefcase className="h-4 w-4 opacity-70" />
-              ДИЛЕРАМ
-            </Link>
+          {/* RIGHT DESKTOP */}
+          <div className="hidden md:flex md:w-[360px] flex-nowrap items-center justify-end gap-3">
+            <DealerLink />
 
-            <span className="hidden md:inline-block h-4 w-px bg-black/10" />
+            <span className="inline-block h-4 w-px bg-black/10" />
 
-            {/* LANG TOGGLE (Strapi-driven show/hide) */}
             {canShowLang && (
               <div className="inline-flex min-w-[86px] rounded-full border-none bg-[#f3f3f3] p-1 shadow-sm">
                 {langUiResolved.enabled.includes("ru") && (

@@ -273,44 +273,46 @@ export default function DealerNewsList({ items }: Props) {
                 className="group relative overflow-hidden rounded-[24px] border border-black/10 bg-white p-5 shadow-[0_18px_50px_-40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-[2px] hover:border-black/15 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,1)_100%)] hover:shadow-[0_22px_50px_-34px_rgba(0,0,0,0.2)] md:p-6"
               >
                 {item.source === "calendar" ? (
-                  <div className="pointer-events-none absolute right-[-74px] top-[34px] rotate-[38deg] rounded-none border border-[#E7D8A8] bg-[#F6EBCF] px-20 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6E5520] shadow-sm">
+                  <div className="pointer-events-none absolute right-[-60px] top-[22px] rotate-[35deg] rounded-none border border-[#E7D8A8] bg-[#F6EBCF] px-[70px] py-1.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-[#6E5520] shadow-sm md:right-[-62px] md:top-[34px] md:px-[92px] md:py-2 md:text-[10px] md:tracking-[0.14em]">
                     Календарь событий
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em]">
-                  <span
-                    className={cn(
-                      "rounded-full border px-2.5 py-1",
-                      kindBadgeClass(item),
-                    )}
-                  >
-                    {kindLabel(item)}
-                  </span>
-
-                  {item.isPinned ? (
-                    <span className="rounded-full bg-black px-2.5 py-1 text-white">
-                      Важно
-                    </span>
-                  ) : null}
-
+                <div className="mb-2">
                   {dateLabel ? (
-                    <span className="normal-case text-[13px] tracking-normal text-black/40">
+                    <div className="mb-2 pr-20 text-[12px] normal-case tracking-normal text-black/40 md:mb-0 md:pr-0 md:text-[13px]">
                       {dateLabel}
-                    </span>
+                    </div>
                   ) : null}
 
-                  {canShowApplyBadge(item) ? (
-                    <Link
-                      href={getApplyHref(item)}
-                      className="inline-flex animate-pulse items-center rounded-full border border-emerald-400 bg-emerald-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[0_10px_30px_-14px_rgba(16,185,129,0.9)] transition hover:bg-emerald-600"
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em]">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1",
+                        kindBadgeClass(item),
+                      )}
                     >
-                      Успейте записаться
-                    </Link>
-                  ) : null}
+                      {kindLabel(item)}
+                    </span>
+
+                    {item.isPinned ? (
+                      <span className="rounded-full bg-black px-2.5 py-1 text-white">
+                        Важно
+                      </span>
+                    ) : null}
+
+                    {canShowApplyBadge(item) ? (
+                      <Link
+                        href={getApplyHref(item)}
+                        className="inline-flex animate-pulse items-center rounded-full border border-emerald-400 bg-emerald-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[0_10px_30px_-14px_rgba(16,185,129,0.9)] transition hover:bg-emerald-600"
+                      >
+                        Успейте записаться
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
 
-                <h2 className="mt-4 pr-28 text-[24px] font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80 md:text-[26px]">
+                <h2 className="mt-3 pr-16 text-[20px] leading-[1.22] font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80 md:mt-4 md:pr-28 md:text-[26px] md:leading-[1.15]">
                   {item.title}
                 </h2>
 

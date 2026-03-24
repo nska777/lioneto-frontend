@@ -10,6 +10,7 @@ import {
   Phone,
   Clock,
   Check,
+  Globe,
 } from "lucide-react";
 
 import {
@@ -20,14 +21,11 @@ import {
 } from "@/app/lib/stores/stores-data";
 
 type MenuLink = { label: string; href: string; isExternal?: boolean };
+type LangKey = "ru" | "uz";
 
 function cn(...s: Array<string | false | null | undefined>) {
   return s.filter(Boolean).join(" ");
 }
-
-/* -------------------------
-   Safe helpers (NO any)
--------------------------- */
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -96,10 +94,6 @@ function normKey(s: string) {
     .replace(/[«»"']/g, "")
     .trim();
 }
-
-/* -------------------------
-   Shared tiny UI pieces (OUTSIDE component)
--------------------------- */
 
 function Divider() {
   return <div className="h-px w-full bg-black/10" />;
@@ -210,124 +204,87 @@ function RegionToggleMini({
   onChange: (v: RegionKey) => void;
 }) {
   return (
-    <div className="inline-flex rounded-full border border-black/10 bg-white p-1">
-      <button
-        type="button"
-        onClick={() => onChange("ru")}
-        className={cn(
-          "h-8 px-4 rounded-full text-[11px] font-medium tracking-[0.18em] transition cursor-pointer",
-          value === "ru"
-            ? "bg-black text-white"
-            : "text-black/70 hover:text-black",
-        )}
-      >
-        РОССИЯ
-      </button>
+    <div className="inline-flex rounded-full bg-[#f3f3f3] p-1 shadow-sm">
       <button
         type="button"
         onClick={() => onChange("uz")}
         className={cn(
-          "h-8 px-4 rounded-full text-[11px] font-medium tracking-[0.18em] transition cursor-pointer",
+          "h-8 rounded-full px-3 text-[12px] tracking-[0.14em] transition",
           value === "uz"
             ? "bg-black text-white"
-            : "text-black/70 hover:text-black",
+            : "text-black/70 hover:bg-black/5 hover:text-black",
         )}
       >
-        УЗБЕКИСТАН
+        UZ
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("ru")}
+        className={cn(
+          "h-8 rounded-full px-3 text-[12px] tracking-[0.14em] transition",
+          value === "ru"
+            ? "bg-black text-white"
+            : "text-black/70 hover:bg-black/5 hover:text-black",
+        )}
+      >
+        RU
       </button>
     </div>
   );
 }
 
-function toTelHref(raw: string) {
-  const cleaned = String(raw || "").replace(/[^\d+]/g, "");
-  if (!cleaned) return "";
-  return cleaned.startsWith("+") ? `tel:${cleaned}` : `tel:+${cleaned}`;
-}
-
-function splitPhones(phone?: string) {
-  const s = String(phone ?? "").trim();
-  if (!s) return [];
-  return s
-    .split("/")
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
-
 function StoreRowMini({
-  active,
   store,
+  active,
   onClick,
 }: {
-  active: boolean;
   store: Store;
+  active: boolean;
   onClick: () => void;
 }) {
-  const phones = splitPhones(store.phone);
+  const hours = String(store.hours ?? "").trim();
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full text-left cursor-pointer rounded-[18px] border p-4 transition",
+        "w-full rounded-[18px] border p-3 text-left transition",
         active
-          ? "border-black/25 bg-black/[0.02]"
-          : "border-black/10 bg-white hover:border-black/20",
+          ? "border-black/20 bg-black/[0.03]"
+          : "border-black/10 bg-white hover:bg-black/[0.02]",
       )}
     >
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "mt-0.5 h-9 w-9 rounded-2xl border flex items-center justify-center shrink-0",
-            active
-              ? "border-black/20 bg-white"
-              : "border-black/10 bg-black/[0.02]",
+            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+            active ? "border-black bg-black text-white" : "border-black/15",
           )}
         >
-          {active ? (
-            <Check className="h-4 w-4 text-black/70" />
-          ) : (
-            <MapPin className="h-4 w-4 text-black/45" />
-          )}
+          {active ? <Check className="h-3.5 w-3.5" /> : null}
         </div>
 
-        <div className="min-w-0 w-full flex-1">
-          <div className="text-[13px] font-semibold tracking-[-0.01em] text-black/90">
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium text-black/85">
             {store.title}
           </div>
 
-          {phones.length ? (
-            <div className="mt-2 flex items-start gap-2 text-[12px] text-black/70">
-              <Phone className="mt-[2px] h-4 w-4 text-black/35 shrink-0" />
-              <div className="min-w-0 w-full">
-                {phones.map((ph, i) => (
-                  <a
-                    key={`${store.id}-ph-${i}`}
-                    href={toTelHref(ph)}
-                    onClick={(e) => e.stopPropagation()}
-                    className={cn(
-                      "block w-full",
-                      "underline underline-offset-4 decoration-black/20",
-                      "hover:decoration-black/40 hover:text-black",
-                      "break-words",
-                    )}
-                  >
-                    {ph}
-                  </a>
-                ))}
-              </div>
+          <div className="mt-1 flex items-start gap-2 text-[12px] text-black/70">
+            <MapPin className="mt-[1px] h-4 w-4 shrink-0 text-black/35" />
+            <span>{store.address}</span>
+          </div>
+
+          {store.phone ? (
+            <div className="mt-2 flex items-center gap-2 text-[12px] text-black/70">
+              <Phone className="h-4 w-4 shrink-0 text-black/35" />
+              <span>{store.phone}</span>
             </div>
           ) : null}
 
-          <div className="mt-2 flex items-start gap-2 text-[12px] text-black/70">
-            <MapPin className="mt-[2px] h-4 w-4 text-black/35 shrink-0" />
-            <span className="leading-5 break-words">{store.address}</span>
-          </div>
-
-          {store.hours ? (
+          {hours ? (
             <div className="mt-2 flex items-center gap-2 text-[12px] text-black/70">
-              <Clock className="h-4 w-4 text-black/35 shrink-0" />
+              <Clock className="h-4 w-4 shrink-0 text-black/35" />
               <span>{store.hours}</span>
             </div>
           ) : null}
@@ -338,7 +295,6 @@ function StoreRowMini({
 }
 
 function ContactsMiniBlock() {
-  // дефолт УЗ
   const [region, setRegion] = useState<RegionKey>("uz");
   const stores = useMemo(
     () => (region === "ru" ? RU_STORES : UZ_STORES),
@@ -400,6 +356,50 @@ function ContactsMiniBlock() {
   );
 }
 
+function LanguageMiniBlock({
+  lang,
+  setLang,
+}: {
+  lang: LangKey;
+  setLang: (v: LangKey) => void;
+}) {
+  return (
+    <div className="pb-1">
+      <div className="mb-3 flex items-center gap-2 text-[11px] tracking-[0.18em] text-black/45">
+        <Globe className="h-4 w-4 text-black/40" />
+        ЯЗЫК
+      </div>
+
+      <div className="inline-flex rounded-full bg-[#f3f3f3] p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setLang("ru")}
+          className={cn(
+            "h-9 rounded-full px-4 text-[12px] tracking-[0.14em] transition cursor-pointer",
+            lang === "ru"
+              ? "bg-black text-white"
+              : "text-black/70 hover:bg-black/5 hover:text-black",
+          )}
+        >
+          RU
+        </button>
+        <button
+          type="button"
+          onClick={() => setLang("uz")}
+          className={cn(
+            "h-9 rounded-full px-4 text-[12px] tracking-[0.14em] transition cursor-pointer",
+            lang === "uz"
+              ? "bg-black text-white"
+              : "text-black/70 hover:bg-black/5 hover:text-black",
+          )}
+        >
+          UZ
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type RoomItem = { title: string; href: string };
 type Room = { key: string; title: string; items: RoomItem[] };
 
@@ -408,11 +408,15 @@ export default function MobileMenu({
   onClose,
   links,
   categories,
+  lang,
+  setLang,
 }: {
   open: boolean;
   onClose: () => void;
   links: readonly MenuLink[];
   categories?: unknown[];
+  lang: LangKey;
+  setLang: (v: LangKey) => void;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -454,7 +458,6 @@ export default function MobileMenu({
     };
   }, [open]);
 
-  // esc close (effect is fine: no setState, just event cleanup)
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -495,8 +498,6 @@ export default function MobileMenu({
       if (next) {
         const firstKey = rooms[0]?.key ?? "";
         setOpenRoomKey((prev) => prev || firstKey);
-      } else {
-        setOpenRoomKey("");
       }
       return next;
     });
@@ -507,50 +508,23 @@ export default function MobileMenu({
   };
 
   const menuLinks = useMemo(() => {
-    const safe = (links ?? []).filter((l) => l?.href && l?.label);
-
-    const isCatalogLink = (l: MenuLink) => {
-      const href = String(l.href || "").trim();
-      const label = normKey(String(l.label || ""));
-      return (
-        href === "/catalog" ||
-        href === "/catalog/" ||
-        href.startsWith("/catalog?") ||
-        label === "каталог" ||
-        label === "catalog"
-      );
-    };
-
-    const isContactsLink = (l: MenuLink) => {
-      const href = String(l.href || "").trim();
-      const label = normKey(String(l.label || ""));
-      return (
-        href === "/contacts" ||
-        href === "/contacts/" ||
-        label === "контакты" ||
-        label === "contacts"
-      );
-    };
-
-    return safe.filter((l) => !isCatalogLink(l) && !isContactsLink(l));
+    return Array.isArray(links) ? links.filter((x) => x?.label && x?.href) : [];
   }, [links]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[2000]">
-      {/* overlay */}
+    <div className="fixed inset-0 z-[120] md:hidden">
       <button
         type="button"
         aria-label="Close menu overlay"
+        className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
         onClick={onClose}
-        className="absolute inset-0 bg-black/35"
       />
 
-      {/* left drawer */}
       <aside
         className={cn(
-          "absolute left-0 top-0 h-full w-[86vw] max-w-[360px]",
+          "absolute left-0 top-0 h-full w-[88vw] max-w-[390px]",
           "bg-[#f3f3f3]",
           "shadow-[0_22px_60px_-28px_rgba(0,0,0,0.45)]",
           "rounded-none",
@@ -558,7 +532,6 @@ export default function MobileMenu({
           "flex flex-col",
         )}
       >
-        {/* header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3">
           <div className="text-[12px] uppercase tracking-[0.22em] text-black/45">
             Меню
@@ -574,9 +547,10 @@ export default function MobileMenu({
           </button>
         </div>
 
-        {/* body */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
-          <div className="border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
+          <LanguageMiniBlock lang={lang} setLang={setLang} />
+
+          <div className="mt-3 border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
             <RowBtn
               strong
               upper
