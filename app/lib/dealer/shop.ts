@@ -126,12 +126,14 @@ type StrapiAddonRelation = {
     | null;
 };
 
-function getAuthHeaders() {
-  return STRAPI_TOKEN
-    ? {
-        Authorization: `Bearer ${STRAPI_TOKEN}`,
-      }
-    : {};
+function getAuthHeaders(): HeadersInit {
+  const headers: Record<string, string> = {};
+
+  if (STRAPI_TOKEN) {
+    headers.Authorization = `Bearer ${STRAPI_TOKEN}`;
+  }
+
+  return headers;
 }
 
 function toAbsoluteUrl(url?: string | null) {
