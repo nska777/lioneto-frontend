@@ -140,12 +140,20 @@ function toAbsoluteUrl(url?: string | null) {
   return `${STRAPI_URL}${url}`;
 }
 
-function unwrapRelation<T>(value?: T | { data?: T | null } | null): T | null {
+function unwrapRelation<T>(
+  value?: T | { data?: T | null } | null,
+): T | null {
   if (!value) return null;
-  if (typeof value === "object" && "data" in value) {
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "data" in value
+  ) {
     return value.data ?? null;
   }
-  return value;
+
+  return value as T;
 }
 
 function extractMediaUrl(media?: StrapiMediaField) {
