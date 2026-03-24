@@ -69,6 +69,7 @@ export function buildVisibleItems(
   return cartItems.map((item) => ({
     id: item.id,
     kind: item.kind,
+    addonKind: item.kind === "addon" ? item.addonKind : undefined,
     collectionSlug: item.collectionSlug,
     title: item.title,
     article: item.article,
@@ -85,6 +86,7 @@ export function buildInternalItems(
   return cartItems.map((item) => ({
     id: item.id,
     kind: item.kind,
+    addonKind: item.kind === "addon" ? item.addonKind : undefined,
     collectionSlug: item.collectionSlug,
     title: item.title,
     article: item.article,
@@ -318,6 +320,15 @@ function getBasePrintStyles() {
   `;
 }
 
+function getItemTypeLabel(item: CartEntry): string {
+  if (item.kind === "product") return "Основной товар";
+
+  if (item.addonKind === "required") return "Обязательный элемент";
+  if (item.addonKind === "recommended") return "Рекомендуемый элемент";
+
+  return "Доп. элемент";
+}
+
 function buildClientRows(items: CartEntry[], country: DealerCountryCode) {
   return items
     .map((item, index) => {
@@ -325,7 +336,12 @@ function buildClientRows(items: CartEntry[], country: DealerCountryCode) {
         <tr>
           <td class="center">${index + 1}</td>
           <td>${escapeHtml(item.collectionSlug)}</td>
-          <td>${escapeHtml(item.title)}</td>
+          <td>
+            ${escapeHtml(item.title)}
+            <div style="margin-top:4px;font-size:12px;color:#777;">
+              ${escapeHtml(getItemTypeLabel(item))}
+            </div>
+          </td>
           <td>${escapeHtml(item.article)}</td>
           <td>${escapeHtml(item.color ?? "-")}</td>
           <td class="center">${item.quantity}</td>
@@ -344,7 +360,12 @@ function buildInternalRows(items: CartEntry[], country: DealerCountryCode) {
         <tr>
           <td class="center">${index + 1}</td>
           <td>${escapeHtml(item.collectionSlug)}</td>
-          <td>${escapeHtml(item.title)}</td>
+          <td>
+            ${escapeHtml(item.title)}
+            <div style="margin-top:4px;font-size:12px;color:#777;">
+              ${escapeHtml(getItemTypeLabel(item))}
+            </div>
+          </td>
           <td>${escapeHtml(item.article)}</td>
           <td>${escapeHtml(item.color ?? "-")}</td>
           <td class="center">${item.quantity}</td>
@@ -362,7 +383,7 @@ function buildClientPrintHtml(params: {
   title: string;
   orderNumber?: string;
   collectionTitle: string;
-  collectionSlugs?: string[];
+  collectionSlugs: string[];
   createdAt: string | Date;
   totalQty: number;
   subtotal: number;
@@ -381,61 +402,53 @@ function buildClientPrintHtml(params: {
     country,
   } = params;
 
-  const rows = buildClientRows(items, country);
-
   return `
-    <!doctype html>
-    <html lang="ru">
+    <html>
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(orderNumber ?? title)}</title>
+        <title>${escapeHtml(title)}</title>
         ${getBasePrintStyles()}
       </head>
       <body>
         <div class="document">
           <div class="doc-header">
             <div class="brand-block">
-              <div class="brand-name">Lioneto</div>
-              <div class="brand-subtitle">Furniture Collection</div>
+              <div class="brand-name">LIONETO</div>
+              <div class="brand-subtitle">Dealer Portal</div>
             </div>
 
-            <div style="flex:1">
+            <div>
               <h1 class="doc-title">${escapeHtml(title)}</h1>
               <div class="doc-subtitle">
-                Документ сформирован для клиента. Итоговая стоимость указана без внутренних дилерских наценок.
+                ${
+                  orderNumber
+                    ? `Номер заказа: <strong>${escapeHtml(orderNumber)}</strong><br />`
+                    : ""
+                }
+                Документ сформирован: ${escapeHtml(formatDate(createdAt))}
               </div>
             </div>
           </div>
 
           <div class="meta-grid">
             <div class="meta-card">
-              <div class="meta-label">Коллекции</div>
-              <div class="meta-value">${escapeHtml(
-                collectionSlugs?.length
-                  ? formatCollections(collectionSlugs)
-                  : collectionTitle,
-              )}</div>
+              <div class="meta-label">Коллекция</div>
+              <div class="meta-value">${escapeHtml(collectionTitle)}</div>
             </div>
 
             <div class="meta-card">
-              <div class="meta-label">Дата</div>
-              <div class="meta-value">${escapeHtml(formatDate(createdAt))}</div>
+              <div class="meta-label">Коллекции в заказе</div>
+              <div class="meta-value">${escapeHtml(formatCollections(collectionSlugs))}</div>
             </div>
 
-            ${
-              orderNumber
-                ? `
-                  <div class="meta-card">
-                    <div class="meta-label">Номер документа</div>
-                    <div class="meta-value">${escapeHtml(orderNumber)}</div>
-                  </div>
-                `
-                : ""
-            }
-
             <div class="meta-card">
-              <div class="meta-label">Количество единиц</div>
+              <div class="meta-label">Позиций / единиц</div>
               <div class="meta-value">${totalQty}</div>
+            </div>
+
+            <div class="meta-card">
+              <div class="meta-label">Сумма без наценки</div>
+              <div class="meta-value">${formatMoney(subtotal, country)}</div>
             </div>
           </div>
 
@@ -452,20 +465,22 @@ function buildClientPrintHtml(params: {
                 <th class="num">Сумма</th>
               </tr>
             </thead>
+
             <tbody>
-              ${rows}
+              ${buildClientRows(items, country)}
             </tbody>
           </table>
 
           <div class="summary">
+            <div class="summary-row">
+              <span>Всего единиц</span>
+              <strong>${totalQty}</strong>
+            </div>
+
             <div class="summary-row total">
-              <span>Итого к оплате</span>
+              <span>Итого</span>
               <strong>${formatMoney(subtotal, country)}</strong>
             </div>
-          </div>
-
-          <div class="footnote">
-            Настоящий документ носит информационный характер и может использоваться для согласования состава заказа с клиентом.
           </div>
         </div>
 
@@ -483,7 +498,7 @@ function buildInternalPrintHtml(params: {
   title: string;
   orderNumber?: string;
   collectionTitle: string;
-  collectionSlugs?: string[];
+  collectionSlugs: string[];
   createdAt: string | Date;
   totalQty: number;
   subtotal: number;
@@ -510,62 +525,55 @@ function buildInternalPrintHtml(params: {
     country,
   } = params;
 
-  const rows = buildInternalRows(items, country);
   const hasItemMarkup = items.some((item) => item.markupPercent > 0);
 
   return `
-    <!doctype html>
-    <html lang="ru">
+    <html>
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(orderNumber ?? title)}</title>
+        <title>${escapeHtml(title)}</title>
         ${getBasePrintStyles()}
       </head>
       <body>
         <div class="document">
           <div class="doc-header">
             <div class="brand-block">
-              <div class="brand-name">Lioneto</div>
-              <div class="brand-subtitle">Dealer Internal</div>
+              <div class="brand-name">LIONETO</div>
+              <div class="brand-subtitle">Dealer Portal</div>
             </div>
 
-            <div style="flex:1">
+            <div>
               <h1 class="doc-title">${escapeHtml(title)}</h1>
               <div class="doc-subtitle">
-                Внутренний расчет дилера с детализацией наценок по позициям и по общему заказу.
+                ${
+                  orderNumber
+                    ? `Номер заказа: <strong>${escapeHtml(orderNumber)}</strong><br />`
+                    : ""
+                }
+                Документ сформирован: ${escapeHtml(formatDate(createdAt))}
               </div>
             </div>
           </div>
 
           <div class="meta-grid">
             <div class="meta-card">
-              <div class="meta-label">Коллекции</div>
-              <div class="meta-value">${escapeHtml(
-                collectionSlugs?.length
-                  ? formatCollections(collectionSlugs)
-                  : collectionTitle,
-              )}</div>
+              <div class="meta-label">Коллекция</div>
+              <div class="meta-value">${escapeHtml(collectionTitle)}</div>
             </div>
 
             <div class="meta-card">
-              <div class="meta-label">Дата</div>
-              <div class="meta-value">${escapeHtml(formatDate(createdAt))}</div>
+              <div class="meta-label">Коллекции в заказе</div>
+              <div class="meta-value">${escapeHtml(formatCollections(collectionSlugs))}</div>
             </div>
 
-            ${
-              orderNumber
-                ? `
-                  <div class="meta-card">
-                    <div class="meta-label">Номер документа</div>
-                    <div class="meta-value">${escapeHtml(orderNumber)}</div>
-                  </div>
-                `
-                : ""
-            }
-
             <div class="meta-card">
-              <div class="meta-label">Количество единиц</div>
+              <div class="meta-label">Позиций / единиц</div>
               <div class="meta-value">${totalQty}</div>
+            </div>
+
+            <div class="meta-card">
+              <div class="meta-label">Итог внутренний</div>
+              <div class="meta-value">${formatMoney(total, country)}</div>
             </div>
           </div>
 
@@ -578,20 +586,21 @@ function buildInternalPrintHtml(params: {
                 <th>Артикул</th>
                 <th>Цвет</th>
                 <th class="center">Кол-во</th>
-                <th class="num">Баз. цена</th>
+                <th class="num">Цена без наценки</th>
                 <th class="center">Наценка</th>
                 <th class="num">Цена с наценкой</th>
                 <th class="num">Сумма</th>
               </tr>
             </thead>
+
             <tbody>
-              ${rows}
+              ${buildInternalRows(items, country)}
             </tbody>
           </table>
 
           <div class="summary">
             <div class="summary-row">
-              <span>Итого без наценки</span>
+              <span>Без наценки</span>
               <strong>${formatMoney(subtotal, country)}</strong>
             </div>
 
@@ -710,6 +719,7 @@ export function openSavedOrderPrintWindow(
           id: item.id,
           parentProductId: "",
           addonId: item.id,
+          addonKind: item.addonKind,
           collectionSlug: item.collectionSlug,
           title: item.title,
           article: item.article,
@@ -746,6 +756,7 @@ export function openSavedOrderPrintWindow(
           id: item.id,
           parentProductId: "",
           addonId: item.id,
+          addonKind: item.addonKind,
           collectionSlug: item.collectionSlug,
           title: item.title,
           article: item.article,
@@ -759,11 +770,16 @@ export function openSavedOrderPrintWindow(
         };
       });
 
+  const collectionTitle =
+    safeCollectionSlugs.length === 1
+      ? safeCollectionSlugs[0].toUpperCase()
+      : "Смешанный заказ";
+
   const html = withMarkup
     ? buildInternalPrintHtml({
         title: "Внутренний расчет заказа",
         orderNumber: order.orderNumber,
-        collectionTitle: order.collectionSlug,
+        collectionTitle,
         collectionSlugs: safeCollectionSlugs,
         createdAt: order.createdAt,
         totalQty: order.totalQty,
@@ -778,7 +794,7 @@ export function openSavedOrderPrintWindow(
     : buildClientPrintHtml({
         title: "Счет на оплату",
         orderNumber: order.orderNumber,
-        collectionTitle: order.collectionSlug,
+        collectionTitle,
         collectionSlugs: safeCollectionSlugs,
         createdAt: order.createdAt,
         totalQty: order.totalQty,

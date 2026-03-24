@@ -31,6 +31,9 @@ export type CartEntry =
       id: string;
       parentProductId: string;
       addonId: string;
+      addonKind?: "required" | "recommended";
+      addonSelectionType?: "toggle" | "quantity";
+      parentProductTitle?: string;
       collectionSlug: string;
       title: string;
       article: string;
@@ -46,6 +49,7 @@ export type CartEntry =
 export type DealerOrderVisibleItem = {
   id: string;
   kind: "product" | "addon";
+  addonKind?: "required" | "recommended";
   collectionSlug: string;
   title: string;
   article: string;
@@ -58,6 +62,7 @@ export type DealerOrderVisibleItem = {
 export type DealerOrderInternalItem = {
   id: string;
   kind: "product" | "addon";
+  addonKind?: "required" | "recommended";
   collectionSlug: string;
   title: string;
   article: string;

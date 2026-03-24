@@ -18,11 +18,25 @@ export type DealerCollection = {
 
 export type DealerProductPriceMap = Record<DealerCountryCode, number>;
 
+export type DealerAddonKind = "required" | "recommended";
+export type DealerAddonSelectionType = "toggle" | "quantity";
+
+/**
+ * Текущая FE-модель комплектующего.
+ * Под Strapi потом можно почти 1 в 1 перенести в связующую сущность:
+ * parentProduct -> linkedProduct -> kind -> selectionType -> defaultQuantity -> minQuantity -> sortOrder
+ */
 export type DealerAddon = {
   id: string;
   title: string;
-  type: "checkbox" | "quantity";
+  article?: string;
+  description?: string;
+  image?: string;
+  kind: DealerAddonKind;
+  selectionType: DealerAddonSelectionType;
   price: DealerProductPriceMap;
+  defaultQuantity?: number;
+  minQuantity?: number;
 };
 
 export type DealerProduct = {
@@ -34,6 +48,17 @@ export type DealerProduct = {
   image: string;
   description: string;
   price: DealerProductPriceMap;
+  color?: string;
+
+  /**
+   * Новая нормальная структура под конструктор комплекта
+   */
+  requiredItems?: DealerAddon[];
+  recommendedItems?: DealerAddon[];
+
+  /**
+   * Временная совместимость со старой логикой
+   */
   addons?: DealerAddon[];
 };
 
@@ -98,17 +123,62 @@ export const dealerProducts: DealerProduct[] = [
     image: "/images/placeholder-product.jpg",
     description:
       "Вместительный шкаф с современным фасадом для основной спальни.",
+    color: "Орех / Бежевый",
     price: {
       RU: 120000,
       UZ: 16800000,
       KZ: 650000,
       TJ: 14600,
     },
-    addons: [
+    requiredItems: [
       {
-        id: "mirror-facade",
+        id: "salvador-wardrobe-4-plinth",
+        title: "Плинтус для шкафа",
+        article: "SL-WD-PL-01",
+        description:
+          "Обязательный элемент комплекта. Без него изделие будет поставлено только как корпус.",
+        image: "/images/placeholder-product.jpg",
+        kind: "required",
+        selectionType: "toggle",
+        defaultQuantity: 1,
+        minQuantity: 1,
+        price: {
+          RU: 9000,
+          UZ: 1260000,
+          KZ: 49000,
+          TJ: 1100,
+        },
+      },
+      {
+        id: "salvador-wardrobe-4-verticals",
+        title: "Комплект вертикалей",
+        article: "SL-WD-VR-02",
+        description:
+          "Обязательная комплектация для сборки полноценного шкафа.",
+        image: "/images/placeholder-product.jpg",
+        kind: "required",
+        selectionType: "toggle",
+        defaultQuantity: 1,
+        minQuantity: 1,
+        price: {
+          RU: 15000,
+          UZ: 2100000,
+          KZ: 81000,
+          TJ: 1820,
+        },
+      },
+    ],
+    recommendedItems: [
+      {
+        id: "salvador-wardrobe-4-mirror-facade",
         title: "Зеркало на фасад",
-        type: "checkbox",
+        article: "SL-WD-MR-01",
+        description: "Рекомендуемый элемент для расширения комплекта.",
+        image: "/images/placeholder-product.jpg",
+        kind: "recommended",
+        selectionType: "toggle",
+        defaultQuantity: 1,
+        minQuantity: 1,
         price: {
           RU: 12000,
           UZ: 1680000,
@@ -117,9 +187,15 @@ export const dealerProducts: DealerProduct[] = [
         },
       },
       {
-        id: "extra-shelf",
+        id: "salvador-wardrobe-4-extra-shelf",
         title: "Дополнительная полка",
-        type: "quantity",
+        article: "SL-WD-SH-01",
+        description: "Можно добавить нужное количество полок.",
+        image: "/images/placeholder-product.jpg",
+        kind: "recommended",
+        selectionType: "quantity",
+        defaultQuantity: 1,
+        minQuantity: 1,
         price: {
           RU: 2500,
           UZ: 350000,
@@ -138,12 +214,32 @@ export const dealerProducts: DealerProduct[] = [
     image: "/images/placeholder-product.jpg",
     description:
       "Двуспальная кровать с широкой спинкой и мягким визуальным акцентом.",
+    color: "Слоновая кость",
     price: {
       RU: 89000,
       UZ: 12460000,
       KZ: 480000,
       TJ: 10800,
     },
+    recommendedItems: [
+      {
+        id: "salvador-bed-160-base",
+        title: "Ортопедическое основание",
+        article: "SL-BD-BS-01",
+        description: "Рекомендуется для полноценной комплектации кровати.",
+        image: "/images/placeholder-product.jpg",
+        kind: "recommended",
+        selectionType: "toggle",
+        defaultQuantity: 1,
+        minQuantity: 1,
+        price: {
+          RU: 14500,
+          UZ: 2030000,
+          KZ: 78000,
+          TJ: 1760,
+        },
+      },
+    ],
   },
   {
     id: "salvador-tv",
@@ -153,6 +249,7 @@ export const dealerProducts: DealerProduct[] = [
     article: "SL-TV-02",
     image: "/images/placeholder-product.jpg",
     description: "Компактная ТВ-тумба для современной гостиной.",
+    color: "Графит",
     price: {
       RU: 43500,
       UZ: 6090000,
@@ -168,6 +265,7 @@ export const dealerProducts: DealerProduct[] = [
     article: "AM-HL-01",
     image: "/images/placeholder-product.jpg",
     description: "Компактный модуль для прихожей с местом для хранения.",
+    color: "Дуб светлый",
     price: {
       RU: 54000,
       UZ: 7560000,
@@ -183,6 +281,7 @@ export const dealerProducts: DealerProduct[] = [
     article: "AM-BS-02",
     image: "/images/placeholder-product.jpg",
     description: "Аккуратная прикроватная тумба для спальни.",
+    color: "Песочный",
     price: {
       RU: 18500,
       UZ: 2590000,
@@ -198,6 +297,7 @@ export const dealerProducts: DealerProduct[] = [
     article: "AM-CN-01",
     image: "/images/placeholder-product.jpg",
     description: "Компактная консоль для прихожей Amber.",
+    color: "Дуб светлый",
     price: {
       RU: 22000,
       UZ: 3080000,
@@ -213,6 +313,7 @@ export const dealerProducts: DealerProduct[] = [
     article: "AM-MR-01",
     image: "/images/placeholder-product.jpg",
     description: "Настенное зеркало для прихожей Amber.",
+    color: "Кремовый",
     price: {
       RU: 12500,
       UZ: 1750000,
@@ -228,6 +329,7 @@ export const dealerProducts: DealerProduct[] = [
     article: "SC-DR-03",
     image: "/images/placeholder-product.jpg",
     description: "Светлый комод с лаконичным фасадом.",
+    color: "Белый матовый",
     price: {
       RU: 39000,
       UZ: 5460000,
@@ -243,6 +345,7 @@ export const dealerProducts: DealerProduct[] = [
     article: "BG-TB-01",
     image: "/images/placeholder-product.jpg",
     description: "Обеденный стол для современной столовой зоны.",
+    color: "Орех",
     price: {
       RU: 47000,
       UZ: 6580000,

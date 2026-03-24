@@ -10,204 +10,367 @@ type Props = {
   cartItems: CartEntry[];
   totalQty: number;
   subtotal: number;
-  totalWithItemMarkup: number;
-  globalMarkupPercent: number;
-  globalMarkupAmount: number;
-  total: number;
   country: "RU" | "UZ" | "KZ" | "TJ";
-  onGlobalMarkupChange: (value: number) => void;
+  onRemoveItem: (id: string) => void;
   onClearCart: () => void;
-  onRemoveItem: (itemId: string) => void;
-  onCheckout: () => void;
   onPrintBase: () => void;
-  onPrintMarkup: () => void;
+  onCheckout: () => void;
 };
+
+const cn = (...classes: Array<string | false | null | undefined>) =>
+  classes.filter(Boolean).join(" ");
+
+type ProductGroup = {
+  product: Extract<CartEntry, { kind: "product" }> | null;
+  requiredAddons: Extract<CartEntry, { kind: "addon" }>[];
+  otherAddons: Extract<CartEntry, { kind: "addon" }>[];
+};
+
+function getProductKey(item: CartEntry) {
+  if (item.kind === "product") return item.productId;
+  return item.parentProductId;
+}
+
+function groupCartItems(cartItems: CartEntry[]): ProductGroup[] {
+  const map = new Map<string, ProductGroup>();
+
+  cartItems.forEach((item) => {
+    const key = getProductKey(item);
+
+    if (!map.has(key)) {
+      map.set(key, {
+        product: null,
+        requiredAddons: [],
+        otherAddons: [],
+      });
+    }
+
+    const group = map.get(key)!;
+
+    if (item.kind === "product") {
+      group.product = item;
+      return;
+    }
+
+    if (item.addonKind === "required") {
+      group.requiredAddons.push(item);
+    } else {
+      group.otherAddons.push(item);
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.product && !b.product) return -1;
+    if (!a.product && b.product) return 1;
+    return 0;
+  });
+}
+
+function getAddonBadge(addon: Extract<CartEntry, { kind: "addon" }>) {
+  if (addon.addonKind === "required") {
+    return {
+      label: "обязательный",
+      className: "border border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  if (addon.addonKind === "recommended") {
+    return {
+      label: "рекомендуемый",
+      className: "border border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    label: "доп. элемент",
+    className: "border border-black/10 bg-[#f3f3f1] text-black/60",
+  };
+}
+
+function MetricCell({
+  label,
+  value,
+  align = "left",
+}: {
+  label: string;
+  value: string | number;
+  align?: "left" | "right";
+}) {
+  return (
+    <div className={cn("min-w-0", align === "right" && "text-right")}>
+      <div className="text-[10px] uppercase tracking-[0.06em] text-black/35 md:text-[11px]">
+        {label}
+      </div>
+      <div className="mt-1 break-words text-[11px] font-semibold leading-[1.25] text-black md:text-[12px]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function LineRow({
+  item,
+  country,
+  onRemove,
+}: {
+  item: CartEntry;
+  country: "RU" | "UZ" | "KZ" | "TJ";
+  onRemove: () => void;
+}) {
+  const addonBadge = item.kind === "addon" ? getAddonBadge(item) : null;
+
+  return (
+    <div className="w-full rounded-[18px] border border-black/8 bg-white px-3 py-3">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            {item.kind === "product" ? (
+              <span className="inline-flex rounded-full border border-black/10 bg-[#f5f5f3] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/65">
+                основной товар
+              </span>
+            ) : addonBadge ? (
+              <span
+                className={cn(
+                  "inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]",
+                  addonBadge.className,
+                )}
+              >
+                {addonBadge.label}
+              </span>
+            ) : null}
+
+            <span className="inline-flex rounded-full border border-black/10 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/40">
+              {item.collectionSlug}
+            </span>
+          </div>
+
+          <div className="mt-2 text-[14px] font-semibold leading-5 text-black">
+            {item.title}
+          </div>
+
+          <div className="mt-1 text-[12px] text-black/45">{item.article}</div>
+
+          {item.color ? (
+            <div className="mt-1 text-[12px] text-black/45">
+              Цвет: <span className="text-black/65">{item.color}</span>
+            </div>
+          ) : null}
+
+          {item.kind === "addon" && item.parentProductTitle ? (
+            <div className="mt-1 text-[12px] text-black/45">
+              Для:{" "}
+              <span className="text-black/65">{item.parentProductTitle}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/45 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          aria-label="Удалить"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-3 rounded-[14px] bg-[#f6f5f2] px-3 py-2.5">
+        <div className="grid grid-cols-[56px_minmax(0,1fr)_minmax(0,1fr)] gap-2">
+          <MetricCell label="Кол-во" value={item.quantity} />
+          <MetricCell
+            label="Цена"
+            value={formatMoney(item.unitBasePrice, country)}
+          />
+          <MetricCell
+            label="Сумма"
+            value={formatMoney(item.totalBasePrice, country)}
+            align="right"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function OrderSidebar({
   cartItems,
   totalQty,
   subtotal,
-  totalWithItemMarkup,
-  globalMarkupPercent,
-  globalMarkupAmount,
-  total,
   country,
-  onGlobalMarkupChange,
-  onClearCart,
   onRemoveItem,
-  onCheckout,
+  onClearCart,
   onPrintBase,
-  onPrintMarkup,
+  onCheckout,
 }: Props) {
+  const groupedItems = groupCartItems(cartItems);
+  const hasItems = cartItems.length > 0;
+
   return (
-    <aside className="h-fit rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] xl:sticky xl:top-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-amber-50">
-            <ShoppingCart className="h-5 w-5 text-amber-700" />
-          </div>
+    <aside className="flex h-full min-h-[520px] flex-col rounded-[24px] border border-black/10 bg-[#fcfcfa] shadow-[0_14px_34px_-24px_rgba(0,0,0,0.22)]">
+      <div className="border-b border-black/8 px-4 py-4 md:px-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
 
-          <div>
-            <h2 className="text-[18px] font-semibold leading-none text-black">
-              Корзина
-            </h2>
-            <p className="mt-1 text-[12px] text-black/45">
-              {totalQty} ед. в заказе
-            </p>
-          </div>
-        </div>
-
-        {cartItems.length > 0 ? (
-          <button
-            type="button"
-            onClick={onClearCart}
-            className="inline-flex h-9 cursor-pointer items-center justify-center rounded-[12px] border border-black/10 px-3 text-[12px] font-medium text-black/65 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Очистить
-          </button>
-        ) : null}
-      </div>
-
-      <div className="mt-3 rounded-[18px] border border-black/10 bg-[#fafaf8] p-3">
-        <label className="block">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-black/45">
-            Наценка на весь заказ
-          </div>
-          <input
-            type="number"
-            min={0}
-            value={globalMarkupPercent}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              onGlobalMarkupChange(
-                Number.isFinite(next) && next >= 0 ? next : 0,
-              );
-            }}
-            className="mt-2 h-10 w-full rounded-[14px] border border-black/10 bg-white px-3 text-[14px] font-semibold outline-none transition focus:border-amber-300"
-          />
-        </label>
-
-        <p className="mt-2 text-[11px] leading-5 text-black/45">
-          Применяется только к общему итогу корзины.
-        </p>
-      </div>
-
-      <div className="mt-3 grid gap-2">
-        {cartItems.length > 0 ? (
-          cartItems.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-[18px] border border-black/10 bg-[#fafaf8] p-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate text-[16px] font-semibold leading-none text-black">
-                    {item.title}
-                  </div>
-                  <div className="mt-1 text-[11px] text-black/45">
-                    {item.article}
-                    {item.color ? ` • ${item.color}` : ""}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => onRemoveItem(item.id)}
-                  className="flex h-8 w-8 cursor-pointer shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-black/60 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+            <div>
+              <div className="text-[18px] font-semibold tracking-[-0.02em] text-black">
+                Корзина
               </div>
-
-              <div className="mt-3 grid gap-1 text-[12px] text-black/65">
-                <div className="flex items-center justify-between gap-3">
-                  <span>Количество</span>
-                  <span>{item.quantity}</span>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <span>Итог без наценки</span>
-                  <span className="font-semibold text-black">
-                    {formatMoney(item.totalBasePrice, country)}
-                  </span>
-                </div>
+              <div className="mt-0.5 text-[12px] text-black/50">
+                {hasItems
+                  ? `${cartItems.length} поз. / ${totalQty} ед.`
+                  : "Пока пусто"}
               </div>
             </div>
-          ))
+          </div>
+
+          {hasItems ? (
+            <button
+              type="button"
+              onClick={onClearCart}
+              className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-[12px] border border-black/10 bg-white px-3 text-[12px] font-semibold text-black transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 className="h-4 w-4" />
+              Очистить
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "flex-1 overflow-y-auto px-4 py-4 md:px-5",
+          "[scrollbar-width:thin]",
+          "[scrollbar-color:rgba(0,0,0,0.22)_transparent]",
+          "[&::-webkit-scrollbar]:w-[6px]",
+          "[&::-webkit-scrollbar-track]:bg-transparent",
+          "[&::-webkit-scrollbar-thumb]:rounded-full",
+          "[&::-webkit-scrollbar-thumb]:bg-black/20",
+        )}
+      >
+        {hasItems ? (
+          <div className="space-y-4">
+            {groupedItems.map((group, groupIndex) => (
+              <div
+                key={`group-${group.product?.id ?? group.requiredAddons[0]?.id ?? group.otherAddons[0]?.id ?? groupIndex}`}
+                className="rounded-[22px] border border-black/8 bg-[#f7f6f3] p-3"
+              >
+                {group.product ? (
+                  <div
+                    className={cn(
+                      "rounded-[20px] p-[2px]",
+                      group.requiredAddons.length > 0
+                        ? "border border-emerald-400/80 bg-emerald-50/30"
+                        : "",
+                    )}
+                  >
+                    <div className="space-y-3 rounded-[18px]">
+                      <LineRow
+                        item={group.product}
+                        country={country}
+                        onRemove={() => onRemoveItem(group.product!.id)}
+                      />
+
+                      {group.requiredAddons.length > 0 ? (
+                        <div className="space-y-3 pl-3">
+                          {group.requiredAddons.map((addon) => (
+                            <LineRow
+                              key={addon.id}
+                              item={addon}
+                              country={country}
+                              onRemove={() => onRemoveItem(addon.id)}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-[18px] border border-dashed border-black/12 bg-white px-3 py-3 text-[13px] text-black/45">
+                    Основной товар не найден, но в корзине есть связанные
+                    элементы.
+                  </div>
+                )}
+
+                {group.otherAddons.length > 0 ? (
+                  <div className="mt-3 space-y-3">
+                    {group.otherAddons.map((addon) => (
+                      <LineRow
+                        key={addon.id}
+                        item={addon}
+                        country={country}
+                        onRemove={() => onRemoveItem(addon.id)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
         ) : (
-          <div className="rounded-[18px] border border-dashed border-black/15 p-4 text-[13px] text-black/45">
-            Пока пусто. Добавь модули в заказ.
+          <div className="flex h-full min-h-[260px] flex-col items-center justify-center rounded-[20px] border border-dashed border-black/10 bg-white px-6 text-center">
+            <div className="text-[16px] font-semibold text-black">
+              Корзина пока пустая
+            </div>
+            <div className="mt-2 max-w-[260px] text-[13px] leading-5 text-black/50">
+              Добавьте основной товар и соберите комплект из обязательных и
+              рекомендованных элементов.
+            </div>
           </div>
         )}
       </div>
 
-      <div className="mt-3 space-y-3 rounded-[18px] border border-black/10 bg-[#fafaf8] p-4">
-        <div className="flex items-center justify-between gap-3 text-[13px]">
-          <span className="text-black/45">Без наценки</span>
-          <span className="font-semibold text-black">
-            {formatMoney(subtotal, country)}
-          </span>
+      <div className="border-t border-black/8 px-4 py-4 md:px-5">
+        <div className="rounded-[20px] bg-[#f5f4f1] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px] text-black/55">Итого</span>
+            <span className="break-words text-right text-[20px] font-semibold leading-tight text-black md:text-[22px]">
+              {formatMoney(subtotal, country)}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 text-[13px]">
-          <span className="text-black/45">Товары с наценкой</span>
-          <span className="font-semibold text-black">
-            {formatMoney(totalWithItemMarkup, country)}
-          </span>
+        <div className="mt-4 grid gap-2">
+          <button
+            type="button"
+            onClick={onCheckout}
+            disabled={!hasItems}
+            className={cn(
+              "inline-flex h-11 items-center justify-center rounded-[14px] px-4 text-[14px] font-semibold transition",
+              hasItems
+                ? "cursor-pointer border border-black bg-black text-white hover:opacity-95"
+                : "cursor-not-allowed border border-black/10 bg-black/10 text-black/40",
+            )}
+          >
+            Заказать
+          </button>
+
+          <button
+            type="button"
+            onClick={onPrintBase}
+            disabled={!hasItems}
+            className={cn(
+              "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] px-3 text-[12px] font-semibold transition",
+              hasItems
+                ? "cursor-pointer border border-black/10 bg-white text-black hover:border-amber-300 hover:bg-amber-50"
+                : "cursor-not-allowed border border-black/10 bg-white text-black/30",
+            )}
+          >
+            <Printer className="h-4 w-4" />
+            Печать
+          </button>
         </div>
 
-        <div className="flex items-center justify-between gap-3 text-[13px]">
-          <span className="text-black/45">
-            Общая наценка {globalMarkupPercent}%
-          </span>
-          <span className="font-semibold text-[#e05b2b]">
-            {formatMoney(globalMarkupAmount, country)}
-          </span>
+        <div className="mt-4 border-t border-black/8 pt-4">
+          <Link
+            href="/dealer/orders"
+            className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-[14px] border border-black/10 bg-white px-4 text-[14px] font-semibold text-black transition hover:border-amber-300 hover:bg-amber-50"
+          >
+            Мои заказы
+          </Link>
         </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-black/10 pt-3">
-          <span className="text-[13px] text-black/60">Итого</span>
-          <span className="text-[22px] font-semibold leading-none text-black">
-            {formatMoney(total, country)}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-3 grid gap-2.5">
-        <button
-          type="button"
-          onClick={onCheckout}
-          className="inline-flex h-11 cursor-pointer items-center justify-center rounded-[14px] border border-black bg-black px-4 text-[13px] font-semibold text-white transition hover:opacity-95"
-        >
-          Оформить заказ
-        </button>
-
-        <button
-          type="button"
-          onClick={onPrintBase}
-          className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[14px] border border-black/10 bg-white px-4 text-[13px] font-semibold text-black transition hover:border-black/20"
-        >
-          <Printer className="h-4 w-4" />
-          Без наценки
-        </button>
-
-        <button
-          type="button"
-          onClick={onPrintMarkup}
-          className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[14px] border border-amber-300 bg-amber-50 px-4 text-[13px] font-semibold text-black transition hover:bg-amber-100"
-        >
-          <Printer className="h-4 w-4" />С наценкой
-        </button>
-      </div>
-
-      <div className="mt-6 border-t border-black/10 pt-4">
-        <Link
-          href="/dealer/orders"
-          className="inline-flex h-12 w-full items-center justify-center rounded-[14px] border border-black/10 bg-white px-4 text-[14px] font-semibold text-black transition hover:border-black/20"
-        >
-          Мои заказы
-        </Link>
       </div>
     </aside>
   );

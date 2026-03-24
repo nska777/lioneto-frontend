@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { dealerCollections } from "./data";
+import { getDealerCollections } from "@/app/lib/dealer/shop";
 
 const cn = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(" ");
@@ -11,13 +11,15 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function DealerOrderPage() {
+export default async function DealerOrderPage() {
+  const dealerCollections = await getDealerCollections();
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {dealerCollections.map((collection) => (
           <Link
-            key={collection.slug}
+            key={collection.id}
             href={`/dealer/order/${collection.slug}`}
             className={cn(
               "group overflow-hidden rounded-[20px] border border-black/10 bg-white",
