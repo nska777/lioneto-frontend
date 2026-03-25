@@ -29,7 +29,6 @@ import {
   loadAddonDrafts,
   loadCartProductIds,
   loadDrafts,
-  prependOrder,
   saveAddonDrafts,
   saveCartProductIds,
   saveDrafts,
@@ -120,7 +119,7 @@ export default function DealerCollectionClient({
   const safeCollection = initialCollection;
 
   const [country, setCountry] = useState<DealerCountryCode>("UZ");
-  const [, setDealerMe] = useState<DealerMe | null>(null);
+  const [dealerMe, setDealerMe] = useState<DealerMe | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ProductDraft>>({});
   const [addonDrafts, setAddonDrafts] = useState<Record<string, AddonDraft>>(
     {},
@@ -132,6 +131,7 @@ export default function DealerCollectionClient({
   const [isHydrated, setIsHydrated] = useState(false);
   const [confirmOrder, setConfirmOrder] = useState<DealerOrder | null>(null);
   const [successOrder, setSuccessOrder] = useState<DealerOrder | null>(null);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   useEffect(() => {
     setCartProductIds(loadCartProductIds());
@@ -513,16 +513,51 @@ export default function DealerCollectionClient({
     setConfirmOrder(buildCurrentOrder());
   }
 
-  function handleConfirmOrder() {
-    if (!confirmOrder) return;
+  async function handleConfirmOrder() {
+    if (!confirmOrder || isSubmittingOrder) return;
 
     try {
-      prependOrder(confirmOrder);
+      setIsSubmittingOrder(true);
+
+      const res = await fetch("/api/dealer/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          dealerTitle: dealerMe?.title ?? "",
+          dealerEmail: dealerMe?.email ?? "",
+          countryCode: confirmOrder.country,
+          currency: confirmOrder.country,
+          collectionTitles: confirmOrder.collectionSlugs,
+          totalQty: confirmOrder.totalQty,
+          subtotal: confirmOrder.visibleSubtotal,
+          totalWithMarkup: confirmOrder.internalTotalWithItemMarkup,
+          globalMarkupPercent: confirmOrder.globalMarkupPercent,
+          globalMarkupAmount: confirmOrder.globalMarkupAmount,
+          total: confirmOrder.internalTotal,
+          items: confirmOrder.visibleItems,
+          notes: "",
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Не удалось сохранить заказ");
+      }
+
       handleClearCart();
       setSuccessOrder(confirmOrder);
       setConfirmOrder(null);
-    } catch {
-      alert("Не удалось сохранить заказ");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не удалось сохранить заказ";
+
+      alert(message);
+    } finally {
+      setIsSubmittingOrder(false);
     }
   }
 
@@ -645,7 +680,10 @@ export default function DealerCollectionClient({
 
       <OrderConfirmModal
         order={confirmOrder}
-        onClose={() => setConfirmOrder(null)}
+        onClose={() => {
+          if (isSubmittingOrder) return;
+          setConfirmOrder(null);
+        }}
         onConfirm={handleConfirmOrder}
       />
 
