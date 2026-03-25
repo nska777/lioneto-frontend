@@ -192,9 +192,40 @@ export default function DealerCollectionClient({
     saveAddonDrafts(addonDrafts);
   }, [addonDrafts, isHydrated]);
 
-  const currentCollectionProducts = initialProducts.filter(
-    (product) => product.collectionSlug === safeCollection.slug,
-  );
+  const allProducts = useMemo(() => {
+    return initialProducts;
+  }, [initialProducts]);
+
+  const currentCollectionProducts = useMemo(() => {
+    return allProducts.filter(
+      (product) => product.collectionSlug === safeCollection.slug,
+    );
+  }, [allProducts, safeCollection.slug]);
+
+  const allProductsById = useMemo(() => {
+    return new Map(allProducts.map((product) => [product.id, product]));
+  }, [allProducts]);
+
+  const allAddonsIndex = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        parentProduct: DealerProduct;
+        addon: ReturnType<typeof getProductOptions>[number];
+      }
+    >();
+
+    allProducts.forEach((product) => {
+      getProductOptions(product).forEach((addon) => {
+        map.set(addon.id, {
+          parentProduct: product,
+          addon,
+        });
+      });
+    });
+
+    return map;
+  }, [allProducts]);
 
   function getDraft(productId: string): ProductDraft {
     return drafts[productId] ?? getDefaultDraft();
@@ -261,9 +292,7 @@ export default function DealerCollectionClient({
   }
 
   function handleToggleCart(productId: string) {
-    const product = currentCollectionProducts.find(
-      (item) => item.id === productId,
-    );
+    const product = allProductsById.get(productId);
 
     if (product) {
       const requiredItems = product.requiredItems ?? [];
@@ -293,13 +322,8 @@ export default function DealerCollectionClient({
   }
 
   function handleToggleAddonCart(addonId: string) {
-    const product = currentCollectionProducts.find((item) =>
-      getProductOptions(item).some((addon) => addon.id === addonId),
-    );
-
-    const addon = product
-      ? getProductOptions(product).find((item) => item.id === addonId)
-      : null;
+    const entry = allAddonsIndex.get(addonId);
+    const addon = entry?.addon ?? null;
 
     updateAddonDraft(addonId, (prev) => {
       const nextInCart = !prev.isInCart;
@@ -355,9 +379,7 @@ export default function DealerCollectionClient({
   const productCartItems = useMemo(() => {
     return cartProductIds
       .map((productId) => {
-        const product = currentCollectionProducts.find(
-          (item) => item.id === productId,
-        );
+        const product = allProductsById.get(productId);
         if (!product) return null;
 
         const draft = getDraft(productId);
@@ -381,12 +403,12 @@ export default function DealerCollectionClient({
         };
       })
       .filter(Boolean) as CartEntry[];
-  }, [cartProductIds, drafts, country, currentCollectionProducts]);
+  }, [cartProductIds, drafts, country, allProductsById]);
 
   const addonCartItems = useMemo(() => {
     const items: CartEntry[] = [];
 
-    currentCollectionProducts.forEach((product) => {
+    allProducts.forEach((product) => {
       const addons = getProductOptions(product);
 
       addons.forEach((addon) => {
@@ -425,7 +447,7 @@ export default function DealerCollectionClient({
     });
 
     return items;
-  }, [addonDrafts, country, currentCollectionProducts]);
+  }, [addonDrafts, country, allProducts]);
 
   const cartItems = useMemo(() => {
     return [...productCartItems, ...addonCartItems];

@@ -147,11 +147,7 @@ function unwrapRelation<T>(
 ): T | null {
   if (!value) return null;
 
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "data" in value
-  ) {
+  if (typeof value === "object" && value !== null && "data" in value) {
     return value.data ?? null;
   }
 
@@ -344,11 +340,10 @@ export async function getDealerCollectionPageData(
 
   const productsParams = new URLSearchParams();
   productsParams.set("filters[isActive][$eq]", "true");
-  productsParams.set("filters[collection][slug][$eq]", collectionSlug);
   productsParams.set("sort[0]", "sortOrder:asc");
   productsParams.set("sort[1]", "title:asc");
   productsParams.set("populate", "*");
-  productsParams.set("pagination[pageSize]", "200");
+  productsParams.set("pagination[pageSize]", "1000");
 
   const [collectionsJson, productsJson] = await Promise.all([
     strapiFetch<{ data?: StrapiCollection[] }>(
@@ -394,7 +389,7 @@ export async function getDealerCollectionPageData(
     addonParams.set("sort[0]", "sortOrder:asc");
     addonParams.set("populate[0]", "parentProduct");
     addonParams.set("populate[1]", "addonProduct");
-    addonParams.set("pagination[pageSize]", "300");
+    addonParams.set("pagination[pageSize]", "1000");
 
     parentIds.forEach((id, index) => {
       addonParams.set(
