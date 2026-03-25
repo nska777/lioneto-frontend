@@ -9,19 +9,7 @@ import type { DealerOrder } from "../order/[collection]/types";
 import { formatMoney } from "../order/[collection]/utils";
 
 type DealerCountryCode = "RU" | "UZ" | "KZ" | "TJ";
-
-type DealerOrderItem = {
-  id: string;
-  kind: "product" | "addon";
-  title: string;
-  article: string;
-  color?: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  collectionSlug?: string;
-  addonKind?: "required" | "recommended";
-};
+type DealerOrderVisibleItem = DealerOrder["visibleItems"][number];
 
 type StrapiDealerOrder = {
   id?: number | string;
@@ -59,10 +47,12 @@ function normalizeCountry(value?: string | null): DealerCountryCode {
 
 function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
+
   if (typeof value === "string") {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) return parsed;
   }
+
   return fallback;
 }
 
@@ -70,32 +60,34 @@ function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function isOrderItem(value: unknown): value is DealerOrderItem {
+function isVisibleItem(value: unknown): value is DealerOrderVisibleItem {
   if (!value || typeof value !== "object") return false;
 
   const item = value as Record<string, unknown>;
 
   return (
     typeof item.id === "string" &&
+    (item.kind === "product" || item.kind === "addon") &&
     typeof item.title === "string" &&
     typeof item.article === "string" &&
     typeof item.quantity === "number" &&
     typeof item.unitPrice === "number" &&
-    typeof item.totalPrice === "number"
+    typeof item.totalPrice === "number" &&
+    typeof item.collectionSlug === "string"
   );
 }
 
-function parseVisibleItems(value: unknown): DealerOrderItem[] {
+function parseVisibleItems(value: unknown): DealerOrderVisibleItem[] {
   if (!Array.isArray(value)) return [];
 
   return value
-    .map((item) => {
+    .map((item, index) => {
       if (!item || typeof item !== "object") return null;
 
       const raw = item as Record<string, unknown>;
 
-      const normalized: DealerOrderItem = {
-        id: asString(raw.id, crypto.randomUUID()),
+      const normalized: DealerOrderVisibleItem = {
+        id: asString(raw.id, `item-${index}`),
         kind:
           raw.kind === "addon" || raw.kind === "product" ? raw.kind : "product",
         title: asString(raw.title, "Без названия"),
@@ -114,9 +106,9 @@ function parseVisibleItems(value: unknown): DealerOrderItem[] {
             : undefined,
       };
 
-      return isOrderItem(normalized) ? normalized : null;
+      return isVisibleItem(normalized) ? normalized : null;
     })
-    .filter(Boolean) as DealerOrderItem[];
+    .filter(Boolean) as DealerOrderVisibleItem[];
 }
 
 function mapStrapiOrderToDealerOrder(item: StrapiDealerOrder): DealerOrder {
@@ -135,7 +127,7 @@ function mapStrapiOrderToDealerOrder(item: StrapiDealerOrder): DealerOrder {
     id:
       typeof item.documentId === "string" && item.documentId
         ? item.documentId
-        : String(item.id ?? crypto.randomUUID()),
+        : String(item.id ?? `order-${Date.now()}`),
     orderNumber: asString(item.orderNumber, "—"),
     createdAt: asString(
       item.submittedAt || item.createdAt,
@@ -343,10 +335,9 @@ export default function DealerOrdersPage() {
                                       className="border-t border-black/10 text-[14px]"
                                     >
                                       <td className="px-4 py-3 text-black/60">
-                                        {typeof item.collectionSlug ===
-                                          "string" && item.collectionSlug
-                                          ? item.collectionSlug
-                                          : order.collectionSlug || "-"}
+                                        {item.collectionSlug ||
+                                          order.collectionSlug ||
+                                          "-"}
                                       </td>
                                       <td className="px-4 py-3 font-medium text-black">
                                         {item.title}
