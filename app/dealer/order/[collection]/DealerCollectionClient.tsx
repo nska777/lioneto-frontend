@@ -584,44 +584,46 @@ export default function DealerCollectionClient({
   return (
     <>
       <div className="mx-auto flex w-full max-w-[1460px] flex-col gap-3">
-        <div className="rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)]">
+        <div className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] sm:rounded-[24px] sm:p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <Link
                 href="/dealer/order"
-                className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/10 px-3 py-1.5 text-[12px] font-medium text-black/60 transition hover:bg-black/[0.03] hover:text-black"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-medium text-black/60 transition hover:bg-black/[0.03] hover:text-black sm:text-[12px]"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Назад к коллекциям
               </Link>
 
-              <h1 className="mt-3 text-[42px] font-semibold leading-none text-black md:text-[34px]">
+              <h1 className="mt-3 break-words text-[28px] font-semibold leading-none text-black sm:text-[34px] xl:text-[42px]">
                 {safeCollection.title}
               </h1>
-              <p className="mt-1 text-[14px] text-black/55">коллекция</p>
+              <p className="mt-1 text-[13px] text-black/55 sm:text-[14px]">
+                коллекция
+              </p>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 lg:flex lg:flex-wrap">
             {initialCollections.map((item) => (
               <Link
                 key={item.id}
                 href={`/dealer/order/${item.slug}`}
                 className={cn(
-                  "inline-flex min-w-[150px] cursor-pointer items-center justify-center rounded-[18px] border px-5 py-4 text-[18px] font-medium transition md:text-[15px]",
+                  "inline-flex min-w-0 cursor-pointer items-center justify-center rounded-[16px] border px-3 py-3 text-center text-[14px] font-medium transition sm:rounded-[18px] sm:px-4 sm:py-3 sm:text-[15px] lg:min-w-[132px] lg:px-5 lg:py-4",
                   item.slug === safeCollection.slug
                     ? "border-black bg-black text-white"
                     : "border-black/10 bg-[#fafaf8] text-black hover:border-black/20",
                 )}
               >
-                {item.title}
+                <span className="truncate">{item.title}</span>
               </Link>
             ))}
           </div>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="flex flex-col gap-[8px]">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="flex min-w-0 flex-col gap-2 sm:gap-[8px]">
             {currentCollectionProducts.length > 0 ? (
               currentCollectionProducts.map((product) => {
                 const draft = getDraft(product.id);
@@ -647,16 +649,18 @@ export default function DealerCollectionClient({
             )}
           </div>
 
-          <OrderSidebar
-            cartItems={cartItems}
-            totalQty={summary.totalQty}
-            subtotal={summary.subtotal}
-            country={country}
-            onClearCart={handleClearCart}
-            onRemoveItem={handleRemoveItem}
-            onCheckout={handleCheckout}
-            onPrintBase={handlePrintBase}
-          />
+          <div className="min-w-0">
+            <OrderSidebar
+              cartItems={cartItems}
+              totalQty={summary.totalQty}
+              subtotal={summary.subtotal}
+              country={country}
+              onClearCart={handleClearCart}
+              onRemoveItem={handleRemoveItem}
+              onCheckout={handleCheckout}
+              onPrintBase={handlePrintBase}
+            />
+          </div>
         </div>
       </div>
 

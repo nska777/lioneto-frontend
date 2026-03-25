@@ -120,18 +120,18 @@ function LineRow({
   const addonBadge = item.kind === "addon" ? getAddonBadge(item) : null;
 
   return (
-    <div className="w-full rounded-[18px] border border-black/8 bg-white px-3 py-3">
+    <div className="w-full rounded-[16px] border border-black/8 bg-white px-3 py-3 sm:rounded-[18px]">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             {item.kind === "product" ? (
-              <span className="inline-flex rounded-full border border-black/10 bg-[#f5f5f3] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/65">
+              <span className="inline-flex rounded-full border border-black/10 bg-[#f5f5f3] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-black/65 sm:px-2.5 sm:text-[10px]">
                 основной товар
               </span>
             ) : addonBadge ? (
               <span
                 className={cn(
-                  "inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]",
+                  "inline-flex rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] sm:px-2.5 sm:text-[10px]",
                   addonBadge.className,
                 )}
               >
@@ -139,27 +139,31 @@ function LineRow({
               </span>
             ) : null}
 
-            <span className="inline-flex rounded-full border border-black/10 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/40">
+            <span className="inline-flex rounded-full border border-black/10 bg-white px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-black/40 sm:px-2.5 sm:text-[10px]">
               {item.collectionSlug}
             </span>
           </div>
 
-          <div className="mt-2 text-[14px] font-semibold leading-5 text-black">
+          <div className="mt-2 break-words text-[13px] font-semibold leading-5 text-black sm:text-[14px]">
             {item.title}
           </div>
 
-          <div className="mt-1 text-[12px] text-black/45">{item.article}</div>
+          <div className="mt-1 break-words text-[11px] text-black/45 sm:text-[12px]">
+            {item.article}
+          </div>
 
           {item.color ? (
-            <div className="mt-1 text-[12px] text-black/45">
+            <div className="mt-1 text-[11px] text-black/45 sm:text-[12px]">
               Цвет: <span className="text-black/65">{item.color}</span>
             </div>
           ) : null}
 
           {item.kind === "addon" && item.parentProductTitle ? (
-            <div className="mt-1 text-[12px] text-black/45">
+            <div className="mt-1 text-[11px] text-black/45 sm:text-[12px]">
               Для:{" "}
-              <span className="text-black/65">{item.parentProductTitle}</span>
+              <span className="break-words text-black/65">
+                {item.parentProductTitle}
+              </span>
             </div>
           ) : null}
         </div>
@@ -175,7 +179,7 @@ function LineRow({
       </div>
 
       <div className="mt-3 rounded-[14px] bg-[#f6f5f2] px-3 py-2.5">
-        <div className="grid grid-cols-[56px_minmax(0,1fr)_minmax(0,1fr)] gap-2">
+        <div className="grid grid-cols-[52px_minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:grid-cols-[56px_minmax(0,1fr)_minmax(0,1fr)]">
           <MetricCell label="Кол-во" value={item.quantity} />
           <MetricCell
             label="Цена"
@@ -207,16 +211,16 @@ export default function OrderSidebar({
 
   return (
     <aside className="self-start xl:sticky xl:top-4">
-      <div className="flex flex-col overflow-hidden rounded-[24px] border border-black/10 bg-[#fcfcfa] shadow-[0_14px_34px_-24px_rgba(0,0,0,0.22)]">
-        <div className="border-b border-black/8 px-4 py-4 md:px-5">
+      <div className="flex flex-col overflow-hidden rounded-[20px] border border-black/10 bg-[#fcfcfa] shadow-[0_14px_34px_-24px_rgba(0,0,0,0.22)] sm:rounded-[24px]">
+        <div className="border-b border-black/8 px-3 py-4 sm:px-4 md:px-5">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white">
                 <ShoppingCart className="h-5 w-5" />
               </div>
 
-              <div>
-                <div className="text-[18px] font-semibold tracking-[-0.02em] text-black">
+              <div className="min-w-0">
+                <div className="text-[17px] font-semibold tracking-[-0.02em] text-black sm:text-[18px]">
                   Корзина
                 </div>
                 <div className="mt-0.5 text-[12px] text-black/50">
@@ -231,10 +235,10 @@ export default function OrderSidebar({
               <button
                 type="button"
                 onClick={onClearCart}
-                className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-[12px] border border-black/10 bg-white px-3 text-[12px] font-semibold text-black transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-[12px] border border-black/10 bg-white px-3 text-[12px] font-semibold text-black transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
               >
                 <Trash2 className="h-4 w-4" />
-                Очистить
+                <span className="hidden sm:inline">Очистить</span>
               </button>
             ) : null}
           </div>
@@ -242,7 +246,7 @@ export default function OrderSidebar({
 
         <div
           className={cn(
-            "px-4 py-4 md:px-5",
+            "px-3 py-4 sm:px-4 md:px-5",
             hasItems &&
               "overflow-y-auto xl:max-h-[calc(100vh-300px)] [scrollbar-width:thin] [scrollbar-color:rgba(0,0,0,0.22)_transparent] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-black/20",
           )}
@@ -252,18 +256,18 @@ export default function OrderSidebar({
               {groupedItems.map((group, groupIndex) => (
                 <div
                   key={`group-${group.product?.id ?? group.requiredAddons[0]?.id ?? group.otherAddons[0]?.id ?? groupIndex}`}
-                  className="rounded-[22px] border border-black/8 bg-[#f7f6f3] p-3"
+                  className="rounded-[18px] border border-black/8 bg-[#f7f6f3] p-2.5 sm:rounded-[22px] sm:p-3"
                 >
                   {group.product ? (
                     <div
                       className={cn(
-                        "rounded-[20px] p-[2px]",
+                        "rounded-[18px] p-[2px] sm:rounded-[20px]",
                         group.requiredAddons.length > 0
                           ? "border border-emerald-400/80 bg-emerald-50/30"
                           : "",
                       )}
                     >
-                      <div className="space-y-3 rounded-[18px]">
+                      <div className="space-y-3 rounded-[16px] sm:rounded-[18px]">
                         <LineRow
                           item={group.product}
                           country={country}
@@ -271,7 +275,7 @@ export default function OrderSidebar({
                         />
 
                         {group.requiredAddons.length > 0 ? (
-                          <div className="space-y-3 pl-3">
+                          <div className="space-y-3 pl-2 sm:pl-3">
                             {group.requiredAddons.map((addon) => (
                               <LineRow
                                 key={addon.id}
@@ -307,11 +311,11 @@ export default function OrderSidebar({
               ))}
             </div>
           ) : (
-            <div className="rounded-[20px] border border-dashed border-black/10 bg-white px-6 py-12 text-center">
-              <div className="text-[16px] font-semibold text-black">
+            <div className="rounded-[18px] border border-dashed border-black/10 bg-white px-4 py-10 text-center sm:rounded-[20px] sm:px-6 sm:py-12">
+              <div className="text-[15px] font-semibold text-black sm:text-[16px]">
                 Корзина пока пустая
               </div>
-              <div className="mx-auto mt-2 max-w-[260px] text-[13px] leading-5 text-black/50">
+              <div className="mx-auto mt-2 max-w-[260px] text-[12px] leading-5 text-black/50 sm:text-[13px]">
                 Добавьте основной товар и соберите комплект из обязательных и
                 рекомендованных элементов.
               </div>
@@ -319,11 +323,11 @@ export default function OrderSidebar({
           )}
         </div>
 
-        <div className="border-t border-black/8 px-4 py-4 md:px-5">
-          <div className="rounded-[20px] bg-[#f5f4f1] p-4">
+        <div className="border-t border-black/8 px-3 py-4 sm:px-4 md:px-5">
+          <div className="rounded-[18px] bg-[#f5f4f1] p-4 sm:rounded-[20px]">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[13px] text-black/55">Итого</span>
-              <span className="break-words text-right text-[20px] font-semibold leading-tight text-black md:text-[22px]">
+              <span className="break-words text-right text-[18px] font-semibold leading-tight text-black sm:text-[20px] md:text-[22px]">
                 {formatMoney(subtotal, country)}
               </span>
             </div>
@@ -335,7 +339,7 @@ export default function OrderSidebar({
               onClick={onCheckout}
               disabled={!hasItems}
               className={cn(
-                "inline-flex h-11 items-center justify-center rounded-[14px] px-4 text-[14px] font-semibold transition",
+                "inline-flex h-11 w-full items-center justify-center rounded-[14px] px-4 text-[14px] font-semibold transition",
                 hasItems
                   ? "cursor-pointer border border-black bg-black text-white hover:opacity-95"
                   : "cursor-not-allowed border border-black/10 bg-black/10 text-black/40",
@@ -349,7 +353,7 @@ export default function OrderSidebar({
               onClick={onPrintBase}
               disabled={!hasItems}
               className={cn(
-                "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] px-3 text-[12px] font-semibold transition",
+                "inline-flex h-10 w-full items-center justify-center gap-2 rounded-[12px] px-3 text-[12px] font-semibold transition",
                 hasItems
                   ? "cursor-pointer border border-black/10 bg-white text-black hover:border-amber-300 hover:bg-amber-50"
                   : "cursor-not-allowed border border-black/10 bg-white text-black/30",

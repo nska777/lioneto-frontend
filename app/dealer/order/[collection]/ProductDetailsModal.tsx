@@ -132,20 +132,20 @@ function RequiredStepRow({
   return (
     <div
       className={cn(
-        "rounded-[18px] border px-3 py-3 transition",
+        "rounded-[18px] border px-3 py-3 transition sm:px-4",
         isDone
           ? "border-emerald-200 bg-emerald-50/60"
           : "border-black/8 bg-white",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="shrink-0">
           {addon.image ? (
             <button
               type="button"
               onClick={() => onOpenImage?.(addon.image!, addon.title)}
               className={cn(
-                "group relative block h-11 w-11 overflow-hidden rounded-[12px] border bg-white transition",
+                "group relative block h-12 w-12 overflow-hidden rounded-[12px] border bg-white transition",
                 isDone
                   ? "border-emerald-200"
                   : "border-black/10 hover:border-black/20",
@@ -157,7 +157,7 @@ function RequiredStepRow({
                 alt={addon.title}
                 fill
                 className="object-cover"
-                sizes="44px"
+                sizes="48px"
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/20">
                 <ZoomIn className="h-3.5 w-3.5 text-white opacity-0 transition group-hover:opacity-100" />
@@ -166,7 +166,7 @@ function RequiredStepRow({
           ) : (
             <div
               className={cn(
-                "mt-0.5 flex h-11 w-11 items-center justify-center rounded-[12px] border text-[12px] font-semibold",
+                "mt-0.5 flex h-12 w-12 items-center justify-center rounded-[12px] border text-[12px] font-semibold",
                 isDone
                   ? "border-emerald-300 bg-emerald-600 text-white"
                   : "border-black/12 bg-[#f5f4f1] text-black/55",
@@ -179,7 +179,7 @@ function RequiredStepRow({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[15px] font-semibold leading-5 text-black">
+            <div className="text-[14px] font-semibold leading-5 text-black sm:text-[15px]">
               {addon.title}
             </div>
 
@@ -190,7 +190,7 @@ function RequiredStepRow({
             ) : null}
           </div>
 
-          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-black/50">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-black/50">
             <span>Мин. {minQty} шт.</span>
             <span>{formatMoney(unitPrice, country)}</span>
             <span className="text-black/65">
@@ -205,19 +205,21 @@ function RequiredStepRow({
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <QtyControl
-            compact
-            value={qty}
-            onMinus={() => onDecreaseAddonQty?.(addon.id)}
-            onPlus={() => onIncreaseAddonQty?.(addon.id)}
-          />
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[190px] sm:items-end">
+          <div className="flex justify-start sm:justify-end">
+            <QtyControl
+              compact
+              value={qty}
+              onMinus={() => onDecreaseAddonQty?.(addon.id)}
+              onPlus={() => onIncreaseAddonQty?.(addon.id)}
+            />
+          </div>
 
           <button
             type="button"
             onClick={() => onToggleAddonCart?.(addon.id)}
             className={cn(
-              "inline-flex h-8 min-w-[110px] cursor-pointer items-center justify-center rounded-[10px] px-3 text-[12px] font-semibold transition",
+              "inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 text-[12px] font-semibold transition sm:min-w-[110px]",
               addonState.isInCart
                 ? "border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
                 : "border border-black bg-black text-white hover:opacity-95",
@@ -229,7 +231,7 @@ function RequiredStepRow({
       </div>
 
       {(addon.description || addon.image) && (
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
@@ -284,7 +286,7 @@ function RecommendedCard({
   return (
     <div className="flex h-full flex-col rounded-[20px] border border-black/8 bg-white p-4">
       <div className="flex min-w-0 gap-3">
-        <div className="relative h-[76px] w-[76px] shrink-0 overflow-hidden rounded-[14px] bg-white">
+        <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-[14px] bg-white sm:h-[76px] sm:w-[76px]">
           {addon.image ? (
             <>
               <Image
@@ -311,7 +313,7 @@ function RecommendedCard({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="line-clamp-2 text-[15px] font-semibold leading-5 text-black">
+          <div className="line-clamp-2 text-[14px] font-semibold leading-5 text-black sm:text-[15px]">
             {addon.title}
           </div>
 
@@ -326,7 +328,7 @@ function RecommendedCard({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {addon.selectionType === "quantity" ? (
           <QtyControl
             compact
@@ -342,7 +344,7 @@ function RecommendedCard({
           type="button"
           onClick={() => onToggleAddonCart?.(addon.id)}
           className={cn(
-            "inline-flex h-9 cursor-pointer items-center justify-center rounded-[10px] px-3 text-[12px] font-semibold transition",
+            "inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 text-[12px] font-semibold transition sm:w-auto",
             addonState.isInCart
               ? "border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
               : "border border-black/10 bg-[#f6f4ef] text-black hover:bg-[#ece8df]",
@@ -454,25 +456,25 @@ export default function ProductDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 p-2 md:p-4"
+      className="fixed inset-0 z-50 bg-black/50 p-0 sm:p-2 md:p-4"
       onClick={onClose}
     >
-      <div className="flex min-h-full items-center justify-center">
+      <div className="flex min-h-full items-end justify-center sm:items-center">
         <div
-          className="relative w-full max-w-[1240px] rounded-[28px] bg-white shadow-[0_30px_90px_-30px_rgba(0,0,0,0.35)]"
+          className="relative w-full max-w-[1240px] rounded-t-[24px] bg-white shadow-[0_30px_90px_-30px_rgba(0,0,0,0.35)] sm:rounded-[28px]"
           onClick={(event) => event.stopPropagation()}
         >
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/60 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            className="absolute right-3 top-3 z-20 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/60 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 sm:right-4 sm:top-4"
           >
             <X className="h-5 w-5" />
           </button>
 
           <div
             className={cn(
-              "max-h-[90vh] overflow-x-visible overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6",
+              "max-h-[92vh] overflow-x-hidden overflow-y-auto px-3 pb-3 pt-3 sm:px-4 sm:pb-4 sm:pt-4 md:px-6 md:pb-6 md:pt-6",
               "[scrollbar-width:thin]",
               "[scrollbar-color:rgba(0,0,0,0.22)_transparent]",
               "[&::-webkit-scrollbar]:w-[6px]",
@@ -483,7 +485,7 @@ export default function ProductDetailsModal({
           >
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <div className="min-w-0">
-                <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
                   <button
                     type="button"
                     onClick={() =>
@@ -492,7 +494,7 @@ export default function ProductDetailsModal({
                         title: safeProduct.title,
                       })
                     }
-                    className="group relative h-[260px] w-full overflow-hidden rounded-[24px] bg-[#f1f1ed] text-left md:h-[300px]"
+                    className="group relative h-[220px] w-full overflow-hidden rounded-[20px] bg-[#f1f1ed] text-left sm:h-[260px] md:h-[300px] md:rounded-[24px]"
                   >
                     <Image
                       src={safeProduct.image}
@@ -508,10 +510,10 @@ export default function ProductDetailsModal({
                     </div>
                   </button>
 
-                  <div className="rounded-[24px] border border-black/8 bg-white p-4 md:p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="rounded-[20px] border border-black/8 bg-white p-4 md:rounded-[24px] md:p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <div className="text-[24px] font-semibold leading-[1.05] tracking-[-0.03em] text-black md:text-[30px]">
+                        <div className="text-[22px] font-semibold leading-[1.08] tracking-[-0.03em] text-black sm:text-[26px] md:text-[30px]">
                           {safeProduct.title}
                         </div>
 
@@ -526,7 +528,7 @@ export default function ProductDetailsModal({
                       {requiredProgress.total > 0 ? (
                         <div
                           className={cn(
-                            "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
+                            "inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
                             requiredProgress.done
                               ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                               : "border border-amber-200 bg-amber-50 text-amber-700",
@@ -542,7 +544,7 @@ export default function ProductDetailsModal({
                             : `${requiredProgress.completed}/${requiredProgress.total} шагов`}
                         </div>
                       ) : (
-                        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f5f5f3] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-black/55">
+                        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-[#f5f5f3] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-black/55">
                           Без обязательного комплекта
                         </div>
                       )}
@@ -607,10 +609,10 @@ export default function ProductDetailsModal({
                   </div>
                 </div>
 
-                <section className="mt-5 rounded-[24px] border border-black/8 bg-[#fbfaf7] p-4 md:p-5">
+                <section className="mt-5 rounded-[20px] border border-black/8 bg-[#fbfaf7] p-4 md:rounded-[24px] md:p-5">
                   <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                     <div>
-                      <div className="text-[20px] font-semibold tracking-[-0.02em] text-black">
+                      <div className="text-[18px] font-semibold tracking-[-0.02em] text-black sm:text-[20px]">
                         Обязательная комплектация
                       </div>
                       <div className="mt-1 text-[13px] text-black/55">
@@ -622,7 +624,7 @@ export default function ProductDetailsModal({
                     {requiredProgress.total > 0 ? (
                       <div
                         className={cn(
-                          "inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
+                          "inline-flex w-fit rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
                           requiredProgress.done
                             ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                             : "border border-amber-200 bg-amber-50 text-amber-700",
@@ -668,7 +670,7 @@ export default function ProductDetailsModal({
               </div>
 
               <div className="min-w-0">
-                <div className="sticky top-0 rounded-[24px] border border-black/8 bg-[#f5f2eb] p-4 md:p-5">
+                <div className="rounded-[20px] border border-black/8 bg-[#f5f2eb] p-4 md:rounded-[24px] md:p-5 xl:sticky xl:top-4">
                   <div className="text-[18px] font-semibold tracking-[-0.02em] text-black">
                     Основной товар
                   </div>
@@ -676,7 +678,7 @@ export default function ProductDetailsModal({
                   <div className="mt-4 rounded-[18px] bg-white p-4">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[12px] text-black/45">Цена</span>
-                      <span className="text-[22px] font-semibold leading-none text-black">
+                      <span className="text-[20px] font-semibold leading-none text-black sm:text-[22px]">
                         {formatMoney(basePrice, country)}
                       </span>
                     </div>
@@ -747,7 +749,7 @@ export default function ProductDetailsModal({
               </div>
             </div>
 
-            <section className="mt-5 rounded-[24px] border border-black/8 bg-white p-4 md:p-5">
+            <section className="mt-5 rounded-[20px] border border-black/8 bg-white p-4 md:rounded-[24px] md:p-5">
               <div className="flex flex-col gap-1">
                 <div className="text-[18px] font-semibold tracking-[-0.02em] text-black">
                   Рекомендуемые товары
@@ -758,7 +760,7 @@ export default function ProductDetailsModal({
               </div>
 
               {finalRecommendedItems.length > 0 ? (
-                <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {finalRecommendedItems.map((addon) => {
                     const addonState = addonDrafts?.[addon.id] ?? {
                       quantity: addon.defaultQuantity ?? 1,
@@ -792,11 +794,11 @@ export default function ProductDetailsModal({
 
           {previewImage ? (
             <div
-              className="absolute inset-0 z-30 flex items-center justify-center rounded-[28px] bg-black/55 p-4"
+              className="absolute inset-0 z-30 flex items-center justify-center rounded-t-[24px] bg-black/55 p-3 sm:rounded-[28px] sm:p-4"
               onClick={() => setPreviewImage(null)}
             >
               <div
-                className="relative w-full max-w-[820px] rounded-[24px] bg-white p-3 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.45)]"
+                className="relative w-full max-w-[820px] rounded-[20px] bg-white p-3 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.45)] sm:rounded-[24px]"
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
@@ -807,7 +809,7 @@ export default function ProductDetailsModal({
                   <X className="h-5 w-5" />
                 </button>
 
-                <div className="mb-3 pr-12 pl-1 pt-1 text-[15px] font-semibold text-black">
+                <div className="mb-3 pr-12 pl-1 pt-1 text-[14px] font-semibold text-black sm:text-[15px]">
                   {previewImage.title}
                 </div>
 
