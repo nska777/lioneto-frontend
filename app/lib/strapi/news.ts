@@ -5,11 +5,18 @@ export type StrapiNewsItem = {
   type?: string; // arrival / update / sale / event
   title: string;
   subtitle?: string;
+  excerpt?: string;
+  description?: string;
+  content?: string;
   slug: string;
   dateLabel?: string;
   isActive?: boolean;
   sortOrder?: number;
+  publishedAt?: string;
+  createdAt?: string;
   cover?: { url: string; alternativeText?: string | null } | null;
+  image?: { url: string; alternativeText?: string | null } | null;
+  coverImage?: string;
 };
 
 const STRAPI_BASE =
@@ -17,12 +24,33 @@ const STRAPI_BASE =
   process.env.STRAPI_URL ||
   "http://localhost:1337";
 
-// ✅ всегда делаем absolute URL
 function toAbsolute(url?: string | null): string {
   if (!url) return "";
-  if (url.startsWith("http")) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("//")) return `https:${url}`;
   if (url.startsWith("/")) return `${STRAPI_BASE}${url}`;
-  return url;
+  return `${STRAPI_BASE}/${url}`;
+}
+
+function getMedia(raw: any) {
+  const media = raw?.data?.attributes ?? raw?.attributes ?? raw ?? null;
+  if (!media) return null;
+
+  const rawUrl =
+    media?.formats?.large?.url ||
+    media?.formats?.medium?.url ||
+    media?.formats?.small?.url ||
+    media?.formats?.thumbnail?.url ||
+    media?.url ||
+    null;
+
+  const url = toAbsolute(rawUrl);
+  if (!url) return null;
+
+  return {
+    url,
+    alternativeText: media?.alternativeText ?? null,
+  };
 }
 
 function normalizeItem(raw: any): StrapiNewsItem | null {
@@ -34,32 +62,33 @@ function normalizeItem(raw: any): StrapiNewsItem | null {
 
   if (!id || !title || !slug) return null;
 
-  const coverSrc = src?.cover?.data?.attributes ?? src?.cover ?? null;
-
-  const rawCoverUrl =
-    coverSrc?.formats?.large?.url ||
-    coverSrc?.formats?.medium?.url ||
-    coverSrc?.url ||
-    null;
-
-  const coverUrl = toAbsolute(rawCoverUrl);
+  const cover = getMedia(src?.cover);
+  const image = getMedia(src?.image) || cover;
 
   return {
     id,
     type: src?.type ?? undefined,
     title,
-    subtitle: src?.subtitle ?? src?.excerpt ?? undefined,
+    subtitle: src?.subtitle ?? undefined,
+    excerpt: src?.excerpt ?? src?.subtitle ?? undefined,
+    description: src?.description ?? src?.excerpt ?? src?.subtitle ?? undefined,
+    content:
+      typeof src?.content === "string"
+        ? src.content
+        : typeof src?.body === "string"
+          ? src.body
+          : typeof src?.text === "string"
+            ? src.text
+            : undefined,
     slug,
     dateLabel: src?.dateLabel ?? undefined,
     isActive: src?.isActive ?? undefined,
-    sortOrder:
-      src?.sortOrder != null ? Number(src.sortOrder) : undefined,
-    cover: coverUrl
-      ? {
-          url: coverUrl,
-          alternativeText: coverSrc?.alternativeText ?? null,
-        }
-      : null,
+    sortOrder: src?.sortOrder != null ? Number(src.sortOrder) : undefined,
+    publishedAt: src?.publishedAt ?? undefined,
+    createdAt: src?.createdAt ?? undefined,
+    cover,
+    image,
+    coverImage: cover?.url || image?.url || undefined,
   };
 }
 
@@ -72,12 +101,12 @@ export async function fetchNews({
 
   if (limit) qs.set("pagination[limit]", String(limit));
 
-  qs.set("populate", "cover");
+  qs.set("populate[0]", "cover");
+  qs.set("populate[1]", "image");
 
-  // ✅ сначала ручной порядок, потом свежие
-  qs.set("sort", "sortOrder:asc,publishedAt:desc");
+  qs.set("sort[0]", "sortOrder:asc");
+  qs.set("sort[1]", "publishedAt:desc");
 
-  // ✅ только активные
   qs.set("filters[isActive][$eq]", "true");
 
   const url = `${STRAPI_BASE}/api/news-items?${qs.toString()}`;
@@ -89,10 +118,37 @@ export async function fetchNews({
     const json = await res.json();
     const data = Array.isArray(json?.data) ? json.data : [];
 
-    return data
-      .map(normalizeItem)
-      .filter(Boolean) as StrapiNewsItem[];
+    return data.map(normalizeItem).filter(Boolean) as StrapiNewsItem[];
   } catch {
     return [];
+  }
+}
+
+export async function fetchNewsBySlug(
+  slug: string,
+): Promise<StrapiNewsItem | null> {
+  const cleanSlug = String(slug ?? "").trim();
+  if (!cleanSlug) return null;
+
+  const qs = new URLSearchParams();
+  qs.set("populate[0]", "cover");
+  qs.set("populate[1]", "image");
+  qs.set("filters[slug][$eq]", cleanSlug);
+  qs.set("filters[isActive][$eq]", "true");
+  qs.set("pagination[limit]", "1");
+
+  const url = `${STRAPI_BASE}/api/news-items?${qs.toString()}`;
+
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    const data = Array.isArray(json?.data) ? json.data : [];
+    const item = data[0];
+
+    return normalizeItem(item);
+  } catch {
+    return null;
   }
 }

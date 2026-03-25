@@ -254,11 +254,9 @@ export default function CatalogCard({
     getStr(p, "productId") || getStr(p, "slug") || getStr(p, "id"),
   ).trim();
 
-  const pid = routeKey || String(getStr(p, "id"));
-
-  const hrefRaw = getStr(p, "href");
-  const href =
-    hrefRaw || (pid ? `/product/${encodeURIComponent(pid)}` : "/catalog");
+  const href = routeKey
+    ? `/product/${encodeURIComponent(routeKey)}`
+    : "/catalog";
 
   const title = String(getStr(p, "title")).trim() || "Товар";
 
@@ -415,7 +413,7 @@ export default function CatalogCard({
               }}
             >
               <ProductActions
-                id={pid}
+                id={routeKey}
                 snapshot={snapshot}
                 onOpenSpecs={() => {
                   window.location.href = href;

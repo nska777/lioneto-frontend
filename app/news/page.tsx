@@ -5,26 +5,48 @@ import NewsPageClient from "./NewsPageClient";
 import { fetchNews } from "../lib/strapi/news";
 
 export const metadata: Metadata = {
-  title: "Новости — Lioneto",
+  title: "Новости Lioneto — коллекции, события и обновления",
   description:
-    "Новости Lioneto: поступления, обновления коллекций, акции и события бренда.",
+    "Новости Lioneto: новые коллекции, поступления, обновления, акции и события бренда. Актуальные новости о премиальной мебели и интерьерных решениях.",
+  alternates: {
+    canonical: "/news",
+  },
   openGraph: {
-    title: "Новости — Lioneto",
+    title: "Новости Lioneto — коллекции, события и обновления",
     description:
-      "Поступления, обновления коллекций, акции и события бренда Lioneto.",
+      "Актуальные новости Lioneto: новые коллекции, поступления, акции и события бренда.",
+    url: "https://lioneto.com/news",
+    siteName: "Lioneto",
     type: "website",
     locale: "ru_RU",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Новости Lioneto",
+      },
+    ],
   },
-  robots: { index: true, follow: true },
+  twitter: {
+    card: "summary_large_image",
+    title: "Новости Lioneto — коллекции, события и обновления",
+    description:
+      "Актуальные новости Lioneto: новые коллекции, поступления, акции и события бренда.",
+    images: ["/og-image.jpg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default async function NewsPage() {
   const items = await fetchNews();
 
   return (
-    <main className="bg-#f3f3f3 text-black">
+    <main className="bg-[#f3f3f3] text-black">
       <div className="mx-auto w-full max-w-[1200px] px-4">
-        {/* Breadcrumbs */}
         <nav className="pt-6 text-[12px] tracking-[0.18em] text-black/50">
           <Link className="hover:text-black/80" href="/">
             ГЛАВНАЯ
@@ -43,7 +65,6 @@ export default async function NewsPage() {
           </p>
         </header>
 
-        {/* Клиентский блок с фильтрами + GSAP */}
         <div className="mt-8 md:mt-10">
           <NewsPageClient items={items} />
         </div>

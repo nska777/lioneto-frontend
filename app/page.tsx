@@ -1,4 +1,6 @@
 // app/page.tsx
+import type { Metadata } from "next";
+
 import GSAPHeroSlider from "./components/home/GSAPHeroSlider";
 import BestSellers, {
   type FeaturedProduct,
@@ -13,6 +15,41 @@ import NewsletterCta from "./components/home/NewsletterCta";
 
 import { COLLECTIONS_SLIDER_MOCK } from "./lib/mock/collections-slider";
 import { fetchNews } from "./lib/strapi/news";
+
+const SITE_URL = "https://lioneto.com";
+
+export const metadata: Metadata = {
+  title: "Lioneto — премиальная мебель для современных интерьеров",
+  description:
+    "Lioneto — премиальная мебель для современных интерьеров. Коллекции для спальни, гостиной и других пространств. Каталог, новости, сотрудничество для дилеров, дизайнеров и B2B.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Lioneto — премиальная мебель для современных интерьеров",
+    description:
+      "Коллекции премиальной мебели Lioneto: спальни, гостиные и интерьерные решения. Каталог, новости и сотрудничество для дилеров, дизайнеров и B2B.",
+    url: SITE_URL,
+    siteName: "Lioneto",
+    type: "website",
+    locale: "ru_RU",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Lioneto — премиальная мебель",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Lioneto — премиальная мебель для современных интерьеров",
+    description:
+      "Коллекции премиальной мебели Lioneto: каталог, новости и сотрудничество.",
+    images: ["/og-image.jpg"],
+  },
+};
 
 function getStrapiBase() {
   return (
@@ -32,9 +69,6 @@ function absUrl(base: string, url: string) {
 }
 
 function pickMediaUrl(base: string, mediaAny: any): string {
-  // поддержка разных shape:
-  // v4: { data: { attributes: { url } } }
-  // v5: иногда { url } или { attributes: { url } }
   const m = mediaAny?.data?.attributes ?? mediaAny?.attributes ?? mediaAny;
   const url = String(m?.url ?? "").trim();
   return absUrl(base, url);
@@ -55,7 +89,6 @@ function pickGalleryUrls(base: string, galleryAny: any): string[] {
     .filter(Boolean);
 }
 
-//  берём featured продукты прямо из Strapi "product"
 async function fetchFeaturedProducts(
   badge: "Хит продаж" | "Лучшая цена",
 ): Promise<FeaturedProduct[]> {
@@ -64,16 +97,13 @@ async function fetchFeaturedProducts(
   try {
     const qs = new URLSearchParams();
 
-    // фильтры
     qs.set("filters[isActive][$eq]", "true");
     qs.set("filters[collectionBadge][$eq]", badge);
 
-    // пагинация/сортировка
     qs.set("pagination[page]", "1");
     qs.set("pagination[pageSize]", "12");
     qs.set("sort[0]", "sortOrder:asc");
 
-    // populate медиа
     qs.set("populate[0]", "media");
     qs.set("populate[1]", "gallery");
 
@@ -106,25 +136,19 @@ async function fetchFeaturedProducts(
         const image = mediaUrl || galleryUrls[0] || "";
 
         const out: FeaturedProduct = {
-          //  ключом везде должен быть slug (Strapi-only)
           id: slug,
           slug,
           title: String(src?.title ?? "").trim() || slug,
           href: `/product/${slug}`,
-
           image,
-
           priceUZS: Number(src?.priceUZS ?? 0),
           priceRUB: Number(src?.priceRUB ?? 0),
-
           oldPriceUZS:
             src?.oldPriceUZS != null ? Number(src?.oldPriceUZS) : undefined,
           oldPriceRUB:
             src?.oldPriceRUB != null ? Number(src?.oldPriceRUB) : undefined,
-
           collectionBadge: String(src?.collectionBadge ?? "").trim() || badge,
           isActive: Boolean(src?.isActive),
-
           brand: src?.brand ?? null,
           collection: src?.collection ?? null,
         };
@@ -144,30 +168,20 @@ export default async function Page() {
     fetchFeaturedProducts("Лучшая цена"),
   ]);
 
-  // новости из Strapi (для секции на главной)
   const newsFromStrapi = await fetchNews({ limit: 6 });
   const newsItems =
     newsFromStrapi.length > 0
       ? (newsFromStrapi as any)
       : (supplyNewsMock as any);
 
-  console.log("HIT products:", hitProducts.length);
-  console.log("BEST products:", bestProducts.length);
-
   return (
     <main>
       <GSAPHeroSlider />
-
-      {/* priceEntries больше НЕ используем */}
       <BestSellers products={hitProducts} />
       <BestPrice products={bestProducts} />
-
       <AboutCompany />
-
       <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
-
       <SupplyNewsSection items={newsItems} />
-
       <NewsletterCta backgroundUrl="/images/home/newsletter-bg.jpg" />
     </main>
   );

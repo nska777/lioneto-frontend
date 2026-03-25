@@ -1,4 +1,5 @@
 // app/cooperation/page.tsx
+import type { Metadata } from "next";
 import CooperationClient from "./CooperationClient";
 
 type StrapiItem<T> = { id: number; attributes?: T } & T;
@@ -20,13 +21,45 @@ async function fetchStrapi<T>(url: string): Promise<T | null> {
   const res = await fetch(full, { cache: "no-store" });
 
   if (!res.ok) {
-    // Не роняем страницу (404/403/500), просто показываем пусто + лог в серверную консоль
-    console.error("[cooperation] Strapi fetch failed", res.status, full);
+    console.warn("[cooperation] Strapi fetch failed", res.status, full);
     return null;
   }
 
   return res.json();
 }
+
+export const metadata: Metadata = {
+  title: "Сотрудничество — дилеры, дизайнеры и B2B",
+  description:
+    "Сотрудничество с Lioneto для дилеров, дизайнеров, партнеров и B2B-клиентов. Узнайте об условиях партнерства, поставках и возможностях совместной работы.",
+  alternates: {
+    canonical: "/cooperation",
+  },
+  openGraph: {
+    title: "Сотрудничество с Lioneto — дилеры, дизайнеры и B2B",
+    description:
+      "Lioneto развивает сотрудничество с дилерами, дизайнерами, партнерами и B2B-клиентами. Условия работы, поставки и совместные проекты.",
+    url: "https://lioneto.com/cooperation",
+    siteName: "Lioneto",
+    type: "website",
+    locale: "ru_RU",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Сотрудничество с Lioneto",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Сотрудничество с Lioneto — дилеры, дизайнеры и B2B",
+    description:
+      "Условия сотрудничества с Lioneto для дилеров, дизайнеров и B2B-клиентов.",
+    images: ["/og-image.jpg"],
+  },
+};
 
 export default async function CooperationPage() {
   const tracksJson = await fetchStrapi<{ data: Array<StrapiItem<unknown>> }>(

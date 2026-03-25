@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProductClient from "./ui/ProductClient";
 import { resolveStrapiImage } from "@/app/lib/strapi/resolveImage";
+
+const BASE_URL = "https://lioneto.com";
 
 function norm(v: unknown) {
   return String(v ?? "")
@@ -29,16 +32,13 @@ type StrapiProduct = {
   oldPriceUZS?: number | null;
   oldPriceRUB?: number | null;
 
-  // description может быть string или blocks/json
   description?: unknown;
 
-  // новые поля
   sku?: string | null;
   size?: string | null;
   color?: string | null;
   material?: string | null;
 
-  // старые (fallback)
   sizeText?: string | null;
   colorText?: string | null;
   materialText?: string | null;
@@ -46,6 +46,13 @@ type StrapiProduct = {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
+}
+
+function pickText(...values: Array<unknown>): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
 }
 
 function pickStrapiMediaUrl(m: unknown): string | undefined {
@@ -209,7 +216,7 @@ async function fetchStrapiProductBySlug(
 
       title: typeof src.title === "string" ? src.title : "",
       slug: typeof src.slug === "string" ? src.slug : "",
-      isActive: !!src.isActive,
+      isActive: typeof src.isActive === "boolean" ? src.isActive : true,
 
       brand: typeof src.brand === "string" ? src.brand : undefined,
       cat: typeof src.cat === "string" ? src.cat : undefined,
@@ -301,21 +308,13 @@ async function fetchRelatedStrapiProducts(seed: {
   }
 }
 
-export default async function ProductPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+async function getProductSeoData(slugOrId: string) {
+  const sp = await fetchStrapiProductBySlug(slugOrId);
+  if (!sp || sp.isActive === false) return null;
 
-  const sp = await fetchStrapiProductBySlug(id);
-  if (!sp || sp.isActive === false) return notFound();
-
-  const slug = String(sp.slug || id);
-
+  const slug = String(sp.slug || slugOrId);
   const image = pickStrapiMediaUrl(sp.media) || "";
   const galleryBase = pickStrapiGalleryUrls(sp.gallery);
-
   const variantImgs = Array.isArray(sp.variants)
     ? (sp.variants.map(pickVariantImageUrl).filter(Boolean) as string[])
     : [];
@@ -328,6 +327,97 @@ export default async function ProductPage({
         : variantImgs
   ).filter(Boolean);
 
+  const desc = extractTextFromRich(sp.description);
+  const descriptionFinal =
+    desc ||
+    `${pickText(sp.title) || "Товар"} от Lioneto. Смотрите фото, описание, характеристики и доступные варианты.`;
+
+  const titleBase = pickText(sp.title) || "Товар Lioneto";
+  const brandName = pickText(sp.brand) || "Lioneto";
+  const canonical = `${BASE_URL}/product/${slug}`;
+
+  return {
+    sp,
+    slug,
+    titleBase,
+    brandName,
+    canonical,
+    image: galleryFinal[0] || image || `${BASE_URL}/og-image.jpg`,
+    gallery: galleryFinal,
+    description: descriptionFinal,
+    sku: pickText(sp.sku) || slug,
+    material: pickText(sp.material, sp.materialText),
+    color: pickText(sp.color, sp.colorText),
+    size: pickText(sp.size, sp.sizeText),
+  };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const seo = await getProductSeoData(id);
+
+  if (!seo) {
+    return {
+      title: "Товар не найден | Lioneto",
+      description: "Запрашиваемый товар не найден.",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  const title = `${seo.titleBase} | Lioneto`;
+  const description = seo.description;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: seo.canonical,
+    },
+    openGraph: {
+      type: "website",
+      url: seo.canonical,
+      title,
+      description,
+      siteName: "Lioneto",
+      images: seo.image
+        ? [
+            {
+              url: seo.image,
+              alt: seo.titleBase,
+            },
+          ]
+        : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: seo.image ? [seo.image] : [],
+    },
+  };
+}
+
+export default async function ProductPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  const seo = await getProductSeoData(id);
+  if (!seo) return notFound();
+
+  const { sp, slug, description, sku, canonical, image } = seo;
+
+  const galleryFinal = seo.gallery;
+
   const relatedStrapi = await fetchRelatedStrapiProducts({
     brand: sp.brand ?? null,
     collection: sp.collection ?? null,
@@ -335,14 +425,10 @@ export default async function ProductPage({
     currentSlug: slug,
   });
 
-  const desc = extractTextFromRich(sp.description);
-
   const skuVal = String(sp.sku ?? slug).trim();
   const sizeVal = String(sp.size ?? sp.sizeText ?? "").trim();
   const colorVal = String(sp.color ?? sp.colorText ?? "").trim();
   const materialVal = String(sp.material ?? sp.materialText ?? "").trim();
-
-  const descriptionFinal = desc || "Описание скоро будет.";
 
   const product = {
     id: slug,
@@ -355,21 +441,19 @@ export default async function ProductPage({
     hasDiscount: false,
     href: `/product/${slug}`,
 
-    // ✅ основные поля
     sku: skuVal,
-    description: descriptionFinal,
+    description,
 
-    // ✅ aliases (на случай, если ProductClient ждёт другие названия)
     article: skuVal,
     size: sizeVal || "—",
     color: colorVal || "—",
     material: materialVal || "—",
-    descriptionText: descriptionFinal,
+    descriptionText: description,
     sizeText: sizeVal || null,
     colorText: colorVal || null,
     materialText: materialVal || null,
 
-    image,
+    image: image || "",
     gallery: (galleryFinal.length ? galleryFinal : ["/placeholder.png"]).filter(
       Boolean,
     ),
@@ -395,9 +479,7 @@ export default async function ProductPage({
                   : "";
 
             const img = pickVariantImageUrl(v);
-
             const title = typeof v.title === "string" ? v.title : variantKey;
-
             const type = typeof v.type === "string" ? v.type : "";
             const group = typeof v.group === "string" ? v.group : undefined;
 
@@ -422,7 +504,6 @@ export default async function ProductPage({
     brand: norm(sp.brand),
     collectionLabel: String(sp.brand ?? "").toUpperCase(),
 
-    // ✅ extra (как ты хочешь в блоке "Дополнительная информация")
     extra: {
       article: skuVal,
       size: sizeVal || "—",
@@ -461,5 +542,105 @@ export default async function ProductPage({
 
   const productFixed = { ...product, variants: variantsFixed };
 
-  return <ProductClient product={productFixed} />;
+  const offerCurrency =
+    productFixed.price_uzs > 0
+      ? "UZS"
+      : productFixed.price_rub > 0
+        ? "RUB"
+        : null;
+
+  const offerPrice =
+    productFixed.price_uzs > 0
+      ? productFixed.price_uzs
+      : productFixed.price_rub > 0
+        ? productFixed.price_rub
+        : null;
+
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: productFixed.title,
+    image: productFixed.gallery,
+    description,
+    sku,
+    brand: {
+      "@type": "Brand",
+      name: pickText(sp.brand) || "Lioneto",
+    },
+    category: pickText(sp.cat, sp.module, sp.collection) || undefined,
+    material: materialVal || undefined,
+    color: colorVal || undefined,
+    additionalProperty: [
+      sizeVal
+        ? {
+            "@type": "PropertyValue",
+            name: "Размер",
+            value: sizeVal,
+          }
+        : null,
+      materialVal
+        ? {
+            "@type": "PropertyValue",
+            name: "Материал",
+            value: materialVal,
+          }
+        : null,
+      colorVal
+        ? {
+            "@type": "PropertyValue",
+            name: "Цвет",
+            value: colorVal,
+          }
+        : null,
+    ].filter(Boolean),
+    offers:
+      offerPrice && offerCurrency
+        ? {
+            "@type": "Offer",
+            price: String(offerPrice),
+            priceCurrency: offerCurrency,
+            availability: "https://schema.org/InStock",
+            url: canonical,
+          }
+        : undefined,
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Главная",
+        item: BASE_URL,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Каталог",
+        item: `${BASE_URL}/catalog`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: productFixed.title,
+        item: canonical,
+      },
+    ],
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <ProductClient product={productFixed} />
+    </>
+  );
 }

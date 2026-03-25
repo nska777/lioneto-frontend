@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -122,6 +123,7 @@ function NewsCard({
   onToggle: () => void;
 }) {
   const img = item.image?.url;
+  const href = `/news/${item.slug}`;
 
   return (
     <article
@@ -129,58 +131,45 @@ function NewsCard({
       className={cn(
         "group overflow-hidden rounded-3xl border bg-white transition",
         "border-black/10 hover:border-black/20",
-        "cursor-pointer select-none",
       )}
-      role="button"
-      tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
-      aria-expanded={isOpen}
     >
-      {/* IMAGE */}
-      <div className="relative aspect-[16/10] w-full overflow-hidden">
-        {img ? (
-          <Image
-            src={img}
-            alt={item.title}
-            fill
-            unoptimized
-            className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+      <Link href={href} className="block">
+        <div className="relative aspect-[16/10] w-full overflow-hidden">
+          {img ? (
+            <Image
+              src={img}
+              alt={item.title}
+              fill
+              unoptimized
+              className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-black/[0.04]" />
+          )}
+
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%)",
+            }}
           />
-        ) : (
-          <div className="absolute inset-0 bg-black/[0.04]" />
-        )}
 
-        {/* подложка для читабельности */}
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%)",
-          }}
-        />
-
-        <div className="absolute bottom-4 left-4 right-4 text-white">
-          <div className="text-[12px] tracking-[0.16em] opacity-85">
-            {item.tag.toUpperCase()}
-            {item.dateLabel ? (
-              <span className="opacity-75"> • {item.dateLabel}</span>
-            ) : null}
-          </div>
-          <div className="mt-1 text-[18px] font-semibold leading-snug">
-            {item.title}
+          <div className="absolute bottom-4 left-4 right-4 text-white">
+            <div className="text-[12px] tracking-[0.16em] opacity-85">
+              {item.tag.toUpperCase()}
+              {item.dateLabel ? (
+                <span className="opacity-75"> • {item.dateLabel}</span>
+              ) : null}
+            </div>
+            <div className="mt-1 text-[18px] font-semibold leading-snug">
+              {item.title}
+            </div>
           </div>
         </div>
-      </div>
+      </Link>
 
-      {/* BODY */}
       <div className="p-6">
-        {/* плавное раскрытие текста */}
         <div
           className="overflow-hidden"
           style={{
@@ -198,26 +187,28 @@ function NewsCard({
           </p>
         </div>
 
-        {/* FOOTER: слева метка, справа кнопка (вместо Читать) */}
-        <div className="mt-5 flex items-center justify-between">
-          <div className="text-[12px] tracking-[0.18em] text-black/45">
-            {isOpen ? "СВЕРНУТЬ" : "РАЗВЕРНУТЬ"}
-          </div>
-
+        <div className="mt-5 flex items-center justify-between gap-4">
           <button
             type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation(); // ✅ важно: чтобы не срабатывало дважды
-              onToggle();
-            }}
+            onClick={onToggle}
+            className={cn(
+              "cursor-pointer text-[12px] tracking-[0.18em] transition",
+              "text-black/45 hover:text-black/75",
+            )}
+            aria-expanded={isOpen}
+          >
+            {isOpen ? "СВЕРНУТЬ" : "РАЗВЕРНУТЬ"}
+          </button>
+
+          <Link
+            href={href}
             className={cn(
               "cursor-pointer text-[12px] tracking-[0.18em] transition",
               "text-black/60 hover:text-black",
             )}
           >
-            {isOpen ? "Свернуть" : "Развернуть"} →
-          </button>
+            Читать статью →
+          </Link>
         </div>
       </div>
     </article>
@@ -228,9 +219,8 @@ export default function NewsPageClient({ items }: { items: NewsItemInput[] }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   const [tag, setTag] = useState<(typeof TAGS)[number]>("Все");
-  const [q, setQ] = useState("");
+  const [q] = useState("");
 
-  // ✅ открыта только одна карточка
   const [openId, setOpenId] = useState<string | null>(null);
 
   const normalized = useMemo(() => normalizeItems(items), [items]);
@@ -247,7 +237,6 @@ export default function NewsPageClient({ items }: { items: NewsItemInput[] }) {
     });
   }, [normalized, tag, q]);
 
-  // ✅ если фильтр/поиск изменился — закрываем (чтобы не оставалось открытым несуществующее)
   useEffect(() => {
     setOpenId(null);
   }, [tag, q]);
@@ -293,7 +282,6 @@ export default function NewsPageClient({ items }: { items: NewsItemInput[] }) {
             item={it}
             isOpen={openId === it.id}
             onToggle={() => {
-              // ✅ toggle: если жмём на открытую — закрываем
               setOpenId((prev) => (prev === it.id ? null : it.id));
             }}
           />
