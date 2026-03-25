@@ -12,6 +12,7 @@ export type StrapiNewsItem = {
   dateLabel?: string;
   isActive?: boolean;
   sortOrder?: number;
+  updatedAt?: string;
   publishedAt?: string;
   createdAt?: string;
   cover?: { url: string; alternativeText?: string | null } | null;
@@ -84,6 +85,7 @@ function normalizeItem(raw: any): StrapiNewsItem | null {
     dateLabel: src?.dateLabel ?? undefined,
     isActive: src?.isActive ?? undefined,
     sortOrder: src?.sortOrder != null ? Number(src.sortOrder) : undefined,
+    updatedAt: src?.updatedAt ?? undefined,
     publishedAt: src?.publishedAt ?? undefined,
     createdAt: src?.createdAt ?? undefined,
     cover,

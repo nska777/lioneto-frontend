@@ -44,21 +44,21 @@ async function fetchProductsForSitemap(): Promise<SitemapProductItem[]> {
     const data = root && Array.isArray(root.data) ? root.data : [];
 
     return data
-      .map((item) => {
+      .map((item): SitemapProductItem | null => {
         const it = isRecord(item) ? item : null;
         const src = it && isRecord(it.attributes) ? it.attributes : it;
 
         if (!src || !isRecord(src)) return null;
 
         const slug = typeof src.slug === "string" ? src.slug.trim() : "";
+        if (!slug) return null;
+
         const updatedAt =
           typeof src.updatedAt === "string" ? src.updatedAt : undefined;
         const createdAt =
           typeof src.createdAt === "string" ? src.createdAt : undefined;
         const publishedAt =
           typeof src.publishedAt === "string" ? src.publishedAt : undefined;
-
-        if (!slug) return null;
 
         return {
           slug,
@@ -67,7 +67,7 @@ async function fetchProductsForSitemap(): Promise<SitemapProductItem[]> {
           publishedAt,
         };
       })
-      .filter((item): item is SitemapProductItem => !!item);
+      .filter((item): item is SitemapProductItem => item !== null);
   } catch (error) {
     console.error("fetchProductsForSitemap error:", error);
     return [];
