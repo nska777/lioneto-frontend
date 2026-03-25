@@ -28,12 +28,10 @@ import {
 import {
   loadAddonDrafts,
   loadCartProductIds,
-  loadCountry,
   loadDrafts,
   prependOrder,
   saveAddonDrafts,
   saveCartProductIds,
-  saveCountry,
   saveDrafts,
 } from "./storage";
 import type { AddonDraft, CartEntry, DealerOrder, ProductDraft } from "./types";
@@ -43,6 +41,26 @@ type Props = {
   initialCollection: DealerCollection;
   initialCollections: DealerCollection[];
   initialProducts: DealerProduct[];
+};
+
+type DealerMe = {
+  dealerId?: number | null;
+  documentId?: string;
+  login?: string;
+  title?: string | null;
+  managerName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  address?: string | null;
+  region?: string | null;
+  countryCode?: string | null;
+  role?: string | null;
+  mustChangePassword?: boolean;
+};
+
+type DealerMeResponse = {
+  dealer?: DealerMe;
 };
 
 function getProductOptions(product: DealerProduct) {
@@ -57,6 +75,43 @@ function getProductOptions(product: DealerProduct) {
   return legacy;
 }
 
+function normalizeDealerCountryCode(
+  countryCode?: string | null,
+  region?: string | null,
+): DealerCountryCode {
+  const cc = (countryCode ?? "").trim().toUpperCase();
+
+  if (cc === "RU" || cc === "UZ" || cc === "KZ" || cc === "TJ") {
+    return cc;
+  }
+
+  const normalizedRegion = (region ?? "").trim().toLowerCase();
+
+  if (
+    normalizedRegion.includes("uzbek") ||
+    normalizedRegion.includes("узбек")
+  ) {
+    return "UZ";
+  }
+
+  if (normalizedRegion.includes("russia") || normalizedRegion.includes("рос")) {
+    return "RU";
+  }
+
+  if (
+    normalizedRegion.includes("kazakh") ||
+    normalizedRegion.includes("казах")
+  ) {
+    return "KZ";
+  }
+
+  if (normalizedRegion.includes("tajik") || normalizedRegion.includes("тадж")) {
+    return "TJ";
+  }
+
+  return "UZ";
+}
+
 export default function DealerCollectionClient({
   initialCollection,
   initialCollections,
@@ -64,7 +119,8 @@ export default function DealerCollectionClient({
 }: Props) {
   const safeCollection = initialCollection;
 
-  const [country, setCountry] = useState<DealerCountryCode>("RU");
+  const [country, setCountry] = useState<DealerCountryCode>("UZ");
+  const [, setDealerMe] = useState<DealerMe | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ProductDraft>>({});
   const [addonDrafts, setAddonDrafts] = useState<Record<string, AddonDraft>>(
     {},
@@ -81,13 +137,44 @@ export default function DealerCollectionClient({
     setCartProductIds(loadCartProductIds());
     setDrafts(loadDrafts());
     setAddonDrafts(loadAddonDrafts());
+    setIsHydrated(true);
+  }, []);
 
-    const savedCountry = loadCountry();
-    if (savedCountry) {
-      setCountry(savedCountry);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDealerMe() {
+      try {
+        const res = await fetch("/api/dealer/auth/me", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const data = (await res.json()) as DealerMeResponse;
+        const dealer = data?.dealer;
+
+        if (!dealer || cancelled) return;
+
+        setDealerMe(dealer);
+        setCountry(
+          normalizeDealerCountryCode(
+            dealer.countryCode ?? null,
+            dealer.region ?? null,
+          ),
+        );
+      } catch {
+        // fallback остается UZ
+      }
     }
 
-    setIsHydrated(true);
+    loadDealerMe();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -104,11 +191,6 @@ export default function DealerCollectionClient({
     if (!isHydrated) return;
     saveAddonDrafts(addonDrafts);
   }, [addonDrafts, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) return;
-    saveCountry(country);
-  }, [country, isHydrated]);
 
   const currentCollectionProducts = initialProducts.filter(
     (product) => product.collectionSlug === safeCollection.slug,
@@ -279,7 +361,7 @@ export default function DealerCollectionClient({
         if (!product) return null;
 
         const draft = getDraft(productId);
-        const unitBasePrice = product.price[country];
+        const unitBasePrice = product.price[country] ?? 0;
         const totalBasePrice = unitBasePrice * draft.quantity;
 
         return {
@@ -460,24 +542,6 @@ export default function DealerCollectionClient({
                 {safeCollection.title}
               </h1>
               <p className="mt-1 text-[14px] text-black/55">коллекция</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {(["RU", "UZ", "KZ", "TJ"] as DealerCountryCode[]).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setCountry(item)}
-                  className={cn(
-                    "inline-flex h-8 cursor-pointer items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition",
-                    country === item
-                      ? "border-amber-300 bg-amber-50 text-black"
-                      : "border-black/10 bg-white text-black/60 hover:border-black/20",
-                  )}
-                >
-                  {item}
-                </button>
-              ))}
             </div>
           </div>
 

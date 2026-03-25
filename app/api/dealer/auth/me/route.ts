@@ -52,7 +52,8 @@ export async function GET() {
     return NextResponse.json({
       dealer: {
         dealerId: typeof payload.dealerId === "number" ? payload.dealerId : null,
-        documentId: typeof payload.documentId === "string" ? payload.documentId : "",
+        documentId:
+          typeof payload.documentId === "string" ? payload.documentId : "",
         login: typeof payload.login === "string" ? payload.login : "",
         title: typeof payload.title === "string" ? payload.title : "",
         email: typeof payload.email === "string" ? payload.email : "",

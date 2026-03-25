@@ -206,170 +206,168 @@ export default function OrderSidebar({
   const hasItems = cartItems.length > 0;
 
   return (
-    <aside className="flex h-full min-h-[520px] flex-col rounded-[24px] border border-black/10 bg-[#fcfcfa] shadow-[0_14px_34px_-24px_rgba(0,0,0,0.22)]">
-      <div className="border-b border-black/8 px-4 py-4 md:px-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
-              <ShoppingCart className="h-5 w-5" />
+    <aside className="self-start xl:sticky xl:top-4">
+      <div className="flex flex-col overflow-hidden rounded-[24px] border border-black/10 bg-[#fcfcfa] shadow-[0_14px_34px_-24px_rgba(0,0,0,0.22)]">
+        <div className="border-b border-black/8 px-4 py-4 md:px-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white">
+                <ShoppingCart className="h-5 w-5" />
+              </div>
+
+              <div>
+                <div className="text-[18px] font-semibold tracking-[-0.02em] text-black">
+                  Корзина
+                </div>
+                <div className="mt-0.5 text-[12px] text-black/50">
+                  {hasItems
+                    ? `${cartItems.length} поз. / ${totalQty} ед.`
+                    : "Пока пусто"}
+                </div>
+              </div>
             </div>
 
-            <div>
-              <div className="text-[18px] font-semibold tracking-[-0.02em] text-black">
-                Корзина
+            {hasItems ? (
+              <button
+                type="button"
+                onClick={onClearCart}
+                className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-[12px] border border-black/10 bg-white px-3 text-[12px] font-semibold text-black transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 className="h-4 w-4" />
+                Очистить
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "px-4 py-4 md:px-5",
+            hasItems &&
+              "overflow-y-auto xl:max-h-[calc(100vh-300px)] [scrollbar-width:thin] [scrollbar-color:rgba(0,0,0,0.22)_transparent] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-black/20",
+          )}
+        >
+          {hasItems ? (
+            <div className="space-y-4">
+              {groupedItems.map((group, groupIndex) => (
+                <div
+                  key={`group-${group.product?.id ?? group.requiredAddons[0]?.id ?? group.otherAddons[0]?.id ?? groupIndex}`}
+                  className="rounded-[22px] border border-black/8 bg-[#f7f6f3] p-3"
+                >
+                  {group.product ? (
+                    <div
+                      className={cn(
+                        "rounded-[20px] p-[2px]",
+                        group.requiredAddons.length > 0
+                          ? "border border-emerald-400/80 bg-emerald-50/30"
+                          : "",
+                      )}
+                    >
+                      <div className="space-y-3 rounded-[18px]">
+                        <LineRow
+                          item={group.product}
+                          country={country}
+                          onRemove={() => onRemoveItem(group.product!.id)}
+                        />
+
+                        {group.requiredAddons.length > 0 ? (
+                          <div className="space-y-3 pl-3">
+                            {group.requiredAddons.map((addon) => (
+                              <LineRow
+                                key={addon.id}
+                                item={addon}
+                                country={country}
+                                onRemove={() => onRemoveItem(addon.id)}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-[18px] border border-dashed border-black/12 bg-white px-3 py-3 text-[13px] text-black/45">
+                      Основной товар не найден, но в корзине есть связанные
+                      элементы.
+                    </div>
+                  )}
+
+                  {group.otherAddons.length > 0 ? (
+                    <div className="mt-3 space-y-3">
+                      {group.otherAddons.map((addon) => (
+                        <LineRow
+                          key={addon.id}
+                          item={addon}
+                          country={country}
+                          onRemove={() => onRemoveItem(addon.id)}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[20px] border border-dashed border-black/10 bg-white px-6 py-12 text-center">
+              <div className="text-[16px] font-semibold text-black">
+                Корзина пока пустая
               </div>
-              <div className="mt-0.5 text-[12px] text-black/50">
-                {hasItems
-                  ? `${cartItems.length} поз. / ${totalQty} ед.`
-                  : "Пока пусто"}
+              <div className="mx-auto mt-2 max-w-[260px] text-[13px] leading-5 text-black/50">
+                Добавьте основной товар и соберите комплект из обязательных и
+                рекомендованных элементов.
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-black/8 px-4 py-4 md:px-5">
+          <div className="rounded-[20px] bg-[#f5f4f1] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[13px] text-black/55">Итого</span>
+              <span className="break-words text-right text-[20px] font-semibold leading-tight text-black md:text-[22px]">
+                {formatMoney(subtotal, country)}
+              </span>
             </div>
           </div>
 
-          {hasItems ? (
+          <div className="mt-4 grid gap-2">
             <button
               type="button"
-              onClick={onClearCart}
-              className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-[12px] border border-black/10 bg-white px-3 text-[12px] font-semibold text-black transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              onClick={onCheckout}
+              disabled={!hasItems}
+              className={cn(
+                "inline-flex h-11 items-center justify-center rounded-[14px] px-4 text-[14px] font-semibold transition",
+                hasItems
+                  ? "cursor-pointer border border-black bg-black text-white hover:opacity-95"
+                  : "cursor-not-allowed border border-black/10 bg-black/10 text-black/40",
+              )}
             >
-              <Trash2 className="h-4 w-4" />
-              Очистить
+              Заказать
             </button>
-          ) : null}
-        </div>
-      </div>
 
-      <div
-        className={cn(
-          "flex-1 overflow-y-auto px-4 py-4 md:px-5",
-          "[scrollbar-width:thin]",
-          "[scrollbar-color:rgba(0,0,0,0.22)_transparent]",
-          "[&::-webkit-scrollbar]:w-[6px]",
-          "[&::-webkit-scrollbar-track]:bg-transparent",
-          "[&::-webkit-scrollbar-thumb]:rounded-full",
-          "[&::-webkit-scrollbar-thumb]:bg-black/20",
-        )}
-      >
-        {hasItems ? (
-          <div className="space-y-4">
-            {groupedItems.map((group, groupIndex) => (
-              <div
-                key={`group-${group.product?.id ?? group.requiredAddons[0]?.id ?? group.otherAddons[0]?.id ?? groupIndex}`}
-                className="rounded-[22px] border border-black/8 bg-[#f7f6f3] p-3"
-              >
-                {group.product ? (
-                  <div
-                    className={cn(
-                      "rounded-[20px] p-[2px]",
-                      group.requiredAddons.length > 0
-                        ? "border border-emerald-400/80 bg-emerald-50/30"
-                        : "",
-                    )}
-                  >
-                    <div className="space-y-3 rounded-[18px]">
-                      <LineRow
-                        item={group.product}
-                        country={country}
-                        onRemove={() => onRemoveItem(group.product!.id)}
-                      />
-
-                      {group.requiredAddons.length > 0 ? (
-                        <div className="space-y-3 pl-3">
-                          {group.requiredAddons.map((addon) => (
-                            <LineRow
-                              key={addon.id}
-                              item={addon}
-                              country={country}
-                              onRemove={() => onRemoveItem(addon.id)}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-[18px] border border-dashed border-black/12 bg-white px-3 py-3 text-[13px] text-black/45">
-                    Основной товар не найден, но в корзине есть связанные
-                    элементы.
-                  </div>
-                )}
-
-                {group.otherAddons.length > 0 ? (
-                  <div className="mt-3 space-y-3">
-                    {group.otherAddons.map((addon) => (
-                      <LineRow
-                        key={addon.id}
-                        item={addon}
-                        country={country}
-                        onRemove={() => onRemoveItem(addon.id)}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
+            <button
+              type="button"
+              onClick={onPrintBase}
+              disabled={!hasItems}
+              className={cn(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] px-3 text-[12px] font-semibold transition",
+                hasItems
+                  ? "cursor-pointer border border-black/10 bg-white text-black hover:border-amber-300 hover:bg-amber-50"
+                  : "cursor-not-allowed border border-black/10 bg-white text-black/30",
+              )}
+            >
+              <Printer className="h-4 w-4" />
+              Печать
+            </button>
           </div>
-        ) : (
-          <div className="flex h-full min-h-[260px] flex-col items-center justify-center rounded-[20px] border border-dashed border-black/10 bg-white px-6 text-center">
-            <div className="text-[16px] font-semibold text-black">
-              Корзина пока пустая
-            </div>
-            <div className="mt-2 max-w-[260px] text-[13px] leading-5 text-black/50">
-              Добавьте основной товар и соберите комплект из обязательных и
-              рекомендованных элементов.
-            </div>
+
+          <div className="mt-4 border-t border-black/8 pt-4">
+            <Link
+              href="/dealer/orders"
+              className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-[14px] border border-black/10 bg-white px-4 text-[14px] font-semibold text-black transition hover:border-amber-300 hover:bg-amber-50"
+            >
+              Мои заказы
+            </Link>
           </div>
-        )}
-      </div>
-
-      <div className="border-t border-black/8 px-4 py-4 md:px-5">
-        <div className="rounded-[20px] bg-[#f5f4f1] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[13px] text-black/55">Итого</span>
-            <span className="break-words text-right text-[20px] font-semibold leading-tight text-black md:text-[22px]">
-              {formatMoney(subtotal, country)}
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-2">
-          <button
-            type="button"
-            onClick={onCheckout}
-            disabled={!hasItems}
-            className={cn(
-              "inline-flex h-11 items-center justify-center rounded-[14px] px-4 text-[14px] font-semibold transition",
-              hasItems
-                ? "cursor-pointer border border-black bg-black text-white hover:opacity-95"
-                : "cursor-not-allowed border border-black/10 bg-black/10 text-black/40",
-            )}
-          >
-            Заказать
-          </button>
-
-          <button
-            type="button"
-            onClick={onPrintBase}
-            disabled={!hasItems}
-            className={cn(
-              "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] px-3 text-[12px] font-semibold transition",
-              hasItems
-                ? "cursor-pointer border border-black/10 bg-white text-black hover:border-amber-300 hover:bg-amber-50"
-                : "cursor-not-allowed border border-black/10 bg-white text-black/30",
-            )}
-          >
-            <Printer className="h-4 w-4" />
-            Печать
-          </button>
-        </div>
-
-        <div className="mt-4 border-t border-black/8 pt-4">
-          <Link
-            href="/dealer/orders"
-            className="inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-[14px] border border-black/10 bg-white px-4 text-[14px] font-semibold text-black transition hover:border-amber-300 hover:bg-amber-50"
-          >
-            Мои заказы
-          </Link>
         </div>
       </div>
     </aside>

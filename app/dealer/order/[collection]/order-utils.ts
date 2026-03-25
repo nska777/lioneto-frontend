@@ -447,7 +447,7 @@ function buildClientPrintHtml(params: {
             </div>
 
             <div class="meta-card">
-              <div class="meta-label">Сумма без наценки</div>
+              <div class="meta-label">Итоговая сумма</div>
               <div class="meta-value">${formatMoney(subtotal, country)}</div>
             </div>
           </div>

@@ -5,7 +5,6 @@ export const STORAGE_KEYS = {
   drafts: "dealer-order-product-drafts",
   addonDrafts: "dealer-order-addon-drafts",
   globalMarkup: "dealer-order-global-markup",
-  country: "dealer-order-country",
   orders: "dealer-orders",
 } as const;
 
@@ -77,27 +76,6 @@ export function loadGlobalMarkup(): number {
 
 export function saveGlobalMarkup(value: number) {
   localStorage.setItem(STORAGE_KEYS.globalMarkup, String(value));
-}
-
-export function loadCountry():
-  | "RU"
-  | "UZ"
-  | "KZ"
-  | "TJ"
-  | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.country);
-    if (raw === "RU" || raw === "UZ" || raw === "KZ" || raw === "TJ") {
-      return raw;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveCountry(value: "RU" | "UZ" | "KZ" | "TJ") {
-  localStorage.setItem(STORAGE_KEYS.country, value);
 }
 
 export function loadOrders(): DealerOrder[] {
