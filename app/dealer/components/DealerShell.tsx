@@ -35,6 +35,7 @@ export default function DealerShell({
   if (isAuthPage) return <>{children}</>;
 
   const navItems: DealerNavItem[] = [
+    { label: "Заказать товар", href: "/dealer/order" },
     { label: "Новости и акции", href: "/dealer/news" },
     { label: "Прайс-листы", href: "/dealer/price-lists" },
     { label: "Технические каталоги", href: "/dealer/tech-catalogs" },

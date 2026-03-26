@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-
+import KnowledgeSectionContent from "./KnowledgeSectionContent";
 import type {
   DealerTrainingData,
   DealerTrainingItem,
 } from "@/app/lib/dealer/training";
 
-type TrainingSectionKey = "presentations" | "sales" | "interior";
+type TrainingSectionKey = "presentations" | "knowledge" | "interior";
 type KindUi = "PDF" | "PPTX" | "VIDEO" | "DOC";
 
 type FileListItem = {
@@ -90,9 +90,9 @@ function getSectionTone(key: TrainingSectionKey) {
         chipClass: "border-[#E5D4AA] bg-[#FFF7E3] text-[#8A6732]",
       };
 
-    case "sales":
+    case "knowledge":
       return {
-        chip: "Продажи",
+        chip: "База знаний",
         glow: "radial-gradient(120% 120% at 10% 0%, rgba(205, 227, 245, 0.28) 0%, rgba(205, 227, 245, 0) 60%)",
         chipClass: "border-[#CFE0F4] bg-[#F2F8FF] text-[#3A648F]",
       };
@@ -357,12 +357,10 @@ function FileRow({
           {item.tags && item.tags.length ? (
             <span className="truncate">• {item.tags.join(" • ")}</span>
           ) : null}
+          {item.description ? (
+            <span className="truncate">• {item.description}</span>
+          ) : null}
         </div>
-        {item.description ? (
-          <div className="mt-2 line-clamp-2 text-xs text-black/45">
-            {item.description}
-          </div>
-        ) : null}
       </div>
 
       <span className="text-xs font-semibold tracking-[0.10em] text-black/45 group-hover:text-black/75">
@@ -478,7 +476,7 @@ export default function TrainingClient({ data }: Props) {
     [data.presentations],
   );
 
-  const salesItems = useMemo(() => mapFileList(data.sales), [data.sales]);
+  const knowledgeItems = useMemo(() => mapFileList(data.sales), [data.sales]);
   const interiorItems = useMemo(
     () => mapFileList(data.interior),
     [data.interior],
@@ -501,10 +499,10 @@ export default function TrainingClient({ data }: Props) {
       });
 
     return {
-      sales: filterList(salesItems),
+      knowledge: filterList(knowledgeItems),
       interior: filterList(interiorItems),
     };
-  }, [interiorItems, q, salesItems]);
+  }, [interiorItems, knowledgeItems, q]);
 
   const isSearching = q.trim().length > 0;
 
@@ -521,9 +519,8 @@ export default function TrainingClient({ data }: Props) {
               Учебные материалы
             </h1>
             <p className="mt-2 max-w-[760px] text-sm text-black/55">
-              Презентации, материалы по продажам, интерьерные гайды и рабочая
-              тетрадь для заметок. Выберите нужный материал — действие
-              выполнится сразу.
+              Презентации, база знаний, интерьерные гайды и рабочая тетрадь для
+              заметок.
             </p>
           </div>
         </header>
@@ -533,7 +530,7 @@ export default function TrainingClient({ data }: Props) {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Поиск по файлам (продажи / интерьер)..."
+              placeholder="Поиск по файлам (база знаний / интерьер)..."
               className="w-full rounded-[16px] border border-[#E4D7B8] bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-black/35 shadow-[0_8px_20px_rgba(40,30,10,0.03)] focus:border-[#D9C38C]"
             />
             {q ? (
@@ -563,37 +560,6 @@ export default function TrainingClient({ data }: Props) {
                 <PresentationTileCard key={it.id} it={it} />
               ))}
             </div>
-          </SectionCard>
-
-          <SectionCard
-            toneKey="sales"
-            open={
-              isSearching
-                ? filteredFilesBySection.sales.length > 0
-                : openKey === "sales"
-            }
-            title="Материалы по продажам"
-            subtitle="Скрипты, чек-листы, стандарты"
-            onToggle={() => setOpenKey(openKey === "sales" ? null : "sales")}
-          >
-            {filteredFilesBySection.sales.length === 0 ? (
-              <div className="rounded-[16px] border border-black/10 bg-white px-4 py-3 text-sm text-black/55">
-                Пока нет доступных материалов.
-              </div>
-            ) : (
-              <ul className="space-y-3">
-                {filteredFilesBySection.sales.map((item) => (
-                  <li key={item.id}>
-                    <FileRow
-                      item={item}
-                      onOpenVideo={(title, src) =>
-                        setVideoModal({ title, src })
-                      }
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
           </SectionCard>
 
           <SectionCard
@@ -627,6 +593,22 @@ export default function TrainingClient({ data }: Props) {
                 ))}
               </ul>
             )}
+          </SectionCard>
+
+          <SectionCard
+            toneKey="knowledge"
+            open={
+              isSearching
+                ? filteredFilesBySection.knowledge.length > 0
+                : openKey === "knowledge"
+            }
+            title="База знаний"
+            subtitle="Новости, заметки, скрипты, чек-листы, стандарты"
+            onToggle={() =>
+              setOpenKey(openKey === "knowledge" ? null : "knowledge")
+            }
+          >
+            <KnowledgeSectionContent canManageNotes={false} />
           </SectionCard>
         </div>
       </div>
