@@ -1,23 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/app/lib/supabase/client";
-import { UserRound, Mail, Phone, Pencil, Save } from "lucide-react";
+import { UserRound, Phone, Pencil, Save } from "lucide-react";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-type ProfileRow = {
-  full_name: string | null;
-  phone_e164: string | null;
-  phone_verified: boolean;
+type AccountUser = {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  countryCode?: string | null;
 };
 
 type CheckoutProfileLS = {
   name: string;
   phone: string;
   address: string;
-  email: string;
   updatedAt: number;
 };
 
@@ -36,7 +36,6 @@ function safeReadCheckoutProfile(): Partial<CheckoutProfileLS> {
       name: typeof obj.name === "string" ? obj.name : undefined,
       phone: typeof obj.phone === "string" ? obj.phone : undefined,
       address: typeof obj.address === "string" ? obj.address : undefined,
-      email: typeof obj.email === "string" ? obj.email : undefined,
       updatedAt: typeof obj.updatedAt === "number" ? obj.updatedAt : undefined,
     };
   } catch {
@@ -53,41 +52,39 @@ function writeCheckoutProfile(next: CheckoutProfileLS) {
 }
 
 export default function AccountProfile({
-  userId,
-  email,
-  profile,
-  onProfile,
-  onEditPhone,
+  user,
+  onProfileUpdated,
 }: {
-  userId: string;
-  email: string | null;
-  profile: ProfileRow | null;
-  onProfile: (p: ProfileRow) => void;
-  onEditPhone: () => void;
+  user: AccountUser;
+  onProfileUpdated?: (user: AccountUser) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState<string>("");
+  const [firstName, setFirstName] = useState(user.firstName ?? "");
+  const [lastName, setLastName] = useState(user.lastName ?? "");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    if (!profile) return;
-
     const prev = safeReadCheckoutProfile();
 
+    const fullName = [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
     const next: CheckoutProfileLS = {
-      name: profile.full_name ?? prev.name ?? "",
-      phone: profile.phone_e164 ?? prev.phone ?? "",
+      name: fullName || prev.name || "",
+      phone: user.phone ?? prev.phone ?? "",
       address: prev.address ?? "",
-      email: email ?? prev.email ?? "",
       updatedAt: Date.now(),
     };
 
     writeCheckoutProfile(next);
-  }, [profile, email]);
+  }, [user.firstName, user.lastName, user.phone]);
 
   function startEdit() {
-    setName(profile?.full_name ?? "");
+    setFirstName(user.firstName ?? "");
+    setLastName(user.lastName ?? "");
     setMsg(null);
     setEditing(true);
   }
@@ -96,47 +93,64 @@ export default function AccountProfile({
     setMsg(null);
     setSaving(true);
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({ full_name: name.trim() || null })
-      .eq("user_id", userId)
-      .select("full_name, phone_e164, phone_verified")
-      .single();
+    try {
+      const res = await fetch("/api/account/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+        }),
+      });
 
-    if (error) {
-      setMsg({ ok: false, text: error.message });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setMsg({
+          ok: false,
+          text: data?.error || "Не удалось сохранить профиль.",
+        });
+        setSaving(false);
+        return;
+      }
+
+      const updatedUser: AccountUser = {
+        id: user.id,
+        firstName: data?.user?.firstName ?? firstName.trim() ?? null,
+        lastName: data?.user?.lastName ?? lastName.trim() ?? null,
+        phone: data?.user?.phone ?? user.phone ?? null,
+        countryCode: data?.user?.countryCode ?? user.countryCode ?? null,
+      };
+
+      const fullName = [updatedUser.firstName, updatedUser.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      const prev = safeReadCheckoutProfile();
+      writeCheckoutProfile({
+        name: fullName || prev.name || "",
+        phone: updatedUser.phone ?? prev.phone ?? "",
+        address: prev.address ?? "",
+        updatedAt: Date.now(),
+      });
+
+      onProfileUpdated?.(updatedUser);
+
+      setMsg({ ok: true, text: "Сохранено." });
+      setEditing(false);
+    } catch {
+      setMsg({ ok: false, text: "Ошибка сохранения профиля." });
+    } finally {
       setSaving(false);
-      return;
     }
-
-    const d = data as unknown as {
-      full_name: string | null;
-      phone_e164: string | null;
-      phone_verified: boolean;
-    };
-
-    const row: ProfileRow = {
-      full_name: d?.full_name ?? null,
-      phone_e164: d?.phone_e164 ?? null,
-      phone_verified: !!d?.phone_verified,
-    };
-
-    onProfile(row);
-
-    const prev = safeReadCheckoutProfile();
-    const next: CheckoutProfileLS = {
-      name: row.full_name ?? prev.name ?? "",
-      phone: row.phone_e164 ?? prev.phone ?? "",
-      address: prev.address ?? "",
-      email: email ?? prev.email ?? "",
-      updatedAt: Date.now(),
-    };
-    writeCheckoutProfile(next);
-
-    setMsg({ ok: true, text: "Сохранено." });
-    setSaving(false);
-    setEditing(false);
   }
+
+  const fullName = [user.firstName, user.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   return (
     <div className="space-y-6">
@@ -147,22 +161,30 @@ export default function AccountProfile({
               <UserRound className="h-5 w-5 text-black/60" />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
                 О вас
               </div>
 
               {!editing ? (
                 <div className="mt-1 text-[15px] text-black/80">
-                  {profile?.full_name || "—"}
+                  {fullName || "—"}
                 </div>
               ) : (
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ваше имя"
-                  className="mt-1 w-full max-w-[320px] rounded-2xl border border-black/10 px-4 py-2 outline-none"
-                />
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Имя"
+                    className="w-full rounded-2xl border border-black/10 px-4 py-2 outline-none"
+                  />
+                  <input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Фамилия"
+                    className="w-full rounded-2xl border border-black/10 px-4 py-2 outline-none"
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -196,32 +218,15 @@ export default function AccountProfile({
         </div>
 
         <div className="mt-4 grid gap-2">
-          <div className="flex items-center gap-2 text-[14px] text-black/75">
-            <Mail className="h-4 w-4 text-black/50" />
-            <span>{email ?? "—"}</span>
-          </div>
-
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 px-4 py-3">
             <div className="flex items-center gap-2 text-[14px] text-black/75">
               <Phone className="h-4 w-4 text-black/50" />
-              <span>{profile?.phone_e164 ?? "—"}</span>
-
-              {profile?.phone_e164 && (
-                <span className="ml-2 text-[12px] text-black/45">
-                  {profile?.phone_verified ? "подтверждён" : "не подтверждён"}
-                </span>
-              )}
+              <span>{user.phone ?? "—"}</span>
             </div>
 
-            <button
-              type="button"
-              onClick={onEditPhone}
-              className="h-9 rounded-2xl border border-black/10 bg-white px-3 text-black/70 transition hover:bg-black/[0.03] hover:text-black cursor-pointer"
-            >
-              <span className="text-[11px] tracking-[0.18em] uppercase">
-                Изменить
-              </span>
-            </button>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-black/45">
+              {user.countryCode ?? "—"}
+            </div>
           </div>
         </div>
 

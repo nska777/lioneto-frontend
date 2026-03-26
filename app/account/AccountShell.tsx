@@ -1,16 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/app/lib/supabase/client";
-import PhoneGate from "./PhoneGate";
-
-import AccountProfile from "./_components/sections/AccountProfile";
-import OrdersSection from "./_components/sections/OrdersSection";
-import AddressSection from "./_components/sections/AddressSection";
-import PaymentsSection from "./_components/sections/PaymentsSection";
-import WishlistSection from "./_components/sections/WishlistSection";
-import MarketingSection from "./_components/sections/MarketingSection";
-
+import { useState } from "react";
 import {
   ShoppingBag,
   User,
@@ -20,6 +10,7 @@ import {
   Megaphone,
   LogOut,
 } from "lucide-react";
+import AccountProfile from "./_components/sections/AccountProfile";
 
 type TabKey =
   | "orders"
@@ -32,89 +23,23 @@ type TabKey =
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-export type ProfileRow = {
-  full_name: string | null;
-  phone_e164: string | null;
-  phone_verified: boolean;
+type AccountUser = {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  countryCode?: string | null;
 };
 
-// минимальная нормализация supabase-строки без any
-function normalizeProfileRow(v: unknown): ProfileRow | null {
-  if (!v || typeof v !== "object") return null;
-
-  const o = v as Record<string, unknown>;
-  const full_name =
-    typeof o.full_name === "string" || o.full_name === null
-      ? (o.full_name as string | null)
-      : null;
-
-  const phone_e164 =
-    typeof o.phone_e164 === "string" || o.phone_e164 === null
-      ? (o.phone_e164 as string | null)
-      : null;
-
-  const phone_verified =
-    typeof o.phone_verified === "boolean" ? o.phone_verified : false;
-
-  return { full_name, phone_e164, phone_verified };
-}
-
-export default function AccountShell({
-  userId,
-  email,
-}: {
-  userId: string;
-  email: string | null;
-}) {
+export default function AccountShell({ user }: { user: AccountUser }) {
   const [tab, setTab] = useState<TabKey>("orders");
+  const [loadingLogout, setLoadingLogout] = useState(false);
+  const [liveUser, setLiveUser] = useState<AccountUser>(user);
 
-  const [profile, setProfile] = useState<ProfileRow | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
-
-  const [editingPhone, setEditingPhone] = useState(false);
-
-  const phoneRequired = !profile?.phone_e164;
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      setProfileLoading(true);
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("full_name, phone_e164, phone_verified")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (!data && !error) {
-        const ins = await supabase
-          .from("profiles")
-          .insert({ user_id: userId })
-          .select("full_name, phone_e164, phone_verified")
-          .single();
-
-        if (!alive) return;
-
-        setProfile(normalizeProfileRow(ins.data));
-        setProfileLoading(false);
-        return;
-      }
-
-      if (!alive) return;
-
-      setProfile(normalizeProfileRow(data));
-      setProfileLoading(false);
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [userId]);
-
-  const derivedTab: TabKey = useMemo(() => {
-    return phoneRequired ? "profile" : tab;
-  }, [phoneRequired, tab]);
+  const fullName = [liveUser.firstName, liveUser.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   const menu = [
     { key: "orders" as const, label: "История заказов", icon: ShoppingBag },
@@ -129,54 +54,51 @@ export default function AccountShell({
     },
   ];
 
-  const isLocked = (k: TabKey) => phoneRequired && k !== "profile";
-
   async function signOut() {
-    await supabase.auth.signOut();
-    location.href = "/";
+    try {
+      setLoadingLogout(true);
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      location.href = "/";
+    } finally {
+      setLoadingLogout(false);
+    }
   }
 
   return (
     <main className="bg-white text-black">
       <div className="mx-auto max-w-[1180px] px-4 py-10">
-        {/* header */}
         <div>
           <h1 className="text-[28px] tracking-[-0.02em]">
-            Привет{profile?.full_name ? `, ${profile.full_name}` : ""}
+            Привет{fullName ? `, ${fullName}` : ""}
           </h1>
-          <div className="mt-1 text-[13px] text-black/55">{email ?? "—"}</div>
+          <div className="mt-1 text-[13px] text-black/55">
+            {liveUser.phone ?? "Телефон не указан"}
+          </div>
         </div>
 
         <div className="mt-6 h-px w-full bg-black/10" />
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[280px_1fr]">
-          {/* left menu */}
           <aside className="space-y-2">
             {menu.map((m) => {
               const Icon = m.icon;
-              const active = derivedTab === m.key;
-              const locked = isLocked(m.key);
+              const active = tab === m.key;
 
               return (
                 <button
                   key={m.key}
-                  onClick={() => !locked && setTab(m.key)}
+                  onClick={() => setTab(m.key)}
                   className={cn(
                     "w-full flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition",
                     "hover:bg-black/[0.03] cursor-pointer",
                     active && "bg-black/[0.04]",
-                    locked &&
-                      "opacity-45 cursor-not-allowed hover:bg-transparent",
                   )}
                 >
                   <Icon className="h-4 w-4 text-black/70" />
                   <span className="text-[14px] text-black/80">{m.label}</span>
-
-                  {locked && (
-                    <span className="ml-auto text-[11px] tracking-[0.18em] uppercase text-black/50">
-                      phone
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -184,7 +106,8 @@ export default function AccountShell({
             <div className="pt-6">
               <button
                 onClick={signOut}
-                className="w-full flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition cursor-pointer hover:bg-black/[0.03]"
+                disabled={loadingLogout}
+                className="w-full flex items-center gap-3 rounded-2xl px-3 py-3 text-left transition cursor-pointer hover:bg-black/[0.03] disabled:opacity-60"
               >
                 <LogOut className="h-4 w-4 text-black/70" />
                 <span className="text-[14px] text-black/80">Выход</span>
@@ -192,65 +115,69 @@ export default function AccountShell({
             </div>
           </aside>
 
-          {/* right content */}
           <section className="min-w-0">
-            {profileLoading ? (
+            {tab === "orders" && (
               <div className="rounded-[28px] border border-black/10 bg-white p-5">
                 <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
-                  Загружаем профиль…
+                  История заказов
+                </div>
+                <div className="mt-2 text-[14px] text-black/70">
+                  Пока здесь будет заглушка. Потом подключим заказы из Strapi.
                 </div>
               </div>
-            ) : (
-              <>
-                {/* если телефона нет ИЛИ если пользователь нажал "Изменить телефон" */}
-                {(phoneRequired || editingPhone) && (
-                  <PhoneGate
-                    userId={userId}
-                    initialPhone={profile?.phone_e164 ?? ""}
-                    onClose={() => setEditingPhone(false)}
-                    onSaved={(p) => {
-                      setProfile(p);
-                      setEditingPhone(false);
-                      if (p.phone_e164) setTab("profile");
-                    }}
-                  />
-                )}
+            )}
 
-                {/* Блок остальные вкладки, пока phoneRequired */}
-                <div
-                  className={cn(
-                    phoneRequired &&
-                      derivedTab !== "profile" &&
-                      "opacity-50 pointer-events-none",
-                  )}
-                >
-                  {derivedTab === "orders" && <OrdersSection userId={userId} />}
+            {tab === "profile" && (
+              <AccountProfile
+                user={liveUser}
+                onProfileUpdated={(nextUser) => {
+                  setLiveUser(nextUser);
+                }}
+              />
+            )}
 
-                  {derivedTab === "profile" && (
-                    <AccountProfile
-                      userId={userId}
-                      email={email}
-                      profile={profile}
-                      onProfile={(p: ProfileRow) => setProfile(p)}
-                      onEditPhone={() => setEditingPhone(true)}
-                    />
-                  )}
-
-                  {derivedTab === "address" && (
-                    <AddressSection userId={userId} />
-                  )}
-
-                  {derivedTab === "payments" && <PaymentsSection />}
-
-                  {derivedTab === "wishlist" && (
-                    <WishlistSection userId={userId} />
-                  )}
-
-                  {derivedTab === "marketing" && (
-                    <MarketingSection userId={userId} />
-                  )}
+            {tab === "address" && (
+              <div className="rounded-[28px] border border-black/10 bg-white p-5">
+                <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
+                  Адресная книга
                 </div>
-              </>
+                <div className="mt-2 text-[14px] text-black/70">
+                  Здесь позже подключим адреса пользователя.
+                </div>
+              </div>
+            )}
+
+            {tab === "payments" && (
+              <div className="rounded-[28px] border border-black/10 bg-white p-5">
+                <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
+                  Способы оплаты
+                </div>
+                <div className="mt-2 text-[14px] text-black/70">
+                  Здесь позже подключим сохранённые способы оплаты.
+                </div>
+              </div>
+            )}
+
+            {tab === "wishlist" && (
+              <div className="rounded-[28px] border border-black/10 bg-white p-5">
+                <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
+                  Список желаний
+                </div>
+                <div className="mt-2 text-[14px] text-black/70">
+                  Здесь позже подключим избранные товары.
+                </div>
+              </div>
+            )}
+
+            {tab === "marketing" && (
+              <div className="rounded-[28px] border border-black/10 bg-white p-5">
+                <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
+                  Маркетинговые предпочтения
+                </div>
+                <div className="mt-2 text-[14px] text-black/70">
+                  Здесь позже подключим настройки уведомлений.
+                </div>
+              </div>
             )}
           </section>
         </div>
