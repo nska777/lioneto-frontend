@@ -514,28 +514,30 @@ export default function CheckoutClient() {
     [items],
   );
 
-  /** cached customer ONCE (no setState in useEffect — satisfies react-hooks/set-state-in-effect) */
-  const cachedCustomer = useMemo(
-    () => safeParseRecord(localStorage.getItem(LS_CUSTOMER)),
-    [],
-  );
+  /** cached customer ONCE */
+  const cachedCustomer = useMemo<Record<string, unknown>>(() => {
+    if (typeof window === "undefined") return {};
+    return safeParseRecord(window.localStorage.getItem(LS_CUSTOMER)) ?? {};
+  }, []);
 
-  /**  form */
+  /** form */
   const [name, setName] = useState(() =>
-    toStringSafe(cachedCustomer.name ?? ""),
+    toStringSafe(cachedCustomer["name"] ?? ""),
   );
   const [address, setAddress] = useState(() =>
-    toStringSafe(cachedCustomer.address ?? ""),
+    toStringSafe(cachedCustomer["address"] ?? ""),
   );
   const [comment, setComment] = useState(() =>
-    toStringSafe(cachedCustomer.comment ?? ""),
+    toStringSafe(cachedCustomer["comment"] ?? ""),
   );
   const [phoneDigits, setPhoneDigits] = useState(() =>
-    toStringSafe(cachedCustomer.phoneDigits ?? ""),
-  ); // UZ: 9 digits after +998
+    toStringSafe(cachedCustomer["phoneDigits"] ?? ""),
+  );
 
   useEffect(() => {
-    localStorage.setItem(
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(
       LS_CUSTOMER,
       JSON.stringify({ name, address, comment, phoneDigits }),
     );

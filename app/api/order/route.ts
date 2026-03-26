@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getSessionUser } from "@/app/lib/auth/session";
+import { STRAPI_API_TOKEN, STRAPI_URL } from "@/app/lib/auth/config";
 
 function esc(s: string) {
   return String(s).replace(/[<>&]/g, (c) =>
@@ -91,7 +93,12 @@ function asIntFromEnv(v: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function regionToCurrency(regionRaw: string): "сум" | "₽" {
+function regionToCurrency(regionRaw: string): "UZS" | "RUB" {
+  const r = regionRaw.trim().toUpperCase();
+  return r === "UZ" ? "UZS" : "RUB";
+}
+
+function regionToCurrencyLabel(regionRaw: string): "сум" | "₽" {
   const r = regionRaw.trim().toUpperCase();
   return r === "UZ" ? "сум" : "₽";
 }
@@ -101,23 +108,31 @@ function formatMoney(n: number): string {
   return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(x);
 }
 
-/** абсолютим URL для TG (Strapi / сайт) */
 function resolveAbsUrl(urlLike: string): string {
   const raw = String(urlLike ?? "").trim();
   if (!raw) return "";
 
   if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
 
-  // Strapi base (серверный). Не заставляем тебя ничего добавлять — просто используем если есть.
   const base =
     process.env.NEXT_PUBLIC_STRAPI_URL ||
     process.env.STRAPI_URL ||
     process.env.PUBLIC_URL ||
-    "https://lioneto-cms.ru" ||
-    "http://localhost:1337";
+    "https://lioneto-cms.ru";
 
   if (raw.startsWith("/")) return `${String(base).replace(/\/+$/, "")}${raw}`;
   return raw;
+}
+
+function getAuthHeaders(): Record<string, string> {
+  if (!STRAPI_API_TOKEN) return {};
+  return {
+    Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+  };
+}
+
+function toStrapiUrl(path: string) {
+  return `${String(STRAPI_URL).replace(/\/$/, "")}${path}`;
 }
 
 type Customer = {
@@ -129,22 +144,16 @@ type Customer = {
 
 type OrderItem = {
   title?: string | null;
-
   productId?: string | null;
-
   qty?: unknown;
   unit?: unknown;
   sum?: unknown;
-
   collectionLabel?: string | null;
   collection?: string | null;
   brandLabel?: string | null;
   brand?: string | null;
-
   variantTitle?: string | null;
   variantId?: string | null;
-
-  /** ✅ картинка (абсолютная или относительная) */
   imageUrl?: string | null;
 };
 
@@ -157,10 +166,8 @@ type OrderPayload = {
   orderId?: unknown;
   createdAt?: unknown;
   region?: unknown;
-
   mode?: unknown;
   meta?: OrderMeta | null;
-
   customer?: Customer | null;
   items?: unknown;
   total?: unknown;
@@ -180,6 +187,75 @@ async function tgCall(
     headers: { "content-type": "application/json" },
     body: JSON.stringify(bodyObj),
   });
+}
+
+async function saveOrderToStrapi(args: {
+  orderId: string;
+  createdAtIso: string;
+  regionUpper: string;
+  currency: "UZS" | "RUB";
+  customerSafe: Customer;
+  itemsSafe: OrderItem[];
+  totalSafe: number;
+}) {
+  const sessionUser = await getSessionUser();
+  const customerDocumentId = sessionUser?.id;
+
+  if (!customerDocumentId) {
+    return { ok: false as const, reason: "no-session-customer" };
+  }
+
+  const body = {
+  data: {
+    orderNumber: args.orderId,
+    orderStatus: "new",
+    customer: customerDocumentId,
+    items: args.itemsSafe.map((it) => ({
+      productId: String(it.productId ?? "").trim() || null,
+      title: String(it.title ?? "").trim() || "Товар",
+      collectionLabel: String(
+        it.collectionLabel ?? it.collection ?? it.brandLabel ?? it.brand ?? "",
+      ).trim(),
+      variantId: String(it.variantId ?? "").trim() || "base",
+      variantTitle: String(it.variantTitle ?? "").trim() || null,
+      imageUrl: String(it.imageUrl ?? "").trim() || null,
+      qty: toNum(it.qty),
+      unit: toNum(it.unit),
+      sum: toNum(it.sum) || toNum(it.unit) * toNum(it.qty),
+    })),
+    totalAmount: args.totalSafe,
+    currency: args.currency,
+    region: args.regionUpper,
+    comment: String(args.customerSafe.comment ?? "").trim(),
+    deliveryType: "customer_checkout",
+    deliveryAddress: String(args.customerSafe.address ?? "").trim(),
+    paymentType: "not_selected",
+    phone: String(args.customerSafe.phone ?? "").trim(),
+    fullName: String(args.customerSafe.name ?? "").trim(),
+  },
+};
+  const res = await fetch(toStrapiUrl("/api/customer-orders"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return {
+      ok: false as const,
+      reason: "strapi-create-failed",
+      status: res.status,
+      details: text,
+    };
+  }
+
+  const json = await res.json().catch(() => null);
+  return { ok: true as const, data: json };
 }
 
 export async function POST(req: Request) {
@@ -237,6 +313,7 @@ export async function POST(req: Request) {
   const regionStr = typeof region === "string" ? region : "";
   const regionUpper = regionStr.trim().toUpperCase() || "RU";
   const currency = regionToCurrency(regionStr);
+  const currencyLabel = regionToCurrencyLabel(regionStr);
 
   const kind =
     mode === "oneclick"
@@ -253,6 +330,27 @@ export async function POST(req: Request) {
   }, 0);
 
   const totalSafe = toNum(total) || computedTotal;
+
+  const strapiSave = await saveOrderToStrapi({
+    orderId: oid,
+    createdAtIso: cAtUtc,
+    regionUpper,
+    currency,
+    customerSafe,
+    itemsSafe,
+    totalSafe,
+  });
+
+  if (!strapiSave.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Failed to save order in Strapi",
+        details: strapiSave,
+      },
+      { status: 500 },
+    );
+  }
 
   const itemsLines = itemsSafe
     .map((it, i) => {
@@ -278,7 +376,7 @@ export async function POST(req: Request) {
       const title = it.title ?? "Товар";
       const header = collection ? `${collection} / ${title}` : `${title}`;
 
-      return `${i + 1}. ${header}${variant}${idPart}\n   ${qty} × ${formatMoney(unit)} = ${formatMoney(sum)} ${currency}`;
+      return `${i + 1}. ${header}${variant}${idPart}\n   ${qty} × ${formatMoney(unit)} = ${formatMoney(sum)} ${currencyLabel}`;
     })
     .join("\n\n");
 
@@ -295,9 +393,8 @@ export async function POST(req: Request) {
     `${customerSafe.address ? `📍 <b>Адрес:</b> ${esc(customerSafe.address)}\n` : ""}` +
     `${customerSafe.comment ? `💬 <b>Комментарий:</b> ${esc(customerSafe.comment)}\n` : ""}` +
     `\n<b>Состав заказа:</b>\n<pre>${esc(itemsLines)}</pre>\n` +
-    `💰 <b>Итого:</b> ${esc(formatMoney(totalSafe))} ${currency}`;
+    `💰 <b>Итого:</b> ${esc(formatMoney(totalSafe))} ${currencyLabel}`;
 
-  // 1) Основное сообщение (в тему)
   let tgRes: Response;
   try {
     const bodyObj: Record<string, unknown> = {
@@ -313,7 +410,11 @@ export async function POST(req: Request) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
-      { ok: false, error: "Telegram request failed", details: msg },
+      {
+        ok: false,
+        error: "Telegram request failed",
+        details: msg,
+      },
       { status: 502 },
     );
   }
@@ -331,7 +432,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // 2) Фото товаров (альбом до 10 шт) — тоже в эту тему
   const media = itemsSafe
     .map((it) => {
       const img = resolveAbsUrl(String(it.imageUrl ?? "").trim());
@@ -358,7 +458,7 @@ export async function POST(req: Request) {
       const caption =
         `🪑 <b>${esc(header)}</b>` +
         `${variant ? `\n${esc(variant)}` : ""}` +
-        `\n${esc(String(qty))} × ${esc(formatMoney(unit))} = ${esc(formatMoney(sum))} ${esc(currency)}`;
+        `\n${esc(String(qty))} × ${esc(formatMoney(unit))} = ${esc(formatMoney(sum))} ${esc(currencyLabel)}`;
 
       return {
         type: "photo",
@@ -377,17 +477,8 @@ export async function POST(req: Request) {
         media,
       };
       if (threadId) bodyObj.message_thread_id = threadId;
-
-      const res2 = await tgCall(token, "sendMediaGroup", bodyObj);
-
-      // если альбом не прошёл — не валим заказ (пусть хотя бы текст пришёл)
-      if (!res2.ok) {
-        // можно логировать, но ответ ok всё равно отдаём
-        // const err = await res2.text().catch(() => "");
-      }
-    } catch {
-      // тоже не валим
-    }
+      await tgCall(token, "sendMediaGroup", bodyObj);
+    } catch {}
   }
 
   return NextResponse.json({ ok: true, orderId: oid });

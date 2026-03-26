@@ -11,7 +11,7 @@ import {
   LogOut,
 } from "lucide-react";
 import AccountProfile from "./_components/sections/AccountProfile";
-
+import AccountOrders from "./_components/sections/AccountOrders";
 type TabKey =
   | "orders"
   | "profile"
@@ -116,16 +116,7 @@ export default function AccountShell({ user }: { user: AccountUser }) {
           </aside>
 
           <section className="min-w-0">
-            {tab === "orders" && (
-              <div className="rounded-[28px] border border-black/10 bg-white p-5">
-                <div className="text-[12px] tracking-[0.22em] uppercase text-black/50">
-                  История заказов
-                </div>
-                <div className="mt-2 text-[14px] text-black/70">
-                  Пока здесь будет заглушка. Потом подключим заказы из Strapi.
-                </div>
-              </div>
-            )}
+            {tab === "orders" && <AccountOrders />}
 
             {tab === "profile" && (
               <AccountProfile
