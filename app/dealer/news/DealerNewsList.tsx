@@ -163,7 +163,7 @@ export default function DealerNewsList({ items }: Props) {
   return (
     <div className="space-y-5">
       <section className="rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_18px_50px_-40px_rgba(0,0,0,0.28)] md:p-5">
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
             <div>
               <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.18em] text-black/45">
@@ -207,7 +207,7 @@ export default function DealerNewsList({ items }: Props) {
           </div>
 
           {allTags.length > 0 ? (
-            <div>
+            <div className="min-w-0">
               <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-black/45">
                 Хэштеги
               </p>
@@ -248,9 +248,11 @@ export default function DealerNewsList({ items }: Props) {
       </section>
 
       <section className="px-1 pt-1">
-        <h2 className="text-[30px] leading-[1.08] font-semibold tracking-[-0.02em] text-black">
-          Новости и акции
-        </h2>
+        <div>
+          <h2 className="text-[30px] leading-[1.08] font-semibold tracking-[-0.02em] text-black">
+            Новости и акции
+          </h2>
+        </div>
       </section>
 
       {filteredItems.length === 0 ? (

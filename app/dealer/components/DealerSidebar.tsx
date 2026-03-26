@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
+import { ShoppingBag } from "lucide-react";
 
 type NavItem = {
   href: Route;
@@ -30,10 +31,13 @@ export default function DealerSidebar({
 }) {
   const pathname = usePathname();
 
+  const orderActive =
+    pathname === "/dealer/order" || pathname.startsWith("/dealer/order/");
+
   return (
     <aside className="w-[260px] shrink-0 border-r border-black/10 bg-white">
       <div className="px-4 pt-5 pb-3">
-        <div className="px-3 pb-2 overflow-hidden">
+        <div className="overflow-hidden px-3 pb-2">
           <div
             className="dealer-portal-black-gold relative inline-block whitespace-nowrap text-[13px] font-medium uppercase tracking-[0.08em] text-black"
             data-text="LIONETO DEALER PORTAL"
@@ -44,6 +48,21 @@ export default function DealerSidebar({
       </div>
 
       <nav className="px-4 py-2">
+        <div className="mb-3">
+          <Link
+            href="/dealer/order"
+            className={cn(
+              "flex w-full items-center justify-start gap-2 rounded-[10px] border px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors duration-200",
+              orderActive
+                ? "border-[#9EB8A6] bg-[#CFE3D4] text-[#173221]"
+                : "border-[#B7D0BE] bg-[#DDEEE2] text-[#173221] hover:bg-[#D2E7D8] hover:text-[#102A19]",
+            )}
+          >
+            <ShoppingBag className="h-4 w-4 shrink-0" />
+            <span className="min-w-0">Заказать товар</span>
+          </Link>
+        </div>
+
         <ul className="space-y-2">
           {NAV.map((item) => {
             const hrefStr = item.href as string;
@@ -57,9 +76,7 @@ export default function DealerSidebar({
                   href={item.href}
                   className={cn(
                     "block rounded-[10px] px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.08em]",
-                    "transition-colors duration-200",
-                    "border border-transparent",
-                    "text-black/70 hover:bg-black/5",
+                    "border border-transparent text-black/70 transition-colors duration-200 hover:bg-black/5",
                     isActive && "border-[#E4D9B8] bg-[#F3EBD2] text-black",
                   )}
                 >

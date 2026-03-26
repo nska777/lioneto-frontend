@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { ShoppingBag } from "lucide-react";
 
 function titleByPath(pathname: string): string {
   if (pathname === "/dealer") return "Главная";
@@ -18,9 +16,6 @@ function titleByPath(pathname: string): string {
   if (pathname.startsWith("/dealer/calendar")) return "Календарь";
   return "Dealer Portal";
 }
-
-const cn = (...classes: Array<string | false | null | undefined>) =>
-  classes.filter(Boolean).join(" ");
 
 export default function DealerTopbar() {
   const pathname = usePathname();
@@ -49,19 +44,6 @@ export default function DealerTopbar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
-        <Link
-          href="/dealer/order"
-          className={cn(
-            "inline-flex items-center gap-2 rounded-[14px] border px-3.5 py-2 text-[13px] font-medium transition-all",
-            pathname.startsWith("/dealer/order")
-              ? "border-amber-300 bg-amber-50 text-black"
-              : "border-amber-200 bg-white text-black/80 hover:border-amber-300 hover:bg-amber-50 hover:text-black",
-          )}
-        >
-          <ShoppingBag className="h-4 w-4" />
-          <span>Заказать товар</span>
-        </Link>
-
         <button
           type="button"
           onClick={onLogout}
