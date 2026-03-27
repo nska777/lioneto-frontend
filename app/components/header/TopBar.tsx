@@ -465,9 +465,9 @@ export default function TopBar({
   return (
     <div className="border-black/10">
       <div className="mx-auto w-full max-w-[1200px] px-4">
-        <div className="flex h-12 items-center justify-between text-[13px] text-black/80 flex-nowrap">
+        <div className="flex h-12 items-center justify-between text-[13px] text-black/80">
           {/* left links */}
-          <nav className="hidden min-w-0 items-center overflow-visible md:flex">
+          <nav className="hidden min-w-0 flex-1 items-center overflow-visible md:flex">
             <div className="flex items-center gap-5 lg:gap-7 xl:gap-8 overflow-visible">
               {topLinks.map((l) => {
                 const hrefNorm = String(l.href || "").trim();
@@ -519,7 +519,7 @@ export default function TopBar({
           </div>
 
           {/* right */}
-          <div className="flex shrink-0 items-center gap-3 md:gap-5 lg:gap-7">
+          <div className="flex min-w-0 items-center gap-3 md:gap-4 lg:gap-5">
             <StoresDropdown
               label={storesLabel}
               regionTitle={resolvedRegionTitle}
@@ -527,7 +527,7 @@ export default function TopBar({
               onPickAddress={onPickAddress}
             />
 
-            <div className="hidden items-center gap-2 lg:inline-flex whitespace-nowrap">
+            <div className="hidden items-center gap-2 xl:inline-flex whitespace-nowrap">
               <Phone className="h-4 w-4 opacity-60" />
 
               <a
