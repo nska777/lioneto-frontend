@@ -16,7 +16,7 @@ type StrapiListResponse<T> = {
   data?: T[];
 };
 
-function getHeaders() {
+function getHeaders(): Record<string, string> {
   return STRAPI_TOKEN
     ? {
         Authorization: `Bearer ${STRAPI_TOKEN}`,

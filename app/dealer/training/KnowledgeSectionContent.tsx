@@ -505,13 +505,14 @@ export default function KnowledgeSectionContent({
       if (!res.ok) throw new Error("like failed");
 
       const json = (await res.json()) as { likesCount?: number };
-
       if (typeof json.likesCount === "number") {
+        const safeLikesCount = json.likesCount;
+
         setCounterOverrides((prev) => ({
           ...prev,
           [slug]: {
             ...prev[slug],
-            likesCount: Math.max(1, json.likesCount),
+            likesCount: Math.max(1, safeLikesCount),
           },
         }));
       }
