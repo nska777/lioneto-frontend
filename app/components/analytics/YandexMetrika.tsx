@@ -2,50 +2,35 @@
 
 import Script from "next/script";
 
-declare global {
-  interface Window {
-    ym?: (...args: unknown[]) => void;
-    __YM_INITED__?: boolean;
-  }
-}
-
 const YM_ID = 106932425;
 
 export default function YandexMetrika() {
-  // only production
   if (process.env.NODE_ENV !== "production") return null;
 
   return (
     <>
-      {/* Load tag.js once */}
       <Script
-        id="yandex-metrika-tag"
-        strategy="afterInteractive"
-        src={`https://mc.yandex.ru/metrika/tag.js?id=${YM_ID}`}
-      />
-
-      {/* Init once (guard) */}
-      <Script
-        id="yandex-metrika-init"
+        id="yandex-metrika"
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{
           __html: `
-(function () {
-  if (window.__YM_INITED__) return;
-  window.__YM_INITED__ = true;
+            (function(m,e,t,r,i,k,a){
+              m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+              m[i].l=1*new Date();
+              for (var j = 0; j < document.scripts.length; j++) {
+                if (document.scripts[j].src === r) return;
+              }
+              k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a);
+            })(window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
 
-  if (typeof window.ym !== "function") return;
-
-  window.ym(${YM_ID}, "init", {
-    ssr: true,
-    webvisor: true,
-    clickmap: true,
-    ecommerce: "dataLayer",
-    accurateTrackBounce: true,
-    trackLinks: true
-  });
-})();
-          `.trim(),
+            ym(${YM_ID}, "init", {
+              clickmap: true,
+              trackLinks: true,
+              accurateTrackBounce: true,
+              webvisor: true,
+              ecommerce: "dataLayer"
+            });
+          `,
         }}
       />
 
