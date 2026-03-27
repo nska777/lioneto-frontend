@@ -136,11 +136,11 @@ export default function Header({
       });
     }
 
-    return (TOPLINKS_FALLBACK as Array<Record<string, unknown>>).map((x) => ({
-      labelKey: String(x?.labelKey ?? ""),
-      fallback: String(x?.fallback ?? x?.label ?? x?.title ?? "").trim(),
-      href: String(x?.href ?? "").trim(),
-      isExternal: Boolean(x?.isExternal),
+    return TOPLINKS_FALLBACK.map((x) => ({
+      labelKey: String(x.labelKey ?? ""),
+      fallback: String(x.fallback ?? "").trim(),
+      href: String(x.href ?? "").trim(),
+      isExternal: false,
     }));
   }, [global?.topLinks]);
 
