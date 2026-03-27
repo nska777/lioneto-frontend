@@ -129,7 +129,7 @@ function makeOrderNumber(login?: string) {
 
   const safeLogin = sanitizeLoginForOrderNumber(login);
 
-  return `DLR-${safeLogin}-${y}${m}${d}-${hh}-${mm}-${ss}`;
+  return `DLR-${safeLogin}-${y}${m}${d}-${hh}${mm}${ss}`;
 }
 
 function getStrapiHeaders() {
@@ -214,11 +214,11 @@ export async function POST(req: NextRequest) {
         currency: asString(body.currency, ""),
         collectionTitles: collectionTitles.join(", "),
         totalQty: Math.trunc(asNumber(body.totalQty, 0)),
-        subtotal: asMoneyString(body.subtotal),
-        totalWithMarkup: asMoneyString(body.totalWithMarkup),
+        subtotalText: asMoneyString(body.subtotal),
+        totalWithMarkupText: asMoneyString(body.totalWithMarkup),
         globalMarkupPercent: asNumber(body.globalMarkupPercent, 0),
-        globalMarkupAmount: asMoneyString(body.globalMarkupAmount),
-        total: asMoneyString(body.total),
+        globalMarkupAmountText: asMoneyString(body.globalMarkupAmount),
+        totalText: asMoneyString(body.total),
         submittedAt: new Date().toISOString(),
         items,
         notes: asString(body.notes, ""),
