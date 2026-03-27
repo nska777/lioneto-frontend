@@ -7,6 +7,7 @@ import type {
   DealerTrainingData,
   DealerTrainingItem,
 } from "@/app/lib/dealer/training";
+import type { DealerKnowledgePost } from "@/app/lib/dealer/knowledge";
 
 type TrainingSectionKey = "presentations" | "knowledge" | "interior";
 type KindUi = "PDF" | "PPTX" | "VIDEO" | "DOC";
@@ -38,6 +39,9 @@ type VideoModalState = {
 
 type Props = {
   data: DealerTrainingData;
+  knowledgePosts: DealerKnowledgePost[];
+  canManageNotes?: boolean;
+  dealerLogin?: string | null;
 };
 
 const cn = (...s: Array<string | false | null | undefined>) =>
@@ -382,7 +386,7 @@ function FileRow({
       <button
         type="button"
         onClick={() => onOpenVideo(item.title, item.href!)}
-        className={cn(baseClass, "w-full text-left")}
+        className={cn(baseClass, "w-full cursor-pointer text-left")}
       >
         {content}
       </button>
@@ -434,7 +438,7 @@ function VideoModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/80 transition hover:bg-white/10 hover:text-white"
+            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/80 transition hover:bg-white/10 hover:text-white"
             aria-label="Закрыть видео"
           >
             ✕
@@ -464,7 +468,12 @@ function VideoModal({
   );
 }
 
-export default function TrainingClient({ data }: Props) {
+export default function TrainingClient({
+  data,
+  knowledgePosts,
+  canManageNotes = false,
+  dealerLogin = null,
+}: Props) {
   const [openKey, setOpenKey] = useState<TrainingSectionKey | null>(
     "presentations",
   );
@@ -476,33 +485,41 @@ export default function TrainingClient({ data }: Props) {
     [data.presentations],
   );
 
-  const knowledgeItems = useMemo(() => mapFileList(data.sales), [data.sales]);
   const interiorItems = useMemo(
     () => mapFileList(data.interior),
     [data.interior],
   );
 
-  const filteredFilesBySection = useMemo(() => {
+  const filteredKnowledgePosts = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    if (!query) return knowledgePosts;
+
+    return knowledgePosts.filter((item) => {
+      const inTitle = item.title.toLowerCase().includes(query);
+      const inExcerpt = item.excerpt?.toLowerCase().includes(query) ?? false;
+      const inContent = item.content?.toLowerCase().includes(query) ?? false;
+      const inLabel = item.label?.toLowerCase().includes(query) ?? false;
+      const inTags = item.tags.some((tag) => tag.toLowerCase().includes(query));
+
+      return inTitle || inExcerpt || inContent || inLabel || inTags;
+    });
+  }, [knowledgePosts, q]);
+
+  const filteredInteriorItems = useMemo(() => {
     const query = q.trim().toLowerCase();
 
-    const filterList = (items: FileListItem[]) =>
-      items.filter((item) => {
-        if (!query) return true;
+    if (!query) return interiorItems;
 
-        const inTitle = item.title.toLowerCase().includes(query);
-        const inTags = (item.tags ?? []).some((tag) =>
-          tag.toLowerCase().includes(query),
-        );
-        const inDesc = item.description?.toLowerCase().includes(query) ?? false;
+    return interiorItems.filter((item) => {
+      const inTitle = item.title.toLowerCase().includes(query);
+      const inTags = (item.tags ?? []).some((tag) =>
+        tag.toLowerCase().includes(query),
+      );
+      const inDesc = item.description?.toLowerCase().includes(query) ?? false;
 
-        return inTitle || inTags || inDesc;
-      });
-
-    return {
-      knowledge: filterList(knowledgeItems),
-      interior: filterList(interiorItems),
-    };
-  }, [interiorItems, knowledgeItems, q]);
+      return inTitle || inTags || inDesc;
+    });
+  }, [interiorItems, q]);
 
   const isSearching = q.trim().length > 0;
 
@@ -530,7 +547,7 @@ export default function TrainingClient({ data }: Props) {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Поиск по файлам (база знаний / интерьер)..."
+              placeholder="Поиск по базе знаний и материалам..."
               className="w-full rounded-[16px] border border-[#E4D7B8] bg-white px-4 py-3 text-sm text-black outline-none placeholder:text-black/35 shadow-[0_8px_20px_rgba(40,30,10,0.03)] focus:border-[#D9C38C]"
             />
             {q ? (
@@ -566,7 +583,7 @@ export default function TrainingClient({ data }: Props) {
             toneKey="interior"
             open={
               isSearching
-                ? filteredFilesBySection.interior.length > 0
+                ? filteredInteriorItems.length > 0
                 : openKey === "interior"
             }
             title="Стиль и интерьер"
@@ -575,13 +592,13 @@ export default function TrainingClient({ data }: Props) {
               setOpenKey(openKey === "interior" ? null : "interior")
             }
           >
-            {filteredFilesBySection.interior.length === 0 ? (
+            {filteredInteriorItems.length === 0 ? (
               <div className="rounded-[16px] border border-black/10 bg-white px-4 py-3 text-sm text-black/55">
                 Пока нет доступных материалов.
               </div>
             ) : (
               <ul className="space-y-3">
-                {filteredFilesBySection.interior.map((item) => (
+                {filteredInteriorItems.map((item) => (
                   <li key={item.id}>
                     <FileRow
                       item={item}
@@ -599,16 +616,20 @@ export default function TrainingClient({ data }: Props) {
             toneKey="knowledge"
             open={
               isSearching
-                ? filteredFilesBySection.knowledge.length > 0
+                ? filteredKnowledgePosts.length > 0
                 : openKey === "knowledge"
             }
             title="База знаний"
-            subtitle="Новости, заметки, скрипты, чек-листы, стандарты"
+            subtitle={`Новости, заметки, скрипты, чек-листы, стандарты${knowledgePosts.length ? ` (${knowledgePosts.length})` : ""}`}
             onToggle={() =>
               setOpenKey(openKey === "knowledge" ? null : "knowledge")
             }
           >
-            <KnowledgeSectionContent canManageNotes={false} />
+            <KnowledgeSectionContent
+              posts={filteredKnowledgePosts}
+              canManageNotes={canManageNotes}
+              dealerLogin={dealerLogin}
+            />
           </SectionCard>
         </div>
       </div>
