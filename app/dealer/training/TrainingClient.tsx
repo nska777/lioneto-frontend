@@ -7,7 +7,7 @@ import type {
   DealerTrainingData,
   DealerTrainingItem,
 } from "@/app/lib/dealer/training";
-import type { DealerKnowledgePost } from "@/app/lib/dealer/knowledge";
+import type { KnowledgeFeedItem } from "@/app/lib/dealer/notes";
 
 type TrainingSectionKey = "presentations" | "knowledge" | "interior";
 type KindUi = "PDF" | "PPTX" | "VIDEO" | "DOC";
@@ -39,9 +39,10 @@ type VideoModalState = {
 
 type Props = {
   data: DealerTrainingData;
-  knowledgePosts: DealerKnowledgePost[];
+  knowledgePosts: KnowledgeFeedItem[];
   canManageNotes?: boolean;
   dealerLogin?: string | null;
+  dealerRole?: "dealer" | "admin" | "owner" | "" | null;
 };
 
 const cn = (...s: Array<string | false | null | undefined>) =>
@@ -473,6 +474,7 @@ export default function TrainingClient({
   knowledgePosts,
   canManageNotes = false,
   dealerLogin = null,
+  dealerRole = null,
 }: Props) {
   const [openKey, setOpenKey] = useState<TrainingSectionKey | null>(
     "presentations",
@@ -629,6 +631,7 @@ export default function TrainingClient({
               posts={filteredKnowledgePosts}
               canManageNotes={canManageNotes}
               dealerLogin={dealerLogin}
+              dealerRole={dealerRole}
             />
           </SectionCard>
         </div>

@@ -7,8 +7,7 @@ const STRAPI_TOKEN =
   process.env.STRAPI_TOKEN ||
   "";
 
-type StrapiKnowledgePostRaw = {
-  id: number;
+type StrapiNoteRaw = {
   documentId?: string;
   likesCount?: number | null;
 };
@@ -34,11 +33,10 @@ export async function POST(
 ) {
   try {
     const { slug } = await context.params;
-
     const baseUrl = String(STRAPI_URL).replace(/\/$/, "");
 
     const findRes = await fetch(
-      `${baseUrl}/api/dealer-knowledge-posts?filters[slug][$eq]=${encodeURIComponent(
+      `${baseUrl}/api/dealer-knowledge-notes?filters[slug][$eq]=${encodeURIComponent(
         slug
       )}&fields[0]=likesCount&fields[1]=documentId&pagination[pageSize]=1&status=published`,
       {
@@ -49,28 +47,24 @@ export async function POST(
     );
 
     if (!findRes.ok) {
-      const text = await findRes.text();
-      console.error("LIKE FIND ERROR:", text);
-
       return NextResponse.json(
-        { error: "Не удалось найти запись" },
+        { error: "Не удалось найти заметку" },
         { status: 500 }
       );
     }
 
     const findJson =
-      (await findRes.json()) as StrapiListResponse<StrapiKnowledgePostRaw>;
-
+      (await findRes.json()) as StrapiListResponse<StrapiNoteRaw>;
     const item = Array.isArray(findJson.data) ? findJson.data[0] : null;
 
     if (!item?.documentId) {
-      return NextResponse.json({ error: "Запись не найдена" }, { status: 404 });
+      return NextResponse.json({ error: "Заметка не найдена" }, { status: 404 });
     }
 
     const nextLikes = Number(item.likesCount ?? 0) + 1;
 
     const updateRes = await fetch(
-      `${baseUrl}/api/dealer-knowledge-posts/${item.documentId}`,
+      `${baseUrl}/api/dealer-knowledge-notes/${item.documentId}`,
       {
         method: "PUT",
         headers: getHeaders(),
@@ -84,9 +78,6 @@ export async function POST(
     );
 
     if (!updateRes.ok) {
-      const text = await updateRes.text();
-      console.error("LIKE UPDATE ERROR:", text);
-
       return NextResponse.json(
         { error: "Не удалось обновить лайки" },
         { status: 500 }
@@ -94,9 +85,7 @@ export async function POST(
     }
 
     return NextResponse.json({ ok: true, likesCount: nextLikes });
-  } catch (error) {
-    console.error("LIKE ROUTE ERROR:", error);
-
+  } catch {
     return NextResponse.json(
       { error: "Ошибка обновления лайков" },
       { status: 500 }
