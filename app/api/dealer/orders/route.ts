@@ -54,11 +54,11 @@ type CreateDealerOrderBody = {
   currency?: string;
   collectionTitles?: string[] | string;
   totalQty?: number;
-  subtotal?: number;
-  totalWithMarkup?: number;
+  subtotal?: number | string;
+  totalWithMarkup?: number | string;
   globalMarkupPercent?: number;
-  globalMarkupAmount?: number;
-  total?: number;
+  globalMarkupAmount?: number | string;
+  total?: number | string;
   items?: unknown[];
   notes?: string;
 };
@@ -93,6 +93,19 @@ function asNumber(value: unknown, fallback = 0): number {
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function asMoneyString(value: unknown, fallback = "0"): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+
+  return fallback;
 }
 
 function sanitizeLoginForOrderNumber(login?: string) {
@@ -201,11 +214,11 @@ export async function POST(req: NextRequest) {
         currency: asString(body.currency, ""),
         collectionTitles: collectionTitles.join(", "),
         totalQty: Math.trunc(asNumber(body.totalQty, 0)),
-        subtotal: asNumber(body.subtotal, 0),
-        totalWithMarkup: asNumber(body.totalWithMarkup, 0),
+        subtotal: asMoneyString(body.subtotal),
+        totalWithMarkup: asMoneyString(body.totalWithMarkup),
         globalMarkupPercent: asNumber(body.globalMarkupPercent, 0),
-        globalMarkupAmount: asNumber(body.globalMarkupAmount, 0),
-        total: asNumber(body.total, 0),
+        globalMarkupAmount: asMoneyString(body.globalMarkupAmount),
+        total: asMoneyString(body.total),
         submittedAt: new Date().toISOString(),
         items,
         notes: asString(body.notes, ""),
