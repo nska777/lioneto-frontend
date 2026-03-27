@@ -1,17 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Phone, Menu, X } from "lucide-react";
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+import { Phone, Menu, X, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { ReactNode } from "react";
-import gsap from "gsap";
 import { usePathname } from "next/navigation";
 import { tF } from "@/i18n";
 
@@ -30,7 +22,6 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-/* ------------------------- safe utils (no any) ------------------------- */
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -57,7 +48,6 @@ function getFirstArray(obj: unknown, keys: readonly string[]): unknown[] {
   return [];
 }
 
-// -------- dropdown utils (НЕ меняем структуру данных — просто читаем)
 function MegaTitle(cat: unknown) {
   return getFirstString(cat, ["title", "label", "name", "fallback", "slug"]);
 }
@@ -84,8 +74,6 @@ function ItemHref(it: unknown) {
   return getFirstString(it, ["href", "url", "to", "link", "path", "valueHref"]);
 }
 
-/* ------------------------------ TopLink ------------------------------ */
-
 function TopLink({
   href,
   children,
@@ -97,71 +85,28 @@ function TopLink({
   active: boolean;
   external?: boolean;
 }) {
-  const lineRef = useRef<HTMLSpanElement | null>(null);
-
-  useLayoutEffect(() => {
-    const line = lineRef.current;
-    if (!line) return;
-
-    gsap.set(line, {
-      scaleX: active ? 1 : 0,
-      opacity: active ? 1 : 0,
-      transformOrigin: "left center",
-    });
-  }, [active]);
-
-  const onEnter = useCallback(() => {
-    const line = lineRef.current;
-    if (!line) return;
-    gsap.killTweensOf(line);
-    gsap.to(line, {
-      scaleX: 1,
-      opacity: 1,
-      duration: 0.35,
-      ease: "power3.out",
-      transformOrigin: "left center",
-    });
-  }, []);
-
-  const onLeave = useCallback(() => {
-    const line = lineRef.current;
-    if (!line) return;
-    if (active) return;
-    gsap.killTweensOf(line);
-    gsap.to(line, {
-      scaleX: 0,
-      opacity: 0,
-      duration: 0.25,
-      ease: "power3.inOut",
-      transformOrigin: "right center",
-    });
-  }, [active]);
-
   const klass = cn(
-    "relative cursor-pointer select-none transition-colors",
+    "group relative cursor-pointer select-none transition-colors",
     "text-[13px] tracking-[0.02em] whitespace-nowrap",
     active ? "text-black" : "text-black/70 hover:text-black",
   );
 
   const underline = (
     <span
-      ref={lineRef}
       aria-hidden
-      className="pointer-events-none absolute left-0 -bottom-[0.75px] h-[0.75px] w-full rounded-full"
-      style={{ background: "rgba(0,0,0,0.65)" }}
+      className={cn(
+        "pointer-events-none absolute left-0 -bottom-[0.75px] h-[0.75px] w-full rounded-full bg-black/65",
+        "origin-left transition-transform duration-300 ease-out",
+        active
+          ? "scale-x-100 opacity-100"
+          : "scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100",
+      )}
     />
   );
 
   if (external) {
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className={klass}
-        onMouseEnter={onEnter}
-        onMouseLeave={onLeave}
-      >
+      <a href={href} target="_blank" rel="noreferrer" className={klass}>
         {children}
         {underline}
       </a>
@@ -169,19 +114,12 @@ function TopLink({
   }
 
   return (
-    <Link
-      href={href}
-      className={klass}
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
-    >
+    <Link href={href} className={klass}>
       {children}
       {underline}
     </Link>
   );
 }
-
-/* --------------------------- CatalogDropdown -------------------------- */
 
 type MegaCol = {
   title: string;
@@ -250,59 +188,10 @@ function CatalogDropdown({
     };
   }, [open]);
 
-  useLayoutEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-
-    const colHeads = Array.from(
-      panel.querySelectorAll<HTMLElement>("[data-mega-head]"),
-    );
-    const links = Array.from(
-      panel.querySelectorAll<HTMLElement>("[data-mega-link]"),
-    );
-
-    gsap.killTweensOf(panel);
-    gsap.killTweensOf([...colHeads, ...links]);
-
-    if (!open) {
-      gsap.set(panel, { opacity: 0, y: -10, pointerEvents: "none" });
-      gsap.set(colHeads, { opacity: 0, y: 8 });
-      gsap.set(links, { opacity: 0, y: 8 });
-      return;
-    }
-
-    gsap.set(panel, { pointerEvents: "auto" });
-
-    gsap.fromTo(
-      panel,
-      { opacity: 0, y: -10 },
-      { opacity: 1, y: 0, duration: 0.28, ease: "power3.out" },
-    );
-
-    gsap.to(colHeads, {
-      opacity: 1,
-      y: 0,
-      duration: 0.35,
-      ease: "power3.out",
-      stagger: 0.06,
-      delay: 0.04,
-    });
-
-    gsap.to(links, {
-      opacity: 1,
-      y: 0,
-      duration: 0.34,
-      ease: "power3.out",
-      stagger: 0.012,
-      delay: 0.08,
-    });
-  }, [open, cols.length]);
-
   const GOLD = "#B9893B";
 
   return (
     <>
-      {/* Триггер: тот же стиль, но по клику */}
       <button
         ref={triggerRef}
         type="button"
@@ -316,37 +205,44 @@ function CatalogDropdown({
         aria-expanded={open}
         aria-haspopup="menu"
         className={cn(
-          "relative cursor-pointer select-none transition-colors",
+          "group relative inline-flex items-center gap-1 cursor-pointer select-none transition-colors",
           "text-[13px] tracking-[0.02em] whitespace-nowrap",
           active || open ? "text-black" : "text-black/70 hover:text-black",
         )}
       >
-        {label}
-        {/* underline как у остальных */}
+        <span>{label}</span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 transition-transform duration-200",
+            open ? "rotate-180" : "rotate-0",
+          )}
+        />
         <span
           aria-hidden
-          className="pointer-events-none absolute left-0 -bottom-[0.75px] h-[0.75px] w-full rounded-full"
-          style={{
-            background: "rgba(0,0,0,0.65)",
-            opacity: active || open ? 1 : 0,
-            transform: active || open ? "scaleX(1)" : "scaleX(0)",
-            transformOrigin: "left center",
-            transition: "transform .25s ease, opacity .25s ease",
-          }}
+          className={cn(
+            "pointer-events-none absolute left-0 -bottom-[0.75px] h-[0.75px] w-full rounded-full bg-black/65",
+            "origin-left transition-transform duration-300 ease-out",
+            active || open
+              ? "scale-x-100 opacity-100"
+              : "scale-x-0 opacity-0 group-hover:scale-x-100 group-hover:opacity-100",
+          )}
         />
       </button>
 
       <div
         ref={panelRef}
-        className={cn("fixed inset-x-0 top-[48px] z-[999]", "bg-[#f3f3f3]")}
-        style={{ opacity: 0, pointerEvents: "none" }}
+        className={cn(
+          "fixed inset-x-0 top-[48px] z-[999] bg-[#f3f3f3]",
+          open
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0",
+          "transition-opacity duration-200",
+        )}
       >
-        {/* golden top line */}
         <div className="h-[3px] w-full" style={{ backgroundColor: GOLD }} />
 
         <div className="mx-auto w-full max-w-[1200px] px-4">
           <div className="relative py-10">
-            {/* close */}
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -356,16 +252,13 @@ function CatalogDropdown({
               <X className="h-5 w-5 text-black/55" />
             </button>
 
-            {/* колонки */}
             <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-5">
               {cols.map((c, idx) => (
                 <div key={`${c.title}-${idx}`} className="min-w-0">
                   <div
-                    data-mega-head
                     className={cn(
                       "text-[16px] font-medium tracking-[0.01em]",
-                      "text-black/85 transition-colors",
-                      "cursor-default select-none",
+                      "text-black/85 cursor-default select-none",
                     )}
                     style={{ color: GOLD }}
                   >
@@ -375,21 +268,10 @@ function CatalogDropdown({
                   <div className="mt-4 space-y-2">
                     {c.items.map((it) => (
                       <Link
-                        data-mega-link
                         key={`${it.href}:${it.title}`}
                         href={it.href}
                         onClick={() => setOpen(false)}
-                        className={cn(
-                          "block text-[15px] leading-[1.65]",
-                          "text-black/85 transition-colors",
-                        )}
-                        style={{ willChange: "transform, opacity" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = GOLD;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = "";
-                        }}
+                        className="block text-[15px] leading-[1.65] text-black/85 transition-colors hover:text-[#B9893B]"
                       >
                         {it.title}
                       </Link>
@@ -398,16 +280,12 @@ function CatalogDropdown({
                 </div>
               ))}
             </div>
-
-            {/* bottom line like example */}
           </div>
         </div>
       </div>
     </>
   );
 }
-
-/* -------------------------------- TopBar -------------------------------- */
 
 export default function TopBar({
   dict,
@@ -431,16 +309,12 @@ export default function TopBar({
     isExternal?: boolean;
   }[];
   phone: string;
-
   regionTitle?: string;
   regionTitleKey?: string;
   regionTitleFallback?: string;
-
   addresses: string[];
   callCtaLabel?: string;
-
   catalogCategories?: unknown[];
-
   onPickAddress: (address: string) => void;
   onOpenCall: () => void;
   onOpenMobileMenu: () => void;
@@ -466,7 +340,6 @@ export default function TopBar({
     <div className="border-black/10">
       <div className="mx-auto w-full max-w-[1200px] px-4">
         <div className="flex h-12 items-center justify-between text-[13px] text-black/80">
-          {/* left links */}
           <nav className="hidden min-w-0 flex-1 items-center overflow-visible md:flex">
             <div className="flex items-center gap-5 lg:gap-7 xl:gap-8 overflow-visible">
               {topLinks.map((l) => {
@@ -506,7 +379,6 @@ export default function TopBar({
             </div>
           </nav>
 
-          {/* mobile burger */}
           <div className="flex items-center gap-2 md:hidden">
             <button
               className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition hover:bg-black/5"
@@ -518,7 +390,6 @@ export default function TopBar({
             </button>
           </div>
 
-          {/* right */}
           <div className="flex min-w-0 items-center gap-3 md:gap-4 lg:gap-5">
             <StoresDropdown
               label={storesLabel}
@@ -529,7 +400,6 @@ export default function TopBar({
 
             <div className="hidden items-center gap-2 xl:inline-flex whitespace-nowrap">
               <Phone className="h-4 w-4 opacity-60" />
-
               <a
                 href={`tel:${phone.replace(/\s|\(|\)|-/g, "")}`}
                 className={cn(
@@ -539,8 +409,6 @@ export default function TopBar({
                 )}
               >
                 {phone}
-
-                {/* underline как у остальных ссылок */}
                 <span
                   className={cn(
                     "pointer-events-none absolute left-0 -bottom-[0.75px]",
