@@ -22,11 +22,20 @@ type StrapiDealerOrder = {
   currency?: string;
   collectionTitles?: string;
   totalQty?: number;
+
+  // old numeric fields
   subtotal?: number;
   totalWithMarkup?: number;
   globalMarkupPercent?: number;
   globalMarkupAmount?: number;
   total?: number;
+
+  // new text fields
+  subtotalText?: string;
+  totalWithMarkupText?: string;
+  globalMarkupAmountText?: string;
+  totalText?: string;
+
   submittedAt?: string;
   createdAt?: string;
   items?: unknown;
@@ -49,7 +58,8 @@ function asNumber(value: unknown, fallback = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
 
   if (typeof value === "string") {
-    const parsed = Number(value);
+    const normalized = value.replace(/\s+/g, "").replace(",", ".");
+    const parsed = Number(normalized);
     if (Number.isFinite(parsed)) return parsed;
   }
 
@@ -58,6 +68,18 @@ function asNumber(value: unknown, fallback = 0): number {
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function pickMoneyNumber(
+  textValue: unknown,
+  numericValue: unknown,
+  fallback = 0,
+): number {
+  if (typeof textValue === "string" && textValue.trim()) {
+    return asNumber(textValue, fallback);
+  }
+
+  return asNumber(numericValue, fallback);
 }
 
 function isVisibleItem(value: unknown): value is DealerOrderVisibleItem {
@@ -123,6 +145,19 @@ function mapStrapiOrderToDealerOrder(item: StrapiDealerOrder): DealerOrder {
           .filter(Boolean)
       : [];
 
+  const subtotal = pickMoneyNumber(item.subtotalText, item.subtotal, 0);
+  const totalWithMarkup = pickMoneyNumber(
+    item.totalWithMarkupText,
+    item.totalWithMarkup,
+    subtotal,
+  );
+  const globalMarkupAmount = pickMoneyNumber(
+    item.globalMarkupAmountText,
+    item.globalMarkupAmount,
+    0,
+  );
+  const total = pickMoneyNumber(item.totalText, item.total, subtotal);
+
   return {
     id:
       typeof item.documentId === "string" && item.documentId
@@ -137,16 +172,13 @@ function mapStrapiOrderToDealerOrder(item: StrapiDealerOrder): DealerOrder {
     collectionSlug: collectionSlugsFromText[0] ?? "",
     collectionSlugs: collectionSlugsFromText,
     totalQty: asNumber(item.totalQty, visibleItems.length),
-    visibleSubtotal: asNumber(item.subtotal, 0),
+    visibleSubtotal: subtotal,
     visibleItems,
-    internalSubtotal: asNumber(item.subtotal, 0),
-    internalTotalWithItemMarkup: asNumber(
-      item.totalWithMarkup,
-      asNumber(item.subtotal, 0),
-    ),
+    internalSubtotal: subtotal,
+    internalTotalWithItemMarkup: totalWithMarkup,
     globalMarkupPercent: asNumber(item.globalMarkupPercent, 0),
-    globalMarkupAmount: asNumber(item.globalMarkupAmount, 0),
-    internalTotal: asNumber(item.total, asNumber(item.subtotal, 0)),
+    globalMarkupAmount,
+    internalTotal: total,
     internalItems: [],
   };
 }
@@ -254,7 +286,6 @@ export default function DealerOrdersPage() {
           </div>
         ) : (
           <>
-            {/* Mobile */}
             <div className="space-y-3 p-3 md:hidden">
               {orders.map((order) => {
                 const isOpen = openedOrderId === order.id;
@@ -428,7 +459,6 @@ export default function DealerOrdersPage() {
               })}
             </div>
 
-            {/* Desktop */}
             <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full border-collapse">
                 <thead className="bg-[#fafaf8]">
