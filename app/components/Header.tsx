@@ -60,7 +60,7 @@ function normalizeRegionKey(x: unknown): RegionKey {
 function safeTF(dict: unknown, key: unknown, fallback: string) {
   if (!dict || typeof dict !== "object") return fallback;
   const k = typeof key === "string" ? key : "";
-  return tF(dict as any, k, fallback);
+  return tF(dict as never, k, fallback);
 }
 
 export default function Header({
@@ -69,7 +69,7 @@ export default function Header({
   global?: GlobalFromStrapi | null;
 }) {
   const { region, setRegion, lang, setLang } = useRegionLang();
-  const dict = useMemo(() => getDict(lang as any), [lang]);
+  const dict = useMemo(() => getDict(lang as never), [lang]);
 
   const [mapOpen, setMapOpen] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState("");
@@ -78,9 +78,12 @@ export default function Header({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const regionKey = normalizeRegionKey(region);
-  const regionMeta = (REGION_DATA as any)[regionKey] ?? (REGION_DATA as any).uz;
+  const regionMeta =
+    (REGION_DATA as Record<string, unknown>)[regionKey] ??
+    (REGION_DATA as Record<string, unknown>).uz;
 
-  const phonePrefix = String(REGION_DATA[regionKey].phonePrefix);
+  const regionData = REGION_DATA[regionKey];
+  const phonePrefix = String(regionData.phonePrefix);
 
   const regionLabel =
     regionKey === "uz"
@@ -115,8 +118,8 @@ export default function Header({
       .filter(Boolean)
       .filter((x) => x?.isActive !== false)
       .map((x) => ({
-        label: (x?.label ?? "").trim(),
-        href: (x?.href ?? "").trim(),
+        label: String(x?.label ?? "").trim(),
+        href: String(x?.href ?? "").trim(),
         isExternal: Boolean(x?.isExternal),
       }))
       .filter((x) => x.label && x.href);
@@ -133,7 +136,7 @@ export default function Header({
       });
     }
 
-    return (TOPLINKS_FALLBACK as any[]).map((x) => ({
+    return (TOPLINKS_FALLBACK as Array<Record<string, unknown>>).map((x) => ({
       labelKey: String(x?.labelKey ?? ""),
       fallback: String(x?.fallback ?? x?.label ?? x?.title ?? "").trim(),
       href: String(x?.href ?? "").trim(),
@@ -148,7 +151,7 @@ export default function Header({
 
     return p && String(p).trim()
       ? String(p).trim()
-      : String(regionMeta?.phone ?? "");
+      : String((regionMeta as { phone?: string })?.phone ?? "");
   }, [global?.phones, regionKey, regionMeta]);
 
   const addresses = useMemo(() => {
@@ -170,25 +173,33 @@ export default function Header({
       })
       .filter((s) => String(s).trim().length > 0);
 
-    const fallback = Array.isArray(regionMeta?.addresses)
-      ? regionMeta.addresses
+    const fallback = Array.isArray(
+      (regionMeta as { addresses?: string[] })?.addresses,
+    )
+      ? ((regionMeta as { addresses?: string[] }).addresses ?? [])
       : [];
+
     return list.length ? list : fallback;
   }, [global?.addresses, regionKey, regionMeta, lang]);
 
   const callCta =
-    (global?.callCtaLabel ?? "").trim() ||
+    String(global?.callCtaLabel ?? "").trim() ||
     safeTF(dict, "header.ui.callMe", "Заказать звонок");
 
   return (
     <>
       <header className="w-full bg-[#f3f3f3]">
         <TopBar
+          key={regionKey}
           dict={dict}
           topLinks={topLinks}
           phone={phone}
-          regionTitleKey={String(regionMeta?.labelKey ?? "region.uz")}
-          regionTitleFallback={String(regionMeta?.fallback ?? "Узбекистан")}
+          regionTitleKey={String(
+            (regionMeta as { labelKey?: string })?.labelKey ?? "region.uz",
+          )}
+          regionTitleFallback={String(
+            (regionMeta as { fallback?: string })?.fallback ?? "Узбекистан",
+          )}
           addresses={addresses}
           callCtaLabel={callCta}
           catalogCategories={megaCategories}
@@ -197,12 +208,6 @@ export default function Header({
             setMapOpen(true);
           }}
           onOpenCall={() => {
-            console.log("OPEN CALL:", {
-              region,
-              regionKey,
-              phonePrefix,
-              regionLabel,
-            });
             setCallOpen(true);
           }}
           onOpenMobileMenu={() => setMobileOpen(true)}
@@ -223,6 +228,7 @@ export default function Header({
         onClose={() => setMapOpen(false)}
         address={selectedAddress}
       />
+
       <CallModal open={callOpen} onClose={() => setCallOpen(false)} />
 
       <MobileMenu
