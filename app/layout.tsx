@@ -18,6 +18,7 @@ import JivoProvider from "./components/chat/JivoProvider";
 
 // Metrika
 import YandexMetrika from "./components/analytics/YandexMetrika";
+import UtmTracker from "./components/analytics/UtmTracker";
 
 const SITE_URL = "https://lioneto.com";
 const SITE_NAME = "Lioneto";
@@ -157,7 +158,7 @@ export default async function RootLayout({
 
         {/* Jivo */}
         {/* {jivoId ? <JivoProvider widgetId={jivoId} /> : null} */}
-
+        <UtmTracker />
         <YandexMetrika />
       </body>
     </html>
