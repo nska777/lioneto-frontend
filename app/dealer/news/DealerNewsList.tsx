@@ -79,6 +79,38 @@ function kindBadgeClass(item: DealerNewsItem): string {
   return "bg-[#F3E7C4] text-[#7A5A16] border-[#E2C982]";
 }
 
+function getSourceRibbon(item: DealerNewsItem): string | null {
+  if (item.source === "knowledge_post" || item.source === "dealer_note") {
+    return null;
+  }
+
+  if (item.source === "calendar") {
+    return "Календарь событий";
+  }
+
+  if (item.source === "news" && item.kind === "promo") {
+    return "Акции";
+  }
+
+  if (item.source === "news") {
+    return "Новости";
+  }
+
+  return null;
+}
+
+function getRibbonClass(item: DealerNewsItem): string {
+  if (item.source === "calendar") {
+    return "border-[#E7D8A8] bg-[#F6EBCF] text-[#6E5520]";
+  }
+
+  if (item.source === "news" && item.kind === "promo") {
+    return "border-[#E7C8C8] bg-[#FFF3F3] text-[#9A4B4B]";
+  }
+
+  return "border-[#E7D8A8] bg-[#F6EBCF] text-[#6E5520]";
+}
+
 function getCardClass(item: DealerNewsItem): string {
   if (item.source === "dealer_note") {
     return "border-[#E3C98D] bg-[linear-gradient(180deg,#FFF9EC_0%,#FFF4D9_100%)] hover:border-[#D8B868]";
@@ -137,7 +169,6 @@ export default function DealerNewsList({ items }: Props) {
   const filteredItems = useMemo(() => {
     const next = items.filter((item) => {
       const itemDate = toInputDate(item.publishedAt || item.createdAt);
-
       const matchesDate = !selectedDate || itemDate === selectedDate;
 
       const matchesTag =
@@ -309,6 +340,7 @@ export default function DealerNewsList({ items }: Props) {
             const dateLabel = formatDate(item.publishedAt || item.createdAt);
             const isKnowledge =
               item.source === "knowledge_post" || item.source === "dealer_note";
+            const ribbon = getSourceRibbon(item);
 
             return (
               <article
@@ -318,9 +350,20 @@ export default function DealerNewsList({ items }: Props) {
                   getCardClass(item),
                 )}
               >
+                {ribbon ? (
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute right-[-60px] top-[22px] rotate-[35deg] rounded-none border px-[70px] py-1.5 text-[8px] font-semibold uppercase tracking-[0.12em] shadow-sm md:right-[-62px] md:top-[34px] md:px-[92px] md:py-2 md:text-[10px] md:tracking-[0.14em]",
+                      getRibbonClass(item),
+                    )}
+                  >
+                    {ribbon}
+                  </div>
+                ) : null}
+
                 <div className="mb-2">
                   {dateLabel ? (
-                    <div className="mb-2 text-[12px] normal-case tracking-normal text-black/40 md:text-[13px]">
+                    <div className="mb-2 pr-20 text-[12px] normal-case tracking-normal text-black/40 md:mb-0 md:pr-0 md:text-[13px]">
                       {dateLabel}
                     </div>
                   ) : null}
@@ -363,7 +406,7 @@ export default function DealerNewsList({ items }: Props) {
                     "mt-3 font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80",
                     isKnowledge
                       ? "text-[19px] leading-[1.24] md:text-[23px]"
-                      : "text-[20px] leading-[1.22] md:mt-4 md:text-[26px] md:leading-[1.15]",
+                      : "pr-16 text-[20px] leading-[1.22] md:mt-4 md:pr-28 md:text-[26px] md:leading-[1.15]",
                   )}
                 >
                   {item.title}
@@ -380,6 +423,23 @@ export default function DealerNewsList({ items }: Props) {
                   >
                     {item.excerpt}
                   </p>
+                ) : null}
+
+                {!isKnowledge && item.hashtags.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {item.hashtags.map((tag) => (
+                      <button
+                        key={`${item.source}-${item.id}-${tag}`}
+                        type="button"
+                        onClick={() =>
+                          setSelectedTag(tag.trim().replace(/^#/, ""))
+                        }
+                        className="cursor-pointer rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/55 transition hover:border-black/20 hover:text-black"
+                      >
+                        #{tag}
+                      </button>
+                    ))}
+                  </div>
                 ) : null}
 
                 <div className="mt-4 flex flex-wrap items-center gap-4">
