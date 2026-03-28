@@ -58,6 +58,8 @@ function kindLabel(item: DealerNewsItem): string {
     }
   }
 
+  if (item.source === "dealer_note") return "ЗАМЕТКА";
+  if (item.source === "knowledge_post") return "НОВОСТЬ";
   return item.kind === "promo" ? "АКЦИЯ" : "НОВОСТЬ";
 }
 
@@ -66,7 +68,27 @@ function kindBadgeClass(item: DealerNewsItem): string {
     return "bg-red-500 text-white border-red-500";
   }
 
+  if (item.source === "dealer_note") {
+    return "bg-[#F4D98D] text-[#6E5319] border-[#DDBA57]";
+  }
+
+  if (item.source === "knowledge_post") {
+    return "bg-[#FFF5DD] text-[#7B5A22] border-[#E3C98D]";
+  }
+
   return "bg-[#F3E7C4] text-[#7A5A16] border-[#E2C982]";
+}
+
+function getCardClass(item: DealerNewsItem): string {
+  if (item.source === "dealer_note") {
+    return "border-[#E3C98D] bg-[linear-gradient(180deg,#FFF9EC_0%,#FFF4D9_100%)] hover:border-[#D8B868]";
+  }
+
+  if (item.source === "knowledge_post") {
+    return "border-[#E7DCC2] bg-[linear-gradient(180deg,#FFFDF8_0%,#FFF7E8_100%)] hover:border-[#DCC89A]";
+  }
+
+  return "border-black/10 bg-white hover:border-black/15 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,1)_100%)]";
 }
 
 function canShowApplyBadge(item: DealerNewsItem): boolean {
@@ -97,6 +119,10 @@ export default function DealerNewsList({ items }: Props) {
     const tagSet = new Set<string>();
 
     for (const item of items) {
+      if (item.source === "dealer_note" || item.source === "knowledge_post") {
+        continue;
+      }
+
       for (const tag of item.hashtags) {
         const normalized = tag.trim().replace(/^#/, "");
         if (normalized) {
@@ -113,16 +139,29 @@ export default function DealerNewsList({ items }: Props) {
       const itemDate = toInputDate(item.publishedAt || item.createdAt);
 
       const matchesDate = !selectedDate || itemDate === selectedDate;
+
       const matchesTag =
         !selectedTag ||
-        item.hashtags.some(
-          (tag) => tag.trim().replace(/^#/, "") === selectedTag,
-        );
+        (item.source !== "dealer_note" &&
+          item.source !== "knowledge_post" &&
+          item.hashtags.some(
+            (tag) => tag.trim().replace(/^#/, "") === selectedTag,
+          ));
 
       return matchesDate && matchesTag;
     });
 
     next.sort((a, b) => {
+      const sourcePriority = (item: DealerNewsItem) => {
+        if (item.source === "dealer_note") return 0;
+        if (item.source === "knowledge_post") return 1;
+        if (item.source === "news") return 2;
+        return 3;
+      };
+
+      const sourceDiff = sourcePriority(a) - sourcePriority(b);
+      if (sourceDiff !== 0) return sourceDiff;
+
       if (a.isPinned !== b.isPinned) {
         return a.isPinned ? -1 : 1;
       }
@@ -268,21 +307,20 @@ export default function DealerNewsList({ items }: Props) {
         <div className="space-y-4">
           {filteredItems.map((item) => {
             const dateLabel = formatDate(item.publishedAt || item.createdAt);
+            const isKnowledge =
+              item.source === "knowledge_post" || item.source === "dealer_note";
 
             return (
               <article
                 key={`${item.source}-${item.id}`}
-                className="group relative overflow-hidden rounded-[24px] border border-black/10 bg-white p-5 shadow-[0_18px_50px_-40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-[2px] hover:border-black/15 hover:bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(250,250,250,1)_100%)] hover:shadow-[0_22px_50px_-34px_rgba(0,0,0,0.2)] md:p-6"
+                className={cn(
+                  "group relative overflow-hidden rounded-[24px] border p-5 shadow-[0_18px_50px_-40px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_22px_50px_-34px_rgba(0,0,0,0.2)] md:p-6",
+                  getCardClass(item),
+                )}
               >
-                {item.source === "calendar" ? (
-                  <div className="pointer-events-none absolute right-[-60px] top-[22px] rotate-[35deg] rounded-none border border-[#E7D8A8] bg-[#F6EBCF] px-[70px] py-1.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-[#6E5520] shadow-sm md:right-[-62px] md:top-[34px] md:px-[92px] md:py-2 md:text-[10px] md:tracking-[0.14em]">
-                    Календарь событий
-                  </div>
-                ) : null}
-
                 <div className="mb-2">
                   {dateLabel ? (
-                    <div className="mb-2 pr-20 text-[12px] normal-case tracking-normal text-black/40 md:mb-0 md:pr-0 md:text-[13px]">
+                    <div className="mb-2 text-[12px] normal-case tracking-normal text-black/40 md:text-[13px]">
                       {dateLabel}
                     </div>
                   ) : null}
@@ -303,6 +341,12 @@ export default function DealerNewsList({ items }: Props) {
                       </span>
                     ) : null}
 
+                    {isKnowledge ? (
+                      <span className="rounded-full border border-[#E3C98D] bg-[#FFF5DD] px-2.5 py-1 text-[#7B5A22]">
+                        ИЗ БАЗЫ ЗНАНИЙ
+                      </span>
+                    ) : null}
+
                     {canShowApplyBadge(item) ? (
                       <Link
                         href={getApplyHref(item)}
@@ -314,39 +358,36 @@ export default function DealerNewsList({ items }: Props) {
                   </div>
                 </div>
 
-                <h2 className="mt-3 pr-16 text-[20px] leading-[1.22] font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80 md:mt-4 md:pr-28 md:text-[26px] md:leading-[1.15]">
+                <h2
+                  className={cn(
+                    "mt-3 font-semibold tracking-[-0.03em] text-black transition-colors duration-300 group-hover:text-black/80",
+                    isKnowledge
+                      ? "text-[19px] leading-[1.24] md:text-[23px]"
+                      : "text-[20px] leading-[1.22] md:mt-4 md:text-[26px] md:leading-[1.15]",
+                  )}
+                >
                   {item.title}
                 </h2>
 
                 {item.excerpt ? (
-                  <p className="mt-3 max-w-[860px] text-[15px] leading-6 text-black/68 transition-colors duration-300 group-hover:text-black/78">
+                  <p
+                    className={cn(
+                      "mt-3 max-w-[860px] transition-colors duration-300 group-hover:text-black/78",
+                      isKnowledge
+                        ? "text-[14px] leading-6 text-black/66"
+                        : "text-[15px] leading-6 text-black/68",
+                    )}
+                  >
                     {item.excerpt}
                   </p>
                 ) : null}
 
-                {item.hashtags.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {item.hashtags.map((tag) => (
-                      <button
-                        key={`${item.source}-${item.id}-${tag}`}
-                        type="button"
-                        onClick={() =>
-                          setSelectedTag(tag.trim().replace(/^#/, ""))
-                        }
-                        className="cursor-pointer rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/55 transition hover:border-black/20 hover:text-black"
-                      >
-                        #{tag}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
                 <div className="mt-4 flex flex-wrap items-center gap-4">
-                  {item.source === "news" ? (
+                  {item.source !== "calendar" ? (
                     <div className="flex items-center gap-3 text-[13px] text-black/45">
                       <span className="inline-flex items-center gap-1.5">
                         <Eye className="h-4 w-4 transition-colors duration-300 group-hover:text-black/55" />
-                        {item.viewsCount}
+                        {item.viewsCount ?? 0}
                       </span>
 
                       <span className="inline-flex items-center gap-1">

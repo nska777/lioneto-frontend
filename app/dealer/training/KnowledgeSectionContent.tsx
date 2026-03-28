@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, Heart, PencilLine, Trash2, X } from "lucide-react";
 import type { KnowledgeFeedItem } from "@/app/lib/dealer/notes";
 
@@ -9,6 +9,9 @@ type Props = {
   canManageNotes?: boolean;
   dealerLogin?: string | null;
   dealerRole?: "dealer" | "admin" | "owner" | "" | null;
+  initialOpenedSlug?: string | null;
+  initialOpenedSource?: "knowledge_post" | "dealer_note" | null;
+  onOpenedFromDeepLink?: () => void;
 };
 
 type CounterOverride = {
@@ -38,6 +41,23 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
+function toSafeTimestamp(value?: string | null) {
+  if (!value) return 0;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function buildPostKey(
+  post:
+    | KnowledgeFeedItem
+    | {
+        slug: string;
+        sourceType?: "knowledge_post" | "dealer_note";
+      },
+) {
+  return `${post.sourceType || "knowledge_post"}:${post.slug}`;
+}
+
 function getKindUi(kind: KnowledgeFeedItem["kind"]) {
   switch (kind) {
     case "news":
@@ -48,7 +68,7 @@ function getKindUi(kind: KnowledgeFeedItem["kind"]) {
     case "article":
       return {
         label: "СТАТЬЯ",
-        className: "border-[#D9D1F6] bg-[#F6F3FF] text-[#5B4AA2]",
+        className: "border-[#E7DCC2] bg-[#FFF9EF] text-[#7C6432]",
       };
     case "note":
     default:
@@ -72,11 +92,15 @@ function buildLikedStorageKey(dealerLogin: string | null | undefined) {
   return `dealer-knowledge-liked:${dealerLogin ?? "guest"}`;
 }
 
-function readLikedMap(dealerLogin: string | null | undefined) {
+function buildViewedStorageKey(dealerLogin: string | null | undefined) {
+  return `dealer-knowledge-viewed:${dealerLogin ?? "guest"}`;
+}
+
+function readMap(storageKey: string) {
   if (typeof window === "undefined") return {};
 
   try {
-    const raw = window.localStorage.getItem(buildLikedStorageKey(dealerLogin));
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -85,17 +109,11 @@ function readLikedMap(dealerLogin: string | null | undefined) {
   }
 }
 
-function writeLikedMap(
-  dealerLogin: string | null | undefined,
-  value: Record<string, boolean>,
-) {
+function writeMap(storageKey: string, value: Record<string, boolean>) {
   if (typeof window === "undefined") return;
 
   try {
-    window.localStorage.setItem(
-      buildLikedStorageKey(dealerLogin),
-      JSON.stringify(value),
-    );
+    window.localStorage.setItem(storageKey, JSON.stringify(value));
   } catch {}
 }
 
@@ -104,7 +122,7 @@ function getDisplayedCounts(
   overrides: Record<string, CounterOverride>,
   liked: boolean,
 ) {
-  const override = overrides[post.slug];
+  const override = overrides[buildPostKey(post)];
 
   const rawViews = override?.viewsCount ?? post.viewsCount ?? 0;
   const rawLikes = override?.likesCount ?? post.likesCount ?? 0;
@@ -164,12 +182,14 @@ const KnowledgeCard = memo(function KnowledgeCard({
   viewsCount,
   likesCount,
   liked,
+  highlighted = false,
   onOpen,
 }: {
   post: KnowledgeFeedItem;
   viewsCount: number;
   likesCount: number;
   liked: boolean;
+  highlighted?: boolean;
   onOpen: (post: KnowledgeFeedItem) => void;
 }) {
   const kindUi = getKindUi(post.kind);
@@ -177,10 +197,12 @@ const KnowledgeCard = memo(function KnowledgeCard({
 
   return (
     <article
+      id={`knowledge-card-${buildPostKey(post)}`}
       className={cn(
-        "rounded-[24px] border shadow-[0_14px_30px_rgba(50,40,18,0.04)]",
+        "rounded-[22px] border shadow-[0_14px_30px_rgba(50,40,18,0.04)] transition-all",
+        highlighted && "ring-2 ring-[#E2BD63] ring-offset-2",
         isNote
-          ? "border-[#8A63D2] bg-[linear-gradient(180deg,#F3ECFF_0%,#E7D8FF_100%)] px-5 py-4"
+          ? "border-[#E3C98D] bg-[linear-gradient(180deg,#FFF9EC_0%,#FFF1CC_100%)] px-4 py-3.5"
           : "border-[#E7DCC2] bg-[linear-gradient(180deg,#fffdf9_0%,#ffffff_100%)] px-5 py-5",
       )}
     >
@@ -188,9 +210,7 @@ const KnowledgeCard = memo(function KnowledgeCard({
         <div
           className={cn(
             "inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
-            isNote
-              ? "border-[#B79AF0] bg-[#F7F1FF] text-[#6B46B2]"
-              : kindUi.className,
+            kindUi.className,
           )}
         >
           {kindUi.label}
@@ -198,8 +218,10 @@ const KnowledgeCard = memo(function KnowledgeCard({
 
         <div
           className={cn(
-            "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white",
-            isNote ? "bg-[#7C57C2]" : "bg-[#E89C4B]",
+            "inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
+            isNote
+              ? "border border-[#DDBA57] bg-[#F4D98D] text-[#6E5319]"
+              : "bg-[#E89C4B] text-white",
           )}
         >
           БАЗА ЗНАНИЙ
@@ -212,8 +234,8 @@ const KnowledgeCard = memo(function KnowledgeCard({
 
       <h3
         className={cn(
-          "mt-3 font-semibold tracking-[-0.03em] text-black",
-          isNote ? "text-[20px] leading-[1.2]" : "text-[28px]",
+          "font-semibold tracking-[-0.03em] text-black",
+          isNote ? "mt-2.5 text-[18px] leading-[1.22]" : "mt-3 text-[28px]",
         )}
       >
         {post.title}
@@ -224,7 +246,7 @@ const KnowledgeCard = memo(function KnowledgeCard({
           className={cn(
             "text-black/62",
             isNote
-              ? "mt-2 line-clamp-2 text-[14px] leading-6"
+              ? "mt-2 line-clamp-2 text-[13px] leading-5.5"
               : "mt-3 max-w-[920px] text-[15px] leading-7",
           )}
         >
@@ -233,14 +255,14 @@ const KnowledgeCard = memo(function KnowledgeCard({
       ) : null}
 
       {post.tags.length > 0 ? (
-        <div className={cn("flex flex-wrap gap-2", isNote ? "mt-3" : "mt-4")}>
+        <div className={cn("flex flex-wrap gap-2", isNote ? "mt-2.5" : "mt-4")}>
           {post.tags.map((tag) => (
             <span
               key={tag}
               className={cn(
                 "inline-flex rounded-full border px-3 py-1 text-xs",
                 isNote
-                  ? "border-[#CDB8F5] bg-[#F8F3FF] text-[#6D56A5]"
+                  ? "border-[#E4C56F] bg-white/70 text-[#7B5A22]"
                   : "border-black/10 bg-white text-black/45",
               )}
             >
@@ -253,7 +275,7 @@ const KnowledgeCard = memo(function KnowledgeCard({
       <div
         className={cn(
           "flex flex-wrap items-center gap-4",
-          isNote ? "mt-4" : "mt-5",
+          isNote ? "mt-3" : "mt-5",
         )}
       >
         <Stats
@@ -269,7 +291,7 @@ const KnowledgeCard = memo(function KnowledgeCard({
           className={cn(
             "inline-flex cursor-pointer items-center justify-center rounded-full border text-sm font-semibold transition",
             isNote
-              ? "border-[#CBB7F1] bg-white/80 px-4 py-2 text-[#5D4695] hover:bg-white"
+              ? "border-[#DAB96B] bg-white/80 px-4 py-2 text-[#6E5319] hover:bg-white"
               : "border-black/10 bg-white px-5 py-3 text-black/65 hover:bg-black/[0.03] hover:text-black",
           )}
         >
@@ -283,7 +305,7 @@ const KnowledgeCard = memo(function KnowledgeCard({
             className={cn(
               "inline-flex cursor-pointer items-center justify-center rounded-full border text-sm font-semibold transition",
               isNote
-                ? "border-[#BBA2EC] bg-[#EEE4FF] px-4 py-2 text-[#5F43A8] hover:bg-[#E7D9FF]"
+                ? "border-[#DAB96B] bg-[#FFF5DD] px-4 py-2 text-[#7B5A22] hover:bg-[#FCECC3]"
                 : "border-[#BFD3EA] bg-[#F2F8FF] px-5 py-3 text-[#3A648F] hover:bg-[#EAF3FE]",
             )}
           >
@@ -659,15 +681,19 @@ export default function KnowledgeSectionContent({
   canManageNotes = false,
   dealerLogin = null,
   dealerRole = null,
+  initialOpenedSlug = null,
+  initialOpenedSource = null,
+  onOpenedFromDeepLink,
 }: Props) {
   const [localPosts, setLocalPosts] = useState<KnowledgeFeedItem[]>(posts);
-  const [openedSlug, setOpenedSlug] = useState<string | null>(null);
+  const [openedKey, setOpenedKey] = useState<string | null>(null);
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
   const [counterOverrides, setCounterOverrides] = useState<
     Record<string, CounterOverride>
   >({});
-  const [viewedSlugs, setViewedSlugs] = useState<Record<string, boolean>>({});
-  const [likedSlugs, setLikedSlugs] = useState<Record<string, boolean>>({});
-  const [likePendingSlug, setLikePendingSlug] = useState<string | null>(null);
+  const [viewedKeys, setViewedKeys] = useState<Record<string, boolean>>({});
+  const [likedKeys, setLikedKeys] = useState<Record<string, boolean>>({});
+  const [likePendingKey, setLikePendingKey] = useState<string | null>(null);
 
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(
@@ -683,19 +709,41 @@ export default function KnowledgeSectionContent({
     string | null
   >(null);
 
+  const deepLinkHandledRef = useRef<string | null>(null);
+
   useEffect(() => {
     setLocalPosts(posts);
   }, [posts]);
 
-  const sortedPosts = useMemo(() => localPosts, [localPosts]);
+  const sortedPosts = useMemo(() => {
+    const next = [...localPosts];
+
+    next.sort((a, b) => {
+      const aNote = a.sourceType === "dealer_note" ? 0 : 1;
+      const bNote = b.sourceType === "dealer_note" ? 0 : 1;
+      if (aNote !== bNote) return aNote - bNote;
+
+      return (
+        toSafeTimestamp(b.publishedAt || b.createdAt) -
+        toSafeTimestamp(a.publishedAt || a.createdAt)
+      );
+    });
+
+    return next;
+  }, [localPosts]);
 
   useEffect(() => {
-    setLikedSlugs(readLikedMap(dealerLogin) as Record<string, boolean>);
+    setLikedKeys(
+      readMap(buildLikedStorageKey(dealerLogin)) as Record<string, boolean>,
+    );
+    setViewedKeys(
+      readMap(buildViewedStorageKey(dealerLogin)) as Record<string, boolean>,
+    );
   }, [dealerLogin]);
 
   const openedPost = useMemo(
-    () => sortedPosts.find((item) => item.slug === openedSlug) ?? null,
-    [sortedPosts, openedSlug],
+    () => sortedPosts.find((item) => buildPostKey(item) === openedKey) ?? null,
+    [sortedPosts, openedKey],
   );
 
   async function handleTrackView(post: KnowledgeFeedItem) {
@@ -716,32 +764,54 @@ export default function KnowledgeSectionContent({
       if (typeof json.viewsCount === "number") {
         setCounterOverrides((prev) => ({
           ...prev,
-          [post.slug]: {
-            ...prev[post.slug],
+          [buildPostKey(post)]: {
+            ...prev[buildPostKey(post)],
             viewsCount: json.viewsCount,
           },
         }));
+
+        setLocalPosts((prev) =>
+          prev.map((item) =>
+            buildPostKey(item) === buildPostKey(post)
+              ? { ...item, viewsCount: json.viewsCount ?? item.viewsCount }
+              : item,
+          ),
+        );
       }
     } catch {}
   }
 
   function handleOpen(post: KnowledgeFeedItem) {
-    setOpenedSlug(post.slug);
+    const key = buildPostKey(post);
 
-    if (viewedSlugs[post.slug]) return;
+    setOpenedKey(key);
+    setHighlightedKey(key);
 
-    setViewedSlugs((prev) => ({ ...prev, [post.slug]: true }));
+    const element = document.getElementById(`knowledge-card-${key}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    if (viewedKeys[key]) return;
+
+    const nextViewedMap = {
+      ...viewedKeys,
+      [key]: true,
+    };
+
+    setViewedKeys(nextViewedMap);
+    writeMap(buildViewedStorageKey(dealerLogin), nextViewedMap);
 
     const current = getDisplayedCounts(
       post,
       counterOverrides,
-      Boolean(likedSlugs[post.slug]),
+      Boolean(likedKeys[key]),
     );
 
     setCounterOverrides((prev) => ({
       ...prev,
-      [post.slug]: {
-        ...prev[post.slug],
+      [key]: {
+        ...prev[key],
         viewsCount: current.viewsCount + 1,
       },
     }));
@@ -752,28 +822,30 @@ export default function KnowledgeSectionContent({
   }
 
   async function handleLike(post: KnowledgeFeedItem) {
-    if (likePendingSlug) return;
-    if (likedSlugs[post.slug]) return;
+    const key = buildPostKey(post);
 
-    setLikePendingSlug(post.slug);
+    if (likePendingKey) return;
+    if (likedKeys[key]) return;
+
+    setLikePendingKey(key);
 
     const current = getDisplayedCounts(post, counterOverrides, false);
 
     setCounterOverrides((prev) => ({
       ...prev,
-      [post.slug]: {
-        ...prev[post.slug],
+      [key]: {
+        ...prev[key],
         likesCount: current.likesCount + 1,
       },
     }));
 
     const nextLikedMap = {
-      ...likedSlugs,
-      [post.slug]: true,
+      ...likedKeys,
+      [key]: true,
     };
 
-    setLikedSlugs(nextLikedMap);
-    writeLikedMap(dealerLogin, nextLikedMap);
+    setLikedKeys(nextLikedMap);
+    writeMap(buildLikedStorageKey(dealerLogin), nextLikedMap);
 
     const basePath =
       post.sourceType === "dealer_note"
@@ -794,27 +866,35 @@ export default function KnowledgeSectionContent({
 
         setCounterOverrides((prev) => ({
           ...prev,
-          [post.slug]: {
-            ...prev[post.slug],
+          [key]: {
+            ...prev[key],
             likesCount: Math.max(1, safeLikesCount),
           },
         }));
+
+        setLocalPosts((prev) =>
+          prev.map((item) =>
+            buildPostKey(item) === key
+              ? { ...item, likesCount: Math.max(1, safeLikesCount) }
+              : item,
+          ),
+        );
       }
     } catch {
       const rollbackMap = { ...nextLikedMap };
-      delete rollbackMap[post.slug];
-      setLikedSlugs(rollbackMap);
-      writeLikedMap(dealerLogin, rollbackMap);
+      delete rollbackMap[key];
+      setLikedKeys(rollbackMap);
+      writeMap(buildLikedStorageKey(dealerLogin), rollbackMap);
 
       setCounterOverrides((prev) => ({
         ...prev,
-        [post.slug]: {
-          ...prev[post.slug],
+        [key]: {
+          ...prev[key],
           likesCount: Math.max(0, current.likesCount),
         },
       }));
     } finally {
-      setLikePendingSlug(null);
+      setLikePendingKey(null);
     }
   }
 
@@ -906,8 +986,8 @@ export default function KnowledgeSectionContent({
           ),
         );
 
-        if (openedSlug) {
-          setOpenedSlug(json.post.slug);
+        if (openedKey) {
+          setOpenedKey(buildPostKey(json.post));
         }
       } else {
         setLocalPosts((prev) => [json.post as KnowledgeFeedItem, ...prev]);
@@ -952,12 +1032,14 @@ export default function KnowledgeSectionContent({
         throw new Error(json?.error || "Не удалось удалить заметку");
       }
 
+      const deletedKey = buildPostKey(post);
+
       setLocalPosts((prev) =>
         prev.filter((item) => item.documentId !== post.documentId),
       );
 
-      if (openedSlug === post.slug) {
-        setOpenedSlug(null);
+      if (openedKey === deletedKey) {
+        setOpenedKey(null);
       }
     } catch (error) {
       const message =
@@ -967,6 +1049,44 @@ export default function KnowledgeSectionContent({
       setDeletePendingDocumentId(null);
     }
   }
+
+  useEffect(() => {
+    if (!initialOpenedSlug) return;
+
+    const deepLinkKey = `${initialOpenedSource || "knowledge_post"}:${initialOpenedSlug}`;
+    if (deepLinkHandledRef.current === deepLinkKey) return;
+
+    const target =
+      sortedPosts.find(
+        (item) =>
+          item.slug === initialOpenedSlug &&
+          (!initialOpenedSource || item.sourceType === initialOpenedSource),
+      ) || sortedPosts.find((item) => item.slug === initialOpenedSlug);
+
+    if (!target) return;
+
+    deepLinkHandledRef.current = deepLinkKey;
+    setHighlightedKey(buildPostKey(target));
+    handleOpen(target);
+    onOpenedFromDeepLink?.();
+  }, [
+    initialOpenedSlug,
+    initialOpenedSource,
+    sortedPosts,
+    onOpenedFromDeepLink,
+  ]);
+
+  useEffect(() => {
+    if (!highlightedKey) return;
+
+    const timeout = window.setTimeout(() => {
+      setHighlightedKey((current) =>
+        current === highlightedKey ? null : current,
+      );
+    }, 3500);
+
+    return () => window.clearTimeout(timeout);
+  }, [highlightedKey]);
 
   return (
     <div className="space-y-4">
@@ -993,16 +1113,18 @@ export default function KnowledgeSectionContent({
         </div>
       ) : (
         sortedPosts.map((post) => {
-          const liked = Boolean(likedSlugs[post.slug]);
+          const key = buildPostKey(post);
+          const liked = Boolean(likedKeys[key]);
           const counts = getDisplayedCounts(post, counterOverrides, liked);
 
           return (
             <KnowledgeCard
-              key={`${post.sourceType}:${post.slug}`}
+              key={key}
               post={post}
               viewsCount={counts.viewsCount}
               likesCount={counts.likesCount}
               liked={liked}
+              highlighted={highlightedKey === key}
               onOpen={handleOpen}
             />
           );
@@ -1016,21 +1138,21 @@ export default function KnowledgeSectionContent({
             getDisplayedCounts(
               openedPost,
               counterOverrides,
-              Boolean(likedSlugs[openedPost.slug]),
+              Boolean(likedKeys[buildPostKey(openedPost)]),
             ).viewsCount
           }
           likesCount={
             getDisplayedCounts(
               openedPost,
               counterOverrides,
-              Boolean(likedSlugs[openedPost.slug]),
+              Boolean(likedKeys[buildPostKey(openedPost)]),
             ).likesCount
           }
-          liked={Boolean(likedSlugs[openedPost.slug])}
-          likePending={likePendingSlug === openedPost.slug}
+          liked={Boolean(likedKeys[buildPostKey(openedPost)])}
+          likePending={likePendingKey === buildPostKey(openedPost)}
           canEditThisNote={canEditNote(openedPost, dealerLogin, dealerRole)}
           deleting={deletePendingDocumentId === openedPost.documentId}
-          onClose={() => setOpenedSlug(null)}
+          onClose={() => setOpenedKey(null)}
           onLike={handleLike}
           onEdit={openEditModal}
           onDelete={handleDelete}

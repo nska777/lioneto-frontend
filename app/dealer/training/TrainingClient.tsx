@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import KnowledgeSectionContent from "./KnowledgeSectionContent";
 import type {
   DealerTrainingData,
@@ -476,8 +477,19 @@ export default function TrainingClient({
   dealerLogin = null,
   dealerRole = null,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const deepLinkSlug = searchParams.get("knowledge");
+  const deepLinkSourceRaw = searchParams.get("source");
+  const deepLinkSource =
+    deepLinkSourceRaw === "dealer_note" ||
+    deepLinkSourceRaw === "knowledge_post"
+      ? deepLinkSourceRaw
+      : null;
+
   const [openKey, setOpenKey] = useState<TrainingSectionKey | null>(
-    "presentations",
+    deepLinkSlug ? "knowledge" : "presentations",
   );
   const [q, setQ] = useState("");
   const [videoModal, setVideoModal] = useState<VideoModalState>(null);
@@ -524,6 +536,19 @@ export default function TrainingClient({
   }, [interiorItems, q]);
 
   const isSearching = q.trim().length > 0;
+
+  const handleOpenedFromDeepLink = useCallback(() => {
+    if (!deepLinkSlug) return;
+
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("knowledge");
+    next.delete("source");
+
+    const qs = next.toString();
+    router.replace(qs ? `/dealer/training?${qs}` : "/dealer/training", {
+      scroll: false,
+    });
+  }, [deepLinkSlug, router, searchParams]);
 
   return (
     <>
@@ -617,7 +642,7 @@ export default function TrainingClient({
           <SectionCard
             toneKey="knowledge"
             open={
-              isSearching
+              isSearching || deepLinkSlug
                 ? filteredKnowledgePosts.length > 0
                 : openKey === "knowledge"
             }
@@ -632,6 +657,9 @@ export default function TrainingClient({
               canManageNotes={canManageNotes}
               dealerLogin={dealerLogin}
               dealerRole={dealerRole}
+              initialOpenedSlug={deepLinkSlug}
+              initialOpenedSource={deepLinkSource}
+              onOpenedFromDeepLink={handleOpenedFromDeepLink}
             />
           </SectionCard>
         </div>

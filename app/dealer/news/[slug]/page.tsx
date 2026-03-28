@@ -26,8 +26,18 @@ function formatDate(dateString?: string): string {
   }
 }
 
-function kindLabel(kind: "news" | "promo"): string {
-  return kind === "promo" ? "АКЦИЯ" : "НОВОСТЬ";
+function kindLabel(kind: "news" | "promo" | "knowledge" | "note"): string {
+  switch (kind) {
+    case "promo":
+      return "АКЦИЯ";
+    case "knowledge":
+      return "НОВОСТЬ";
+    case "note":
+      return "ЗАМЕТКА";
+    case "news":
+    default:
+      return "НОВОСТЬ";
+  }
 }
 
 function renderParagraphs(content: string) {

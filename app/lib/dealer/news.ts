@@ -1,7 +1,12 @@
 import { getDealerCalendarEvents } from "@/app/lib/dealer/calendar";
+import { getDealerKnowledgePosts } from "@/app/lib/dealer/knowledge";
+import {
+  getDealerKnowledgeNotes,
+  type KnowledgeFeedItem,
+} from "@/app/lib/dealer/notes";
 
-type DealerNewsKind = "news" | "promo";
-type DealerNewsSource = "news" | "calendar";
+type DealerNewsKind = "news" | "promo" | "knowledge" | "note";
+type DealerNewsSource = "news" | "calendar" | "knowledge_post" | "dealer_note";
 type DealerCalendarNewsType =
   | "training"
   | "webinar"
@@ -56,6 +61,21 @@ type StrapiDealerNews = {
   hashtags?: unknown;
 };
 
+type DealerKnowledgePostLike = {
+  id: number | string;
+  documentId?: string;
+  title?: string;
+  slug?: string;
+  excerpt?: string | null;
+  content?: string | null;
+  viewsCount?: number;
+  likesCount?: number;
+  publishedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  coverUrl?: string | null;
+};
+
 type StrapiListResponse<T> = {
   data?: T[];
 };
@@ -96,6 +116,27 @@ function normalizeHashtags(value: unknown): string[] {
   return [];
 }
 
+function toSafeTimestamp(value?: string | null) {
+  if (!value) return 0;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function getSourcePriority(source: DealerNewsSource) {
+  switch (source) {
+    case "dealer_note":
+      return 0;
+    case "knowledge_post":
+      return 1;
+    case "news":
+      return 2;
+    case "calendar":
+      return 3;
+    default:
+      return 9;
+  }
+}
+
 function mapDealerNewsItem(item: StrapiDealerNews): DealerNewsItem {
   return {
     id: item.id,
@@ -113,7 +154,6 @@ function mapDealerNewsItem(item: StrapiDealerNews): DealerNewsItem {
     updatedAt: item.updatedAt || "",
     coverUrl: getMediaUrl(item.cover?.url),
     hashtags: normalizeHashtags(item.hashtags),
-
     source: "news",
     href: `/dealer/news/${item.slug || ""}`,
     ctaLabel: "Читать подробнее",
@@ -130,7 +170,7 @@ function getEventTypeLabel(type: DealerCalendarNewsType): string {
     case "meeting":
       return "встреча";
     case "exhibition":
-      return "выставка";
+      return "событие";
     case "important":
       return "важное";
     case "industry":
@@ -190,6 +230,63 @@ function toEventPublishedAt(dateISO: string, time?: string): string {
   const safeTime =
     time && /^\d{2}:\d{2}$/.test(time) ? `${time}:00` : "00:00:00";
   return `${dateISO}T${safeTime}`;
+}
+
+function mapKnowledgePostToNews(item: DealerKnowledgePostLike): DealerNewsItem {
+  const publishedAt = item.publishedAt || item.createdAt || "";
+  const createdAt = item.createdAt || item.publishedAt || "";
+  const updatedAt = item.updatedAt || publishedAt || createdAt;
+  const safeSlug = item.slug || String(item.id || "");
+
+  return {
+    id: Number(item.id) || Math.floor(Math.random() * 1_000_000_000),
+    documentId: item.documentId || `knowledge_post-${safeSlug}`,
+    title: item.title || "",
+    slug: safeSlug,
+    excerpt: item.excerpt || "",
+    content: item.content || item.excerpt || "",
+    kind: "knowledge",
+    isPinned: false,
+    viewsCount: typeof item.viewsCount === "number" ? item.viewsCount : 0,
+    likesCount: typeof item.likesCount === "number" ? item.likesCount : 0,
+    publishedAt,
+    createdAt,
+    updatedAt,
+    coverUrl: item.coverUrl || null,
+    hashtags: [],
+    source: "knowledge_post",
+    href: `/dealer/training?knowledge=${encodeURIComponent(safeSlug)}&source=knowledge_post`,
+    ctaLabel: "Открыть материал",
+    isRegistrationOpen: false,
+  };
+}
+
+function mapKnowledgeNoteToNews(item: KnowledgeFeedItem): DealerNewsItem {
+  const publishedAt = item.publishedAt || item.createdAt || "";
+  const createdAt = item.createdAt || item.publishedAt || "";
+  const updatedAt = item.updatedAt || publishedAt || createdAt;
+
+  return {
+    id: Number(item.id) || Math.floor(Math.random() * 1_000_000_000),
+    documentId: item.documentId || `dealer_note-${item.slug}`,
+    title: item.title || "",
+    slug: item.slug || "",
+    excerpt: item.excerpt || "",
+    content: item.content || item.excerpt || "",
+    kind: "note",
+    isPinned: false,
+    viewsCount: typeof item.viewsCount === "number" ? item.viewsCount : 0,
+    likesCount: typeof item.likesCount === "number" ? item.likesCount : 0,
+    publishedAt,
+    createdAt,
+    updatedAt,
+    coverUrl: item.coverUrl || null,
+    hashtags: [],
+    source: "dealer_note",
+    href: `/dealer/training?knowledge=${encodeURIComponent(item.slug)}&source=dealer_note`,
+    ctaLabel: "Открыть заметку",
+    isRegistrationOpen: false,
+  };
 }
 
 async function getDealerNewsOnly(): Promise<DealerNewsItem[]> {
@@ -272,23 +369,41 @@ async function getCalendarAsNewsItems(): Promise<DealerNewsItem[]> {
   });
 }
 
-export async function getDealerNews(): Promise<DealerNewsItem[]> {
-  const [newsItems, calendarItems] = await Promise.all([
-    getDealerNewsOnly(),
-    getCalendarAsNewsItems(),
+async function getKnowledgeAsNewsItems(): Promise<DealerNewsItem[]> {
+  const [knowledgePosts, notePosts] = await Promise.all([
+    getDealerKnowledgePosts(),
+    getDealerKnowledgeNotes(),
   ]);
 
-  const merged = [...newsItems, ...calendarItems];
+  const mappedNotes = notePosts.map(mapKnowledgeNoteToNews);
+  const mappedPosts = (knowledgePosts as DealerKnowledgePostLike[]).map(
+    mapKnowledgePostToNews,
+  );
+
+  return [...mappedNotes, ...mappedPosts];
+}
+
+export async function getDealerNews(): Promise<DealerNewsItem[]> {
+  const [newsItems, calendarItems, knowledgeItems] = await Promise.all([
+    getDealerNewsOnly(),
+    getCalendarAsNewsItems(),
+    getKnowledgeAsNewsItems(),
+  ]);
+
+  const merged = [...knowledgeItems, ...newsItems, ...calendarItems];
 
   merged.sort((a, b) => {
+    const sourceDiff = getSourcePriority(a.source) - getSourcePriority(b.source);
+    if (sourceDiff !== 0) return sourceDiff;
+
     if (a.isPinned !== b.isPinned) {
       return a.isPinned ? -1 : 1;
     }
 
-    const aTime = new Date(a.publishedAt || a.createdAt).getTime();
-    const bTime = new Date(b.publishedAt || b.createdAt).getTime();
-
-    return bTime - aTime;
+    return (
+      toSafeTimestamp(b.publishedAt || b.createdAt) -
+      toSafeTimestamp(a.publishedAt || a.createdAt)
+    );
   });
 
   return merged;
