@@ -452,6 +452,7 @@ export default function DealerCollectionClient({
         const addonDraft = getAddonDraftByKey(draftKey);
 
         if (!addonDraft.isInCart) return;
+        if (!cartProductIds.includes(product.id)) return;
 
         const quantity = Math.max(
           addon.minQuantity ?? 1,
@@ -485,7 +486,7 @@ export default function DealerCollectionClient({
     });
 
     return items;
-  }, [addonDrafts, country, allProducts]);
+  }, [addonDrafts, country, allProducts, cartProductIds]);
 
   const cartItems = useMemo(() => {
     return [...productCartItems, ...addonCartItems];
