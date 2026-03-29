@@ -349,7 +349,7 @@ export default function DealerOrdersPage() {
 
                           <div className="text-right">
                             <div className="text-[11px] uppercase tracking-[0.06em] text-black/40">
-                              Итог без наценки
+                              Итого
                             </div>
                             <div className="mt-1 text-[16px] font-semibold text-black">
                               {formatMoney(
@@ -460,7 +460,7 @@ export default function DealerOrdersPage() {
                         <div className="mt-4 flex justify-end">
                           <div className="rounded-[14px] border border-black/10 bg-[#fcfcfa] px-4 py-3 text-right">
                             <div className="text-[11px] uppercase tracking-[0.06em] text-black/45">
-                              Итог без наценки
+                              Итого
                             </div>
                             <div className="mt-1 text-[18px] font-semibold text-black">
                               {formatMoney(
@@ -604,7 +604,7 @@ export default function DealerOrdersPage() {
                               <div className="mt-4 flex items-center justify-end">
                                 <div className="rounded-[16px] border border-black/10 bg-white px-4 py-3 text-right">
                                   <div className="text-[12px] uppercase tracking-[0.06em] text-black/45">
-                                    Итог без наценки
+                                    Итого
                                   </div>
                                   <div className="mt-1 text-[20px] font-semibold text-black">
                                     {formatMoney(
