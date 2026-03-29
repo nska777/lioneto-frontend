@@ -55,6 +55,8 @@ export type DealerProduct = {
   description: string;
   price: DealerProductPriceMap;
   color?: string;
+  size?: string;
+  material?: string;
   requiredItems?: DealerAddon[];
   recommendedItems?: DealerAddon[];
   addons?: DealerAddon[];
@@ -94,6 +96,8 @@ type StrapiProduct = {
   slug?: string;
   description?: string;
   color?: string;
+  size?: string;
+  material?: string;
   image?: StrapiMediaField;
   gallery?: StrapiMediaField;
   category?: string;
@@ -245,6 +249,8 @@ function normalizeProductBase(raw: StrapiProduct): DealerProduct {
     description: raw.description ?? "",
     price: mapPrices(raw),
     color: raw.color ?? "",
+    size: raw.size ?? "",
+    material: raw.material ?? "",
     requiredItems: [],
     recommendedItems: [],
     addons: [],

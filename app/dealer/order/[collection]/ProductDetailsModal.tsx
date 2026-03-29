@@ -13,7 +13,11 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { DealerAddon, DealerCountryCode, DealerProduct } from "../data";
+import type {
+  DealerAddon,
+  DealerCountryCode,
+  DealerProduct,
+} from "@/app/lib/dealer/shop";
 import type { ProductDraft } from "./types";
 import { formatMoney } from "./utils";
 
@@ -427,6 +431,7 @@ export default function ProductDetailsModal({
         completed: 0,
         hasAnySelected: true,
         done: true,
+        remaining: 0,
       };
     }
 
@@ -447,10 +452,12 @@ export default function ProductDetailsModal({
       completed,
       hasAnySelected: completed > 0,
       done: completed === finalRequiredItems.length,
+      remaining: Math.max(finalRequiredItems.length - completed, 0),
     };
   }, [finalRequiredItems, addonDrafts]);
 
-  const canAddMainProduct = requiredProgress.hasAnySelected;
+  const canAddMainProduct = requiredProgress.done;
+  const isKitAssembled = requiredProgress.done && isInCart;
 
   if (!isOpen || !safeProduct || !safeDraft) return null;
 
@@ -517,10 +524,39 @@ export default function ProductDetailsModal({
                           {safeProduct.title}
                         </div>
 
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-black/45">
-                          <span>Артикул: {safeProduct.article}</span>
-                          {"color" in safeProduct && safeProduct.color ? (
-                            <span>Цвет: {safeProduct.color}</span>
+                        <div className="mt-3 space-y-2 text-[13px] sm:text-[14px]">
+                          <div className="flex flex-wrap items-baseline gap-x-1.5">
+                            <span className="text-black/45">Артикул:</span>
+                            <span className="font-medium text-black">
+                              {safeProduct.article}
+                            </span>
+                          </div>
+
+                          {safeProduct.color ? (
+                            <div className="flex flex-wrap items-baseline gap-x-1.5">
+                              <span className="text-black/45">Цвет:</span>
+                              <span className="font-medium text-black">
+                                {safeProduct.color}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {safeProduct.size ? (
+                            <div className="flex flex-wrap items-baseline gap-x-1.5">
+                              <span className="text-black/45">Габариты:</span>
+                              <span className="font-medium text-black">
+                                {safeProduct.size}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {safeProduct.material ? (
+                            <div className="flex flex-wrap items-baseline gap-x-1.5">
+                              <span className="text-black/45">Материал:</span>
+                              <span className="font-medium text-black">
+                                {safeProduct.material}
+                              </span>
+                            </div>
                           ) : null}
                         </div>
                       </div>
@@ -529,19 +565,19 @@ export default function ProductDetailsModal({
                         <div
                           className={cn(
                             "inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
-                            requiredProgress.done
+                            isKitAssembled
                               ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border border-amber-200 bg-amber-50 text-amber-700",
+                              : "border border-red-200 bg-red-50 text-red-700",
                           )}
                         >
-                          {requiredProgress.done ? (
+                          {isKitAssembled ? (
                             <PackageCheck className="h-4 w-4" />
                           ) : (
                             <AlertCircle className="h-4 w-4" />
                           )}
-                          {requiredProgress.done
+                          {isKitAssembled
                             ? "Комплект собран"
-                            : `${requiredProgress.completed}/${requiredProgress.total} шагов`}
+                            : "Соберите комплект"}
                         </div>
                       ) : (
                         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-[#f5f5f3] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-black/55">
@@ -593,16 +629,14 @@ export default function ProductDetailsModal({
                             "mt-2 text-[12px]",
                             requiredProgress.done
                               ? "text-emerald-700"
-                              : requiredProgress.hasAnySelected
-                                ? "text-amber-700"
-                                : "text-black/55",
+                              : "text-amber-700",
                           )}
                         >
                           {requiredProgress.done
-                            ? "Все обязательные элементы выбраны."
-                            : requiredProgress.hasAnySelected
-                              ? "Можно добавить основной товар. Остальные обязательные позиции можно добрать позже."
-                              : "Добавь хотя бы одну обязательную позицию, чтобы оформить основной товар."}
+                            ? isInCart
+                              ? "Все обязательные элементы выбраны. Комплект собран."
+                              : "Все обязательные элементы выбраны. Нажмите «Собрать комплект»."
+                            : "Необходимо добавить еще комплектующие."}
                         </div>
                       </div>
                     ) : null}
@@ -616,8 +650,8 @@ export default function ProductDetailsModal({
                         Обязательная комплектация
                       </div>
                       <div className="mt-1 text-[13px] text-black/55">
-                        Для добавления основного товара достаточно выбрать хотя
-                        бы одну обязательную позицию.
+                        Для сборки основного товара необходимо выбрать все
+                        обязательные комплектующие.
                       </div>
                     </div>
 
@@ -705,18 +739,17 @@ export default function ProductDetailsModal({
                     </div>
                   </div>
 
-                  {requiredProgress.total > 0 &&
-                  !requiredProgress.hasAnySelected ? (
+                  {requiredProgress.total > 0 && !requiredProgress.done ? (
                     <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
                         <div>
                           <div className="text-[13px] font-semibold text-black">
-                            Сначала выбери хотя бы одну позицию
+                            Не все обязательные комплектующие выбраны
                           </div>
                           <div className="mt-1 text-[12px] leading-5 text-black/55">
-                            После выбора хотя бы одного обязательного элемента
-                            можно добавить основной товар в корзину.
+                            Добавьте все обязательные позиции, после этого
+                            кнопка «Собрать комплект» станет активной.
                           </div>
                         </div>
                       </div>
@@ -740,10 +773,10 @@ export default function ProductDetailsModal({
                     )}
                   >
                     {!canAddMainProduct
-                      ? "Выбери обязательную позицию"
+                      ? "Собрать комплект"
                       : isInCart
-                        ? "Основной товар добавлен"
-                        : "Добавить основной товар"}
+                        ? "Комплект собран"
+                        : "Собрать комплект"}
                   </button>
                 </div>
               </div>

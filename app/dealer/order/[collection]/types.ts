@@ -19,6 +19,7 @@ export type CartEntry =
       title: string;
       article: string;
       color?: string;
+      size?: string;
       quantity: number;
       markupPercent: number;
       unitBasePrice: number;
@@ -38,6 +39,7 @@ export type CartEntry =
       title: string;
       article: string;
       color?: string;
+      size?: string;
       quantity: number;
       markupPercent: number;
       unitBasePrice: number;
@@ -50,10 +52,13 @@ export type DealerOrderVisibleItem = {
   id: string;
   kind: "product" | "addon";
   addonKind?: "required" | "recommended";
+  parentProductId?: string;
+  parentProductTitle?: string;
   collectionSlug: string;
   title: string;
   article: string;
   color?: string;
+  size?: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -63,10 +68,13 @@ export type DealerOrderInternalItem = {
   id: string;
   kind: "product" | "addon";
   addonKind?: "required" | "recommended";
+  parentProductId?: string;
+  parentProductTitle?: string;
   collectionSlug: string;
   title: string;
   article: string;
   color?: string;
+  size?: string;
   quantity: number;
   markupPercent: number;
   unitBasePrice: number;

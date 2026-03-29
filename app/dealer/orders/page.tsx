@@ -23,14 +23,12 @@ type StrapiDealerOrder = {
   collectionTitles?: string;
   totalQty?: number;
 
-  // old numeric fields
   subtotal?: number;
   totalWithMarkup?: number;
   globalMarkupPercent?: number;
   globalMarkupAmount?: number;
   total?: number;
 
-  // new text fields
   subtotalText?: string;
   totalWithMarkupText?: string;
   globalMarkupAmountText?: string;
@@ -118,6 +116,10 @@ function parseVisibleItems(value: unknown): DealerOrderVisibleItem[] {
           typeof raw.color === "string" && raw.color.trim()
             ? raw.color
             : undefined,
+        size:
+          typeof raw.size === "string" && raw.size.trim()
+            ? raw.size
+            : undefined,
         quantity: asNumber(raw.quantity, 0),
         unitPrice: asNumber(raw.unitPrice, asNumber(raw.unitBasePrice, 0)),
         totalPrice: asNumber(raw.totalPrice, asNumber(raw.totalBasePrice, 0)),
@@ -125,6 +127,15 @@ function parseVisibleItems(value: unknown): DealerOrderVisibleItem[] {
         addonKind:
           raw.addonKind === "required" || raw.addonKind === "recommended"
             ? raw.addonKind
+            : undefined,
+        parentProductId:
+          typeof raw.parentProductId === "string" && raw.parentProductId.trim()
+            ? raw.parentProductId
+            : undefined,
+        parentProductTitle:
+          typeof raw.parentProductTitle === "string" &&
+          raw.parentProductTitle.trim()
+            ? raw.parentProductTitle
             : undefined,
       };
 
@@ -412,6 +423,13 @@ export default function DealerOrdersPage() {
                                 </div>
 
                                 <div>
+                                  <div className="text-black/40">Габариты</div>
+                                  <div className="mt-0.5 text-black/70">
+                                    {item.size ?? "-"}
+                                  </div>
+                                </div>
+
+                                <div>
                                   <div className="text-black/40">Кол-во</div>
                                   <div className="mt-0.5 text-black">
                                     {item.quantity}
@@ -467,7 +485,7 @@ export default function DealerOrdersPage() {
                     <th className="px-4 py-4">Номер заказа</th>
                     <th className="px-4 py-4">Коллекции</th>
                     <th className="px-4 py-4">Позиций</th>
-                    <th className="px-4 py-4">Итого без наценки</th>
+                    <th className="px-4 py-4">Итого </th>
                     <th className="px-4 py-4">Действия</th>
                   </tr>
                 </thead>
@@ -532,6 +550,7 @@ export default function DealerOrdersPage() {
                                       </th>
                                       <th className="px-4 py-3">Артикул</th>
                                       <th className="px-4 py-3">Цвет</th>
+                                      <th className="px-4 py-3">Габариты</th>
                                       <th className="px-4 py-3">Кол-во</th>
                                       <th className="px-4 py-3">Цена</th>
                                       <th className="px-4 py-3">Сумма</th>
@@ -557,6 +576,9 @@ export default function DealerOrdersPage() {
                                         </td>
                                         <td className="px-4 py-3 text-black/60">
                                           {item.color ?? "-"}
+                                        </td>
+                                        <td className="px-4 py-3 text-black/60">
+                                          {item.size ?? "-"}
                                         </td>
                                         <td className="px-4 py-3 text-black">
                                           {item.quantity}

@@ -7,6 +7,27 @@ import type {
   DealerOrderVisibleItem,
 } from "./types";
 
+const ORDER_SEQUENCE_START = 1000;
+const ORDER_DRAFT_NUMBER_STORAGE_KEY = "dealer-order-draft-number";
+const ORDER_SEQUENCE_STORAGE_KEY_PREFIX = "dealer-order-sequence";
+
+type PrintRow =
+  | {
+      kind: "product";
+      item: Extract<CartEntry, { kind: "product" }>;
+      displayIndex: string;
+      hasChildren: boolean;
+      isLastInGroup: boolean;
+    }
+  | {
+      kind: "addon";
+      item: Extract<CartEntry, { kind: "addon" }>;
+      displayIndex: "";
+      isFirstChild: boolean;
+      isLastChild: boolean;
+      isLastInGroup: boolean;
+    };
+
 export function getDefaultDraft() {
   return {
     quantity: 1,
@@ -31,16 +52,90 @@ export function generateOrderId() {
   return `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function generateOrderNumber() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const ss = String(now.getSeconds()).padStart(2, "0");
+function sanitizeLoginForOrder(login?: string | null) {
+  const safe = String(login ?? "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .toUpperCase();
 
-  return `DLR-${y}${m}${d}-${hh}${mm}${ss}`;
+  return safe || "DEALER";
+}
+
+function getDealerSequenceStorageKey(login?: string | null) {
+  return `${ORDER_SEQUENCE_STORAGE_KEY_PREFIX}:${sanitizeLoginForOrder(login)}`;
+}
+
+function getDraftNumberStorageKey(login?: string | null) {
+  return `${ORDER_DRAFT_NUMBER_STORAGE_KEY}:${sanitizeLoginForOrder(login)}`;
+}
+
+function getStoredDraftOrderNumber(login?: string | null) {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return sessionStorage.getItem(getDraftNumberStorageKey(login));
+  } catch {
+    return null;
+  }
+}
+
+function setStoredDraftOrderNumber(
+  login: string | null | undefined,
+  value: string,
+) {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.setItem(getDraftNumberStorageKey(login), value);
+  } catch {}
+}
+
+export function resetDraftOrderNumber(dealerLogin?: string | null) {
+  if (typeof window === "undefined") return;
+
+  try {
+    sessionStorage.removeItem(getDraftNumberStorageKey(dealerLogin));
+  } catch {}
+}
+
+export function generateOrderNumber(dealerLogin?: string | null) {
+  const loginPart = sanitizeLoginForOrder(dealerLogin);
+
+  if (typeof window === "undefined") {
+    return `DLR-${loginPart}-${ORDER_SEQUENCE_START + 1}`;
+  }
+
+  const cachedDraftNumber = getStoredDraftOrderNumber(dealerLogin);
+  if (cachedDraftNumber) {
+    return cachedDraftNumber;
+  }
+
+  try {
+    const sequenceKey = getDealerSequenceStorageKey(dealerLogin);
+    const raw = localStorage.getItem(sequenceKey);
+    const parsed = Number(raw);
+
+    const nextNumber =
+      Number.isFinite(parsed) && parsed >= ORDER_SEQUENCE_START
+        ? parsed + 1
+        : ORDER_SEQUENCE_START + 1;
+
+    localStorage.setItem(sequenceKey, String(nextNumber));
+
+    const orderNumber = `DLR-${loginPart}-${nextNumber}`;
+    setStoredDraftOrderNumber(dealerLogin, orderNumber);
+
+    return orderNumber;
+  } catch {
+    const fallback = `DLR-${loginPart}-${ORDER_SEQUENCE_START + 1}`;
+    setStoredDraftOrderNumber(dealerLogin, fallback);
+    return fallback;
+  }
+}
+
+export function getPrintFileTitle(orderNumber: string) {
+  return `order_${orderNumber}`;
 }
 
 export function getProductColor(product: DealerProduct): string | undefined {
@@ -70,10 +165,14 @@ export function buildVisibleItems(
     id: item.id,
     kind: item.kind,
     addonKind: item.kind === "addon" ? item.addonKind : undefined,
+    parentProductId: item.kind === "addon" ? item.parentProductId : undefined,
+    parentProductTitle:
+      item.kind === "addon" ? item.parentProductTitle : undefined,
     collectionSlug: item.collectionSlug,
     title: item.title,
     article: item.article,
     color: item.color,
+    size: item.size,
     quantity: item.quantity,
     unitPrice: item.unitBasePrice,
     totalPrice: item.totalBasePrice,
@@ -87,10 +186,14 @@ export function buildInternalItems(
     id: item.id,
     kind: item.kind,
     addonKind: item.kind === "addon" ? item.addonKind : undefined,
+    parentProductId: item.kind === "addon" ? item.parentProductId : undefined,
+    parentProductTitle:
+      item.kind === "addon" ? item.parentProductTitle : undefined,
     collectionSlug: item.collectionSlug,
     title: item.title,
     article: item.article,
     color: item.color,
+    size: item.size,
     quantity: item.quantity,
     markupPercent: item.markupPercent,
     unitBasePrice: item.unitBasePrice,
@@ -120,7 +223,7 @@ function formatCollections(slugs: string[]) {
 }
 
 function openPrintWindow(html: string) {
-  const printWindow = window.open("", "_blank", "width=1200,height=900");
+  const printWindow = window.open("", "_blank", "width=1400,height=900");
 
   if (!printWindow) {
     alert("Разреши всплывающие окна для печати");
@@ -137,6 +240,8 @@ function getBasePrintStyles() {
     <style>
       * {
         box-sizing: border-box;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
 
       html, body {
@@ -148,129 +253,302 @@ function getBasePrintStyles() {
       }
 
       body {
-        padding: 28px;
+        padding: 0;
       }
 
       .document {
-        max-width: 1180px;
+        width: 281mm;
+        min-height: 190mm;
         margin: 0 auto;
+        background: #ffffff;
       }
 
       .doc-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 24px;
-        margin-bottom: 28px;
+        display: grid;
+        grid-template-columns: 1fr 1.25fr;
+        gap: 18px;
+        align-items: start;
+        margin-bottom: 12px;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       .brand-block {
         max-width: 320px;
+        padding-top: 2px;
       }
 
       .brand-name {
-        font-size: 28px;
+        font-size: 24px;
         font-weight: 700;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
         line-height: 1;
       }
 
       .brand-subtitle {
-        margin-top: 8px;
-        font-size: 12px;
+        margin-top: 6px;
+        font-size: 11px;
         color: #666666;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .doc-right {
+        padding-top: 0;
+      }
+
+      .doc-label {
+        margin: 0 0 2px;
+        font-size: 11px;
+        color: #7b7b7b;
         letter-spacing: 0.08em;
         text-transform: uppercase;
       }
 
       .doc-title {
         margin: 0;
-        font-size: 30px;
+        font-size: 26px;
         font-weight: 700;
-        line-height: 1.1;
+        line-height: 1.08;
+        word-break: break-word;
       }
 
       .doc-subtitle {
-        margin-top: 8px;
-        font-size: 14px;
-        color: #555555;
-        line-height: 1.6;
+        margin-top: 6px;
+        font-size: 11px;
+        color: #666666;
+        line-height: 1.35;
       }
 
       .meta-grid {
         display: grid;
-        grid-template-columns: repeat(2, minmax(220px, 1fr));
-        gap: 12px;
-        margin-top: 24px;
-        margin-bottom: 22px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 10px;
+        margin: 0 0 12px;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       .meta-card {
-        border: 1px solid #dcdcdc;
-        border-radius: 14px;
-        padding: 14px 16px;
+        border: 1px solid #d9d9d9;
+        border-radius: 10px;
+        padding: 9px 12px;
+        min-height: 48px;
+        background: #ffffff;
+        overflow: hidden;
       }
 
       .meta-label {
-        font-size: 11px;
-        color: #777777;
+        font-size: 9px;
+        color: #7a7a7a;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
       }
 
       .meta-value {
-        font-size: 15px;
-        font-weight: 600;
+        font-size: 11px;
+        font-weight: 700;
         color: #111111;
+        line-height: 1.25;
+        word-break: break-word;
+      }
+
+      .table-wrap {
+        width: 100%;
       }
 
       table {
         width: 100%;
         border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      col.col-index {
+        width: 34px;
+      }
+
+      col.col-collection {
+        width: 92px;
+      }
+
+      col.col-name {
+        width: auto;
+      }
+
+      col.col-article {
+        width: 114px;
+      }
+
+      col.col-color {
+        width: 88px;
+      }
+
+      col.col-size {
+        width: 96px;
+      }
+
+      col.col-qty {
+        width: 64px;
+      }
+
+      col.col-price {
+        width: 120px;
+      }
+
+      col.col-total {
+        width: 122px;
+      }
+
+      col.col-markup {
+        width: 78px;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       thead th {
         background: #f5f5f5;
-        font-size: 12px;
+        font-size: 10px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.03em;
+        line-height: 1.1;
       }
 
       th, td {
-        border: 1px solid #dcdcdc;
-        padding: 12px 12px;
+        border: 1px solid #dddddd;
+        padding: 6px 8px;
         text-align: left;
         vertical-align: top;
-        font-size: 14px;
+        font-size: 10px;
+        line-height: 1.22;
       }
 
-      td.num, th.num {
+      td,
+      th {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      td.num,
+      th.num {
         text-align: right;
         white-space: nowrap;
+        overflow-wrap: normal;
+        word-break: normal;
       }
 
-      td.center, th.center {
+      td.center,
+      th.center {
         text-align: center;
       }
 
+      td.index-child {
+        width: 34px;
+        min-width: 34px;
+        padding: 0;
+        border-right: 0;
+        background: #ffffff;
+      }
+
+      td.collection-child {
+        border-left: 0;
+      }
+
+      tr.child-row td {
+        background: #fcfcfc;
+      }
+
+      tr.group-gap td {
+        border-bottom: 1px solid #dddddd;
+      }
+
+      .name-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .name-main {
+        font-size: 10px;
+        font-weight: 500;
+        line-height: 1.18;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      .name-sub {
+        font-size: 9px;
+        color: #777777;
+        line-height: 1.14;
+      }
+
+      .tree-block {
+        position: relative;
+        margin-left: 8px;
+        padding-left: 12px;
+      }
+
+      .tree-block::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: -6px;
+        bottom: -6px;
+        width: 1px;
+        background: #cfcfcf;
+      }
+
+      .tree-block.first::before {
+        top: -1px;
+      }
+
+      .tree-block.last::before {
+        bottom: 6px;
+      }
+
+      .tree-block::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 9px;
+        width: 8px;
+        height: 1px;
+        background: #cfcfcf;
+      }
+
       .summary {
-        margin-top: 22px;
+        margin-top: 10px;
         margin-left: auto;
-        width: min(460px, 100%);
+        width: 360px;
+        max-width: 100%;
         border: 1px solid #dcdcdc;
-        border-radius: 16px;
+        border-radius: 12px;
         overflow: hidden;
+        background: #ffffff;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       .summary-row {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
-        padding: 14px 16px;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
         border-top: 1px solid #dcdcdc;
-        font-size: 15px;
+        font-size: 11px;
+        line-height: 1.2;
+        background: #ffffff;
       }
 
       .summary-row:first-child {
@@ -278,17 +556,17 @@ function getBasePrintStyles() {
       }
 
       .summary-row strong {
-        font-size: 16px;
+        font-size: 12px;
       }
 
       .summary-row.total {
         background: #faf7ef;
-        font-size: 18px;
+        font-size: 12px;
         font-weight: 700;
       }
 
       .summary-row.total strong {
-        font-size: 24px;
+        font-size: 16px;
       }
 
       .summary-row.accent strong {
@@ -296,27 +574,74 @@ function getBasePrintStyles() {
       }
 
       .footnote {
-        margin-top: 28px;
-        font-size: 12px;
-        line-height: 1.7;
+        margin-top: 10px;
+        font-size: 10px;
+        line-height: 1.35;
         color: #666666;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       @page {
-        size: auto;
-        margin: 16mm;
+        size: A4 landscape;
+        margin: 8mm;
       }
 
       @media print {
+        html,
+        body {
+          margin: 0;
+          padding: 0;
+          width: auto;
+          height: auto;
+          background: #ffffff;
+        }
+
         body {
           padding: 0;
         }
 
         .document {
-          max-width: none;
+          width: 281mm;
+          min-height: 190mm;
+          margin: 0 auto;
         }
       }
     </style>
+  `;
+}
+
+function getClientColGroup() {
+  return `
+    <colgroup>
+      <col class="col-index" />
+      <col class="col-collection" />
+      <col class="col-name" />
+      <col class="col-article" />
+      <col class="col-color" />
+      <col class="col-size" />
+      <col class="col-qty" />
+      <col class="col-price" />
+      <col class="col-total" />
+    </colgroup>
+  `;
+}
+
+function getInternalColGroup() {
+  return `
+    <colgroup>
+      <col class="col-index" />
+      <col class="col-collection" />
+      <col class="col-name" />
+      <col class="col-article" />
+      <col class="col-color" />
+      <col class="col-size" />
+      <col class="col-qty" />
+      <col class="col-price" />
+      <col class="col-markup" />
+      <col class="col-price" />
+      <col class="col-total" />
+    </colgroup>
   `;
 }
 
@@ -329,21 +654,138 @@ function getItemTypeLabel(item: CartEntry): string {
   return "Доп. элемент";
 }
 
+function groupPrintItems(items: CartEntry[]): PrintRow[] {
+  const products = items.filter(
+    (item): item is Extract<CartEntry, { kind: "product" }> =>
+      item.kind === "product",
+  );
+
+  const addons = items.filter(
+    (item): item is Extract<CartEntry, { kind: "addon" }> =>
+      item.kind === "addon",
+  );
+
+  const addonsByParent = new Map<
+    string,
+    Extract<CartEntry, { kind: "addon" }>[]
+  >();
+
+  addons.forEach((addon) => {
+    const list = addonsByParent.get(addon.parentProductId) ?? [];
+    list.push(addon);
+    addonsByParent.set(addon.parentProductId, list);
+  });
+
+  const rows: PrintRow[] = [];
+  const usedAddonIds = new Set<string>();
+  let productIndex = 1;
+
+  products.forEach((product) => {
+    const children = addonsByParent.get(product.productId) ?? [];
+
+    rows.push({
+      kind: "product",
+      item: product,
+      displayIndex: String(productIndex),
+      hasChildren: children.length > 0,
+      isLastInGroup: children.length === 0,
+    });
+
+    children.forEach((addon, index) => {
+      rows.push({
+        kind: "addon",
+        item: addon,
+        displayIndex: "",
+        isFirstChild: index === 0,
+        isLastChild: index === children.length - 1,
+        isLastInGroup: index === children.length - 1,
+      });
+      usedAddonIds.add(addon.id);
+    });
+
+    productIndex += 1;
+  });
+
+  const orphanAddons = addons.filter((addon) => !usedAddonIds.has(addon.id));
+
+  orphanAddons.forEach((addon, index) => {
+    rows.push({
+      kind: "addon",
+      item: addon,
+      displayIndex: "",
+      isFirstChild: true,
+      isLastChild: true,
+      isLastInGroup: index === orphanAddons.length - 1,
+    });
+  });
+
+  return rows;
+}
+
+function renderProductNameCell(item: Extract<CartEntry, { kind: "product" }>) {
+  return `
+    <div class="name-cell">
+      <div class="name-main">${escapeHtml(item.title)}</div>
+      <div class="name-sub">${escapeHtml(getItemTypeLabel(item))}</div>
+    </div>
+  `;
+}
+
+function renderAddonNameCell(
+  item: Extract<CartEntry, { kind: "addon" }>,
+  isFirstChild: boolean,
+  isLastChild: boolean,
+) {
+  return `
+    <div class="tree-block ${isFirstChild ? "first" : ""} ${isLastChild ? "last" : ""}">
+      <div class="name-cell">
+        <div class="name-main">${escapeHtml(item.title)}</div>
+        <div class="name-sub">
+          ${escapeHtml(getItemTypeLabel(item))}
+          ${
+            item.parentProductTitle
+              ? `<br />Для: ${escapeHtml(item.parentProductTitle)}`
+              : ""
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function buildClientRows(items: CartEntry[], country: DealerCountryCode) {
-  return items
-    .map((item, index) => {
+  const rows = groupPrintItems(items);
+
+  return rows
+    .map((row) => {
+      if (row.kind === "product") {
+        const { item, displayIndex, isLastInGroup } = row;
+
+        return `
+          <tr class="${isLastInGroup ? "group-gap" : ""}">
+            <td class="center">${displayIndex}</td>
+            <td>${escapeHtml(item.collectionSlug)}</td>
+            <td>${renderProductNameCell(item)}</td>
+            <td>${escapeHtml(item.article)}</td>
+            <td>${escapeHtml(item.color ?? "-")}</td>
+            <td>${escapeHtml(item.size ?? "-")}</td>
+            <td class="center">${item.quantity}</td>
+            <td class="num">${formatMoney(item.unitBasePrice, country)}</td>
+            <td class="num">${formatMoney(item.totalBasePrice, country)}</td>
+          </tr>
+        `;
+      }
+
+      const { item, isFirstChild, isLastChild, isLastInGroup } = row;
+
       return `
-        <tr>
-          <td class="center">${index + 1}</td>
-          <td>${escapeHtml(item.collectionSlug)}</td>
-          <td>
-            ${escapeHtml(item.title)}
-            <div style="margin-top:4px;font-size:12px;color:#777;">
-              ${escapeHtml(getItemTypeLabel(item))}
-            </div>
-          </td>
+        <tr class="child-row ${isLastInGroup ? "group-gap" : ""}">
+          <td class="index-child"></td>
+          <td class="collection-child">${escapeHtml(item.collectionSlug)}</td>
+          <td>${renderAddonNameCell(item, isFirstChild, isLastChild)}</td>
           <td>${escapeHtml(item.article)}</td>
           <td>${escapeHtml(item.color ?? "-")}</td>
+          <td>${escapeHtml(item.size ?? "-")}</td>
           <td class="center">${item.quantity}</td>
           <td class="num">${formatMoney(item.unitBasePrice, country)}</td>
           <td class="num">${formatMoney(item.totalBasePrice, country)}</td>
@@ -354,20 +796,40 @@ function buildClientRows(items: CartEntry[], country: DealerCountryCode) {
 }
 
 function buildInternalRows(items: CartEntry[], country: DealerCountryCode) {
-  return items
-    .map((item, index) => {
+  const rows = groupPrintItems(items);
+
+  return rows
+    .map((row) => {
+      if (row.kind === "product") {
+        const { item, displayIndex, isLastInGroup } = row;
+
+        return `
+          <tr class="${isLastInGroup ? "group-gap" : ""}">
+            <td class="center">${displayIndex}</td>
+            <td>${escapeHtml(item.collectionSlug)}</td>
+            <td>${renderProductNameCell(item)}</td>
+            <td>${escapeHtml(item.article)}</td>
+            <td>${escapeHtml(item.color ?? "-")}</td>
+            <td>${escapeHtml(item.size ?? "-")}</td>
+            <td class="center">${item.quantity}</td>
+            <td class="num">${formatMoney(item.unitBasePrice, country)}</td>
+            <td class="center">${item.markupPercent}%</td>
+            <td class="num">${formatMoney(item.unitFinalPrice, country)}</td>
+            <td class="num">${formatMoney(item.totalFinalPrice, country)}</td>
+          </tr>
+        `;
+      }
+
+      const { item, isFirstChild, isLastChild, isLastInGroup } = row;
+
       return `
-        <tr>
-          <td class="center">${index + 1}</td>
-          <td>${escapeHtml(item.collectionSlug)}</td>
-          <td>
-            ${escapeHtml(item.title)}
-            <div style="margin-top:4px;font-size:12px;color:#777;">
-              ${escapeHtml(getItemTypeLabel(item))}
-            </div>
-          </td>
+        <tr class="child-row ${isLastInGroup ? "group-gap" : ""}">
+          <td class="index-child"></td>
+          <td class="collection-child">${escapeHtml(item.collectionSlug)}</td>
+          <td>${renderAddonNameCell(item, isFirstChild, isLastChild)}</td>
           <td>${escapeHtml(item.article)}</td>
           <td>${escapeHtml(item.color ?? "-")}</td>
+          <td>${escapeHtml(item.size ?? "-")}</td>
           <td class="center">${item.quantity}</td>
           <td class="num">${formatMoney(item.unitBasePrice, country)}</td>
           <td class="center">${item.markupPercent}%</td>
@@ -380,8 +842,8 @@ function buildInternalRows(items: CartEntry[], country: DealerCountryCode) {
 }
 
 function buildClientPrintHtml(params: {
-  title: string;
-  orderNumber?: string;
+  orderNumber: string;
+  fileTitle: string;
   collectionTitle: string;
   collectionSlugs: string[];
   createdAt: string | Date;
@@ -391,8 +853,8 @@ function buildClientPrintHtml(params: {
   country: DealerCountryCode;
 }) {
   const {
-    title,
     orderNumber,
+    fileTitle,
     collectionTitle,
     collectionSlugs,
     createdAt,
@@ -406,7 +868,7 @@ function buildClientPrintHtml(params: {
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(title)}</title>
+        <title>${escapeHtml(fileTitle)}</title>
         ${getBasePrintStyles()}
       </head>
       <body>
@@ -417,14 +879,10 @@ function buildClientPrintHtml(params: {
               <div class="brand-subtitle">Dealer Portal</div>
             </div>
 
-            <div>
-              <h1 class="doc-title">${escapeHtml(title)}</h1>
+            <div class="doc-right">
+              <div class="doc-label">Номер заказа</div>
+              <h1 class="doc-title">${escapeHtml(orderNumber)}</h1>
               <div class="doc-subtitle">
-                ${
-                  orderNumber
-                    ? `Номер заказа: <strong>${escapeHtml(orderNumber)}</strong><br />`
-                    : ""
-                }
                 Документ сформирован: ${escapeHtml(formatDate(createdAt))}
               </div>
             </div>
@@ -438,7 +896,9 @@ function buildClientPrintHtml(params: {
 
             <div class="meta-card">
               <div class="meta-label">Коллекции в заказе</div>
-              <div class="meta-value">${escapeHtml(formatCollections(collectionSlugs))}</div>
+              <div class="meta-value">${escapeHtml(
+                formatCollections(collectionSlugs),
+              )}</div>
             </div>
 
             <div class="meta-card">
@@ -452,24 +912,28 @@ function buildClientPrintHtml(params: {
             </div>
           </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th class="center">#</th>
-                <th>Коллекция</th>
-                <th>Наименование</th>
-                <th>Артикул</th>
-                <th>Цвет</th>
-                <th class="center">Кол-во</th>
-                <th class="num">Цена</th>
-                <th class="num">Сумма</th>
-              </tr>
-            </thead>
+          <div class="table-wrap">
+            <table>
+              ${getClientColGroup()}
+              <thead>
+                <tr>
+                  <th class="center">#</th>
+                  <th>Коллекция</th>
+                  <th>Наименование</th>
+                  <th>Артикул</th>
+                  <th>Цвет</th>
+                  <th>Габариты</th>
+                  <th class="center">Кол-во</th>
+                  <th class="num">Цена</th>
+                  <th class="num">Сумма</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              ${buildClientRows(items, country)}
-            </tbody>
-          </table>
+              <tbody>
+                ${buildClientRows(items, country)}
+              </tbody>
+            </table>
+          </div>
 
           <div class="summary">
             <div class="summary-row">
@@ -485,6 +949,7 @@ function buildClientPrintHtml(params: {
         </div>
 
         <script>
+          document.title = ${JSON.stringify(fileTitle)};
           window.onload = function () {
             window.print();
           };
@@ -495,8 +960,8 @@ function buildClientPrintHtml(params: {
 }
 
 function buildInternalPrintHtml(params: {
-  title: string;
-  orderNumber?: string;
+  orderNumber: string;
+  fileTitle: string;
   collectionTitle: string;
   collectionSlugs: string[];
   createdAt: string | Date;
@@ -510,8 +975,8 @@ function buildInternalPrintHtml(params: {
   country: DealerCountryCode;
 }) {
   const {
-    title,
     orderNumber,
+    fileTitle,
     collectionTitle,
     collectionSlugs,
     createdAt,
@@ -531,7 +996,7 @@ function buildInternalPrintHtml(params: {
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(title)}</title>
+        <title>${escapeHtml(fileTitle)}</title>
         ${getBasePrintStyles()}
       </head>
       <body>
@@ -542,14 +1007,10 @@ function buildInternalPrintHtml(params: {
               <div class="brand-subtitle">Dealer Portal</div>
             </div>
 
-            <div>
-              <h1 class="doc-title">${escapeHtml(title)}</h1>
+            <div class="doc-right">
+              <div class="doc-label">Номер заказа</div>
+              <h1 class="doc-title">${escapeHtml(orderNumber)}</h1>
               <div class="doc-subtitle">
-                ${
-                  orderNumber
-                    ? `Номер заказа: <strong>${escapeHtml(orderNumber)}</strong><br />`
-                    : ""
-                }
                 Документ сформирован: ${escapeHtml(formatDate(createdAt))}
               </div>
             </div>
@@ -563,7 +1024,9 @@ function buildInternalPrintHtml(params: {
 
             <div class="meta-card">
               <div class="meta-label">Коллекции в заказе</div>
-              <div class="meta-value">${escapeHtml(formatCollections(collectionSlugs))}</div>
+              <div class="meta-value">${escapeHtml(
+                formatCollections(collectionSlugs),
+              )}</div>
             </div>
 
             <div class="meta-card">
@@ -577,26 +1040,30 @@ function buildInternalPrintHtml(params: {
             </div>
           </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th class="center">#</th>
-                <th>Коллекция</th>
-                <th>Наименование</th>
-                <th>Артикул</th>
-                <th>Цвет</th>
-                <th class="center">Кол-во</th>
-                <th class="num">Цена без наценки</th>
-                <th class="center">Наценка</th>
-                <th class="num">Цена с наценкой</th>
-                <th class="num">Сумма</th>
-              </tr>
-            </thead>
+          <div class="table-wrap">
+            <table>
+              ${getInternalColGroup()}
+              <thead>
+                <tr>
+                  <th class="center">#</th>
+                  <th>Коллекция</th>
+                  <th>Наименование</th>
+                  <th>Артикул</th>
+                  <th>Цвет</th>
+                  <th>Габариты</th>
+                  <th class="center">Кол-во</th>
+                  <th class="num">Цена без наценки</th>
+                  <th class="center">Наценка</th>
+                  <th class="num">Цена с наценкой</th>
+                  <th class="num">Сумма</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              ${buildInternalRows(items, country)}
-            </tbody>
-          </table>
+              <tbody>
+                ${buildInternalRows(items, country)}
+              </tbody>
+            </table>
+          </div>
 
           <div class="summary">
             <div class="summary-row">
@@ -605,12 +1072,12 @@ function buildInternalPrintHtml(params: {
             </div>
 
             <div class="summary-row">
-              <span>Итого после наценок по позициям</span>
+              <span>После наценок по позициям</span>
               <strong>${formatMoney(totalWithItemMarkup, country)}</strong>
             </div>
 
             <div class="summary-row accent">
-              <span>Общая наценка на заказ ${globalMarkupPercent}%</span>
+              <span>Общая наценка ${globalMarkupPercent}%</span>
               <strong>${formatMoney(globalMarkupAmount, country)}</strong>
             </div>
 
@@ -630,6 +1097,7 @@ function buildInternalPrintHtml(params: {
         </div>
 
         <script>
+          document.title = ${JSON.stringify(fileTitle)};
           window.onload = function () {
             window.print();
           };
@@ -642,6 +1110,7 @@ function buildInternalPrintHtml(params: {
 export function openCartPrintWindow(
   items: CartEntry[],
   country: DealerCountryCode,
+  orderNumber: string,
   collectionTitle: string,
   totalQty: number,
   subtotal: number,
@@ -654,10 +1123,12 @@ export function openCartPrintWindow(
   const collectionSlugs = Array.from(
     new Set(items.map((item) => item.collectionSlug)),
   );
+  const fileTitle = getPrintFileTitle(orderNumber);
 
   const html = withMarkup
     ? buildInternalPrintHtml({
-        title: "Внутренний расчет заказа",
+        orderNumber,
+        fileTitle,
         collectionTitle,
         collectionSlugs,
         createdAt: new Date(),
@@ -671,7 +1142,8 @@ export function openCartPrintWindow(
         country,
       })
     : buildClientPrintHtml({
-        title: "Счет на оплату",
+        orderNumber,
+        fileTitle,
         collectionTitle,
         collectionSlugs,
         createdAt: new Date(),
@@ -705,6 +1177,7 @@ export function openSavedOrderPrintWindow(
             title: item.title,
             article: item.article,
             color: item.color,
+            size: item.size,
             quantity: item.quantity,
             markupPercent: item.markupPercent,
             unitBasePrice: item.unitBasePrice,
@@ -717,13 +1190,15 @@ export function openSavedOrderPrintWindow(
         return {
           kind: "addon",
           id: item.id,
-          parentProductId: "",
+          parentProductId: item.parentProductId ?? "",
           addonId: item.id,
           addonKind: item.addonKind,
+          parentProductTitle: item.parentProductTitle,
           collectionSlug: item.collectionSlug,
           title: item.title,
           article: item.article,
           color: item.color,
+          size: item.size,
           quantity: item.quantity,
           markupPercent: item.markupPercent,
           unitBasePrice: item.unitBasePrice,
@@ -742,6 +1217,7 @@ export function openSavedOrderPrintWindow(
             title: item.title,
             article: item.article,
             color: item.color,
+            size: item.size,
             quantity: item.quantity,
             markupPercent: 0,
             unitBasePrice: item.unitPrice,
@@ -754,13 +1230,15 @@ export function openSavedOrderPrintWindow(
         return {
           kind: "addon",
           id: item.id,
-          parentProductId: "",
+          parentProductId: item.parentProductId ?? "",
           addonId: item.id,
           addonKind: item.addonKind,
+          parentProductTitle: item.parentProductTitle,
           collectionSlug: item.collectionSlug,
           title: item.title,
           article: item.article,
           color: item.color,
+          size: item.size,
           quantity: item.quantity,
           markupPercent: 0,
           unitBasePrice: item.unitPrice,
@@ -775,10 +1253,12 @@ export function openSavedOrderPrintWindow(
       ? safeCollectionSlugs[0].toUpperCase()
       : "Смешанный заказ";
 
+  const fileTitle = getPrintFileTitle(order.orderNumber);
+
   const html = withMarkup
     ? buildInternalPrintHtml({
-        title: "Внутренний расчет заказа",
         orderNumber: order.orderNumber,
+        fileTitle,
         collectionTitle,
         collectionSlugs: safeCollectionSlugs,
         createdAt: order.createdAt,
@@ -792,8 +1272,8 @@ export function openSavedOrderPrintWindow(
         country: order.country,
       })
     : buildClientPrintHtml({
-        title: "Счет на оплату",
         orderNumber: order.orderNumber,
+        fileTitle,
         collectionTitle,
         collectionSlugs: safeCollectionSlugs,
         createdAt: order.createdAt,

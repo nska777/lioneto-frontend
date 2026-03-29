@@ -64,7 +64,7 @@ export default function OrderSuccessModal({ order, onClose }: Props) {
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3 rounded-[18px] border border-black/10 bg-[#fafaf8] p-4">
-          <span className="text-[14px] text-black/60">Итого без наценки</span>
+          <span className="text-[14px] text-black/60">Итого</span>
           <span className="text-[22px] font-semibold leading-none text-black">
             {formatMoney(order.visibleSubtotal, order.country)}
           </span>

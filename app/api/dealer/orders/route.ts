@@ -48,6 +48,7 @@ type JwtPayload = {
 };
 
 type CreateDealerOrderBody = {
+  orderNumber?: string;
   dealerTitle?: string;
   dealerEmail?: string;
   countryCode?: string;
@@ -108,30 +109,6 @@ function asMoneyString(value: unknown, fallback = "0"): string {
   return fallback;
 }
 
-function sanitizeLoginForOrderNumber(login?: string) {
-  const raw = (login ?? "").trim().toUpperCase();
-
-  const cleaned = raw
-    .replace(/\s+/g, "-")
-    .replace(/[^A-Z0-9_-]/g, "");
-
-  return cleaned || "DEALER";
-}
-
-function makeOrderNumber(login?: string) {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const ss = String(now.getSeconds()).padStart(2, "0");
-
-  const safeLogin = sanitizeLoginForOrderNumber(login);
-
-  return `DLR-${safeLogin}-${y}${m}${d}-${hh}${mm}${ss}`;
-}
-
 function getStrapiHeaders() {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -181,15 +158,24 @@ export async function POST(req: NextRequest) {
     if (!dealer.documentId) {
       return NextResponse.json(
         { error: "Dealer documentId not found in token" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const body = (await req.json().catch(() => ({}))) as CreateDealerOrderBody;
 
+    const orderNumber = asString(body.orderNumber).trim();
+
+    if (!orderNumber) {
+      return NextResponse.json(
+        { error: "orderNumber is required" },
+        { status: 400 },
+      );
+    }
+
     const collectionTitles = Array.isArray(body.collectionTitles)
       ? body.collectionTitles.filter(
-          (item): item is string => typeof item === "string"
+          (item): item is string => typeof item === "string",
         )
       : typeof body.collectionTitles === "string" && body.collectionTitles.trim()
         ? body.collectionTitles
@@ -202,14 +188,14 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       data: {
-        orderNumber: makeOrderNumber(dealer.login),
+        orderNumber,
         orderStatus: "new",
         dealer: dealer.documentId,
         dealerTitle: asString(body.dealerTitle, dealer.title || ""),
         dealerEmail: asString(body.dealerEmail, dealer.email || ""),
         countryCode: asString(
           body.countryCode,
-          normalizeCountryCode(dealer.countryCode)
+          normalizeCountryCode(dealer.countryCode),
         ),
         currency: asString(body.currency, ""),
         collectionTitles: collectionTitles.join(", "),
@@ -228,7 +214,7 @@ export async function POST(req: NextRequest) {
 
     console.log(
       "[dealer-orders][POST] sending payload:",
-      JSON.stringify(payload, null, 2)
+      JSON.stringify(payload, null, 2),
     );
 
     const strapiRes = await fetch(`${STRAPI_URL}/api/dealer-orders`, {
@@ -244,7 +230,7 @@ export async function POST(req: NextRequest) {
       console.error(
         "[dealer-orders][POST] Strapi error:",
         strapiRes.status,
-        JSON.stringify(strapiJson, null, 2)
+        JSON.stringify(strapiJson, null, 2),
       );
 
       return NextResponse.json(
@@ -253,7 +239,7 @@ export async function POST(req: NextRequest) {
           status: strapiRes.status,
           details: strapiJson,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -280,7 +266,7 @@ export async function GET() {
     if (!dealer.documentId) {
       return NextResponse.json(
         { error: "Dealer documentId not found in token" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -295,7 +281,7 @@ export async function GET() {
         method: "GET",
         headers: getStrapiHeaders(),
         cache: "no-store",
-      }
+      },
     );
 
     const strapiJson = await strapiRes.json().catch(() => null);
@@ -304,7 +290,7 @@ export async function GET() {
       console.error(
         "[dealer-orders][GET] Strapi error:",
         strapiRes.status,
-        JSON.stringify(strapiJson, null, 2)
+        JSON.stringify(strapiJson, null, 2),
       );
 
       return NextResponse.json(
@@ -313,7 +299,7 @@ export async function GET() {
           status: strapiRes.status,
           details: strapiJson,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 

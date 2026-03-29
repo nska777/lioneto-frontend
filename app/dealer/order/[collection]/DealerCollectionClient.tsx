@@ -24,6 +24,7 @@ import {
   getDefaultDraft,
   getProductColor,
   openCartPrintWindow,
+  resetDraftOrderNumber,
 } from "./order-utils";
 import {
   loadAddonDrafts,
@@ -111,6 +112,10 @@ function normalizeDealerCountryCode(
   return "UZ";
 }
 
+function getAddonDraftKey(parentProductId: string, addonId: string) {
+  return `${parentProductId}::${addonId}`;
+}
+
 export default function DealerCollectionClient({
   initialCollection,
   initialCollections,
@@ -132,11 +137,18 @@ export default function DealerCollectionClient({
   const [confirmOrder, setConfirmOrder] = useState<DealerOrder | null>(null);
   const [successOrder, setSuccessOrder] = useState<DealerOrder | null>(null);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [draftOrderNumber, setDraftOrderNumber] = useState("");
 
   useEffect(() => {
     setCartProductIds(loadCartProductIds());
     setDrafts(loadDrafts());
-    setAddonDrafts(loadAddonDrafts());
+
+    const rawAddonDrafts = loadAddonDrafts();
+    const sanitizedAddonDrafts = Object.fromEntries(
+      Object.entries(rawAddonDrafts).filter(([key]) => key.includes("::")),
+    );
+
+    setAddonDrafts(sanitizedAddonDrafts);
     setIsHydrated(true);
   }, []);
 
@@ -165,6 +177,11 @@ export default function DealerCollectionClient({
             dealer.region ?? null,
           ),
         );
+
+        setDraftOrderNumber((prev) => {
+          if (prev) return prev;
+          return generateOrderNumber(dealer.login ?? "");
+        });
       } catch {
         // fallback остается UZ
       }
@@ -217,7 +234,9 @@ export default function DealerCollectionClient({
 
     allProducts.forEach((product) => {
       getProductOptions(product).forEach((addon) => {
-        map.set(addon.id, {
+        const draftKey = getAddonDraftKey(product.id, addon.id);
+
+        map.set(draftKey, {
           parentProduct: product,
           addon,
         });
@@ -231,8 +250,12 @@ export default function DealerCollectionClient({
     return drafts[productId] ?? getDefaultDraft();
   }
 
-  function getAddonDraft(addonId: string): AddonDraft {
-    return addonDrafts[addonId] ?? getDefaultAddonDraft();
+  function getAddonDraftByKey(draftKey: string): AddonDraft {
+    return addonDrafts[draftKey] ?? getDefaultAddonDraft();
+  }
+
+  function getAddonDraft(parentProductId: string, addonId: string): AddonDraft {
+    return getAddonDraftByKey(getAddonDraftKey(parentProductId, addonId));
   }
 
   function updateDraft(
@@ -249,18 +272,26 @@ export default function DealerCollectionClient({
     });
   }
 
-  function updateAddonDraft(
-    addonId: string,
+  function updateAddonDraftByKey(
+    draftKey: string,
     updater: (prev: AddonDraft) => AddonDraft,
   ) {
     setAddonDrafts((prev) => {
-      const current = prev[addonId] ?? getDefaultAddonDraft();
+      const current = prev[draftKey] ?? getDefaultAddonDraft();
 
       return {
         ...prev,
-        [addonId]: updater(current),
+        [draftKey]: updater(current),
       };
     });
+  }
+
+  function updateAddonDraft(
+    parentProductId: string,
+    addonId: string,
+    updater: (prev: AddonDraft) => AddonDraft,
+  ) {
+    updateAddonDraftByKey(getAddonDraftKey(parentProductId, addonId), updater);
   }
 
   function handleIncreaseQty(productId: string) {
@@ -277,15 +308,15 @@ export default function DealerCollectionClient({
     }));
   }
 
-  function handleIncreaseAddonQty(addonId: string) {
-    updateAddonDraft(addonId, (prev) => ({
+  function handleIncreaseAddonQtyByKey(draftKey: string) {
+    updateAddonDraftByKey(draftKey, (prev) => ({
       ...prev,
       quantity: prev.quantity + 1,
     }));
   }
 
-  function handleDecreaseAddonQty(addonId: string) {
-    updateAddonDraft(addonId, (prev) => ({
+  function handleDecreaseAddonQtyByKey(draftKey: string) {
+    updateAddonDraftByKey(draftKey, (prev) => ({
       ...prev,
       quantity: prev.quantity > 1 ? prev.quantity - 1 : 1,
     }));
@@ -299,15 +330,15 @@ export default function DealerCollectionClient({
       const hasRequired = requiredItems.length > 0;
 
       if (hasRequired) {
-        const hasAnyRequiredSelected = requiredItems.some((item) => {
-          const state = getAddonDraft(item.id);
+        const areAllRequiredSelected = requiredItems.every((item) => {
+          const state = getAddonDraft(product.id, item.id);
+          const minQty = item.minQuantity ?? 1;
+          const qty = Math.max(0, state?.quantity ?? 0);
 
-          if (!state?.isInCart) return false;
-
-          return Math.max(0, state.quantity) >= (item.minQuantity ?? 1);
+          return Boolean(state?.isInCart) && qty >= minQty;
         });
 
-        if (!hasAnyRequiredSelected) {
+        if (!areAllRequiredSelected) {
           setSelectedProduct(product);
           return;
         }
@@ -321,11 +352,11 @@ export default function DealerCollectionClient({
     );
   }
 
-  function handleToggleAddonCart(addonId: string) {
-    const entry = allAddonsIndex.get(addonId);
+  function handleToggleAddonCartByKey(draftKey: string) {
+    const entry = allAddonsIndex.get(draftKey);
     const addon = entry?.addon ?? null;
 
-    updateAddonDraft(addonId, (prev) => {
+    updateAddonDraftByKey(draftKey, (prev) => {
       const nextInCart = !prev.isInCart;
 
       return {
@@ -344,9 +375,9 @@ export default function DealerCollectionClient({
 
   function handleRemoveItem(itemId: string) {
     if (itemId.includes("::addon::")) {
-      const addonId = itemId.split("::addon::")[1];
-      if (addonId) {
-        updateAddonDraft(addonId, (prev) => ({
+      const [parentProductId, addonId] = itemId.split("::addon::");
+      if (parentProductId && addonId) {
+        updateAddonDraft(parentProductId, addonId, (prev) => ({
           ...prev,
           isInCart: false,
           markupPercent: 0,
@@ -364,8 +395,8 @@ export default function DealerCollectionClient({
     setAddonDrafts((prev) => {
       const next: Record<string, AddonDraft> = {};
 
-      Object.entries(prev).forEach(([addonId, value]) => {
-        next[addonId] = {
+      Object.entries(prev).forEach(([draftKey, value]) => {
+        next[draftKey] = {
           ...value,
           isInCart: false,
           markupPercent: 0,
@@ -394,6 +425,7 @@ export default function DealerCollectionClient({
           title: product.title,
           article: product.article,
           color: getProductColor(product),
+          size: product.size,
           quantity: draft.quantity,
           markupPercent: 0,
           unitBasePrice,
@@ -412,7 +444,8 @@ export default function DealerCollectionClient({
       const addons = getProductOptions(product);
 
       addons.forEach((addon) => {
-        const addonDraft = getAddonDraft(addon.id);
+        const draftKey = getAddonDraftKey(product.id, addon.id);
+        const addonDraft = getAddonDraftByKey(draftKey);
 
         if (!addonDraft.isInCart) return;
 
@@ -436,6 +469,7 @@ export default function DealerCollectionClient({
           title: addon.title,
           article: addon.article ?? `${product.article} / ${addon.id}`,
           color: getProductColor(product),
+          size: undefined,
           quantity,
           markupPercent: 0,
           unitBasePrice,
@@ -475,19 +509,40 @@ export default function DealerCollectionClient({
     if (!options.length) return {};
 
     return options.reduce<Record<string, AddonDraft>>((acc, addon) => {
-      acc[addon.id] = getAddonDraft(addon.id);
+      const draftKey = getAddonDraftKey(selectedProduct.id, addon.id);
+      acc[addon.id] = getAddonDraftByKey(draftKey);
       return acc;
     }, {});
   }, [selectedProduct, addonDrafts]);
 
-  function buildCurrentOrder(): DealerOrder {
+  function handleSelectedProductIncreaseAddonQty(addonId: string) {
+    if (!selectedProduct) return;
+    handleIncreaseAddonQtyByKey(getAddonDraftKey(selectedProduct.id, addonId));
+  }
+
+  function handleSelectedProductDecreaseAddonQty(addonId: string) {
+    if (!selectedProduct) return;
+    handleDecreaseAddonQtyByKey(getAddonDraftKey(selectedProduct.id, addonId));
+  }
+
+  function handleSelectedProductToggleAddonCart(addonId: string) {
+    if (!selectedProduct) return;
+    handleToggleAddonCartByKey(getAddonDraftKey(selectedProduct.id, addonId));
+  }
+
+  function getActiveOrderNumber() {
+    if (draftOrderNumber) return draftOrderNumber;
+    return generateOrderNumber(dealerMe?.login ?? "");
+  }
+
+  function buildCurrentOrder(orderNumberOverride?: string): DealerOrder {
     const collectionSlugs = Array.from(
       new Set(cartItems.map((item) => item.collectionSlug)),
     );
 
     return {
       id: generateOrderId(),
-      orderNumber: generateOrderNumber(),
+      orderNumber: orderNumberOverride ?? getActiveOrderNumber(),
       createdAt: new Date().toISOString(),
       country,
       collectionSlug: collectionSlugs[0] ?? safeCollection.slug,
@@ -510,7 +565,9 @@ export default function DealerCollectionClient({
       return;
     }
 
-    setConfirmOrder(buildCurrentOrder());
+    const orderNumber = getActiveOrderNumber();
+    setDraftOrderNumber(orderNumber);
+    setConfirmOrder(buildCurrentOrder(orderNumber));
   }
 
   async function handleConfirmOrder() {
@@ -526,6 +583,7 @@ export default function DealerCollectionClient({
         },
         credentials: "include",
         body: JSON.stringify({
+          orderNumber: confirmOrder.orderNumber,
           dealerTitle: dealerMe?.title ?? "",
           dealerEmail: dealerMe?.email ?? "",
           countryCode: confirmOrder.country,
@@ -551,6 +609,9 @@ export default function DealerCollectionClient({
       handleClearCart();
       setSuccessOrder(confirmOrder);
       setConfirmOrder(null);
+
+      resetDraftOrderNumber(dealerMe?.login ?? "");
+      setDraftOrderNumber(generateOrderNumber(dealerMe?.login ?? ""));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Не удалось сохранить заказ";
@@ -567,9 +628,13 @@ export default function DealerCollectionClient({
       return;
     }
 
+    const orderNumber = getActiveOrderNumber();
+    setDraftOrderNumber(orderNumber);
+
     openCartPrintWindow(
       cartItems,
       country,
+      orderNumber,
       safeCollection.title,
       summary.totalQty,
       summary.subtotal,
@@ -677,9 +742,9 @@ export default function DealerCollectionClient({
           selectedProduct ? cartProductIds.includes(selectedProduct.id) : false
         }
         addonDrafts={selectedProductAddonDrafts}
-        onIncreaseAddonQty={handleIncreaseAddonQty}
-        onDecreaseAddonQty={handleDecreaseAddonQty}
-        onToggleAddonCart={handleToggleAddonCart}
+        onIncreaseAddonQty={handleSelectedProductIncreaseAddonQty}
+        onDecreaseAddonQty={handleSelectedProductDecreaseAddonQty}
+        onToggleAddonCart={handleSelectedProductToggleAddonCart}
       />
 
       <OrderConfirmModal
