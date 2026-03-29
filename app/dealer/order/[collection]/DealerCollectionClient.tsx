@@ -376,6 +376,7 @@ export default function DealerCollectionClient({
   function handleRemoveItem(itemId: string) {
     if (itemId.includes("::addon::")) {
       const [parentProductId, addonId] = itemId.split("::addon::");
+
       if (parentProductId && addonId) {
         updateAddonDraft(parentProductId, addonId, (prev) => ({
           ...prev,
@@ -383,28 +384,31 @@ export default function DealerCollectionClient({
           markupPercent: 0,
         }));
       }
+
       return;
     }
 
     setCartProductIds((prev) => prev.filter((id) => id !== itemId));
-  }
-
-  function handleClearCart() {
-    setCartProductIds([]);
 
     setAddonDrafts((prev) => {
-      const next: Record<string, AddonDraft> = {};
+      const next = { ...prev };
 
-      Object.entries(prev).forEach(([draftKey, value]) => {
-        next[draftKey] = {
-          ...value,
-          isInCart: false,
-          markupPercent: 0,
-        };
+      Object.keys(next).forEach((draftKey) => {
+        if (draftKey.startsWith(`${itemId}::`)) {
+          delete next[draftKey];
+        }
       });
 
       return next;
     });
+  }
+
+  function handleClearCart() {
+    setCartProductIds([]);
+    setAddonDrafts({});
+    setDrafts({});
+    setSelectedProduct(null);
+    setConfirmOrder(null);
   }
 
   const productCartItems = useMemo(() => {
