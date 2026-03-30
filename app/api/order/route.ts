@@ -199,8 +199,7 @@ async function saveOrderToStrapi(args: {
   totalSafe: number;
 }) {
   const sessionUser = await getSessionUser().catch(() => null);
-  const customerDocumentId =
-    sessionUser?.documentId || sessionUser?.id || null;
+  const customerDocumentId = sessionUser?.id || null;
 
   const body = {
     data: {
