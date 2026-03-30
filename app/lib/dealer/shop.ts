@@ -53,6 +53,10 @@ export type DealerAddon = {
   price: DealerProductPriceMap;
   defaultQuantity?: number;
   minQuantity?: number;
+  color?: string;
+  size?: string;
+  material?: string;
+  variants?: DealerProductVariant[];
 };
 
 export type DealerProduct = {
@@ -274,6 +278,12 @@ function normalizeAddon(
   const kind: DealerAddonKind =
     relation.kind === "required" ? "required" : "recommended";
 
+  const variants = Array.isArray(addonProduct.variants)
+    ? addonProduct.variants
+        .map(normalizeVariant)
+        .filter(Boolean) as DealerProductVariant[]
+    : [];
+
   return {
     id: String(addonProduct.documentId ?? addonProduct.id ?? ""),
     title: addonProduct.title ?? "",
@@ -281,10 +291,14 @@ function normalizeAddon(
     description: addonProduct.description ?? "",
     image: extractMediaUrl(addonProduct.image),
     kind,
-    selectionType: "toggle",
+    selectionType: "quantity",
     defaultQuantity: Math.max(1, Number(relation.defaultQty ?? 1)),
     minQuantity: kind === "required" ? 1 : 1,
     price: mapPrices(addonProduct),
+    color: addonProduct.color ?? "",
+    size: addonProduct.size ?? "",
+    material: addonProduct.material ?? "",
+    variants,
   };
 }
 

@@ -43,6 +43,8 @@ export function getDefaultAddonDraft() {
     quantity: 1,
     markupPercent: 0,
     isInCart: false,
+    selectedVariantKey: "",
+    selectedColor: "",
   } as const;
 }
 

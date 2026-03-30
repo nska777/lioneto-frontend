@@ -1,32 +1,22 @@
 "use client";
 
 import Image from "next/image";
-import {
-  AlertCircle,
-  Check,
-  ChevronDown,
-  PackageCheck,
-  Minus,
-  Plus,
-  X,
-  ZoomIn,
-} from "lucide-react";
+import { AlertCircle, PackageCheck, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type {
-  DealerAddon,
   DealerCountryCode,
   DealerProduct,
   DealerProductVariant,
 } from "@/app/lib/dealer/shop";
 import type { ProductDraft } from "./types";
-import { formatMoney } from "./utils";
-
-type AddonDraftState = {
-  quantity: number;
-  isInCart: boolean;
-  markupPercent: number;
-};
+import type { AddonDraftState } from "./product-modal.types";
+import ColorVariantButton from "./ColorVariantButton";
+import ImagePreviewModal from "./ImagePreviewModal";
+import QtyControl from "./QtyControl";
+import RecommendedQuickAddCard from "./RecommendedQuickAddCard";
+import RequiredStepRow from "./RequiredStepRow";
+import { formatMoney, cn } from "./utils";
 
 type ProductModalProps = {
   product: DealerProduct | null;
@@ -42,405 +32,24 @@ type ProductModalProps = {
     variantKey: string,
     color: string,
   ) => void;
+  onSelectAddonVariant?: (
+    addonId: string,
+    variantKey: string,
+    color: string,
+  ) => void;
+  onOpenRelatedProduct?: (productId: string) => void;
   isInCart: boolean;
-
   addonDrafts?: Record<string, AddonDraftState>;
   onIncreaseAddonQty?: (addonId: string) => void;
   onDecreaseAddonQty?: (addonId: string) => void;
   onToggleAddonCart?: (addonId: string) => void;
 };
 
-const cn = (...classes: Array<string | false | null | undefined>) =>
-  classes.filter(Boolean).join(" ");
-
-function getAddonPrice(addon: DealerAddon, country: DealerCountryCode): number {
-  return addon.price[country] ?? 0;
-}
-
 function getVariantPrice(
   variant: DealerProductVariant | null | undefined,
   country: DealerCountryCode,
 ): number {
   return variant?.priceDelta?.[country] ?? 0;
-}
-
-function QtyControl({
-  value,
-  onMinus,
-  onPlus,
-  compact = false,
-}: {
-  value: number;
-  onMinus: () => void;
-  onPlus: () => void;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center overflow-hidden rounded-[10px] border border-black/10 bg-white",
-        compact ? "h-8" : "h-10",
-      )}
-    >
-      <button
-        type="button"
-        onClick={onMinus}
-        className={cn(
-          "flex h-full cursor-pointer items-center justify-center transition hover:bg-black/5",
-          compact ? "w-8" : "w-10",
-        )}
-      >
-        <Minus className="h-4 w-4" />
-      </button>
-
-      <div
-        className={cn(
-          "flex h-full items-center justify-center border-x border-black/10 font-semibold text-black",
-          compact
-            ? "min-w-[34px] px-2 text-[13px]"
-            : "min-w-[48px] px-3 text-[14px]",
-        )}
-      >
-        {value}
-      </div>
-
-      <button
-        type="button"
-        onClick={onPlus}
-        className={cn(
-          "flex h-full cursor-pointer items-center justify-center transition hover:bg-black/5",
-          compact ? "w-8" : "w-10",
-        )}
-      >
-        <Plus className="h-4 w-4" />
-      </button>
-    </div>
-  );
-}
-
-function RequiredStepRow({
-  addon,
-  country,
-  addonState,
-  onIncreaseAddonQty,
-  onDecreaseAddonQty,
-  onToggleAddonCart,
-  onOpenImage,
-}: {
-  addon: DealerAddon;
-  country: DealerCountryCode;
-  addonState: AddonDraftState;
-  onIncreaseAddonQty?: (addonId: string) => void;
-  onDecreaseAddonQty?: (addonId: string) => void;
-  onToggleAddonCart?: (addonId: string) => void;
-  onOpenImage?: (src: string, title: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  const minQty = addon.minQuantity ?? 1;
-  const qty = Math.max(
-    minQty,
-    addonState.quantity || addon.defaultQuantity || 1,
-  );
-  const unitPrice = getAddonPrice(addon, country);
-  const totalPrice = unitPrice * qty;
-  const isDone = addonState.isInCart && qty >= minQty;
-
-  return (
-    <div
-      className={cn(
-        "rounded-[18px] border px-3 py-3 transition sm:px-4",
-        isDone
-          ? "border-emerald-200 bg-emerald-50/60"
-          : "border-black/8 bg-white",
-      )}
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div className="shrink-0">
-          {addon.image ? (
-            <button
-              type="button"
-              onClick={() => onOpenImage?.(addon.image!, addon.title)}
-              className={cn(
-                "group relative block h-12 w-12 overflow-hidden rounded-[12px] border bg-white transition",
-                isDone
-                  ? "border-emerald-200"
-                  : "border-black/10 hover:border-black/20",
-              )}
-              aria-label={`Увеличить изображение: ${addon.title}`}
-            >
-              <Image
-                src={addon.image}
-                alt={addon.title}
-                fill
-                className="object-cover"
-                sizes="48px"
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/20">
-                <ZoomIn className="h-3.5 w-3.5 text-white opacity-0 transition group-hover:opacity-100" />
-              </div>
-            </button>
-          ) : (
-            <div
-              className={cn(
-                "mt-0.5 flex h-12 w-12 items-center justify-center rounded-[12px] border text-[12px] font-semibold",
-                isDone
-                  ? "border-emerald-300 bg-emerald-600 text-white"
-                  : "border-black/12 bg-[#f5f4f1] text-black/55",
-              )}
-            >
-              {isDone ? <Check className="h-4 w-4" /> : minQty}
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[14px] font-semibold leading-5 text-black sm:text-[15px]">
-              {addon.title}
-            </div>
-
-            {addon.article ? (
-              <span className="inline-flex rounded-full border border-black/10 bg-[#f5f5f3] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/45">
-                {addon.article}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-black/50">
-            <span>Мин. {minQty} шт.</span>
-            <span>{formatMoney(unitPrice, country)}</span>
-            <span className="text-black/65">
-              Сумма: {formatMoney(totalPrice, country)}
-            </span>
-          </div>
-
-          {expanded && addon.description ? (
-            <div className="mt-2 rounded-[12px] bg-[#f6f4ef] px-3 py-2 text-[12px] leading-5 text-black/60">
-              {addon.description}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[190px] sm:items-end">
-          <div className="flex justify-start sm:justify-end">
-            <QtyControl
-              compact
-              value={qty}
-              onMinus={() => onDecreaseAddonQty?.(addon.id)}
-              onPlus={() => onIncreaseAddonQty?.(addon.id)}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onToggleAddonCart?.(addon.id)}
-            className={cn(
-              "inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 text-[12px] font-semibold transition sm:min-w-[110px]",
-              addonState.isInCart
-                ? "border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
-                : "border border-black bg-black text-white hover:opacity-95",
-            )}
-          >
-            {addonState.isInCart ? "Выбрано" : "Добавить"}
-          </button>
-        </div>
-      </div>
-
-      {(addon.description || addon.image) && (
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            onClick={() => setExpanded((prev) => !prev)}
-            className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-semibold text-black/50 transition hover:text-black"
-          >
-            {expanded ? "Скрыть" : "Подробнее"}
-            <ChevronDown
-              className={cn("h-4 w-4 transition", expanded && "rotate-180")}
-            />
-          </button>
-
-          <div
-            className={cn(
-              "text-[12px] font-medium",
-              isDone ? "text-emerald-700" : "text-black/45",
-            )}
-          >
-            {isDone ? "Шаг выполнен" : "Нужно добавить"}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RecommendedCard({
-  addon,
-  country,
-  addonState,
-  onIncreaseAddonQty,
-  onDecreaseAddonQty,
-  onToggleAddonCart,
-  onOpenImage,
-}: {
-  addon: DealerAddon;
-  country: DealerCountryCode;
-  addonState: AddonDraftState;
-  onIncreaseAddonQty?: (addonId: string) => void;
-  onDecreaseAddonQty?: (addonId: string) => void;
-  onToggleAddonCart?: (addonId: string) => void;
-  onOpenImage?: (src: string, title: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  const minQty = addon.minQuantity ?? 1;
-  const qty = Math.max(
-    minQty,
-    addonState.quantity || addon.defaultQuantity || 1,
-  );
-  const unitPrice = getAddonPrice(addon, country);
-
-  return (
-    <div className="flex h-full flex-col rounded-[20px] border border-black/8 bg-white p-4">
-      <div className="flex min-w-0 gap-3">
-        <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-[14px] bg-white sm:h-[76px] sm:w-[76px]">
-          {addon.image ? (
-            <>
-              <Image
-                src={addon.image}
-                alt={addon.title}
-                fill
-                className="object-cover"
-                sizes="76px"
-              />
-              <button
-                type="button"
-                onClick={() => onOpenImage?.(addon.image!, addon.title)}
-                className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/0 transition hover:bg-black/20"
-                aria-label={`Увеличить изображение: ${addon.title}`}
-              >
-                <ZoomIn className="h-4 w-4 text-white opacity-0 transition hover:opacity-100" />
-              </button>
-            </>
-          ) : (
-            <div className="flex h-full items-center justify-center px-2 text-center text-[10px] font-medium text-black/25">
-              {addon.title}
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="line-clamp-2 text-[14px] font-semibold leading-5 text-black sm:text-[15px]">
-            {addon.title}
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-black/45">
-            {addon.article ? <span>{addon.article}</span> : null}
-            <span>{formatMoney(unitPrice, country)}</span>
-          </div>
-
-          <div className="mt-2 text-[12px] text-black/45">
-            {addon.selectionType === "quantity" ? "Выбор количества" : "1 шт."}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        {addon.selectionType === "quantity" ? (
-          <QtyControl
-            compact
-            value={qty}
-            onMinus={() => onDecreaseAddonQty?.(addon.id)}
-            onPlus={() => onIncreaseAddonQty?.(addon.id)}
-          />
-        ) : (
-          <div className="text-[12px] text-black/45">1 шт.</div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => onToggleAddonCart?.(addon.id)}
-          className={cn(
-            "inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 text-[12px] font-semibold transition sm:w-auto",
-            addonState.isInCart
-              ? "border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
-              : "border border-black/10 bg-[#f6f4ef] text-black hover:bg-[#ece8df]",
-          )}
-        >
-          {addonState.isInCart ? "Добавлено" : "В корзину"}
-        </button>
-      </div>
-
-      {(addon.description || addon.image) && (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setExpanded((prev) => !prev)}
-            className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-semibold text-black/45 transition hover:text-black"
-          >
-            {expanded ? "Скрыть" : "Подробнее"}
-            <ChevronDown
-              className={cn("h-4 w-4 transition", expanded && "rotate-180")}
-            />
-          </button>
-
-          {expanded && addon.description ? (
-            <div className="mt-2 rounded-[12px] bg-[#f8f7f4] px-3 py-2 text-[12px] leading-5 text-black/60">
-              {addon.description}
-            </div>
-          ) : null}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ColorVariantButton({
-  variant,
-  selected,
-  country,
-  onClick,
-}: {
-  variant: DealerProductVariant;
-  selected: boolean;
-  country: DealerCountryCode;
-  onClick: () => void;
-}) {
-  const variantPrice = getVariantPrice(variant, country);
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-left transition",
-        selected
-          ? "border-black bg-black text-white"
-          : "border-black/10 bg-white text-black hover:border-black/20 hover:bg-[#f7f5f0]",
-      )}
-    >
-      <span
-        className={cn(
-          "h-4 w-4 shrink-0 rounded-full border",
-          selected
-            ? "border-white bg-white/80"
-            : "border-black/15 bg-[#d9c4ac]",
-        )}
-      />
-      <span className="text-[13px] font-semibold">{variant.title}</span>
-
-      {variantPrice > 0 ? (
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-            selected ? "bg-white/12 text-white" : "bg-[#f3efe8] text-black/60",
-          )}
-        >
-          {formatMoney(variantPrice, country)}
-        </span>
-      ) : null}
-    </button>
-  );
 }
 
 export default function ProductDetailsModal({
@@ -453,6 +62,8 @@ export default function ProductDetailsModal({
   onDecreaseQty,
   onToggleCart,
   onSelectVariant,
+  onSelectAddonVariant,
+  onOpenRelatedProduct,
   isInCart,
   addonDrafts,
   onIncreaseAddonQty,
@@ -845,6 +456,8 @@ export default function ProductDetailsModal({
                           quantity: addon.defaultQuantity ?? 1,
                           isInCart: false,
                           markupPercent: 0,
+                          selectedVariantKey: "",
+                          selectedColor: "",
                         };
 
                         return (
@@ -968,10 +581,12 @@ export default function ProductDetailsModal({
                       quantity: addon.defaultQuantity ?? 1,
                       isInCart: false,
                       markupPercent: 0,
+                      selectedVariantKey: "",
+                      selectedColor: "",
                     };
 
                     return (
-                      <RecommendedCard
+                      <RecommendedQuickAddCard
                         key={addon.id}
                         addon={addon}
                         country={country}
@@ -979,9 +594,8 @@ export default function ProductDetailsModal({
                         onIncreaseAddonQty={onIncreaseAddonQty}
                         onDecreaseAddonQty={onDecreaseAddonQty}
                         onToggleAddonCart={onToggleAddonCart}
-                        onOpenImage={(src, title) =>
-                          setPreviewImage({ src, title })
-                        }
+                        onSelectAddonVariant={onSelectAddonVariant}
+                        onOpenRelatedProduct={onOpenRelatedProduct}
                       />
                     );
                   })}
@@ -994,39 +608,10 @@ export default function ProductDetailsModal({
             </section>
           </div>
 
-          {previewImage ? (
-            <div
-              className="absolute inset-0 z-30 flex items-center justify-center rounded-t-[24px] bg-black/55 p-3 sm:rounded-[28px] sm:p-4"
-              onClick={() => setPreviewImage(null)}
-            >
-              <div
-                className="relative w-full max-w-[820px] rounded-[20px] bg-white p-3 shadow-[0_30px_90px_-30px_rgba(0,0,0,0.45)] sm:rounded-[24px]"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={() => setPreviewImage(null)}
-                  className="absolute right-3 top-3 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/60 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-
-                <div className="mb-3 pr-12 pl-1 pt-1 text-[14px] font-semibold text-black sm:text-[15px]">
-                  {previewImage.title}
-                </div>
-
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[18px] bg-white">
-                  <Image
-                    src={previewImage.src}
-                    alt={previewImage.title}
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 1024px) 100vw, 820px"
-                  />
-                </div>
-              </div>
-            </div>
-          ) : null}
+          <ImagePreviewModal
+            image={previewImage}
+            onClose={() => setPreviewImage(null)}
+          />
         </div>
       </div>
     </div>

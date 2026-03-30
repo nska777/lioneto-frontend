@@ -327,6 +327,30 @@ export default function DealerCollectionClient({
     });
   }
 
+  function handleSelectAddonVariant(
+    parentProductId: string,
+    addonId: string,
+    variantKey: string,
+    color: string,
+  ) {
+    const draftKey = getAddonDraftKey(parentProductId, addonId);
+
+    updateAddonDraftByKey(draftKey, (prev) => {
+      if (
+        prev.selectedVariantKey === variantKey &&
+        prev.selectedColor === color
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        selectedVariantKey: variantKey,
+        selectedColor: color,
+      };
+    });
+  }
+
   function updateAddonDraft(
     parentProductId: string,
     addonId: string,
@@ -452,6 +476,12 @@ export default function DealerCollectionClient({
     setConfirmOrder(null);
   }
 
+  function handleOpenRelatedProduct(productId: string) {
+    const product = allProductsById.get(productId);
+    if (!product) return;
+    setSelectedProduct(product);
+  }
+
   const productCartItems = useMemo(() => {
     return cartProductIds
       .map((productId) => {
@@ -502,24 +532,36 @@ export default function DealerCollectionClient({
         const addonDraft = getAddonDraftByKey(draftKey);
 
         if (!addonDraft.isInCart) return;
-        if (!cartProductIds.includes(product.id)) return;
 
         const quantity = Math.max(
           addon.minQuantity ?? 1,
           addonDraft.quantity || addon.defaultQuantity || 1,
         );
 
-        const unitBasePrice = addon.price[country] ?? 0;
+        const addonSelectedVariant =
+          (addon.variants ?? []).find(
+            (variant) => variant.variantKey === addonDraft.selectedVariantKey,
+          ) ?? null;
+
+        const unitBasePrice =
+          addonSelectedVariant?.priceDelta?.[country] ??
+          addon.price[country] ??
+          0;
+
         const totalBasePrice = unitBasePrice * quantity;
 
         const productDraft = getDraft(product.id);
-        const selectedVariant = getSelectedProductVariant(
+        const selectedParentVariant = getSelectedProductVariant(
           product,
           productDraft,
         );
+
         const selectedColor =
+          addonDraft.selectedColor ||
+          addonSelectedVariant?.title ||
+          addon.color ||
           productDraft.selectedColor ||
-          selectedVariant?.title ||
+          selectedParentVariant?.title ||
           getProductColor(product);
 
         items.push({
@@ -534,7 +576,7 @@ export default function DealerCollectionClient({
           title: addon.title,
           article: addon.article ?? `${product.article} / ${addon.id}`,
           color: selectedColor,
-          size: undefined,
+          size: addon.size,
           quantity,
           markupPercent: 0,
           unitBasePrice,
@@ -546,7 +588,7 @@ export default function DealerCollectionClient({
     });
 
     return items;
-  }, [addonDrafts, country, allProducts, cartProductIds, drafts]);
+  }, [addonDrafts, country, allProducts, drafts]);
 
   const cartItems = useMemo(() => {
     return [...productCartItems, ...addonCartItems];
@@ -593,6 +635,16 @@ export default function DealerCollectionClient({
   function handleSelectedProductToggleAddonCart(addonId: string) {
     if (!selectedProduct) return;
     handleToggleAddonCartByKey(getAddonDraftKey(selectedProduct.id, addonId));
+  }
+
+  function handleSelectedProductSelectAddonVariant(
+    addonId: string,
+    variantKey: string,
+    color: string,
+  ) {
+    if (!selectedProduct) return;
+
+    handleSelectAddonVariant(selectedProduct.id, addonId, variantKey, color);
   }
 
   function getActiveOrderNumber() {
@@ -804,6 +856,8 @@ export default function DealerCollectionClient({
         onDecreaseQty={handleDecreaseQty}
         onToggleCart={handleToggleCart}
         onSelectVariant={handleSelectProductVariant}
+        onSelectAddonVariant={handleSelectedProductSelectAddonVariant}
+        onOpenRelatedProduct={handleOpenRelatedProduct}
         isInCart={
           selectedProduct ? cartProductIds.includes(selectedProduct.id) : false
         }

@@ -10,6 +10,8 @@ export type AddonDraft = {
   quantity: number;
   markupPercent: number;
   isInCart: boolean;
+  selectedVariantKey?: string;
+  selectedColor?: string;
 };
 
 export type CartEntry =
