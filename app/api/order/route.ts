@@ -198,42 +198,41 @@ async function saveOrderToStrapi(args: {
   itemsSafe: OrderItem[];
   totalSafe: number;
 }) {
-  const sessionUser = await getSessionUser();
-  const customerDocumentId = sessionUser?.id;
-
-  if (!customerDocumentId) {
-    return { ok: false as const, reason: "no-session-customer" };
-  }
+  const sessionUser = await getSessionUser().catch(() => null);
+  const customerDocumentId =
+    sessionUser?.documentId || sessionUser?.id || null;
 
   const body = {
-  data: {
-    orderNumber: args.orderId,
-    orderStatus: "new",
-    customer: customerDocumentId,
-    items: args.itemsSafe.map((it) => ({
-      productId: String(it.productId ?? "").trim() || null,
-      title: String(it.title ?? "").trim() || "Товар",
-      collectionLabel: String(
-        it.collectionLabel ?? it.collection ?? it.brandLabel ?? it.brand ?? "",
-      ).trim(),
-      variantId: String(it.variantId ?? "").trim() || "base",
-      variantTitle: String(it.variantTitle ?? "").trim() || null,
-      imageUrl: String(it.imageUrl ?? "").trim() || null,
-      qty: toNum(it.qty),
-      unit: toNum(it.unit),
-      sum: toNum(it.sum) || toNum(it.unit) * toNum(it.qty),
-    })),
-    totalAmount: args.totalSafe,
-    currency: args.currency,
-    region: args.regionUpper,
-    comment: String(args.customerSafe.comment ?? "").trim(),
-    deliveryType: "customer_checkout",
-    deliveryAddress: String(args.customerSafe.address ?? "").trim(),
-    paymentType: "not_selected",
-    phone: String(args.customerSafe.phone ?? "").trim(),
-    fullName: String(args.customerSafe.name ?? "").trim(),
-  },
-};
+    data: {
+      orderNumber: args.orderId,
+      orderStatus: "new",
+      ...(customerDocumentId ? { customer: customerDocumentId } : {}),
+      items: args.itemsSafe.map((it) => ({
+        productId: String(it.productId ?? "").trim() || null,
+        title: String(it.title ?? "").trim() || "Товар",
+        collectionLabel: String(
+          it.collectionLabel ?? it.collection ?? it.brandLabel ?? it.brand ?? "",
+        ).trim(),
+        variantId: String(it.variantId ?? "").trim() || "base",
+        variantTitle: String(it.variantTitle ?? "").trim() || null,
+        imageUrl: String(it.imageUrl ?? "").trim() || null,
+        qty: toNum(it.qty),
+        unit: toNum(it.unit),
+        sum: toNum(it.sum) || toNum(it.unit) * toNum(it.qty),
+      })),
+      totalAmount: args.totalSafe,
+      currency: args.currency,
+      region: args.regionUpper,
+      comment: String(args.customerSafe.comment ?? "").trim(),
+      deliveryType: "customer_checkout",
+      deliveryAddress: String(args.customerSafe.address ?? "").trim(),
+      paymentType: "not_selected",
+      phone: String(args.customerSafe.phone ?? "").trim(),
+      fullName: String(args.customerSafe.name ?? "").trim(),
+      submittedAt: args.createdAtIso,
+    },
+  };
+
   const res = await fetch(toStrapiUrl("/api/customer-orders"), {
     method: "POST",
     headers: {
