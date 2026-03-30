@@ -201,8 +201,9 @@ export default function ProductDetailsModal({
     };
   }, [finalRequiredItems, addonDrafts]);
 
+  const hasRequiredItems = finalRequiredItems.length > 0;
   const canAddMainProduct = requiredProgress.done;
-  const isKitAssembled = requiredProgress.done && isInCart;
+  const isKitAssembled = hasRequiredItems && requiredProgress.done && isInCart;
 
   if (!isOpen || !safeProduct || !safeDraft) return null;
 
@@ -521,7 +522,9 @@ export default function ProductDetailsModal({
                     </div>
                   </div>
 
-                  {requiredProgress.total > 0 && !requiredProgress.done ? (
+                  {hasRequiredItems &&
+                  requiredProgress.total > 0 &&
+                  !requiredProgress.done ? (
                     <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
@@ -541,24 +544,32 @@ export default function ProductDetailsModal({
                   <button
                     type="button"
                     onClick={() => {
-                      if (!canAddMainProduct) return;
+                      if (hasRequiredItems && !canAddMainProduct) return;
                       onToggleCart(safeProduct.id);
                     }}
-                    disabled={!canAddMainProduct}
+                    disabled={hasRequiredItems ? !canAddMainProduct : false}
                     className={cn(
                       "mt-4 inline-flex h-11 w-full items-center justify-center rounded-[12px] px-4 text-[14px] font-semibold transition",
-                      canAddMainProduct
-                        ? isInCart
+                      hasRequiredItems
+                        ? canAddMainProduct
+                          ? isInCart
+                            ? "cursor-pointer border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
+                            : "cursor-pointer border border-black bg-black text-white hover:opacity-95"
+                          : "cursor-not-allowed border border-black/10 bg-black/10 text-black/40"
+                        : isInCart
                           ? "cursor-pointer border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
-                          : "cursor-pointer border border-black bg-black text-white hover:opacity-95"
-                        : "cursor-not-allowed border border-black/10 bg-black/10 text-black/40",
+                          : "cursor-pointer border border-black bg-black text-white hover:opacity-95",
                     )}
                   >
-                    {!canAddMainProduct
-                      ? "Собрать комплект"
+                    {hasRequiredItems
+                      ? !canAddMainProduct
+                        ? "Собрать комплект"
+                        : isInCart
+                          ? "Комплект собран"
+                          : "Собрать комплект"
                       : isInCart
-                        ? "Комплект собран"
-                        : "Собрать комплект"}
+                        ? "Товар добавлен"
+                        : "Добавить в корзину"}
                   </button>
                 </div>
               </div>
