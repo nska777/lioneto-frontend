@@ -33,6 +33,8 @@ export function getDefaultDraft() {
     quantity: 1,
     markupPercent: 0,
     isMarkupDirty: false,
+    selectedVariantKey: "",
+    selectedColor: "",
   } as const;
 }
 

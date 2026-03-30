@@ -11,12 +11,13 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type {
   DealerAddon,
   DealerCountryCode,
   DealerProduct,
+  DealerProductVariant,
 } from "@/app/lib/dealer/shop";
 import type { ProductDraft } from "./types";
 import { formatMoney } from "./utils";
@@ -36,6 +37,11 @@ type ProductModalProps = {
   onIncreaseQty: (productId: string) => void;
   onDecreaseQty: (productId: string) => void;
   onToggleCart: (productId: string) => void;
+  onSelectVariant: (
+    productId: string,
+    variantKey: string,
+    color: string,
+  ) => void;
   isInCart: boolean;
 
   addonDrafts?: Record<string, AddonDraftState>;
@@ -49,6 +55,13 @@ const cn = (...classes: Array<string | false | null | undefined>) =>
 
 function getAddonPrice(addon: DealerAddon, country: DealerCountryCode): number {
   return addon.price[country] ?? 0;
+}
+
+function getVariantPrice(
+  variant: DealerProductVariant | null | undefined,
+  country: DealerCountryCode,
+): number {
+  return variant?.priceDelta?.[country] ?? 0;
 }
 
 function QtyControl({
@@ -382,6 +395,54 @@ function RecommendedCard({
   );
 }
 
+function ColorVariantButton({
+  variant,
+  selected,
+  country,
+  onClick,
+}: {
+  variant: DealerProductVariant;
+  selected: boolean;
+  country: DealerCountryCode;
+  onClick: () => void;
+}) {
+  const variantPrice = getVariantPrice(variant, country);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-left transition",
+        selected
+          ? "border-black bg-black text-white"
+          : "border-black/10 bg-white text-black hover:border-black/20 hover:bg-[#f7f5f0]",
+      )}
+    >
+      <span
+        className={cn(
+          "h-4 w-4 shrink-0 rounded-full border",
+          selected
+            ? "border-white bg-white/80"
+            : "border-black/15 bg-[#d9c4ac]",
+        )}
+      />
+      <span className="text-[13px] font-semibold">{variant.title}</span>
+
+      {variantPrice > 0 ? (
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+            selected ? "bg-white/12 text-white" : "bg-[#f3efe8] text-black/60",
+          )}
+        >
+          {formatMoney(variantPrice, country)}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 export default function ProductDetailsModal({
   product,
   country,
@@ -391,6 +452,7 @@ export default function ProductDetailsModal({
   onIncreaseQty,
   onDecreaseQty,
   onToggleCart,
+  onSelectVariant,
   isInCart,
   addonDrafts,
   onIncreaseAddonQty,
@@ -402,8 +464,75 @@ export default function ProductDetailsModal({
     title: string;
   } | null>(null);
 
+  const [selectedVariantKey, setSelectedVariantKey] = useState<string>("");
+
   const safeProduct = product;
   const safeDraft = draft;
+
+  const colorVariants = useMemo(
+    () => (safeProduct?.variants ?? []).filter((item) => item.type === "color"),
+    [safeProduct],
+  );
+
+  useEffect(() => {
+    if (!safeProduct) {
+      setSelectedVariantKey((prev) => (prev === "" ? prev : ""));
+      return;
+    }
+
+    const draftVariantKey = draft?.selectedVariantKey ?? "";
+    const hasDraftVariant = colorVariants.some(
+      (item) => item.variantKey === draftVariantKey,
+    );
+
+    if (hasDraftVariant) {
+      setSelectedVariantKey((prev) =>
+        prev === draftVariantKey ? prev : draftVariantKey,
+      );
+      return;
+    }
+
+    const firstVariant = colorVariants[0] ?? null;
+    const firstVariantKey = firstVariant?.variantKey ?? "";
+
+    setSelectedVariantKey((prev) =>
+      prev === firstVariantKey ? prev : firstVariantKey,
+    );
+
+    if (
+      safeProduct.id &&
+      firstVariant &&
+      draft?.selectedVariantKey !== firstVariant.variantKey
+    ) {
+      onSelectVariant(
+        safeProduct.id,
+        firstVariant.variantKey,
+        firstVariant.title,
+      );
+    }
+  }, [
+    safeProduct?.id,
+    colorVariants,
+    draft?.selectedVariantKey,
+    onSelectVariant,
+  ]);
+
+  const selectedVariant = useMemo(() => {
+    if (!colorVariants.length) return null;
+
+    return (
+      colorVariants.find((item) => item.variantKey === selectedVariantKey) ??
+      colorVariants[0] ??
+      null
+    );
+  }, [colorVariants, selectedVariantKey]);
+
+  const selectedImage =
+    selectedVariant?.image && selectedVariant.image.trim().length > 0
+      ? selectedVariant.image
+      : safeProduct?.image || "";
+
+  const selectedColorLabel = selectedVariant?.title || safeProduct?.color || "";
 
   const requiredItems = safeProduct?.requiredItems ?? [];
   const recommendedItems = safeProduct?.recommendedItems ?? [];
@@ -422,7 +551,12 @@ export default function ProductDetailsModal({
     recommendedItems.length > 0 ? recommendedItems : fallbackRecommended;
 
   const basePrice = safeProduct ? (safeProduct.price[country] ?? 0) : 0;
-  const mainTotal = basePrice * (safeDraft?.quantity ?? 1);
+  const variantPrice = selectedVariant
+    ? getVariantPrice(selectedVariant, country)
+    : 0;
+
+  const effectivePrice = selectedVariant ? variantPrice : basePrice;
+  const mainTotal = effectivePrice * (safeDraft?.quantity ?? 1);
 
   const requiredProgress = useMemo(() => {
     if (!finalRequiredItems.length) {
@@ -497,14 +631,14 @@ export default function ProductDetailsModal({
                     type="button"
                     onClick={() =>
                       setPreviewImage({
-                        src: safeProduct.image,
+                        src: selectedImage,
                         title: safeProduct.title,
                       })
                     }
                     className="group relative h-[220px] w-full overflow-hidden rounded-[20px] bg-[#f1f1ed] text-left sm:h-[260px] md:h-[300px] md:rounded-[24px]"
                   >
                     <Image
-                      src={safeProduct.image}
+                      src={selectedImage}
                       alt={safeProduct.title}
                       fill
                       className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
@@ -532,11 +666,11 @@ export default function ProductDetailsModal({
                             </span>
                           </div>
 
-                          {safeProduct.color ? (
+                          {selectedColorLabel ? (
                             <div className="flex flex-wrap items-baseline gap-x-1.5">
                               <span className="text-black/45">Цвет:</span>
                               <span className="font-medium text-black">
-                                {safeProduct.color}
+                                {selectedColorLabel}
                               </span>
                             </div>
                           ) : null}
@@ -585,6 +719,41 @@ export default function ProductDetailsModal({
                         </div>
                       )}
                     </div>
+
+                    {colorVariants.length > 0 ? (
+                      <div className="mt-5 rounded-[18px] bg-[#f7f5f0] p-3 sm:p-4">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-black/45">
+                            Цвет
+                          </div>
+                          <div className="text-[12px] text-black/40">
+                            Выберите оттенок
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {colorVariants.map((variant) => (
+                            <ColorVariantButton
+                              key={variant.id || variant.variantKey}
+                              variant={variant}
+                              selected={
+                                variant.variantKey ===
+                                selectedVariant?.variantKey
+                              }
+                              country={country}
+                              onClick={() => {
+                                setSelectedVariantKey(variant.variantKey);
+                                onSelectVariant(
+                                  safeProduct.id,
+                                  variant.variantKey,
+                                  variant.title,
+                                );
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
 
                     {safeProduct.description ? (
                       <p className="mt-4 text-[14px] leading-6 text-black/60">
@@ -713,7 +882,7 @@ export default function ProductDetailsModal({
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[12px] text-black/45">Цена</span>
                       <span className="text-[20px] font-semibold leading-none text-black sm:text-[22px]">
-                        {formatMoney(basePrice, country)}
+                        {formatMoney(effectivePrice, country)}
                       </span>
                     </div>
 

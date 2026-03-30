@@ -2,6 +2,8 @@ export type ProductDraft = {
   quantity: number;
   markupPercent: number;
   isMarkupDirty: boolean;
+  selectedVariantKey?: string;
+  selectedColor?: string;
 };
 
 export type AddonDraft = {

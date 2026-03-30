@@ -116,6 +116,21 @@ function getAddonDraftKey(parentProductId: string, addonId: string) {
   return `${parentProductId}::${addonId}`;
 }
 
+function getSelectedProductVariant(
+  product: DealerProduct,
+  draft: ProductDraft | null | undefined,
+) {
+  const variantKey = draft?.selectedVariantKey ?? "";
+
+  if (!variantKey) return null;
+
+  return (
+    (product.variants ?? []).find(
+      (variant) => variant.variantKey === variantKey,
+    ) ?? null
+  );
+}
+
 export default function DealerCollectionClient({
   initialCollection,
   initialCollections,
@@ -272,6 +287,32 @@ export default function DealerCollectionClient({
     });
   }
 
+  function handleSelectProductVariant(
+    productId: string,
+    variantKey: string,
+    color: string,
+  ) {
+    setDrafts((prev) => {
+      const current = prev[productId] ?? getDefaultDraft();
+
+      if (
+        current.selectedVariantKey === variantKey &&
+        current.selectedColor === color
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [productId]: {
+          ...current,
+          selectedVariantKey: variantKey,
+          selectedColor: color,
+        },
+      };
+    });
+  }
+
   function updateAddonDraftByKey(
     draftKey: string,
     updater: (prev: AddonDraft) => AddonDraft,
@@ -418,8 +459,17 @@ export default function DealerCollectionClient({
         if (!product) return null;
 
         const draft = getDraft(productId);
-        const unitBasePrice = product.price[country] ?? 0;
+        const selectedVariant = getSelectedProductVariant(product, draft);
+
+        const unitBasePrice =
+          selectedVariant?.priceDelta?.[country] ?? product.price[country] ?? 0;
+
         const totalBasePrice = unitBasePrice * draft.quantity;
+
+        const selectedColor =
+          draft.selectedColor ||
+          selectedVariant?.title ||
+          getProductColor(product);
 
         return {
           kind: "product" as const,
@@ -428,7 +478,7 @@ export default function DealerCollectionClient({
           collectionSlug: product.collectionSlug,
           title: product.title,
           article: product.article,
-          color: getProductColor(product),
+          color: selectedColor,
           size: product.size,
           quantity: draft.quantity,
           markupPercent: 0,
@@ -462,6 +512,16 @@ export default function DealerCollectionClient({
         const unitBasePrice = addon.price[country] ?? 0;
         const totalBasePrice = unitBasePrice * quantity;
 
+        const productDraft = getDraft(product.id);
+        const selectedVariant = getSelectedProductVariant(
+          product,
+          productDraft,
+        );
+        const selectedColor =
+          productDraft.selectedColor ||
+          selectedVariant?.title ||
+          getProductColor(product);
+
         items.push({
           kind: "addon",
           id: getAddonCartId(product.id, addon.id),
@@ -473,7 +533,7 @@ export default function DealerCollectionClient({
           collectionSlug: product.collectionSlug,
           title: addon.title,
           article: addon.article ?? `${product.article} / ${addon.id}`,
-          color: getProductColor(product),
+          color: selectedColor,
           size: undefined,
           quantity,
           markupPercent: 0,
@@ -486,7 +546,7 @@ export default function DealerCollectionClient({
     });
 
     return items;
-  }, [addonDrafts, country, allProducts, cartProductIds]);
+  }, [addonDrafts, country, allProducts, cartProductIds, drafts]);
 
   const cartItems = useMemo(() => {
     return [...productCartItems, ...addonCartItems];
@@ -743,6 +803,7 @@ export default function DealerCollectionClient({
         onIncreaseQty={handleIncreaseQty}
         onDecreaseQty={handleDecreaseQty}
         onToggleCart={handleToggleCart}
+        onSelectVariant={handleSelectProductVariant}
         isInCart={
           selectedProduct ? cartProductIds.includes(selectedProduct.id) : false
         }

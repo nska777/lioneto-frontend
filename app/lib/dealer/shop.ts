@@ -31,6 +31,16 @@ export type DealerProductPriceMap = Record<DealerCountryCode, number>;
 
 export type DealerAddonKind = "required" | "recommended";
 export type DealerAddonSelectionType = "toggle" | "quantity";
+export type DealerProductVariantType = "color";
+
+export type DealerProductVariant = {
+  id: string;
+  title: string;
+  type: DealerProductVariantType;
+  variantKey: string;
+  image?: string;
+  priceDelta: DealerProductPriceMap;
+};
 
 export type DealerAddon = {
   id: string;
@@ -57,6 +67,7 @@ export type DealerProduct = {
   color?: string;
   size?: string;
   material?: string;
+  variants?: DealerProductVariant[];
   requiredItems?: DealerAddon[];
   recommendedItems?: DealerAddon[];
   addons?: DealerAddon[];
@@ -88,6 +99,20 @@ type StrapiCollection = {
   cover?: StrapiMediaField;
 };
 
+type StrapiVariant = {
+  id?: number;
+  documentId?: string;
+  title?: string;
+  type?: string;
+  variantKey?: string;
+  priceDeltaRUB?: number;
+  priceDeltaUZS?: number;
+  priceDeltaKZT?: number;
+  priceDeltaTJS?: number;
+  media?: StrapiMediaField;
+  image?: StrapiMediaField;
+};
+
 type StrapiProduct = {
   id?: number;
   documentId?: string;
@@ -107,6 +132,7 @@ type StrapiProduct = {
   priceUZ?: number;
   priceKZ?: number;
   priceTJ?: number;
+  variants?: StrapiVariant[];
   collection?:
     | StrapiCollection
     | { data?: StrapiCollection | null }
@@ -196,6 +222,15 @@ function mapPrices(product?: StrapiProduct | null): DealerProductPriceMap {
   };
 }
 
+function mapVariantPrices(variant?: StrapiVariant | null): DealerProductPriceMap {
+  return {
+    RU: Number(variant?.priceDeltaRUB ?? 0),
+    UZ: Number(variant?.priceDeltaUZS ?? 0),
+    KZ: Number(variant?.priceDeltaKZT ?? 0),
+    TJ: Number(variant?.priceDeltaTJS ?? 0),
+  };
+}
+
 function normalizeCollection(
   raw: StrapiCollection,
   products: DealerProduct[] = [],
@@ -212,6 +247,23 @@ function normalizeCollection(
     image: extractMediaUrl(raw.cover),
     moduleCount: products.length,
     categories,
+  };
+}
+
+function normalizeVariant(raw: StrapiVariant): DealerProductVariant | null {
+  const type = (raw.type ?? "").toLowerCase();
+
+  if (type !== "color") return null;
+
+  const variantMedia = raw.media ?? raw.image;
+
+  return {
+    id: String(raw.documentId ?? raw.id ?? raw.variantKey ?? raw.title ?? ""),
+    title: raw.title ?? "",
+    type: "color",
+    variantKey: raw.variantKey ?? "",
+    image: variantMedia ? extractMediaUrl(variantMedia) : undefined,
+    priceDelta: mapVariantPrices(raw),
   };
 }
 
@@ -238,6 +290,11 @@ function normalizeAddon(
 
 function normalizeProductBase(raw: StrapiProduct): DealerProduct {
   const collection = unwrapRelation(raw.collection);
+  const variants = Array.isArray(raw.variants)
+    ? raw.variants
+        .map(normalizeVariant)
+        .filter(Boolean) as DealerProductVariant[]
+    : [];
 
   return {
     id: String(raw.documentId ?? raw.id ?? ""),
@@ -251,6 +308,7 @@ function normalizeProductBase(raw: StrapiProduct): DealerProduct {
     color: raw.color ?? "",
     size: raw.size ?? "",
     material: raw.material ?? "",
+    variants,
     requiredItems: [],
     recommendedItems: [],
     addons: [],
@@ -348,7 +406,14 @@ export async function getDealerCollectionPageData(
   productsParams.set("filters[isActive][$eq]", "true");
   productsParams.set("sort[0]", "sortOrder:asc");
   productsParams.set("sort[1]", "title:asc");
-  productsParams.set("populate", "*");
+
+  productsParams.set("populate[0]", "image");
+  productsParams.set("populate[1]", "gallery");
+  productsParams.set("populate[2]", "collection");
+  productsParams.set("populate[3]", "variants");
+  productsParams.set("populate[4]", "variants.media");
+
+
   productsParams.set("pagination[pageSize]", "1000");
 
   const [collectionsJson, productsJson] = await Promise.all([
