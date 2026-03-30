@@ -203,7 +203,7 @@ export default function WorkbookClient() {
               Dealer Portal
             </div>
             <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.03em] text-black">
-              Рабочая тетрадь
+              Журнал встреч
             </h1>
             <p className="mt-2 max-w-[720px] text-sm text-black/55">
               Личные заметки по встречам, возражениям и клиентским кейсам. Всё

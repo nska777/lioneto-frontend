@@ -125,7 +125,7 @@ function mapPresentationTiles(items: DealerTrainingItem[]): PresentationTile[] {
     ...cmsTiles,
     {
       id: "workbook",
-      title: "РАБОЧАЯ ТЕТРАДЬ",
+      title: "ДЛЯ ЗАМЕТОК",
       meta: "NOTES",
       href: "/dealer/training/workbook",
       download: false,
