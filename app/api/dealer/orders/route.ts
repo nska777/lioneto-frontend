@@ -138,6 +138,63 @@ function extractStrapiErrorMessage(payload: any): string {
   return "Strapi returned an unknown error";
 }
 
+function isUniqueConstraintError(payload: any): boolean {
+  const texts = [
+    payload?.error?.message,
+    payload?.message,
+    payload?.details?.error?.message,
+    payload?.details?.message,
+    payload?.error?.details?.errors?.map((item: any) => item?.message).join(" "),
+    payload?.error?.details?.errors?.map((item: any) => item?.path?.join?.(".")).join(" "),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    texts.includes("must be unique") ||
+    texts.includes("unique") ||
+    texts.includes("already exists") ||
+    texts.includes("already taken")
+  );
+}
+
+function sanitizeOrderPart(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "DEALER";
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function generateUniqueOrderNumber(dealer: JwtPayload): string {
+  const loginPart = sanitizeOrderPart(
+    dealer.login || dealer.title || dealer.email || "dealer",
+  );
+
+  const now = new Date();
+  const datePart = [
+    now.getFullYear(),
+    pad2(now.getMonth() + 1),
+    pad2(now.getDate()),
+  ].join("");
+
+  const timePart = [
+    pad2(now.getHours()),
+    pad2(now.getMinutes()),
+    pad2(now.getSeconds()),
+  ].join("");
+
+  const randomPart = Math.floor(Math.random() * 9000 + 1000);
+
+  return `DLR-${loginPart}-${datePart}-${timePart}-${randomPart}`;
+}
+
 async function getDealerFromCookie(): Promise<JwtPayload> {
   const cookieStore = await cookies();
   const token = cookieStore.get("dealer_token")?.value;
@@ -149,6 +206,104 @@ async function getDealerFromCookie(): Promise<JwtPayload> {
   const { payload } = await jwtVerify(token, SECRET);
 
   return payload as JwtPayload;
+}
+
+function buildPayload(body: CreateDealerOrderBody, dealer: JwtPayload, orderNumber: string) {
+  const collectionTitles = Array.isArray(body.collectionTitles)
+    ? body.collectionTitles.filter(
+        (item): item is string => typeof item === "string",
+      )
+    : typeof body.collectionTitles === "string" && body.collectionTitles.trim()
+      ? body.collectionTitles
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+
+  const items = Array.isArray(body.items) ? body.items : [];
+
+  return {
+    data: {
+      orderNumber,
+      orderStatus: "new",
+      dealer: dealer.documentId,
+      dealerTitle: asString(body.dealerTitle, dealer.title || ""),
+      dealerEmail: asString(body.dealerEmail, dealer.email || ""),
+      countryCode: asString(
+        body.countryCode,
+        normalizeCountryCode(dealer.countryCode),
+      ),
+      currency: asString(body.currency, ""),
+      collectionTitles: collectionTitles.join(", "),
+      totalQty: Math.trunc(asNumber(body.totalQty, 0)),
+      subtotalText: asMoneyString(body.subtotal),
+      totalWithMarkupText: asMoneyString(body.totalWithMarkup),
+      globalMarkupPercent: asNumber(body.globalMarkupPercent, 0),
+      globalMarkupAmountText: asMoneyString(body.globalMarkupAmount),
+      totalText: asMoneyString(body.total),
+      submittedAt: new Date().toISOString(),
+      items,
+      notes: asString(body.notes, ""),
+      isArchived: false,
+    },
+  };
+}
+
+async function createOrderInStrapi(body: CreateDealerOrderBody, dealer: JwtPayload) {
+  const requestedOrderNumber = asString(body.orderNumber).trim();
+  let currentOrderNumber =
+    requestedOrderNumber || generateUniqueOrderNumber(dealer);
+
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const payload = buildPayload(body, dealer, currentOrderNumber);
+
+    console.log(
+      `[dealer-orders][POST] sending payload, attempt ${attempt}:`,
+      JSON.stringify(payload, null, 2),
+    );
+
+    const strapiRes = await fetch(`${STRAPI_URL}/api/dealer-orders`, {
+      method: "POST",
+      headers: getStrapiHeaders(),
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    const strapiJson = await strapiRes.json().catch(() => null);
+
+    if (strapiRes.ok) {
+      return {
+        ok: true,
+        order: strapiJson?.data ?? null,
+        orderNumber: currentOrderNumber,
+      };
+    }
+
+    console.error(
+      `[dealer-orders][POST] Strapi error on attempt ${attempt}:`,
+      strapiRes.status,
+      JSON.stringify(strapiJson, null, 2),
+    );
+
+    if (isUniqueConstraintError(strapiJson) && attempt < 5) {
+      currentOrderNumber = generateUniqueOrderNumber(dealer);
+      continue;
+    }
+
+    return {
+      ok: false,
+      status: strapiRes.status,
+      error: extractStrapiErrorMessage(strapiJson),
+      details: strapiJson,
+    };
+  }
+
+  return {
+    ok: false,
+    status: 500,
+    error: "Failed to generate a unique order number",
+    details: null,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -164,80 +319,14 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as CreateDealerOrderBody;
 
-    const orderNumber = asString(body.orderNumber).trim();
+    const result = await createOrderInStrapi(body, dealer);
 
-    if (!orderNumber) {
-      return NextResponse.json(
-        { error: "orderNumber is required" },
-        { status: 400 },
-      );
-    }
-
-    const collectionTitles = Array.isArray(body.collectionTitles)
-      ? body.collectionTitles.filter(
-          (item): item is string => typeof item === "string",
-        )
-      : typeof body.collectionTitles === "string" && body.collectionTitles.trim()
-        ? body.collectionTitles
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean)
-        : [];
-
-    const items = Array.isArray(body.items) ? body.items : [];
-
-    const payload = {
-      data: {
-        orderNumber,
-        orderStatus: "new",
-        dealer: dealer.documentId,
-        dealerTitle: asString(body.dealerTitle, dealer.title || ""),
-        dealerEmail: asString(body.dealerEmail, dealer.email || ""),
-        countryCode: asString(
-          body.countryCode,
-          normalizeCountryCode(dealer.countryCode),
-        ),
-        currency: asString(body.currency, ""),
-        collectionTitles: collectionTitles.join(", "),
-        totalQty: Math.trunc(asNumber(body.totalQty, 0)),
-        subtotalText: asMoneyString(body.subtotal),
-        totalWithMarkupText: asMoneyString(body.totalWithMarkup),
-        globalMarkupPercent: asNumber(body.globalMarkupPercent, 0),
-        globalMarkupAmountText: asMoneyString(body.globalMarkupAmount),
-        totalText: asMoneyString(body.total),
-        submittedAt: new Date().toISOString(),
-        items,
-        notes: asString(body.notes, ""),
-        isArchived: false,
-      },
-    };
-
-    console.log(
-      "[dealer-orders][POST] sending payload:",
-      JSON.stringify(payload, null, 2),
-    );
-
-    const strapiRes = await fetch(`${STRAPI_URL}/api/dealer-orders`, {
-      method: "POST",
-      headers: getStrapiHeaders(),
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-
-    const strapiJson = await strapiRes.json().catch(() => null);
-
-    if (!strapiRes.ok) {
-      console.error(
-        "[dealer-orders][POST] Strapi error:",
-        strapiRes.status,
-        JSON.stringify(strapiJson, null, 2),
-      );
-
+    if (!result.ok) {
       return NextResponse.json(
         {
-          error: extractStrapiErrorMessage(strapiJson),
-          status: strapiRes.status,
-          details: strapiJson,
+          error: result.error,
+          status: result.status,
+          details: result.details,
         },
         { status: 500 },
       );
@@ -245,7 +334,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      order: strapiJson?.data ?? null,
+      orderNumber: result.orderNumber,
+      order: result.order,
     });
   } catch (error) {
     const message =
