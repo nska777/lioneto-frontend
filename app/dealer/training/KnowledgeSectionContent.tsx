@@ -712,7 +712,22 @@ export default function KnowledgeSectionContent({
   const deepLinkHandledRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setLocalPosts(posts);
+    setLocalPosts((prev) => {
+      const prevMap = new Map(prev.map((item) => [buildPostKey(item), item]));
+
+      return posts.map((item) => {
+        const key = buildPostKey(item);
+        const prevItem = prevMap.get(key);
+
+        if (!prevItem) return item;
+
+        return {
+          ...item,
+          viewsCount: prevItem.viewsCount ?? item.viewsCount,
+          likesCount: prevItem.likesCount ?? item.likesCount,
+        };
+      });
+    });
   }, [posts]);
 
   const sortedPosts = useMemo(() => {
@@ -824,7 +839,7 @@ export default function KnowledgeSectionContent({
   async function handleLike(post: KnowledgeFeedItem) {
     const key = buildPostKey(post);
 
-    if (likePendingKey) return;
+    if (likePendingKey === key) return;
     if (likedKeys[key]) return;
 
     setLikePendingKey(key);
