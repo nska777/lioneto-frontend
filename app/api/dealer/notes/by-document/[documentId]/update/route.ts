@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { STRAPI_URL } from "@/app/lib/auth/config";
 import { getCurrentDealer } from "@/app/lib/get-current-dealer";
-import { canDealerCreateKnowledgeNote } from "@/app/lib/dealer/knowledge-access";
 import type { KnowledgeFeedItem } from "@/app/lib/dealer/notes";
 
 const STRAPI_TOKEN =
@@ -10,14 +9,25 @@ const STRAPI_TOKEN =
   process.env.STRAPI_TOKEN ||
   "";
 
-type StrapiCreateResponse = {
-  data?: {
-    id?: number | string;
-    documentId?: string;
-    publishedAt?: string | null;
-    createdAt?: string | null;
-    updatedAt?: string | null;
-  };
+type StrapiNoteItem = {
+  id?: number | string;
+  documentId?: string;
+  title?: string | null;
+  slug?: string | null;
+  excerpt?: string | null;
+  content?: string | null;
+  isActive?: boolean | null;
+  dealerLogin?: string | null;
+  dealerTitle?: string | null;
+  viewsCount?: number | null;
+  likesCount?: number | null;
+  publishedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type StrapiSingleResponse<T> = {
+  data?: T | null;
 };
 
 function getHeaders(): Record<string, string> {
@@ -29,6 +39,16 @@ function getHeaders(): Record<string, string> {
     : {
         "Content-Type": "application/json",
       };
+}
+
+function canManageNote(
+  dealerLogin?: string | null,
+  dealerRole?: string | null,
+  authorLogin?: string | null,
+) {
+  if (!dealerLogin) return false;
+  if (dealerRole === "admin" || dealerRole === "owner") return true;
+  return dealerLogin === authorLogin;
 }
 
 function slugifyTitle(value: string) {
@@ -45,13 +65,41 @@ function slugifyTitle(value: string) {
   return latinOnly || "note";
 }
 
-export async function POST(req: NextRequest) {
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ documentId: string }> },
+) {
   try {
+    const { documentId } = await context.params;
     const dealer = await getCurrentDealer();
+    const baseUrl = String(STRAPI_URL).replace(/\/$/, "");
 
-    if (!canDealerCreateKnowledgeNote(dealer?.login)) {
+    const existingRes = await fetch(
+      `${baseUrl}/api/dealer-knowledge-notes/${documentId}`,
+      {
+        method: "GET",
+        headers: getHeaders(),
+        cache: "no-store",
+      },
+    );
+
+    if (!existingRes.ok) {
       return NextResponse.json(
-        { error: "Недостаточно прав для создания заметки" },
+        { error: "Заметка не найдена" },
+        { status: 404 },
+      );
+    }
+
+    const existingJson =
+      (await existingRes.json()) as StrapiSingleResponse<StrapiNoteItem>;
+    const existing = existingJson.data;
+
+    if (
+      !existing ||
+      !canManageNote(dealer?.login, dealer?.role, existing.dealerLogin)
+    ) {
+      return NextResponse.json(
+        { error: "Недостаточно прав для редактирования заметки" },
         { status: 403 },
       );
     }
@@ -78,13 +126,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const slug = `${slugifyTitle(title).slice(0, 70)}-${Date.now()}`;
-    const baseUrl = String(STRAPI_URL).replace(/\/$/, "");
+    const slug =
+      existing.slug?.trim() ||
+      `${slugifyTitle(title).slice(0, 70)}-${Date.now()}`;
 
-    const createRes = await fetch(
-      `${baseUrl}/api/dealer-knowledge-notes?status=published`,
+    const updateRes = await fetch(
+      `${baseUrl}/api/dealer-knowledge-notes/${documentId}`,
       {
-        method: "POST",
+        method: "PUT",
         headers: getHeaders(),
         body: JSON.stringify({
           data: {
@@ -92,50 +141,41 @@ export async function POST(req: NextRequest) {
             slug,
             excerpt: excerpt || null,
             content,
-            isActive: true,
-            dealerLogin: dealer?.login ?? "",
-            dealerTitle: dealer?.title ?? "",
-            viewsCount: 0,
-            likesCount: 0,
           },
         }),
         cache: "no-store",
       },
     );
 
-    const rawText = await createRes.text();
+    const rawText = await updateRes.text();
 
-    if (!createRes.ok) {
+    if (!updateRes.ok) {
       return NextResponse.json(
-        {
-          error: rawText || "Не удалось создать заметку",
-        },
+        { error: rawText || "Не удалось обновить заметку" },
         { status: 500 },
       );
     }
 
-    const json = rawText ? (JSON.parse(rawText) as StrapiCreateResponse) : null;
-    const item = json?.data;
     const nowIso = new Date().toISOString();
 
     const post: KnowledgeFeedItem = {
-      id: Number(item?.id ?? Date.now()),
-      documentId: item?.documentId ?? "",
+      id: Number(existing.id ?? Date.now()),
+      documentId,
       title,
       slug,
       excerpt: excerpt || null,
       content,
       kind: "note",
-      label: dealer?.title ?? "Заметка дилера",
+      label: existing.dealerTitle ?? dealer?.title ?? "Заметка дилера",
       tags: ["Заметка"],
-      viewsCount: 0,
-      likesCount: 0,
-      isActive: true,
+      viewsCount: Number(existing.viewsCount ?? 0),
+      likesCount: Number(existing.likesCount ?? 0),
+      isActive: existing.isActive ?? true,
       isPinned: false,
       sortOrder: 0,
-      publishedAt: item?.publishedAt ?? nowIso,
-      createdAt: item?.createdAt ?? nowIso,
-      updatedAt: item?.updatedAt ?? nowIso,
+      publishedAt: existing.publishedAt ?? nowIso,
+      createdAt: existing.createdAt ?? nowIso,
+      updatedAt: nowIso,
       coverUrl: null,
       coverAlt: null,
       fileUrl: null,
@@ -144,14 +184,16 @@ export async function POST(req: NextRequest) {
       fileExtensionLabel: null,
       downloadUrl: null,
       sourceType: "dealer_note",
-      authorLogin: dealer?.login ?? null,
-      authorTitle: dealer?.title ?? null,
+      authorLogin: existing.dealerLogin ?? dealer?.login ?? null,
+      authorTitle: existing.dealerTitle ?? dealer?.title ?? null,
     };
 
     return NextResponse.json({ ok: true, post });
-  } catch {
+  } catch (error) {
+    console.error("UPDATE NOTE ROUTE ERROR:", error);
+
     return NextResponse.json(
-      { error: "Ошибка создания заметки" },
+      { error: "Ошибка обновления заметки" },
       { status: 500 },
     );
   }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { STRAPI_URL } from "@/app/lib/auth/config";
 import { getCurrentDealer } from "@/app/lib/get-current-dealer";
-import type { KnowledgeFeedItem } from "@/app/lib/dealer/notes";
 
 const STRAPI_TOKEN =
   process.env.STRAPI_DEALER_TOKEN ||
@@ -10,20 +9,8 @@ const STRAPI_TOKEN =
   "";
 
 type StrapiNoteItem = {
-  id?: number | string;
   documentId?: string;
-  title?: string | null;
-  slug?: string | null;
-  excerpt?: string | null;
-  content?: string | null;
-  isActive?: boolean | null;
   dealerLogin?: string | null;
-  dealerTitle?: string | null;
-  viewsCount?: number | null;
-  likesCount?: number | null;
-  publishedAt?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
 };
 
 type StrapiSingleResponse<T> = {
@@ -51,28 +38,13 @@ function canManageNote(
   return dealerLogin === authorLogin;
 }
 
-function slugifyTitle(value: string) {
-  const cleaned = value
-    .toLowerCase()
-    .trim()
-    .replace(/['"]/g, "")
-    .replace(/[^a-z0-9а-яё\s-]/gi, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  const latinOnly = cleaned.replace(/[^a-z0-9-]/gi, "").trim();
-  return latinOnly || "note";
-}
-
-export async function PUT(
-  req: NextRequest,
+export async function DELETE(
+  _req: NextRequest,
   context: { params: Promise<{ documentId: string }> },
 ) {
   try {
     const { documentId } = await context.params;
     const dealer = await getCurrentDealer();
-
     const baseUrl = String(STRAPI_URL).replace(/\/$/, "");
 
     const existingRes = await fetch(
@@ -100,97 +72,35 @@ export async function PUT(
       !canManageNote(dealer?.login, dealer?.role, existing.dealerLogin)
     ) {
       return NextResponse.json(
-        { error: "Недостаточно прав для редактирования заметки" },
+        { error: "Недостаточно прав для удаления заметки" },
         { status: 403 },
       );
     }
 
-    const body = await req.json().catch(() => null);
-    const title = typeof body?.title === "string" ? body.title.trim() : "";
-    const excerpt =
-      typeof body?.excerpt === "string" ? body.excerpt.trim() : "";
-    const content =
-      typeof body?.content === "string" ? body.content.trim() : "";
-
-    if (!title) {
-      return NextResponse.json(
-        { error: "Укажите заголовок заметки" },
-        { status: 400 },
-      );
-    }
-
-    if (!content) {
-      return NextResponse.json(
-        { error: "Добавьте текст заметки" },
-        { status: 400 },
-      );
-    }
-
-    const slug =
-      existing.slug?.trim() || `${slugifyTitle(title).slice(0, 70)}-${Date.now()}`;
-
-    const updateRes = await fetch(
+    const deleteRes = await fetch(
       `${baseUrl}/api/dealer-knowledge-notes/${documentId}`,
       {
-        method: "PUT",
+        method: "DELETE",
         headers: getHeaders(),
-        body: JSON.stringify({
-          data: {
-            title,
-            slug,
-            excerpt: excerpt || null,
-            content,
-          },
-        }),
         cache: "no-store",
       },
     );
 
-    const rawText = await updateRes.text();
+    const rawText = await deleteRes.text();
 
-    if (!updateRes.ok) {
+    if (!deleteRes.ok) {
       return NextResponse.json(
-        { error: rawText || "Не удалось обновить заметку" },
+        { error: rawText || "Не удалось удалить заметку" },
         { status: 500 },
       );
     }
 
-    const nowIso = new Date().toISOString();
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("DELETE NOTE ROUTE ERROR:", error);
 
-    const post: KnowledgeFeedItem = {
-      id: Number(existing.id ?? Date.now()),
-      documentId,
-      title,
-      slug,
-      excerpt: excerpt || null,
-      content,
-      kind: "note",
-      label: existing.dealerTitle ?? dealer?.title ?? "Заметка дилера",
-      tags: ["Заметка"],
-      viewsCount: Number(existing.viewsCount ?? 0),
-      likesCount: Number(existing.likesCount ?? 0),
-      isActive: existing.isActive ?? true,
-      isPinned: false,
-      sortOrder: 0,
-      publishedAt: existing.publishedAt ?? nowIso,
-      createdAt: existing.createdAt ?? nowIso,
-      updatedAt: nowIso,
-      coverUrl: null,
-      coverAlt: null,
-      fileUrl: null,
-      fileName: null,
-      fileMime: null,
-      fileExtensionLabel: null,
-      downloadUrl: null,
-      sourceType: "dealer_note",
-      authorLogin: existing.dealerLogin ?? dealer?.login ?? null,
-      authorTitle: existing.dealerTitle ?? dealer?.title ?? null,
-    };
-
-    return NextResponse.json({ ok: true, post });
-  } catch {
     return NextResponse.json(
-      { error: "Ошибка обновления заметки" },
+      { error: "Ошибка удаления заметки" },
       { status: 500 },
     );
   }
