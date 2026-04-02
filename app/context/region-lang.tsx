@@ -41,7 +41,7 @@ function isLang(v: string | null): v is Lang {
   return v === "ru" || v === "uz";
 }
 
-async function detectRegionFromCloudflare(): Promise<Region | null> {
+async function detectRegion(): Promise<Region | null> {
   try {
     const res = await fetch("/api/geo", { cache: "no-store" });
     if (!res.ok) return null;
@@ -83,7 +83,7 @@ export function RegionLangProvider({
     let cancelled = false;
 
     (async () => {
-      const detected = await detectRegionFromCloudflare();
+      const detected = await detectRegion();
       if (cancelled) return;
 
       const next: Region = detected ?? (isRegion(r) ? r : "uz");
