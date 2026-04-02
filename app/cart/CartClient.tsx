@@ -39,13 +39,6 @@ function getStr(p: unknown, key: string): string {
   return asString(p[key]);
 }
 
-function getArrStr(p: unknown, key: string): string[] {
-  if (!isRecord(p)) return [];
-  const v = p[key];
-  if (!Array.isArray(v)) return [];
-  return v.filter((x): x is string => typeof x === "string");
-}
-
 function formatMoney(n: number, region: Region) {
   if (region === "uz") return new Intl.NumberFormat("ru-RU").format(n) + " сум";
   return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
@@ -73,7 +66,6 @@ function SafeImg({ src, alt }: { src: string; alt: string }) {
     );
   }
 
-  // eslint-disable-next-line @next/next/no-img-element
   return (
     <img
       src={src}
@@ -95,9 +87,39 @@ type VariantAny = {
   gallery?: string[];
 };
 
+type CartItem = {
+  key: string;
+  productId: string;
+  variantId: string;
+  variantTitle: string | null;
+  displayArticle: string;
+  product: CatalogProduct | LiteProduct;
+  qty: number;
+  unit: number;
+  sum: number;
+  image: string;
+  collectionLabel: string | null;
+};
+
 function toNum(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeArticleColor(color?: string | null) {
+  const value = String(color ?? "").trim();
+  if (!value) return "";
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
+  const article = String(baseArticle ?? "").trim();
+  const normalizedColor = normalizeArticleColor(color);
+
+  if (!article) return "—";
+  if (!normalizedColor) return article;
+
+  return `${article} (${normalizedColor})`;
 }
 
 function flattenVariantsForCart(product: unknown): VariantAny[] {
@@ -293,22 +315,18 @@ function readFirstImage(p: unknown): string {
   return "";
 }
 
-type CartItem = {
-  key: string;
-  productId: string;
-  variantId: string;
-  variantTitle: string | null;
-  product: CatalogProduct | LiteProduct;
-  qty: number;
-  unit: number;
-  sum: number;
-  image: string;
-  collectionLabel: string | null;
-};
+function readArticle(p: unknown): string {
+  if (!isRecord(p)) return "";
+  return (
+    asString(p.sku).trim() ||
+    asString(p.article).trim() ||
+    asString(p.id).trim()
+  );
+}
 
 export default function CartClient() {
   const router = useRouter();
-  const { region } = useRegionLang(); // "uz" | "ru"
+  const { region } = useRegionLang();
   const shop = useShopState();
 
   const goBack = () => {
@@ -345,7 +363,6 @@ export default function CartClient() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIds.join("|")]);
 
   const items = useMemo((): CartItem[] => {
@@ -410,6 +427,12 @@ export default function CartClient() {
         const collectionLabel = labelByBrandSlug(brandSlug);
 
         const title = itSafeTitle(pStrapi) || itSafeTitle(pDisplay) || "Товар";
+        const baseArticle =
+          readArticle(pStrapi) || readArticle(pMock) || readArticle(pDisplay);
+        const displayArticle = getDisplayArticle(
+          baseArticle,
+          parsedVariant.title,
+        );
 
         const productForUI: CatalogProduct | LiteProduct = isRecord(pDisplay)
           ? ({
@@ -423,6 +446,7 @@ export default function CartClient() {
           productId: pid,
           variantId: vidRaw,
           variantTitle: parsedVariant.title,
+          displayArticle,
           product: productForUI,
           qty,
           unit,
@@ -550,6 +574,10 @@ export default function CartClient() {
                           ) : null}
                           {getStr(it.product, "title") || "Товар"}
                         </Link>
+
+                        <div className="mt-1 text-[12px] text-black/45">
+                          Артикул: {it.displayArticle}
+                        </div>
 
                         {it.variantTitle && it.variantId !== "base" ? (
                           <div className="mt-1 text-[12px] text-black/55">

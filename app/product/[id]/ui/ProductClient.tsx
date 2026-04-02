@@ -103,6 +103,22 @@ function asNonEmptyString(v: unknown): string | null {
   return s ? s : null;
 }
 
+function normalizeArticleColor(color?: string | null) {
+  const value = String(color ?? "").trim();
+  if (!value) return "";
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
+  const article = String(baseArticle ?? "").trim();
+  const normalizedColor = normalizeArticleColor(color);
+
+  if (!article) return "—";
+  if (!normalizedColor || normalizedColor === "—") return article;
+
+  return `${article} (${normalizedColor})`;
+}
+
 function LeadBeforeCartModal({
   open,
   onClose,
@@ -280,7 +296,6 @@ function LeadBeforeCartModal({
   );
 }
 
-/** ✅ Определяем акцент только по выбранному цвету/variantKey (без ломки логики) */
 function getAccentFromVariant(
   variantKey?: string | null,
   selectedByGroup?: Record<string, unknown> | null,
@@ -444,6 +459,13 @@ export default function ProductClient({
     });
   }, [product, selectedByGroup, selectedVariants, groupsForUI]);
 
+  const displayArticle = useMemo(() => {
+    return getDisplayArticle(
+      product.extra?.article || product.sku || "—",
+      displayColor,
+    );
+  }, [product.extra?.article, product.sku, displayColor]);
+
   const variantGallery = useMemo(() => {
     const withGallery = selectedVariants.find(
       (v) => Array.isArray(v.gallery) && v.gallery.length > 0,
@@ -510,7 +532,7 @@ export default function ProductClient({
       title: product.title,
       href: `/product/${encodeURIComponent(product.id)}`,
       imageUrl: imageFromVariant || product.image || null,
-      sku: product.sku || null,
+      sku: displayArticle,
       price_uzs: product.price_uzs + (currency === "UZS" ? variantDelta : 0),
       price_rub: product.price_rub + (currency === "RUB" ? variantDelta : 0),
     });
@@ -849,10 +871,7 @@ export default function ProductClient({
             </h2>
 
             <div className="mt-4 space-y-2 text-[13px] text-black/70">
-              <Row
-                label="Артикул"
-                value={product.extra?.article || product.sku || "—"}
-              />
+              <Row label="Артикул" value={displayArticle} />
               <Row label="Размер" value={product.extra?.size || "—"} />
               <Row label="Цвет" value={displayColor} />
               <Row label="Материал" value={product.extra?.material || "—"} />

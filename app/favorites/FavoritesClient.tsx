@@ -18,6 +18,22 @@ function formatMoney(n: number, region: "uz" | "ru") {
   return new Intl.NumberFormat("ru-RU").format(v) + " ₽";
 }
 
+function normalizeArticleColor(color?: string | null) {
+  const value = String(color ?? "").trim();
+  if (!value) return "";
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
+  const article = String(baseArticle ?? "").trim();
+  const normalizedColor = normalizeArticleColor(color);
+
+  if (!article) return "—";
+  if (!normalizedColor) return article;
+
+  return `${article} (${normalizedColor})`;
+}
+
 /** ✅ Безопасная картинка (Strapi-friendly: <img>, без next/image) */
 function SafeImage({ src, alt }: { src: string; alt: string }) {
   const [broken, setBroken] = React.useState(false);
@@ -33,7 +49,6 @@ function SafeImage({ src, alt }: { src: string; alt: string }) {
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={alt}
@@ -44,12 +59,7 @@ function SafeImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-/** ================= Strapi price-entry (client) =================
- * Ключи цен: productId может быть:
- * - "slug::variantId"
- * - "slug::base"
- * - (иногда) "slug" — оставляем как самый последний fallback
- */
+/** ================= Strapi price-entry (client) ================= */
 type PriceEntry = {
   productId: string;
   title?: string | null;
@@ -89,7 +99,7 @@ async function fetchPriceMapByKeys(keys: string[]) {
 
   const map: Record<string, PriceEntry> = {};
   for (const item of data) {
-    const a = item?.attributes ?? item; // на всякий случай
+    const a = item?.attributes ?? item;
     const pid = String(a?.productId ?? "").trim();
     if (!pid) continue;
 
@@ -224,7 +234,6 @@ function resolveStrapiUrlMaybe(base: string, url: string) {
 }
 
 function pickStrapiImage(a: any, base: string) {
-  // пробуем разные shape'ы: string | {url} | {data:{attributes:{url}}} | formats
   const raw =
     a?.image?.url ??
     a?.image?.data?.attributes?.url ??
@@ -270,13 +279,16 @@ async function fetchLiteRelatedProducts(limit = 24) {
   return out;
 }
 
+function readArticle(p: any): string {
+  return String(p?.sku ?? p?.article ?? p?.id ?? "").trim();
+}
+
 export default function FavoritesClient() {
   const { region } = useRegionLang();
   const shop = useShopState();
 
   const favKeys = shop.favorites;
 
-  // slugs для продуктов
   const productIds = useMemo(() => {
     return favKeys
       .map((key) => shop.parseKey(String(key)).productId)
@@ -284,7 +296,6 @@ export default function FavoritesClient() {
       .filter(Boolean);
   }, [favKeys, shop]);
 
-  // ✅ ключи цен: slug::variantId + slug::base (и на крайняк slug)
   const priceKeys = useMemo(() => {
     const keys: string[] = [];
     for (const k of favKeys) {
@@ -294,7 +305,7 @@ export default function FavoritesClient() {
       if (!pid) continue;
       keys.push(`${pid}::${vid}`);
       keys.push(`${pid}::base`);
-      keys.push(pid); // самый последний fallback, если у тебя где-то так заведено
+      keys.push(pid);
     }
     return Array.from(new Set(keys));
   }, [favKeys, shop]);
@@ -302,7 +313,6 @@ export default function FavoritesClient() {
   const [priceMap, setPriceMap] = useState<Record<string, PriceEntry>>({});
   const [productsMap, setProductsMap] = useState<Record<string, any>>({});
 
-  // related
   const [related, setRelated] = useState<LiteRelated[]>([]);
   const [relatedPriceMap, setRelatedPriceMap] = useState<
     Record<string, PriceEntry>
@@ -328,14 +338,13 @@ export default function FavoritesClient() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIds.join("|"), priceKeys.join("|")]);
 
   const items = useMemo(() => {
     return favKeys
       .map((key) => {
         const k = String(key);
-        const { productId, variantId } = shop.parseKey(k);
+        const { productId, variantId } = shop.parseKey(String(k));
 
         const pid = String(productId || "").trim();
         const vid = String(variantId || "base").trim() || "base";
@@ -345,11 +354,8 @@ export default function FavoritesClient() {
         const variants = Array.isArray(p?.variants) ? p.variants : [];
         const resolved = resolveCompositeVariant(vid, variants, region);
 
-        // ✅ 1) price-entry по variant
         const peVariant = priceMap[`${pid}::${vid}`];
-        // ✅ 2) fallback base
         const peBase = priceMap[`${pid}::base`];
-        // ✅ 3) fallback "slug"
         const pePlain = priceMap[pid];
 
         const pickBaseFromEntry = (pe?: PriceEntry) => {
@@ -366,7 +372,6 @@ export default function FavoritesClient() {
           (pePlain && pickBaseFromEntry(pePlain)) ||
           0;
 
-        // ✅ fallback на Strapi Product base price
         const baseFromProduct =
           region === "uz" ? Number(p?.priceUZS ?? 0) : Number(p?.priceRUB ?? 0);
 
@@ -381,7 +386,6 @@ export default function FavoritesClient() {
 
         const price = (basePrice || 0) + (resolved.delta || 0);
 
-        // title: сначала из price-entry variant/base/plain, потом product.title
         const title =
           String(
             peVariant?.title ??
@@ -391,7 +395,6 @@ export default function FavoritesClient() {
               "—",
           ) || "—";
 
-        // image: variant.gallery[0] -> variant.image -> product.image -> product.gallery[0]
         const image =
           (resolved.image ? String(resolved.image) : "") ||
           (p?.image ? String(p.image) : "") ||
@@ -399,12 +402,15 @@ export default function FavoritesClient() {
             ? String(p.gallery[0])
             : "");
 
+        const article = getDisplayArticle(readArticle(p), resolved.title);
+
         return {
           key: k,
           productId: pid,
           variantId: vid,
           title,
           variantTitle: resolved.title,
+          article,
           price,
           image,
         };
@@ -415,18 +421,17 @@ export default function FavoritesClient() {
       variantId: string;
       title: string;
       variantTitle: string | null;
+      article: string;
       price: number;
       image: string;
     }>;
   }, [favKeys, shop, productsMap, priceMap, region]);
 
-  // ✅ auto-related: 24 товара из Strapi -> 3 рекомендации (стабильно в сессии)
   useEffect(() => {
     let alive = true;
 
     (async () => {
       try {
-        // если избранное пустое — можем всё равно показать related (по желанию)
         const favSet = new Set(productIds.map((s) => String(s)));
 
         const pool = await fetchLiteRelatedProducts(24);
@@ -434,7 +439,6 @@ export default function FavoritesClient() {
 
         const filtered = pool.filter((p) => !favSet.has(String(p.slug)));
 
-        // стабильно в сессии (и зависит от набора избранного)
         const seed = stableSessionSeed(
           `favorites-related:${productIds.join("|")}`,
         );
@@ -445,7 +449,6 @@ export default function FavoritesClient() {
 
         setRelated(pick);
 
-        // подтянем цены из price-entry (slug::base + slug)
         const relKeys: string[] = [];
         for (const r of pick) {
           const s = String(r.slug).trim();
@@ -466,7 +469,6 @@ export default function FavoritesClient() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIds.join("|"), region]);
 
   const clearFavorites = () => {
@@ -560,6 +562,10 @@ export default function FavoritesClient() {
                         >
                           {it.title}
                         </Link>
+
+                        <div className="mt-1 text-[12px] text-black/45">
+                          Артикул: {it.article}
+                        </div>
 
                         {it.variantTitle && it.variantId !== "base" ? (
                           <div className="mt-1 text-[12px] text-black/55">

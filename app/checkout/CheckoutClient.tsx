@@ -21,7 +21,6 @@ function formatMoney(n: number, region: Region) {
   return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
 }
 
-/** --------- tiny type-guards (strict-safe) --------- */
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -38,6 +37,30 @@ function toNumSafe(v: unknown): number {
 function getProp(obj: unknown, key: string): unknown {
   if (!isRecord(obj)) return undefined;
   return obj[key];
+}
+
+function normalizeArticleColor(color?: string | null) {
+  const value = String(color ?? "").trim();
+  if (!value) return "";
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
+  const article = String(baseArticle ?? "").trim();
+  const normalizedColor = normalizeArticleColor(color);
+
+  if (!article) return "—";
+  if (!normalizedColor) return article;
+
+  return `${article} (${normalizedColor})`;
+}
+
+function readArticleAny(obj: unknown): string {
+  return (
+    toStringSafe(getProp(obj, "sku")).trim() ||
+    toStringSafe(getProp(obj, "article")).trim() ||
+    toStringSafe(getProp(obj, "id")).trim()
+  );
 }
 
 function labelByBrandSlug(slug: string | null | undefined) {
@@ -63,13 +86,14 @@ type CheckoutItem = {
   key: string;
   productId: string;
   variantId: string;
+  article: string;
   qty: number;
   unit: number;
   sum: number;
   title: string;
   collectionLabel: string | null;
   variantTitle: string | null;
-  imageUrl: string | null; // ✅ для TG
+  imageUrl: string | null;
 };
 
 function flattenVariantsForCheckout(product: unknown): VariantLite[] {
@@ -204,10 +228,6 @@ function findVariantForPart(
   return found;
 }
 
-/**
- * variantId может быть "color:white|option:lift" и т.п.
- * Мы вытаскиваем человекочитаемый title и картинку (если есть).
- */
 function parseCompositeVariantForCart(
   variantId: string,
   variants: VariantLite[],
@@ -272,7 +292,6 @@ function prettyVariantToken(token: string) {
   return map[t] ?? token;
 }
 
-/** ✅ Fallback: если variants не совпали — берём из variantId и приводим красиво */
 function fallbackVariantTitleFromId(variantId: string) {
   const raw = String(variantId ?? "").trim();
   if (!raw || raw === "base") return null;
@@ -303,7 +322,6 @@ function resolveVariantImage(variantId: string, variants: VariantLite[]) {
   return parsed.image || null;
 }
 
-/** берём картинку товара: вариант -> галерея -> image */
 function resolveProductImage(
   p: unknown,
   variantId: string,
@@ -322,7 +340,6 @@ function resolveProductImage(
   const img = toStringSafe(imgRaw).trim();
   if (img) return img;
 
-  // иногда бывает "media" / "thumbnail"
   const mediaRaw = getProp(p, "media");
   const media = toStringSafe(mediaRaw).trim();
   if (media) return media;
@@ -330,13 +347,11 @@ function resolveProductImage(
   return null;
 }
 
-/** абсолютный URL для TG */
 function toAbsoluteUrlClient(urlLike: string | null) {
   const raw = String(urlLike ?? "").trim();
   if (!raw) return null;
   if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
 
-  // local/public path -> делаем абсолютным через origin
   if (raw.startsWith("/")) {
     if (typeof window !== "undefined" && window.location?.origin) {
       return `${window.location.origin}${raw}`;
@@ -381,9 +396,9 @@ export default function CheckoutClient() {
   const sp = useSearchParams();
   const isSuccess = String(sp?.get("success") ?? "") === "1";
 
-  const mode = String(sp?.get("mode") ?? "").toLowerCase(); // "" | "oneclick"
+  const mode = String(sp?.get("mode") ?? "").toLowerCase();
 
-  const { region } = useRegionLang(); // "uz" | "ru"
+  const { region } = useRegionLang();
   const shop = useShopState();
 
   const goBack = () => {
@@ -488,6 +503,11 @@ export default function CheckoutClient() {
       const collectionLabel = labelByBrandSlug(brandSlug);
 
       const title = toStringSafe(getProp(p, "title")).trim() || "Товар";
+      const baseArticle =
+        readArticleAny(pStrapi) ||
+        readArticleAny(pMockUnknown) ||
+        readArticleAny(p);
+      const article = getDisplayArticle(baseArticle, variantTitle);
 
       const imageRaw = resolveProductImage(p, vid, variants);
       const imageUrl = toAbsoluteUrlClient(imageRaw);
@@ -496,6 +516,7 @@ export default function CheckoutClient() {
         key,
         productId: pid,
         variantId: vid,
+        article,
         qty,
         unit,
         sum: unit * qty,
@@ -514,13 +535,11 @@ export default function CheckoutClient() {
     [items],
   );
 
-  /** cached customer ONCE */
   const cachedCustomer = useMemo<Record<string, unknown>>(() => {
     if (typeof window === "undefined") return {};
     return safeParseRecord(window.localStorage.getItem(LS_CUSTOMER)) ?? {};
   }, []);
 
-  /** form */
   const [name, setName] = useState(() =>
     toStringSafe(cachedCustomer["name"] ?? ""),
   );
@@ -569,10 +588,11 @@ export default function CheckoutClient() {
       },
       items: items.map((it) => ({
         productId: it.productId,
-        collectionLabel: it.collectionLabel, // ✅ теперь AMBER/SCANDY уйдёт в TG
-        imageUrl: it.imageUrl, // ✅ фото для TG
+        collectionLabel: it.collectionLabel,
+        imageUrl: it.imageUrl,
         variantId: it.variantId,
         variantTitle: it.variantTitle,
+        article: it.article,
         qty: it.qty,
         title: it.title,
         unit: it.unit,
@@ -676,7 +696,6 @@ export default function CheckoutClient() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
-        {/* LEFT: FORM */}
         <section className="rounded-3xl border borderblack/10 bg-white p-6">
           <div className="text-base font-semibold tracking-[-0.01em]">
             Данные клиента
@@ -754,7 +773,6 @@ export default function CheckoutClient() {
           </div>
         </section>
 
-        {/* RIGHT: ORDER SUMMARY */}
         <aside className="h-fit rounded-3xl border border-black/10 bg-white p-6">
           <div className="text-base font-semibold tracking-[-0.01em]">
             Ваш заказ
@@ -772,6 +790,10 @@ export default function CheckoutClient() {
                         </span>
                       ) : null}
                       {items[0].title}
+                    </div>
+
+                    <div className="mt-1 text-xs text-black/45">
+                      Артикул: {items[0].article}
                     </div>
 
                     <div className="mt-1 text-xs text-black/45">
@@ -795,16 +817,23 @@ export default function CheckoutClient() {
                         className="flex items-start justify-between gap-4"
                       >
                         <div className="min-w-0 text-xs text-black/60">
-                          {it.qty} ×{" "}
-                          {it.collectionLabel ? (
-                            <span className="text-black/55">
-                              {it.collectionLabel} /{" "}
-                            </span>
-                          ) : null}
-                          {it.title}
-                          {it.variantTitle && it.variantId !== "base"
-                            ? ` • ${it.variantTitle}`
-                            : ""}
+                          <div>
+                            {it.collectionLabel ? (
+                              <span className="text-black/55">
+                                {it.collectionLabel} /{" "}
+                              </span>
+                            ) : null}
+                            {it.title}
+                            {it.variantTitle && it.variantId !== "base"
+                              ? ` • ${it.variantTitle}`
+                              : ""}
+                          </div>
+                          <div className="mt-0.5 text-black/45">
+                            Артикул: {it.article}
+                          </div>
+                          <div className="mt-0.5">
+                            {it.qty} × {formatMoney(it.unit, region)}
+                          </div>
                         </div>
 
                         <div className="text-xs font-medium text-black/75">
