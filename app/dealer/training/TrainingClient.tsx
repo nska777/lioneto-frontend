@@ -594,7 +594,7 @@ export default function TrainingClient({
             toneKey="presentations"
             open={!isSearching && openKey === "presentations"}
             title="Учебные презентации"
-            subtitle={`Коллекции (${data.presentations.length}) + рабочая тетрадь для заметок.`}
+            subtitle="Презентации по коллекциям LIONETO: подробное описание стилей, цветовых решений, особенностей, а также модулей коллекций."
             onToggle={() =>
               setOpenKey(openKey === "presentations" ? null : "presentations")
             }
@@ -614,7 +614,7 @@ export default function TrainingClient({
                 : openKey === "interior"
             }
             title="Стиль и интерьер"
-            subtitle="Lookbook, гайды, видео — скачивание сразу."
+            subtitle="Так как многие особенности мебели напрямую определяются стилями, важно знать какие существуют стили и в чем заключается их специфика."
             onToggle={() =>
               setOpenKey(openKey === "interior" ? null : "interior")
             }
@@ -647,7 +647,7 @@ export default function TrainingClient({
                 : openKey === "knowledge"
             }
             title="База знаний"
-            subtitle={`Новости, заметки, скрипты, чек-листы, стандарты${knowledgePosts.length ? ` (${knowledgePosts.length})` : ""}`}
+            subtitle='Описание и примеры техник, приемов и инструментов, повышающих вероятность заключения договора с клиентами (как только Вами будет прочитан новый пост, пожалуйста, поставьте "сердечко", чтобы было видно, что Вы следите за новостями и читаете их).'
             onToggle={() =>
               setOpenKey(openKey === "knowledge" ? null : "knowledge")
             }

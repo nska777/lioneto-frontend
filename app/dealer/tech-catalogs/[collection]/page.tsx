@@ -1,17 +1,11 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import {
   getDealerTechCatalogs,
   type DealerTechCatalogItem,
 } from "@/app/lib/dealer/price-lists";
-
-type TechCatalogCollectionCardItem = {
-  id: string;
-  title: string;
-  href: string;
-  subtitle: string;
-};
 
 const COLLECTION_ORDER = [
   "amber",
@@ -33,6 +27,13 @@ const COLLECTION_LABELS: Record<CollectionSlug, string> = {
   buongiorno: "BUONGIORNO",
 };
 
+type TechCatalogCardItem = {
+  id: string;
+  title: string;
+  fileHref: string;
+  subtitle: string;
+};
+
 const cardBorder: CSSProperties = {
   borderColor: "rgba(189, 160, 86, 0.26)",
 };
@@ -42,32 +43,7 @@ const cardGlow: CSSProperties = {
     "radial-gradient(120% 120% at 22% 0%, rgba(232, 208, 148, 0.28) 0%, rgba(232, 208, 148, 0) 56%)",
 };
 
-function FolderIcon() {
-  return (
-    <svg
-      width="26"
-      height="26"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M3.75 7.75A2.75 2.75 0 0 1 6.5 5h3.15c.62 0 1.2.26 1.6.72l.72.81c.4.46.98.72 1.6.72h3.93a2.75 2.75 0 0 1 2.75 2.75v6.5a2.75 2.75 0 0 1-2.75 2.75h-11A2.75 2.75 0 0 1 3.75 16.5v-8.75Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7.5 12h9"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function ArrowRightIcon() {
+function DownloadIcon() {
   return (
     <svg
       width="18"
@@ -77,59 +53,107 @@ function ArrowRightIcon() {
       aria-hidden="true"
     >
       <path
-        d="M5 12h14m0 0-5-5m5 5-5 5"
+        d="M12 3v10m0 0 4-4m-4 4-4-4"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      <path
+        d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
-function buildCards(
-  items: DealerTechCatalogItem[],
-): TechCatalogCollectionCardItem[] {
-  const bySlug = new Map<string, DealerTechCatalogItem>();
-
-  for (const item of items) {
-    if (!bySlug.has(item.collectionSlug)) {
-      bySlug.set(item.collectionSlug, item);
-    }
-  }
-
-  const result: TechCatalogCollectionCardItem[] = [];
-
-  for (const slug of COLLECTION_ORDER) {
-    const item = bySlug.get(slug);
-    if (!item) continue;
-
-    result.push({
-      id: slug,
-      title: COLLECTION_LABELS[slug],
-      href: `/dealer/tech-catalogs/${slug}`,
-      subtitle: "Открыть технические каталоги коллекции",
-    });
-  }
-
-  return result;
+function CatalogIcon() {
+  return (
+    <svg
+      width="26"
+      height="26"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M6.75 4.75h8.5a2 2 0 0 1 2 2v10.5a1 1 0 0 1-1.54.84l-2.46-1.54-2.46 1.54a1 1 0 0 1-1.08 0l-2.46-1.54-2.46 1.54a1 1 0 0 1-1.54-.84V6.75a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8.5 8.25h6.75"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8.5 11.25h5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
-export default async function Page() {
+function isCollectionSlug(value: string): value is CollectionSlug {
+  return COLLECTION_ORDER.includes(value as CollectionSlug);
+}
+
+function buildCards(items: DealerTechCatalogItem[]): TechCatalogCardItem[] {
+  return items.map((item, index) => ({
+    id: `${item.collectionSlug}-${index}-${item.title}`,
+    title: item.title,
+    fileHref: item.fileUrl,
+    subtitle: "Technical catalog · PDF",
+  }));
+}
+
+export async function generateStaticParams() {
+  return COLLECTION_ORDER.map((collection) => ({
+    collection,
+  }));
+}
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ collection: string }>;
+}) {
+  const { collection } = await params;
+
+  if (!isCollectionSlug(collection)) {
+    notFound();
+  }
+
   const catalogs = await getDealerTechCatalogs();
-  const cards = buildCards(catalogs);
+  const filtered = catalogs.filter(
+    (item) => item.collectionSlug === collection,
+  );
+  const cards = buildCards(filtered);
 
   return (
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-6">
         <div>
           <div className="text-sm text-black/45">Dealer Portal</div>
-          <h1 className="mt-1 text-[22px] font-semibold tracking-[-0.02em] text-black">
-            Технические каталоги
+
+          <Link
+            href="/dealer/tech-catalogs"
+            className="mt-2 inline-flex items-center gap-2 text-sm text-black/55 transition hover:text-black"
+          >
+            ← Назад к коллекциям
+          </Link>
+
+          <h1 className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-black">
+            {COLLECTION_LABELS[collection]}
           </h1>
           <p className="mt-1 text-sm text-black/55">
-            Выберите коллекцию, чтобы открыть технические каталоги и скачать
-            нужные PDF.
+            Технические каталоги коллекции {COLLECTION_LABELS[collection]}.
           </p>
         </div>
       </header>
@@ -137,9 +161,11 @@ export default async function Page() {
       {cards.length > 0 ? (
         <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((it) => (
-            <Link
+            <a
               key={it.id}
-              href={it.href}
+              href={`/api/dealer/download?url=${encodeURIComponent(
+                it.fileHref,
+              )}&name=${encodeURIComponent(it.title.endsWith(".pdf") ? it.title : `${it.title}.pdf`)}`}
               className={[
                 "group relative overflow-hidden",
                 "min-h-[176px] rounded-[18px] border bg-white",
@@ -149,7 +175,7 @@ export default async function Page() {
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20",
               ].join(" ")}
               style={cardBorder}
-              aria-label={`Открыть технические каталоги ${it.title}`}
+              aria-label={`Скачать технический каталог ${it.title}`}
             >
               <span
                 className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
@@ -173,11 +199,11 @@ export default async function Page() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(189,160,86,0.24)] bg-[rgba(189,160,86,0.08)] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-black/55">
-                      <FolderIcon />
-                      <span className="-ml-1">COLLECTION</span>
+                      <CatalogIcon />
+                      <span className="-ml-1">PDF</span>
                     </div>
 
-                    <div className="mt-4 text-[15px] font-extrabold tracking-[0.18em] text-black">
+                    <div className="mt-4 text-[15px] font-extrabold tracking-[0.08em] text-black break-words">
                       {it.title}
                     </div>
 
@@ -187,24 +213,25 @@ export default async function Page() {
                   </div>
 
                   <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-black/70 transition-colors duration-200 group-hover:text-black">
-                    <ArrowRightIcon />
+                    <DownloadIcon />
                   </span>
                 </div>
 
                 <div className="mt-6 space-y-2">
                   <div className="h-px w-full bg-black/8" />
                   <div className="flex items-center justify-between gap-3 text-[11px] text-black/45">
-                    <span>Коллекция</span>
-                    <span>Открыть</span>
+                    <span>Технический каталог</span>
+                    <span>Скачать</span>
                   </div>
                 </div>
               </div>
-            </Link>
+            </a>
           ))}
         </section>
       ) : (
         <div className="rounded-[20px] border border-black/10 bg-white px-5 py-6 text-sm text-black/55">
-          Технические каталоги пока не добавлены.
+          Для коллекции {COLLECTION_LABELS[collection]} технические каталоги
+          пока не добавлены.
         </div>
       )}
     </div>
