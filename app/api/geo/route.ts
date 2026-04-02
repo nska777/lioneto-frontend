@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isIP } from "node:net";
 
 type Region = "ru" | "uz";
 
@@ -10,15 +11,43 @@ function mapCountryToRegion(country: string): Region {
   return country === "RU" ? "ru" : "uz";
 }
 
-function getClientIp(req: NextRequest) {
-  const xForwardedFor = req.headers.get("x-forwarded-for");
-  if (xForwardedFor) {
-    return xForwardedFor.split(",")[0]?.trim() || "";
+function cleanIp(raw: string) {
+  let ip = raw.trim();
+
+  if (!ip) return "";
+
+  if (ip.includes(",")) {
+    ip = ip.split(",")[0]?.trim() || "";
   }
 
-  const xRealIp = req.headers.get("x-real-ip");
-  if (xRealIp) {
-    return xRealIp.trim();
+  if (ip.startsWith("::ffff:")) {
+    ip = ip.slice(7);
+  }
+
+  if (ip.startsWith("[") && ip.endsWith("]")) {
+    ip = ip.slice(1, -1);
+  }
+
+  const ipv4WithPort = ip.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/);
+  if (ipv4WithPort) {
+    ip = ipv4WithPort[1];
+  }
+
+  return ip;
+}
+
+function getClientIp(req: NextRequest) {
+  const candidates = [
+    req.headers.get("x-forwarded-for"),
+    req.headers.get("x-real-ip"),
+    req.headers.get("cf-connecting-ip"),
+  ];
+
+  for (const candidate of candidates) {
+    const ip = cleanIp(candidate || "");
+    if (ip && isIP(ip)) {
+      return ip;
+    }
   }
 
   return "";
@@ -47,6 +76,12 @@ export async function GET(req: NextRequest) {
           region: "uz",
           source: "fallback",
           error: `geo_http_${res.status}`,
+          debug: {
+            clientIp,
+            xForwardedFor: req.headers.get("x-forwarded-for") || "",
+            xRealIp: req.headers.get("x-real-ip") || "",
+            cfConnectingIp: req.headers.get("cf-connecting-ip") || "",
+          },
         },
         { status: 200 },
       );
@@ -61,6 +96,9 @@ export async function GET(req: NextRequest) {
         country,
         region,
         source: "country.is",
+        debug: {
+          clientIp,
+        },
       },
       { status: 200 },
     );
@@ -71,6 +109,12 @@ export async function GET(req: NextRequest) {
         region: "uz",
         source: "fallback",
         error: "geo_fetch_failed",
+        debug: {
+          clientIp,
+          xForwardedFor: req.headers.get("x-forwarded-for") || "",
+          xRealIp: req.headers.get("x-real-ip") || "",
+          cfConnectingIp: req.headers.get("cf-connecting-ip") || "",
+        },
       },
       { status: 200 },
     );
