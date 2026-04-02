@@ -10,6 +10,7 @@ import type {
 } from "@/app/lib/dealer/shop";
 import type { AddonDraftState } from "./product-modal.types";
 import QtyControl from "./QtyControl";
+import { getDisplayArticle } from "./order-utils";
 import { cn, formatMoney } from "./utils";
 
 type Props = {
@@ -80,8 +81,10 @@ export default function RecommendedQuickAddCard({
   const selectedColor =
     addonState.selectedColor || selectedVariant?.title || addon.color || "";
 
+  const displayArticle = getDisplayArticle(addon.article, selectedColor);
+
   const unitPrice =
-    selectedVariant?.priceDelta?.[country] ?? addon.price[country] ?? 0;
+    getVariantPrice(selectedVariant, country) || addon.price[country] || 0;
 
   const qty = Math.max(
     addon.minQuantity ?? 1,
@@ -128,7 +131,7 @@ export default function RecommendedQuickAddCard({
           </button>
 
           <div className="mt-1 text-[12px] text-black/45">
-            Артикул: {addon.article || "—"}
+            Артикул: {displayArticle || "—"}
           </div>
 
           <div className="mt-1 text-[12px] font-medium text-black">

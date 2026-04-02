@@ -16,6 +16,7 @@ import ImagePreviewModal from "./ImagePreviewModal";
 import QtyControl from "./QtyControl";
 import RecommendedQuickAddCard from "./RecommendedQuickAddCard";
 import RequiredStepRow from "./RequiredStepRow";
+import { getDisplayArticle } from "./order-utils";
 import { formatMoney, cn } from "./utils";
 
 type ProductModalProps = {
@@ -144,6 +145,10 @@ export default function ProductDetailsModal({
       : safeProduct?.image || "";
 
   const selectedColorLabel = selectedVariant?.title || safeProduct?.color || "";
+  const displayArticle = getDisplayArticle(
+    safeProduct?.article,
+    selectedColorLabel,
+  );
 
   const requiredItems = safeProduct?.requiredItems ?? [];
   const recommendedItems = safeProduct?.recommendedItems ?? [];
@@ -274,7 +279,7 @@ export default function ProductDetailsModal({
                           <div className="flex flex-wrap items-baseline gap-x-1.5">
                             <span className="text-black/45">Артикул:</span>
                             <span className="font-medium text-black">
-                              {safeProduct.article}
+                              {displayArticle}
                             </span>
                           </div>
 

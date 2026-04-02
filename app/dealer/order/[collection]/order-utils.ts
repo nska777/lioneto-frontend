@@ -56,6 +56,22 @@ export function generateOrderId() {
   return `order_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export function getDisplayArticle(
+  baseArticle?: string | null,
+  color?: string | null,
+) {
+  const article = String(baseArticle ?? "").trim();
+  const selectedColor = String(color ?? "").trim();
+
+  if (!article) return "";
+  if (!selectedColor) return article;
+
+  const normalizedColor =
+    selectedColor.charAt(0).toLowerCase() + selectedColor.slice(1);
+
+  return `${article} (${normalizedColor})`;
+}
+
 function sanitizeLoginForOrder(login?: string | null) {
   const safe = String(login ?? "")
     .trim()
