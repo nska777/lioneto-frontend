@@ -65,19 +65,15 @@ export function RegionLangProvider({
   const [lang, setLangState] = useState<Lang>("ru");
 
   useEffect(() => {
-    const r = getCookie("region");
     const l = getCookie("lang");
     const manual = getCookie("region_manual");
+    const savedRegion = getCookie("region");
 
     setLangState(isLang(l) ? l : "ru");
 
     if (manual === "1") {
-      setRegionState(isRegion(r) ? r : "uz");
+      setRegionState(isRegion(savedRegion) ? savedRegion : "uz");
       return;
-    }
-
-    if (isRegion(r)) {
-      setRegionState(r);
     }
 
     let cancelled = false;
@@ -86,7 +82,9 @@ export function RegionLangProvider({
       const detected = await detectRegion();
       if (cancelled) return;
 
-      const next: Region = detected ?? (isRegion(r) ? r : "uz");
+      const next: Region =
+        detected ?? (isRegion(savedRegion) ? savedRegion : "uz");
+
       setRegionState(next);
       setCookie("region", next);
     })();
