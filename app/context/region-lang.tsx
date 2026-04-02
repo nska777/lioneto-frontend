@@ -8,8 +8,8 @@ import React, {
   useState,
 } from "react";
 
-type Region = "uz" | "ru"; // Узбекистан / Россия
-type Lang = "ru" | "uz"; // язык интерфейса
+type Region = "uz" | "ru";
+type Lang = "ru" | "uz";
 
 type Ctx = {
   region: Region;
@@ -36,6 +36,7 @@ function setCookie(name: string, value: string, days = 365) {
 function isRegion(v: string | null): v is Region {
   return v === "ru" || v === "uz";
 }
+
 function isLang(v: string | null): v is Lang {
   return v === "ru" || v === "uz";
 }
@@ -68,28 +69,24 @@ export function RegionLangProvider({
     const l = getCookie("lang");
     const manual = getCookie("region_manual");
 
-    // Язык
     setLangState(isLang(l) ? l : "ru");
 
-    // Если юзер выбирал руками — закрепляем его выбор
     if (manual === "1") {
       setRegionState(isRegion(r) ? r : "uz");
       return;
     }
 
-    // Если регион уже есть в cookie — применяем и не дергаем авто
     if (isRegion(r)) {
       setRegionState(r);
-      return;
     }
 
-    // Иначе: авто-определение по Cloudflare (RU => ru, иначе uz)
     let cancelled = false;
+
     (async () => {
       const detected = await detectRegionFromCloudflare();
       if (cancelled) return;
 
-      const next: Region = detected ?? "uz";
+      const next: Region = detected ?? (isRegion(r) ? r : "uz");
       setRegionState(next);
       setCookie("region", next);
     })();
@@ -102,7 +99,7 @@ export function RegionLangProvider({
   const setRegion = (r: Region) => {
     setRegionState(r);
     setCookie("region", r);
-    setCookie("region_manual", "1"); // ручной выбор — приоритет
+    setCookie("region_manual", "1");
   };
 
   const setLang = (l: Lang) => {
@@ -124,7 +121,8 @@ export function RegionLangProvider({
 
 export function useRegionLang() {
   const ctx = useContext(RegionLangContext);
-  if (!ctx)
+  if (!ctx) {
     throw new Error("useRegionLang must be used within RegionLangProvider");
+  }
   return ctx;
 }

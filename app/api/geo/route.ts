@@ -1,42 +1,78 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-function normalizeCountry(v: string | null): string {
-  return (v || "").trim().toUpperCase();
+type Region = "ru" | "uz";
+
+function normalizeCountry(value: string | null | undefined) {
+  return (value || "").trim().toUpperCase();
 }
 
-function resolveCountry(req: Request) {
-  const cfCountry = normalizeCountry(req.headers.get("cf-ipcountry"));
-  const vercelCountry = normalizeCountry(
-    req.headers.get("x-vercel-ip-country")
-  );
-  const forwardedCountry = normalizeCountry(req.headers.get("x-country-code"));
-
-  const country = cfCountry || vercelCountry || forwardedCountry || "";
-
-  return {
-    country,
-    cfCountry,
-    vercelCountry,
-    forwardedCountry,
-  };
+function mapCountryToRegion(country: string): Region {
+  return country === "RU" ? "ru" : "uz";
 }
 
-export async function GET(req: Request) {
-  const { country, cfCountry, vercelCountry, forwardedCountry } =
-    resolveCountry(req);
+function getClientIp(req: NextRequest) {
+  const xForwardedFor = req.headers.get("x-forwarded-for");
+  if (xForwardedFor) {
+    return xForwardedFor.split(",")[0]?.trim() || "";
+  }
 
-  const region = country === "RU" ? "ru" : "uz";
+  const xRealIp = req.headers.get("x-real-ip");
+  if (xRealIp) {
+    return xRealIp.trim();
+  }
 
-  return NextResponse.json(
-    {
-      country,
-      region,
-      debug: {
-        cfCountry,
-        vercelCountry,
-        forwardedCountry,
+  return "";
+}
+
+export async function GET(req: NextRequest) {
+  const clientIp = getClientIp(req);
+
+  try {
+    const url = clientIp
+      ? `https://api.country.is/${encodeURIComponent(clientIp)}`
+      : "https://api.country.is/";
+
+    const res = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
       },
-    },
-    { status: 200 }
-  );
+    });
+
+    if (!res.ok) {
+      return NextResponse.json(
+        {
+          country: "",
+          region: "uz",
+          source: "fallback",
+          error: `geo_http_${res.status}`,
+        },
+        { status: 200 },
+      );
+    }
+
+    const data = (await res.json()) as { country?: string };
+    const country = normalizeCountry(data?.country);
+    const region = mapCountryToRegion(country);
+
+    return NextResponse.json(
+      {
+        country,
+        region,
+        source: "country.is",
+      },
+      { status: 200 },
+    );
+  } catch {
+    return NextResponse.json(
+      {
+        country: "",
+        region: "uz",
+        source: "fallback",
+        error: "geo_fetch_failed",
+      },
+      { status: 200 },
+    );
+  }
 }
