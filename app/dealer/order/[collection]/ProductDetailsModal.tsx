@@ -145,8 +145,10 @@ export default function ProductDetailsModal({
       : safeProduct?.image || "";
 
   const selectedColorLabel = selectedVariant?.title || safeProduct?.color || "";
+
   const displayArticle = getDisplayArticle(
     safeProduct?.article,
+    safeProduct?.articleShort,
     selectedColorLabel,
   );
 

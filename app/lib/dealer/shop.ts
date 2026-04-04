@@ -46,6 +46,7 @@ export type DealerAddon = {
   id: string;
   title: string;
   article?: string;
+  articleShort?: string;
   description?: string;
   image?: string;
   kind: DealerAddonKind;
@@ -65,6 +66,7 @@ export type DealerProduct = {
   category: DealerCategory;
   title: string;
   article: string;
+  articleShort?: string;
   image: string;
   description: string;
   price: DealerProductPriceMap;
@@ -122,6 +124,7 @@ type StrapiProduct = {
   documentId?: string;
   title?: string;
   article?: string;
+  articleShort?: string;
   slug?: string;
   description?: string;
   color?: string;
@@ -226,7 +229,9 @@ function mapPrices(product?: StrapiProduct | null): DealerProductPriceMap {
   };
 }
 
-function mapVariantPrices(variant?: StrapiVariant | null): DealerProductPriceMap {
+function mapVariantPrices(
+  variant?: StrapiVariant | null,
+): DealerProductPriceMap {
   return {
     RU: Number(variant?.priceDeltaRUB ?? 0),
     UZ: Number(variant?.priceDeltaUZS ?? 0),
@@ -288,6 +293,7 @@ function normalizeAddon(
     id: String(addonProduct.documentId ?? addonProduct.id ?? ""),
     title: addonProduct.title ?? "",
     article: addonProduct.article ?? "",
+    articleShort: addonProduct.articleShort ?? "",
     description: addonProduct.description ?? "",
     image: extractMediaUrl(addonProduct.image),
     kind,
@@ -316,6 +322,7 @@ function normalizeProductBase(raw: StrapiProduct): DealerProduct {
     category: normalizeCategory(raw.category),
     title: raw.title ?? "",
     article: raw.article ?? "",
+    articleShort: raw.articleShort ?? "",
     image: extractMediaUrl(raw.image),
     description: raw.description ?? "",
     price: mapPrices(raw),
@@ -426,8 +433,6 @@ export async function getDealerCollectionPageData(
   productsParams.set("populate[2]", "collection");
   productsParams.set("populate[3]", "variants");
   productsParams.set("populate[4]", "variants.media");
-
-
   productsParams.set("pagination[pageSize]", "1000");
 
   const [collectionsJson, productsJson] = await Promise.all([

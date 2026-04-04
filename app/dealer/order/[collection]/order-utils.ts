@@ -57,19 +57,22 @@ export function generateOrderId() {
 }
 
 export function getDisplayArticle(
-  baseArticle?: string | null,
+  fullArticle?: string | null,
+  shortArticle?: string | null,
   color?: string | null,
 ) {
-  const article = String(baseArticle ?? "").trim();
+  const baseShort = String(shortArticle ?? "").trim();
+  const baseFull = String(fullArticle ?? "").trim();
+  const baseArticle = baseShort || baseFull;
   const selectedColor = String(color ?? "").trim();
 
-  if (!article) return "";
-  if (!selectedColor) return article;
+  if (!baseArticle) return "";
+  if (!selectedColor) return baseArticle;
 
   const normalizedColor =
     selectedColor.charAt(0).toLowerCase() + selectedColor.slice(1);
 
-  return `${article} (${normalizedColor})`;
+  return `${baseArticle} (${normalizedColor})`;
 }
 
 function sanitizeLoginForOrder(login?: string | null) {
@@ -191,6 +194,7 @@ export function buildVisibleItems(
     collectionSlug: item.collectionSlug,
     title: item.title,
     article: item.article,
+    articleShort: item.articleShort,
     color: item.color,
     size: item.size,
     quantity: item.quantity,
@@ -212,6 +216,7 @@ export function buildInternalItems(
     collectionSlug: item.collectionSlug,
     title: item.title,
     article: item.article,
+    articleShort: item.articleShort,
     color: item.color,
     size: item.size,
     quantity: item.quantity,
@@ -253,6 +258,36 @@ function openPrintWindow(html: string) {
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+}
+
+function getDocumentArticles(items: CartEntry[]) {
+  const productItems = items.filter(
+    (item): item is Extract<CartEntry, { kind: "product" }> =>
+      item.kind === "product",
+  );
+
+  const sourceItems = productItems.length > 0 ? productItems : items;
+
+  const shortValues = Array.from(
+    new Set(
+      sourceItems
+        .map((item) => String(item.articleShort ?? "").trim() || String(item.article ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  const fullValues = Array.from(
+    new Set(
+      sourceItems
+        .map((item) => String(item.article ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  return {
+    shortArticle: shortValues.length > 0 ? shortValues.join(" / ") : "-",
+    fullArticle: fullValues.length > 0 ? fullValues.join(" / ") : "-",
+  };
 }
 
 function getBasePrintStyles() {
@@ -884,6 +919,8 @@ function buildClientPrintHtml(params: {
     country,
   } = params;
 
+  const { shortArticle, fullArticle } = getDocumentArticles(items);
+
   return `
     <html>
       <head>
@@ -909,6 +946,16 @@ function buildClientPrintHtml(params: {
           </div>
 
           <div class="meta-grid">
+            <div class="meta-card">
+              <div class="meta-label">Сокр. артикул</div>
+              <div class="meta-value">${escapeHtml(shortArticle)}</div>
+            </div>
+
+            <div class="meta-card">
+              <div class="meta-label">Полный артикул</div>
+              <div class="meta-value">${escapeHtml(fullArticle)}</div>
+            </div>
+
             <div class="meta-card">
               <div class="meta-label">Коллекция</div>
               <div class="meta-value">${escapeHtml(collectionTitle)}</div>
@@ -1011,6 +1058,7 @@ function buildInternalPrintHtml(params: {
   } = params;
 
   const hasItemMarkup = items.some((item) => item.markupPercent > 0);
+  const { shortArticle, fullArticle } = getDocumentArticles(items);
 
   return `
     <html>
@@ -1037,6 +1085,16 @@ function buildInternalPrintHtml(params: {
           </div>
 
           <div class="meta-grid">
+            <div class="meta-card">
+              <div class="meta-label">Сокр. артикул</div>
+              <div class="meta-value">${escapeHtml(shortArticle)}</div>
+            </div>
+
+            <div class="meta-card">
+              <div class="meta-label">Полный артикул</div>
+              <div class="meta-value">${escapeHtml(fullArticle)}</div>
+            </div>
+
             <div class="meta-card">
               <div class="meta-label">Коллекция</div>
               <div class="meta-value">${escapeHtml(collectionTitle)}</div>
@@ -1196,6 +1254,7 @@ export function openSavedOrderPrintWindow(
             collectionSlug: item.collectionSlug,
             title: item.title,
             article: item.article,
+            articleShort: item.articleShort,
             color: item.color,
             size: item.size,
             quantity: item.quantity,
@@ -1217,6 +1276,7 @@ export function openSavedOrderPrintWindow(
           collectionSlug: item.collectionSlug,
           title: item.title,
           article: item.article,
+          articleShort: item.articleShort,
           color: item.color,
           size: item.size,
           quantity: item.quantity,
@@ -1236,6 +1296,7 @@ export function openSavedOrderPrintWindow(
             collectionSlug: item.collectionSlug,
             title: item.title,
             article: item.article,
+            articleShort: item.articleShort,
             color: item.color,
             size: item.size,
             quantity: item.quantity,
@@ -1257,6 +1318,7 @@ export function openSavedOrderPrintWindow(
           collectionSlug: item.collectionSlug,
           title: item.title,
           article: item.article,
+          articleShort: item.articleShort,
           color: item.color,
           size: item.size,
           quantity: item.quantity,

@@ -22,6 +22,7 @@ export type CartEntry =
       collectionSlug: string;
       title: string;
       article: string;
+      articleShort?: string;
       color?: string;
       size?: string;
       quantity: number;
@@ -42,6 +43,7 @@ export type CartEntry =
       collectionSlug: string;
       title: string;
       article: string;
+      articleShort?: string;
       color?: string;
       size?: string;
       quantity: number;
@@ -61,6 +63,7 @@ export type DealerOrderVisibleItem = {
   collectionSlug: string;
   title: string;
   article: string;
+  articleShort?: string;
   color?: string;
   size?: string;
   quantity: number;
@@ -77,6 +80,7 @@ export type DealerOrderInternalItem = {
   collectionSlug: string;
   title: string;
   article: string;
+  articleShort?: string;
   color?: string;
   size?: string;
   quantity: number;

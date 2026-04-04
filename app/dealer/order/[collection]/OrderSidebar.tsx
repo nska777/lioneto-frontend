@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Printer, ShoppingCart, Trash2, X } from "lucide-react";
 
 import type { CartEntry } from "./types";
+import { getDisplayArticle } from "./order-utils";
 import { formatMoney } from "./utils";
 
 type Props = {
@@ -149,7 +150,7 @@ function LineRow({
           </div>
 
           <div className="mt-1 break-words text-[11px] text-black/45 sm:text-[12px]">
-            {item.article}
+            {getDisplayArticle(item.article, item.articleShort, item.color)}
           </div>
 
           {item.color ? (

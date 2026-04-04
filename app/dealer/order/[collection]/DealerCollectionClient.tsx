@@ -22,7 +22,6 @@ import {
   getAddonCartId,
   getDefaultAddonDraft,
   getDefaultDraft,
-  getDisplayArticle,
   getProductColor,
   openCartPrintWindow,
   resetDraftOrderNumber,
@@ -502,18 +501,14 @@ export default function DealerCollectionClient({
           selectedVariant?.title ||
           getProductColor(product);
 
-        const displayArticle = getDisplayArticle(
-          product.article,
-          selectedColor,
-        );
-
         return {
           kind: "product" as const,
           id: productId,
           productId,
           collectionSlug: product.collectionSlug,
           title: product.title,
-          article: displayArticle,
+          article: product.article ?? "",
+          articleShort: product.articleShort ?? "",
           color: selectedColor,
           size: product.size,
           quantity: draft.quantity,
@@ -572,10 +567,10 @@ export default function DealerCollectionClient({
 
         const baseAddonArticle =
           addon.article ?? `${product.article} / ${addon.id}`;
-        const displayAddonArticle = getDisplayArticle(
-          baseAddonArticle,
-          selectedColor,
-        );
+        const baseAddonArticleShort =
+          addon.articleShort ??
+          addon.article ??
+          `${product.article} / ${addon.id}`;
 
         items.push({
           kind: "addon",
@@ -587,7 +582,8 @@ export default function DealerCollectionClient({
           parentProductTitle: product.title,
           collectionSlug: product.collectionSlug,
           title: addon.title,
-          article: displayAddonArticle,
+          article: baseAddonArticle,
+          articleShort: baseAddonArticleShort,
           color: selectedColor,
           size: addon.size,
           quantity,

@@ -3,8 +3,9 @@
 import Image from "next/image";
 import { Minus, Plus } from "lucide-react";
 
-import type { DealerCountryCode, DealerProduct } from "../data";
+import type { DealerCountryCode, DealerProduct } from "@/app/lib/dealer/shop";
 import type { ProductDraft } from "./types";
+import { getDisplayArticle } from "./order-utils";
 import { cn, formatMoney } from "./utils";
 
 type ProductRowProps = {
@@ -31,6 +32,12 @@ export default function ProductRow({
   const basePrice = product.price[country];
   const hasRequiredKit = (product.requiredItems?.length ?? 0) > 0;
   const hasRecommendedKit = (product.recommendedItems?.length ?? 0) > 0;
+
+  const displayArticle = getDisplayArticle(
+    product.article,
+    product.articleShort,
+    draft.selectedColor || product.color || "",
+  );
 
   return (
     <div className="rounded-[18px] border border-black/10 bg-white px-3 py-3 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] sm:rounded-[20px] sm:px-4">
@@ -78,7 +85,7 @@ export default function ProductRow({
                 Артикул
               </div>
               <div className="break-words text-[13px] text-black/60 sm:text-[14px]">
-                {product.article}
+                {displayArticle}
               </div>
             </div>
           </div>
