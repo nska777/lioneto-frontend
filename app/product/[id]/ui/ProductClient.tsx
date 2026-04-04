@@ -12,6 +12,7 @@ import {
   Check,
   ArrowUpRight,
   X,
+  Download,
 } from "lucide-react";
 
 import { useRegionLang } from "@/app/context/region-lang";
@@ -71,6 +72,11 @@ export type ProductPageModel = {
     color?: string;
     material?: string;
   };
+  assemblyInstructionTitle?: string;
+  assemblyInstructionFile?: {
+    url: string;
+    name?: string;
+  } | null;
   related?: Array<{
     id: string;
     title: string;
@@ -875,6 +881,28 @@ export default function ProductClient({
               <Row label="Размер" value={product.extra?.size || "—"} />
               <Row label="Цвет" value={displayColor} />
               <Row label="Материал" value={product.extra?.material || "—"} />
+
+              {product.assemblyInstructionFile?.url ? (
+                <Row
+                  label="Инструкция"
+                  value={
+                    <a
+                      href={`/api/download-instruction?url=${encodeURIComponent(
+                        product.assemblyInstructionFile.url,
+                      )}&name=${encodeURIComponent(
+                        product.assemblyInstructionFile.name ||
+                          "instruction.pdf",
+                      )}`}
+                      className="inline-flex items-center gap-2 text-black underline underline-offset-4 hover:text-black/70"
+                    >
+                      <Download className="h-4 w-4" />
+                      {product.assemblyInstructionTitle?.trim() ||
+                        product.assemblyInstructionFile.name?.trim() ||
+                        "Скачать PDF"}
+                    </a>
+                  }
+                />
+              ) : null}
             </div>
           </section>
         </div>
@@ -910,7 +938,7 @@ export default function ProductClient({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
       <div className="w-[120px] shrink-0 text-black/45">{label}</div>

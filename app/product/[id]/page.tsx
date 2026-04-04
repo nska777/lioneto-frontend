@@ -42,6 +42,9 @@ type StrapiProduct = {
   sizeText?: string | null;
   colorText?: string | null;
   materialText?: string | null;
+
+  assemblyInstructionTitle?: string | null;
+  assemblyInstructionFile?: unknown;
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -79,6 +82,23 @@ function pickStrapiMediaUrl(m: unknown): string | undefined {
     (typeof a.url === "string" ? a.url : "");
 
   return url ? resolveStrapiImage(String(url)) : undefined;
+}
+
+function pickStrapiMediaName(m: unknown): string | undefined {
+  if (!m) return undefined;
+  const rec = isRecord(m) ? m : null;
+  const data = rec && isRecord(rec.data) ? rec.data : null;
+  const attrs =
+    (data && isRecord(data.attributes) ? data.attributes : null) ??
+    (rec && isRecord(rec.attributes) ? rec.attributes : null) ??
+    rec;
+
+  const a = isRecord(attrs) ? attrs : null;
+  if (!a) return undefined;
+
+  return typeof a.name === "string" && a.name.trim()
+    ? a.name.trim()
+    : undefined;
 }
 
 function pickStrapiGalleryUrls(g: unknown): string[] {
@@ -191,7 +211,8 @@ async function fetchStrapiProductBySlug(
     `&populate[0]=media` +
     `&populate[1]=gallery` +
     `&populate[2]=variants` +
-    `&populate[3]=variants.image`;
+    `&populate[3]=variants.image` +
+    `&populate[4]=assemblyInstructionFile`;
 
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -249,6 +270,12 @@ async function fetchStrapiProductBySlug(
       colorText: typeof src.colorText === "string" ? src.colorText : null,
       materialText:
         typeof src.materialText === "string" ? src.materialText : null,
+
+      assemblyInstructionTitle:
+        typeof src.assemblyInstructionTitle === "string"
+          ? src.assemblyInstructionTitle
+          : null,
+      assemblyInstructionFile: src.assemblyInstructionFile ?? null,
     };
   } catch {
     return null;
@@ -430,6 +457,11 @@ export default async function ProductPage({
   const colorVal = String(sp.color ?? sp.colorText ?? "").trim();
   const materialVal = String(sp.material ?? sp.materialText ?? "").trim();
 
+  const assemblyInstructionUrl = pickStrapiMediaUrl(sp.assemblyInstructionFile);
+  const assemblyInstructionName = pickStrapiMediaName(
+    sp.assemblyInstructionFile,
+  );
+
   const product = {
     id: slug,
     productId: slug,
@@ -452,6 +484,14 @@ export default async function ProductPage({
     sizeText: sizeVal || null,
     colorText: colorVal || null,
     materialText: materialVal || null,
+
+    assemblyInstructionTitle: sp.assemblyInstructionTitle?.trim() || "",
+    assemblyInstructionFile: assemblyInstructionUrl
+      ? {
+          url: assemblyInstructionUrl,
+          name: assemblyInstructionName || "instruction.pdf",
+        }
+      : null,
 
     image: image || "",
     gallery: (galleryFinal.length ? galleryFinal : ["/placeholder.png"]).filter(
