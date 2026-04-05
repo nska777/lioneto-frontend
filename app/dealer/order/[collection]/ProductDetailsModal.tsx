@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AlertCircle, PackageCheck, X, ZoomIn } from "lucide-react";
+import { AlertCircle, Download, PackageCheck, X, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import type {
@@ -51,6 +51,32 @@ function getVariantPrice(
   country: DealerCountryCode,
 ): number {
   return variant?.priceDelta?.[country] ?? 0;
+}
+
+function getInstructionLabel(product: DealerProduct | null): string {
+  const title = product?.assemblyInstructionTitle?.trim();
+  if (title) return title;
+
+  const fileName = product?.assemblyInstructionFile?.name?.trim();
+  if (fileName) return fileName;
+
+  return "Скачать PDF";
+}
+
+function getInstructionDownloadHref(product: DealerProduct | null): string {
+  const rawUrl = product?.assemblyInstructionFile?.url?.trim();
+  if (!rawUrl) return "";
+
+  const fileName =
+    product?.assemblyInstructionFile?.name?.trim() ||
+    `${product?.title || "assembly-instruction"}.pdf`;
+
+  const params = new URLSearchParams({
+    url: rawUrl,
+    name: fileName,
+  });
+
+  return `/api/dealer/download?${params.toString()}`;
 }
 
 export default function ProductDetailsModal({
@@ -175,6 +201,9 @@ export default function ProductDetailsModal({
 
   const effectivePrice = selectedVariant ? variantPrice : basePrice;
   const mainTotal = effectivePrice * (safeDraft?.quantity ?? 1);
+
+  const instructionHref = getInstructionDownloadHref(safeProduct);
+  const instructionLabel = getInstructionLabel(safeProduct);
 
   const requiredProgress = useMemo(() => {
     if (!finalRequiredItems.length) {
@@ -309,6 +338,19 @@ export default function ProductDetailsModal({
                               <span className="font-medium text-black">
                                 {safeProduct.material}
                               </span>
+                            </div>
+                          ) : null}
+
+                          {instructionHref ? (
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                              <span className="text-black/45">Инструкция:</span>
+                              <a
+                                href={instructionHref}
+                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-black/10 bg-[#f7f5f0] px-3 py-1.5 font-medium text-black transition hover:border-black/20 hover:bg-[#f1eee8]"
+                              >
+                                <Download className="h-4 w-4 shrink-0" />
+                                <span>{instructionLabel}</span>
+                              </a>
                             </div>
                           ) : null}
                         </div>

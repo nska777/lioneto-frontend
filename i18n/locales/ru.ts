@@ -50,7 +50,7 @@ const ru = {
     salvador: "SALVADOR",
     pitti: "PITTI",
     pitti_alt: "PITTI",
-    buongiorno: "BOUNGIORNO",
+    buongiorno: "BUONGIORNO",
   },
 
   mega: {

@@ -42,6 +42,11 @@ export type DealerProductVariant = {
   priceDelta: DealerProductPriceMap;
 };
 
+export type DealerFileAsset = {
+  url: string;
+  name?: string;
+};
+
 export type DealerAddon = {
   id: string;
   title: string;
@@ -73,6 +78,8 @@ export type DealerProduct = {
   color?: string;
   size?: string;
   material?: string;
+  assemblyInstructionTitle?: string;
+  assemblyInstructionFile?: DealerFileAsset | null;
   variants?: DealerProductVariant[];
   requiredItems?: DealerAddon[];
   recommendedItems?: DealerAddon[];
@@ -86,6 +93,7 @@ type StrapiMediaFormat = {
 type StrapiMedia = {
   id?: number;
   url?: string;
+  name?: string;
   formats?: Record<string, StrapiMediaFormat>;
 };
 
@@ -130,6 +138,8 @@ type StrapiProduct = {
   color?: string;
   size?: string;
   material?: string;
+  assemblyInstructionTitle?: string;
+  assemblyInstructionFile?: StrapiMediaField;
   image?: StrapiMediaField;
   gallery?: StrapiMediaField;
   category?: string;
@@ -179,6 +189,12 @@ function toAbsoluteUrl(url?: string | null) {
   return `${STRAPI_URL}${url}`;
 }
 
+function toAbsoluteOptionalUrl(url?: string | null) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${STRAPI_URL}${url}`;
+}
+
 function unwrapRelation<T>(
   value?: T | { data?: T | null } | null,
 ): T | null {
@@ -201,6 +217,16 @@ function extractMediaUrl(media?: StrapiMediaField) {
     actual.url;
 
   return toAbsoluteUrl(preferred);
+}
+
+function extractMediaFile(media?: StrapiMediaField): DealerFileAsset | null {
+  const actual = unwrapRelation(media);
+  if (!actual?.url) return null;
+
+  return {
+    url: toAbsoluteOptionalUrl(actual.url),
+    name: actual.name ?? "",
+  };
 }
 
 function normalizeCategory(value?: string | null): DealerCategory {
@@ -329,6 +355,8 @@ function normalizeProductBase(raw: StrapiProduct): DealerProduct {
     color: raw.color ?? "",
     size: raw.size ?? "",
     material: raw.material ?? "",
+    assemblyInstructionTitle: raw.assemblyInstructionTitle ?? "",
+    assemblyInstructionFile: extractMediaFile(raw.assemblyInstructionFile),
     variants,
     requiredItems: [],
     recommendedItems: [],
@@ -433,6 +461,7 @@ export async function getDealerCollectionPageData(
   productsParams.set("populate[2]", "collection");
   productsParams.set("populate[3]", "variants");
   productsParams.set("populate[4]", "variants.media");
+  productsParams.set("populate[5]", "assemblyInstructionFile");
   productsParams.set("pagination[pageSize]", "1000");
 
   const [collectionsJson, productsJson] = await Promise.all([
