@@ -489,7 +489,7 @@ export default function TrainingClient({
       : null;
 
   const [openKey, setOpenKey] = useState<TrainingSectionKey | null>(
-    deepLinkSlug ? "knowledge" : "presentations",
+    deepLinkSlug ? "knowledge" : null,
   );
   const [q, setQ] = useState("");
   const [videoModal, setVideoModal] = useState<VideoModalState>(null);
