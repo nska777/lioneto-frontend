@@ -325,7 +325,7 @@ function normalizeAddon(
     kind,
     selectionType: "quantity",
     defaultQuantity: Math.max(1, Number(relation.defaultQty ?? 1)),
-    minQuantity: kind === "required" ? 1 : 1,
+    minQuantity: 1,
     price: mapPrices(addonProduct),
     color: addonProduct.color ?? "",
     size: addonProduct.size ?? "",
@@ -451,11 +451,34 @@ export async function getDealerCollectionPageData(
   collectionsParams.set("populate", "*");
   collectionsParams.set("pagination[pageSize]", "100");
 
+  const collectionsJson = await strapiFetch<{ data?: StrapiCollection[] }>(
+    `/api/dealer-collections?${collectionsParams.toString()}`,
+  );
+
+  const rawCollections = Array.isArray(collectionsJson?.data)
+    ? collectionsJson.data
+    : [];
+
+  const currentRawCollection =
+    rawCollections.find((item) => item.slug === collectionSlug) ?? null;
+
+  const baseCollections = rawCollections.map((item) => normalizeCollection(item));
+  const currentCollection =
+    baseCollections.find((item) => item.slug === collectionSlug) ?? null;
+
+  if (!currentRawCollection || !currentCollection) {
+    return {
+      collections: baseCollections,
+      collection: null,
+      products: [],
+    };
+  }
+
   const productsParams = new URLSearchParams();
   productsParams.set("filters[isActive][$eq]", "true");
+  productsParams.set("filters[collection][slug][$eq]", collectionSlug);
   productsParams.set("sort[0]", "sortOrder:asc");
   productsParams.set("sort[1]", "title:asc");
-
   productsParams.set("populate[0]", "image");
   productsParams.set("populate[1]", "gallery");
   productsParams.set("populate[2]", "collection");
@@ -464,22 +487,11 @@ export async function getDealerCollectionPageData(
   productsParams.set("populate[5]", "assemblyInstructionFile");
   productsParams.set("pagination[pageSize]", "1000");
 
-  const [collectionsJson, productsJson] = await Promise.all([
-    strapiFetch<{ data?: StrapiCollection[] }>(
-      `/api/dealer-collections?${collectionsParams.toString()}`,
-    ),
-    strapiFetch<{ data?: StrapiProduct[] }>(
-      `/api/dealer-products?${productsParams.toString()}`,
-    ),
-  ]);
+  const productsJson = await strapiFetch<{ data?: StrapiProduct[] }>(
+    `/api/dealer-products?${productsParams.toString()}`,
+  );
 
-  const rawCollections = Array.isArray(collectionsJson?.data)
-    ? collectionsJson.data
-    : [];
-
-  const rawProducts = Array.isArray(productsJson?.data)
-    ? productsJson.data
-    : [];
+  const rawProducts = Array.isArray(productsJson?.data) ? productsJson.data : [];
 
   const productById = new Map<string, StrapiProduct>();
   rawProducts.forEach((item) => {
@@ -496,9 +508,7 @@ export async function getDealerCollectionPageData(
     return (raw.category ?? "").toLowerCase() !== "addon";
   });
 
-  const parentIds = rawProducts
-    .map((item) => String(item.documentId ?? item.id ?? ""))
-    .filter(Boolean);
+  const parentIds = visibleProducts.map((item) => item.id).filter(Boolean);
 
   let addonRelations: StrapiAddonRelation[] = [];
 
@@ -508,6 +518,9 @@ export async function getDealerCollectionPageData(
     addonParams.set("sort[0]", "sortOrder:asc");
     addonParams.set("populate[0]", "parentProduct");
     addonParams.set("populate[1]", "addonProduct");
+    addonParams.set("populate[2]", "addonProduct.image");
+    addonParams.set("populate[3]", "addonProduct.variants");
+    addonParams.set("populate[4]", "addonProduct.variants.media");
     addonParams.set("pagination[pageSize]", "1000");
 
     parentIds.forEach((id, index) => {
@@ -523,6 +536,14 @@ export async function getDealerCollectionPageData(
 
     addonRelations = Array.isArray(addonJson?.data) ? addonJson.data : [];
   }
+
+  addonRelations.forEach((relation) => {
+    const addonProduct = unwrapRelation(relation.addonProduct);
+    const addonId = String(addonProduct?.documentId ?? addonProduct?.id ?? "");
+    if (addonId && addonProduct && !productById.has(addonId)) {
+      productById.set(addonId, addonProduct);
+    }
+  });
 
   const relationsByParent = new Map<string, StrapiAddonRelation[]>();
 
@@ -541,18 +562,19 @@ export async function getDealerCollectionPageData(
   );
 
   const finalCollections = rawCollections.map((item) => {
-    const productsForCollection = finalProducts.filter(
-      (product) => product.collectionSlug === item.slug,
-    );
-    return normalizeCollection(item, productsForCollection);
+    if (item.slug !== collectionSlug) {
+      return normalizeCollection(item);
+    }
+
+    return normalizeCollection(item, finalProducts);
   });
 
-  const currentCollection =
+  const finalCurrentCollection =
     finalCollections.find((item) => item.slug === collectionSlug) ?? null;
 
   return {
     collections: finalCollections,
-    collection: currentCollection,
+    collection: finalCurrentCollection,
     products: finalProducts,
   };
 }
