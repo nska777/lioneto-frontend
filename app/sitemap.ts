@@ -108,45 +108,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const seoCollectionRoutes: MetadataRoute.Sitemap = [
-    {
-      url: `${BASE_URL}/catalog?menu=bedrooms&collections=amber&hero=1`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/catalog?menu=living&collections=scandi&hero=1`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/catalog?menu=bedrooms&collections=elizabeth&hero=1`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/catalog?menu=bedrooms&collections=salvador&hero=1`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/catalog?menu=bedrooms&collections=pitti&hero=1`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/catalog?menu=bedrooms&collections=buongiorno&hero=1`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-  ];
-
   const [news, products] = await Promise.all([
     fetchNews(),
     fetchProductsForSitemap(),
@@ -197,7 +158,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticRoutes,
-    ...seoCollectionRoutes,
     ...newsRoutes,
     ...productRoutes,
     ...catalogCollectionRoutes,
