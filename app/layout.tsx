@@ -27,30 +27,29 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: "Lioneto — премиальная мебель для современных интерьеров",
+    default: "Мебель в Ташкенте — премиальная мебель Lioneto",
     template: "%s | Lioneto",
   },
 
   description:
-    "Lioneto — премиальная мебель для современных интерьеров. Коллекции для спальни, гостиной и других пространств. Каталог, новости, сотрудничество для дилеров, дизайнеров и B2B.",
+    "Lioneto — премиальная мебель в Ташкенте для современных интерьеров. Спальни, кровати, шкафы и интерьерные коллекции для дома. Каталог, новости, контакты и сотрудничество для дилеров, дизайнеров и B2B.",
 
   keywords: [
     "Lioneto",
-    "премиальная мебель",
-    "мебель Lioneto",
-    "мебель для спальни",
-    "мебель для гостиной",
-    "современная мебель",
-    "элитная мебель",
-    "дизайнерская мебель",
-    "мебель для интерьера",
+    "мебель в Ташкенте",
     "мебель Ташкент",
     "премиальная мебель Ташкент",
+    "элитная мебель Ташкент",
+    "спальни в Ташкенте",
+    "кровати в Ташкенте",
+    "шкафы в Ташкенте",
+    "мебель для спальни Ташкент",
+    "современная мебель Ташкент",
+    "дизайнерская мебель Ташкент",
     "мебель Узбекистан",
-    "коллекции мебели",
-    "мебель для дилеров",
-    "мебель для дизайнеров",
-    "B2B мебель",
+    "премиальная мебель",
+    "мебель для дома",
+    "мебельный магазин Ташкент",
   ],
 
   applicationName: SITE_NAME,
@@ -63,25 +62,25 @@ export const metadata: Metadata = {
     type: "website",
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: "Lioneto — премиальная мебель для современных интерьеров",
+    title: "Мебель в Ташкенте — премиальная мебель Lioneto",
     description:
-      "Коллекции премиальной мебели Lioneto: спальни, гостиные и интерьерные решения. Каталог, новости и сотрудничество для дилеров, дизайнеров и B2B.",
+      "Lioneto — премиальная мебель в Ташкенте: спальни, кровати, шкафы и интерьерные решения для современного дома.",
     locale: "ru_RU",
     images: [
       {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "Lioneto — премиальная мебель",
+        alt: "Lioneto — премиальная мебель в Ташкенте",
       },
     ],
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "Lioneto — премиальная мебель для современных интерьеров",
+    title: "Мебель в Ташкенте — премиальная мебель Lioneto",
     description:
-      "Коллекции премиальной мебели Lioneto: каталог, новости и сотрудничество.",
+      "Премиальная мебель Lioneto в Ташкенте: спальни, кровати, шкафы и интерьерные коллекции.",
     images: ["/og-image.jpg"],
   },
 
@@ -108,8 +107,8 @@ const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "Lioneto",
-  url: "https://lioneto.com",
-  logo: "https://lioneto.com/icon.png",
+  url: SITE_URL,
+  logo: `${SITE_URL}/icon.png`,
   brand: "Lioneto",
   sameAs: [],
 };
@@ -118,8 +117,88 @@ const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "Lioneto",
-  url: "https://lioneto.com",
+  url: SITE_URL,
   inLanguage: "ru",
+};
+
+const localBusinessJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FurnitureStore",
+  "@id": `${SITE_URL}/#furniture-store`,
+  name: "Lioneto",
+  url: SITE_URL,
+  logo: `${SITE_URL}/icon.png`,
+  image: `${SITE_URL}/og-image.jpg`,
+  description:
+    "Lioneto — премиальная мебель в Ташкенте. Спальни, кровати, шкафы и интерьерные коллекции для современного дома.",
+  areaServed: [
+    {
+      "@type": "City",
+      name: "Tashkent",
+    },
+    {
+      "@type": "Country",
+      name: "Uzbekistan",
+    },
+  ],
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Tashkent",
+    addressCountry: "UZ",
+  },
+  priceRange: "$$$",
+  brand: {
+    "@type": "Brand",
+    name: "Lioneto",
+  },
+  inLanguage: "ru",
+  department: [
+    {
+      "@type": "FurnitureStore",
+      name: "Lioneto — Rich House",
+      telephone: "+998909256006",
+      additionalProperty: [
+        {
+          "@type": "PropertyValue",
+          name: "Дополнительный телефон",
+          value: "+998900038008",
+        },
+      ],
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "ул. Мирзо-Улугбека, 18",
+        addressLocality: "Ташкент",
+        addressCountry: "UZ",
+      },
+      openingHours: "Mo-Su 09:00-18:00",
+    },
+    {
+      "@type": "FurnitureStore",
+      name: "Lioneto — Arca Mebel",
+      telephone: "+998909274004",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "улица Махтумкули, 75",
+        addressLocality: "Ташкент",
+        addressRegion: "Яшнабадский район",
+        addressCountry: "UZ",
+      },
+      openingHours: "Mo-Su 09:00-18:00",
+    },
+    {
+      "@type": "FurnitureStore",
+      name: "Lioneto — Arca Premium",
+      telephone: "+998900021230",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "улица Махтумкули, 75/4",
+        addressLocality: "Ташкент",
+        addressRegion: "Яшнабадский район",
+        addressCountry: "UZ",
+      },
+      openingHours: "Mo-Su 09:00-18:00",
+    },
+  ],
 };
 
 export default async function RootLayout({
@@ -143,6 +222,12 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(websiteJsonLd),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(localBusinessJsonLd),
           }}
         />
 

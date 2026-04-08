@@ -17,20 +17,38 @@ import { COLLECTIONS_SLIDER_MOCK } from "./lib/mock/collections-slider";
 import { fetchNews } from "./lib/strapi/news";
 
 const SITE_URL = "https://lioneto.com";
+const SITE_NAME = "Lioneto";
 
 export const metadata: Metadata = {
-  title: "Lioneto — премиальная мебель для современных интерьеров",
+  title: "Мебель в Ташкенте — премиальная мебель Lioneto для спальни и дома",
   description:
-    "Lioneto — премиальная мебель для современных интерьеров. Коллекции для спальни, гостиной и других пространств. Каталог, новости, сотрудничество для дилеров, дизайнеров и B2B.",
+    "Lioneto — премиальная мебель в Ташкенте. Спальни, кровати, шкафы и интерьерные коллекции для современного дома. Каталог мебели, новости, сотрудничество для дизайнеров, дилеров и B2B.",
+  keywords: [
+    "мебель в Ташкенте",
+    "мебель Ташкент",
+    "премиальная мебель Ташкент",
+    "элитная мебель Ташкент",
+    "спальни в Ташкенте",
+    "кровати в Ташкенте",
+    "шкафы в Ташкенте",
+    "мебель для спальни Ташкент",
+    "современная мебель Ташкент",
+    "дизайнерская мебель Ташкент",
+    "Lioneto",
+    "Lioneto мебель",
+    "премиальная мебель",
+    "мебель для дома",
+    "мебель Узбекистан",
+  ],
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Lioneto — премиальная мебель для современных интерьеров",
+    title: "Мебель в Ташкенте — премиальная мебель Lioneto",
     description:
-      "Коллекции премиальной мебели Lioneto: спальни, гостиные и интерьерные решения. Каталог, новости и сотрудничество для дилеров, дизайнеров и B2B.",
+      "Премиальная мебель Lioneto в Ташкенте: спальни, кровати, шкафы и интерьерные решения для современного дома.",
     url: SITE_URL,
-    siteName: "Lioneto",
+    siteName: SITE_NAME,
     type: "website",
     locale: "ru_RU",
     images: [
@@ -38,16 +56,41 @@ export const metadata: Metadata = {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "Lioneto — премиальная мебель",
+        alt: "Мебель Lioneto в Ташкенте",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lioneto — премиальная мебель для современных интерьеров",
+    title: "Мебель в Ташкенте — премиальная мебель Lioneto",
     description:
-      "Коллекции премиальной мебели Lioneto: каталог, новости и сотрудничество.",
+      "Премиальная мебель Lioneto в Ташкенте: спальни, кровати, шкафы и интерьерные коллекции.",
     images: ["/og-image.jpg"],
+  },
+};
+
+const homePageJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Мебель в Ташкенте — премиальная мебель Lioneto",
+  url: SITE_URL,
+  description:
+    "Lioneto — премиальная мебель в Ташкенте. Спальни, кровати, шкафы и интерьерные коллекции для современного дома.",
+  inLanguage: "ru",
+  about: {
+    "@type": "Thing",
+    name: "Премиальная мебель в Ташкенте",
+  },
+  breadcrumb: {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Главная",
+        item: SITE_URL,
+      },
+    ],
   },
 };
 
@@ -175,14 +218,23 @@ export default async function Page() {
       : (supplyNewsMock as any);
 
   return (
-    <main>
-      <GSAPHeroSlider />
-      <BestSellers products={hitProducts} />
-      <BestPrice products={bestProducts} />
-      <AboutCompany />
-      <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
-      <SupplyNewsSection items={newsItems} />
-      <NewsletterCta backgroundUrl="/images/home/newsletter-bg.jpg" />
-    </main>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(homePageJsonLd),
+        }}
+      />
+
+      <main>
+        <GSAPHeroSlider />
+        <BestSellers products={hitProducts} />
+        <BestPrice products={bestProducts} />
+        <AboutCompany />
+        <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
+        <SupplyNewsSection items={newsItems} />
+        <NewsletterCta backgroundUrl="/images/home/newsletter-bg.jpg" />
+      </main>
+    </>
   );
 }

@@ -355,13 +355,47 @@ async function getProductSeoData(slugOrId: string) {
   ).filter(Boolean);
 
   const desc = extractTextFromRich(sp.description);
-  const descriptionFinal =
-    desc ||
-    `${pickText(sp.title) || "Товар"} от Lioneto. Смотрите фото, описание, характеристики и доступные варианты.`;
-
   const titleBase = pickText(sp.title) || "Товар Lioneto";
   const brandName = pickText(sp.brand) || "Lioneto";
+  const material = pickText(sp.material, sp.materialText);
+  const color = pickText(sp.color, sp.colorText);
+  const size = pickText(sp.size, sp.sizeText);
+
+  const fallbackDescriptionParts = [
+    titleBase,
+    "премиальная мебель Lioneto",
+    "Ташкент",
+    material ? `материал: ${material}` : null,
+    color ? `цвет: ${color}` : null,
+    size ? `размер: ${size}` : null,
+    "смотрите фото, описание, характеристики и доступные варианты",
+  ].filter(Boolean);
+
+  const descriptionFinal = desc || `${fallbackDescriptionParts.join(". ")}.`;
+
   const canonical = `${BASE_URL}/product/${slug}`;
+
+  const seoTitleParts = [
+    titleBase,
+    material || null,
+    color || null,
+    "купить в Ташкенте",
+  ].filter(Boolean);
+
+  const seoTitle = `${seoTitleParts.join(" — ")} | Lioneto`;
+
+  const keywords = [
+    titleBase,
+    `${titleBase} Lioneto`,
+    `${titleBase} Ташкент`,
+    `${titleBase} купить в Ташкенте`,
+    material ? `${titleBase} ${material}` : null,
+    color ? `${titleBase} ${color}` : null,
+    size ? `${titleBase} ${size}` : null,
+    brandName,
+    "мебель в Ташкенте",
+    "премиальная мебель Ташкент",
+  ].filter(Boolean) as string[];
 
   return {
     sp,
@@ -373,9 +407,11 @@ async function getProductSeoData(slugOrId: string) {
     gallery: galleryFinal,
     description: descriptionFinal,
     sku: pickText(sp.sku) || slug,
-    material: pickText(sp.material, sp.materialText),
-    color: pickText(sp.color, sp.colorText),
-    size: pickText(sp.size, sp.sizeText),
+    material,
+    color,
+    size,
+    seoTitle,
+    keywords,
   };
 }
 
@@ -398,21 +434,20 @@ export async function generateMetadata({
     };
   }
 
-  const title = `${seo.titleBase} | Lioneto`;
-  const description = seo.description;
-
   return {
-    title,
-    description,
+    title: seo.seoTitle,
+    description: seo.description,
+    keywords: seo.keywords,
     alternates: {
       canonical: seo.canonical,
     },
     openGraph: {
       type: "website",
       url: seo.canonical,
-      title,
-      description,
+      title: seo.seoTitle,
+      description: seo.description,
       siteName: "Lioneto",
+      locale: "ru_RU",
       images: seo.image
         ? [
             {
@@ -424,9 +459,13 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title,
-      description,
+      title: seo.seoTitle,
+      description: seo.description,
       images: seo.image ? [seo.image] : [],
+    },
+    robots: {
+      index: true,
+      follow: true,
     },
   };
 }
@@ -603,6 +642,7 @@ export default async function ProductPage({
     image: productFixed.gallery,
     description,
     sku,
+    mpn: sku,
     brand: {
       "@type": "Brand",
       name: pickText(sp.brand) || "Lioneto",
@@ -641,6 +681,11 @@ export default async function ProductPage({
             priceCurrency: offerCurrency,
             availability: "https://schema.org/InStock",
             url: canonical,
+            itemCondition: "https://schema.org/NewCondition",
+            seller: {
+              "@type": "Organization",
+              name: "Lioneto",
+            },
           }
         : undefined,
   };

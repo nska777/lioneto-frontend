@@ -23,7 +23,6 @@ export const MODULE_ITEMS = [
   { label: "Вешалки", value: "veshalki" },
   { label: "Фасады", value: "fasadi" },
   { label: "Плинтус", value: "plintusy" },
-  { label: "Потолки", value: "potolki" },
 ] as const;
 
 // подфильтры створок
