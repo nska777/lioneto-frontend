@@ -57,6 +57,33 @@ function SocialIcon({ name }: { name: FooterData["socials"][number]["icon"] }) {
   return <Facebook className={cls} />;
 }
 
+const seoCollectionLinks: FooterLink[] = [
+  {
+    label: "Коллекция AMBER",
+    href: "/catalog?menu=bedrooms&collections=amber&hero=1",
+  },
+  {
+    label: "Коллекция SCANDI",
+    href: "/catalog?menu=living&collections=scandi&hero=1",
+  },
+  {
+    label: "Коллекция ELIZABETH",
+    href: "/catalog?menu=bedrooms&collections=elizabeth&hero=1",
+  },
+  {
+    label: "Коллекция SALVADOR",
+    href: "/catalog?menu=bedrooms&collections=salvador&hero=1",
+  },
+  {
+    label: "Коллекция PITTI",
+    href: "/catalog?menu=bedrooms&collections=pitti&hero=1",
+  },
+  {
+    label: "Коллекция BUONGIORNO",
+    href: "/catalog?menu=bedrooms&collections=buongiorno&hero=1",
+  },
+];
+
 /* ================= COMPONENT ================= */
 
 export default function Footer({ data }: { data?: FooterData }) {
@@ -76,10 +103,14 @@ export default function Footer({ data }: { data?: FooterData }) {
             title: "Навигация",
             links: [
               { label: "Каталог", href: "/catalog" },
-              { label: "Коллекции", href: "/collections" },
               { label: "О компании", href: "/about" },
               { label: "Новости", href: "/news" },
+              { label: "Контакты", href: "/contacts" },
             ],
+          },
+          {
+            title: "Коллекции",
+            links: seoCollectionLinks,
           },
           {
             title: "Покупателям",
@@ -88,7 +119,6 @@ export default function Footer({ data }: { data?: FooterData }) {
               { label: "Возврат", href: "/return" },
               { label: "Гарантия", href: "/warranty" },
               { label: "Уход за мебелью", href: "/care" },
-              { label: "Контакты", href: "/contacts" },
             ],
           },
         ],
@@ -114,7 +144,7 @@ export default function Footer({ data }: { data?: FooterData }) {
             {
               label: "Ташкент",
               value:
-                " Rich House: г. Ташкент, Мирзо-Улугбекский район, проспект Мирзо Улугбека, 18 ",
+                "Rich House: г. Ташкент, Мирзо-Улугбекский район, проспект Мирзо Улугбека, 18",
               mapUrl:
                 "https://yandex.ru/maps/?text=ул.%20Мирзо-Улугбек,%2018,%20Ташкент",
             },
@@ -241,16 +271,13 @@ export default function Footer({ data }: { data?: FooterData }) {
 
   /* ================= JSX ================= */
 
-  //  делаем пункты "Покупателям" некликабельными (в футере)
   const DISABLE_CUSTOMER_LINKS = new Set(["Доставка и оплата", "Возврат"]);
 
   return (
     <footer ref={rootRef} className="bg-black text-white" aria-label="Footer">
       <div className="mx-auto w-full max-w-[1200px] px-4">
-        {/* TOP */}
-        <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-4">
-          {/* BRAND */}
-          <div data-ft-reveal className="space-y-4">
+        <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-5">
+          <div data-ft-reveal className="space-y-4 lg:col-span-2">
             <div className="flex items-center gap-3">
               <div className="relative h-25 w-25 overflow-hidden rounded-full">
                 <Image
@@ -279,7 +306,6 @@ export default function Footer({ data }: { data?: FooterData }) {
             </p>
           </div>
 
-          {/* COLUMNS */}
           {footerData.columns.map((col) => (
             <div key={col.title} data-ft-reveal className="space-y-4">
               <div className="text-[12px] font-semibold tracking-[0.18em] text-white/70">
@@ -324,7 +350,6 @@ export default function Footer({ data }: { data?: FooterData }) {
             </div>
           ))}
 
-          {/* CONTACTS */}
           <div data-ft-reveal className="space-y-5">
             <div className="text-[12px] font-semibold tracking-[0.18em] text-white/70">
               Контакты
@@ -350,7 +375,6 @@ export default function Footer({ data }: { data?: FooterData }) {
                 <span>{footerData.contacts.email.value}</span>
               </a>
 
-              {/* ADDRESS → YANDEX MAPS */}
               {footerData.contacts.addresses.map((a) => (
                 <a
                   key={a.value}
@@ -370,7 +394,6 @@ export default function Footer({ data }: { data?: FooterData }) {
               ))}
             </div>
 
-            {/* SOCIALS */}
             <div className="flex gap-2 pt-2">
               {footerData.socials.map((s) => (
                 <a
@@ -388,7 +411,6 @@ export default function Footer({ data }: { data?: FooterData }) {
           </div>
         </div>
 
-        {/* BOTTOM */}
         <div className="flex flex-col gap-4 border-t border-white/10 py-6 md:flex-row md:items-center md:justify-between">
           <div className="text-[12px] text-white/45">
             © {new Date().getFullYear()} {footerData.brand.title}. Все права
