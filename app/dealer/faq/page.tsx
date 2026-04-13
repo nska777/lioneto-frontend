@@ -285,8 +285,7 @@ export default function Page() {
             FAQ
           </h1>
           <p className="mt-1 text-sm text-black/55">
-            Ответы на частые вопросы. Открывается один пункт — плавно, без
-            лагов.
+            Ответы на частые вопросы.
           </p>
         </div>
       </header>
