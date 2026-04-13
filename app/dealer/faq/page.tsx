@@ -10,9 +10,21 @@ type FaqItem = {
   q: string;
   a: string;
   tags?: string[];
+  fileUrl?: string;
+  fileName?: string;
+  fileLabel?: string;
 };
 
 const FAQ_ITEMS: FaqItem[] = [
+  {
+    id: "moscow-warehouse",
+    q: "Где находится склад в Москве?",
+    a: "Ниже прикреплен PDF-файл с адресом склада Lioneto в Москве.",
+    tags: ["Склад", "Москва", "PDF"],
+    fileUrl: "/faq/adres-sklada-lioneto.pdf",
+    fileName: "adres-sklada-lioneto.pdf",
+    fileLabel: "Скачать адрес склада",
+  },
   {
     id: "prices-source",
     q: "Откуда берутся прайс-листы и как часто они обновляются?",
@@ -101,6 +113,34 @@ function Badge({ text }: { text: string }) {
   );
 }
 
+function DownloadButton({
+  href,
+  fileName,
+  label,
+}: {
+  href: string;
+  fileName?: string;
+  label?: string;
+}) {
+  return (
+    <a
+      href={href}
+      download={fileName}
+      className={cn(
+        "inline-flex items-center rounded-[12px] border px-4 py-2.5 text-sm font-semibold",
+        "transition-colors hover:bg-black hover:text-white",
+      )}
+      style={{
+        borderColor: "rgba(0,0,0,0.12)",
+        background: "white",
+        color: "black",
+      }}
+    >
+      {label || "Скачать PDF"}
+    </a>
+  );
+}
+
 function FaqRow({
   item,
   open,
@@ -161,7 +201,17 @@ function FaqRow({
               background: "rgba(0,0,0,0.01)",
             }}
           >
-            {item.a}
+            <div>{item.a}</div>
+
+            {item.fileUrl ? (
+              <div className="mt-4">
+                <DownloadButton
+                  href={item.fileUrl}
+                  fileName={item.fileName}
+                  label={item.fileLabel}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -194,7 +244,7 @@ function SearchInput({
         <button
           type="button"
           onClick={onClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full px-3 py-1 text-xs font-semibold text-black/55 hover:text-black transition-colors"
+          className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded-full px-3 py-1 text-xs font-semibold text-black/55 transition-colors hover:text-black"
         >
           Очистить
         </button>
@@ -221,7 +271,6 @@ export default function Page() {
     });
   }, [q]);
 
-  // ✅ вместо setState в useEffect — просто “безопасный” id для рендера
   const visibleOpenId = useMemo(() => {
     if (!openId) return null;
     return filtered.some((x) => x.id === openId) ? openId : null;
