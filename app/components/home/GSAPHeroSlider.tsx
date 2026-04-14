@@ -11,7 +11,7 @@ type Slide = {
   title: string;
   ctaLabel: string;
   href: string;
-  image: string; // /hero/1.jpg
+  image: string;
 };
 
 const cn = (...s: Array<string | false | null | undefined>) =>
@@ -24,7 +24,6 @@ export default function GSAPHeroSlider({
       title: "ГОСТИНАЯ SALVADOR",
       ctaLabel: "В КАТАЛОГ",
       href: "/catalog?menu=living&collections=salvador&hero=1",
-
       image: "/hero/01.jpg",
     },
     {
@@ -32,7 +31,6 @@ export default function GSAPHeroSlider({
       title: "СПАЛЬНЯ AMBER",
       ctaLabel: "В КАТАЛОГ",
       href: "/catalog?menu=bedrooms&collections=amber&hero=1",
-
       image: "/hero/02.jpg",
     },
     {
@@ -40,7 +38,6 @@ export default function GSAPHeroSlider({
       title: "СПАЛЬНЯ BUONGIORNO",
       ctaLabel: "В КАТАЛОГ",
       href: "/catalog?menu=bedrooms&collections=buongiorno&hero=1",
-
       image: "/hero/03.jpg",
     },
     {
@@ -105,12 +102,23 @@ export default function GSAPHeroSlider({
   const autoRef = useRef<number | null>(null);
   const busyRef = useRef(false);
 
+  const touchStartXRef = useRef<number | null>(null);
+  const touchEndXRef = useRef<number | null>(null);
+
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     activeRef.current = active;
   }, [active]);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const reducedMotion = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -163,14 +171,17 @@ export default function GSAPHeroSlider({
       "[data-overlay]",
     ) as HTMLElement | null;
     const nextTitle = next.querySelector("[data-title]") as HTMLElement | null;
-    const nextBtn = next.querySelector("[data-btn]") as HTMLElement | null;
+    const nextBtnWrap = next.querySelector(
+      "[data-btn-wrap]",
+    ) as HTMLElement | null;
 
     gsap.set(next, { zIndex: 2, opacity: 1, pointerEvents: "auto" });
     gsap.set(prev, { zIndex: 1, pointerEvents: "none" });
 
-    gsap.set(nextImg, { scale: 1.06, filter: "blur(8px)" });
-    gsap.set(nextOverlay, { opacity: 0.25 });
-    gsap.set([nextTitle, nextBtn], { y: 18, opacity: 0 });
+    gsap.set(nextImg, { scale: 1.04, filter: "blur(8px)" });
+    gsap.set(nextOverlay, { opacity: 0.2 });
+    gsap.set(nextTitle, { y: 18, opacity: 0 });
+    gsap.set(nextBtnWrap, { y: 18, opacity: 0 });
 
     const tl = gsap.timeline({
       defaults: { ease: "power3.out" },
@@ -181,18 +192,17 @@ export default function GSAPHeroSlider({
       },
     });
 
-    tl.to(prevImg, { scale: 1.02, duration: 0.45 }, 0)
-      .to(prevOverlay, { opacity: 0.62, duration: 0.45 }, 0)
+    tl.to(prevImg, { scale: 1.01, duration: 0.45 }, 0)
+      .to(prevOverlay, { opacity: 0.5, duration: 0.45 }, 0)
       .to(prev, { opacity: 0, duration: 0.55 }, 0.1)
-
       .to(
         nextImg,
         { scale: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" },
         0.05,
       )
-      .to(nextOverlay, { opacity: 0.55, duration: 0.7 }, 0.1)
+      .to(nextOverlay, { opacity: 0.38, duration: 0.7 }, 0.1)
       .to(nextTitle, { y: 0, opacity: 1, duration: 0.6 }, 0.22)
-      .to(nextBtn, { y: 0, opacity: 1, duration: 0.55 }, 0.3);
+      .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.55 }, 0.3);
 
     tlRef.current?.kill();
     tlRef.current = tl;
@@ -200,6 +210,36 @@ export default function GSAPHeroSlider({
 
   const next = () => go(activeRef.current + 1);
   const prev = () => go(activeRef.current - 1);
+
+  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    touchStartXRef.current = e.changedTouches[0]?.clientX ?? null;
+    touchEndXRef.current = null;
+    stopAuto();
+  };
+
+  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    touchEndXRef.current = e.changedTouches[0]?.clientX ?? null;
+  };
+
+  const onTouchEnd = () => {
+    const startX = touchStartXRef.current;
+    const endX = touchEndXRef.current;
+
+    if (startX == null || endX == null) {
+      startAuto();
+      return;
+    }
+
+    const diff = startX - endX;
+    const threshold = 40;
+
+    if (Math.abs(diff) >= threshold) {
+      if (diff > 0) next();
+      else prev();
+    }
+
+    startAuto();
+  };
 
   useLayoutEffect(() => {
     if (!rootRef.current) return;
@@ -227,11 +267,14 @@ export default function GSAPHeroSlider({
         "[data-overlay]",
       ) as HTMLElement | null;
       const title = first?.querySelector("[data-title]") as HTMLElement | null;
-      const btn = first?.querySelector("[data-btn]") as HTMLElement | null;
+      const btnWrap = first?.querySelector(
+        "[data-btn-wrap]",
+      ) as HTMLElement | null;
 
-      gsap.set(img, { scale: 1.06, filter: "blur(8px)" });
-      gsap.set(overlay, { opacity: 0.25 });
-      gsap.set([title, btn], { y: 18, opacity: 0 });
+      gsap.set(img, { scale: 1.04, filter: "blur(8px)" });
+      gsap.set(overlay, { opacity: 0.2 });
+      gsap.set(title, { y: 18, opacity: 0 });
+      gsap.set(btnWrap, { y: 18, opacity: 0 });
 
       gsap
         .timeline({ defaults: { ease: "power3.out" } })
@@ -240,9 +283,9 @@ export default function GSAPHeroSlider({
           { scale: 1, filter: "blur(0px)", duration: 1.05, ease: "expo.out" },
           0,
         )
-        .to(overlay, { opacity: 0.55, duration: 0.7 }, 0.1)
+        .to(overlay, { opacity: 0.38, duration: 0.7 }, 0.1)
         .to(title, { y: 0, opacity: 1, duration: 0.6 }, 0.22)
-        .to(btn, { y: 0, opacity: 1, duration: 0.55 }, 0.3);
+        .to(btnWrap, { y: 0, opacity: 1, duration: 0.55 }, 0.3);
     }
 
     startAuto();
@@ -254,8 +297,8 @@ export default function GSAPHeroSlider({
   }, [reducedMotion, slides.length, autoMs]);
 
   return (
-    <section className="w-full">
-      <div className="mx-auto w-full max-w-[1200px] px-4">
+    <section className="w-full overflow-hidden">
+      <div className="mx-auto w-full max-w-[1200px] px-4 overflow-hidden">
         <div
           ref={rootRef}
           onMouseEnter={stopAuto}
@@ -263,18 +306,23 @@ export default function GSAPHeroSlider({
           onClick={() =>
             router.push(slides[activeRef.current]?.href ?? "/catalog")
           }
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
           className={cn(
             "relative isolate overflow-hidden rounded-none",
-            "bg-[#f3f3f3]",
+            "bg-transparent",
             "border-0 ring-0 outline-none",
-            "h-[420px] md:h-[520px]",
-            "cursor-pointer select-none",
+            "h-[335px] sm:h-[420px] md:h-[520px]",
+            "cursor-pointer select-none touch-pan-y",
           )}
-          style={{ border: "none", outline: "none", boxShadow: "none" }}
+          style={{
+            border: "none",
+            outline: "none",
+            boxShadow: "none",
+            WebkitOverflowScrolling: "touch",
+          }}
         >
-          {/* мягкий highlight без швов (тот же радиус) */}
-          <div className="pointer-events-none absolute inset-0 z-[5] rounded-none ring-1 ring-white/20" />
-
           {slides.map((s, i) => (
             <div
               key={s.id}
@@ -288,39 +336,67 @@ export default function GSAPHeroSlider({
                 style={{
                   backgroundImage: `url(${s.image})`,
                   backgroundSize: "cover",
-                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: isMobile
+                    ? "center center"
+                    : "center center",
                   transform: "translateZ(0) scale(1.01)",
                 }}
               />
 
-              <div data-overlay className="absolute inset-0 bg-black/45" />
+              <div
+                data-overlay
+                className="absolute inset-0 bg-black/30 md:bg-black/35"
+              />
 
-              <div className="relative z-10 flex h-full items-center justify-center px-5 md:px-10">
-                <div className="text-center">
+              <div className="relative z-10 flex h-full items-center justify-center px-4 md:px-10">
+                <div className="w-full text-center">
                   <h2
                     data-title
                     className={cn(
-                      "text-white font-semibold uppercase",
-                      "tracking-[0.08em]",
-                      "text-[28px] md:text-[44px] leading-[1.05]",
-                      "drop-shadow-[0_14px_35px_rgba(0,0,0,0.40)]",
+                      "mx-auto max-w-[92%] text-white font-semibold uppercase",
+                      "tracking-[0.03em] md:tracking-[0.08em]",
+                      "text-[18px] sm:text-[24px] md:text-[44px] leading-[1.08]",
+                      "drop-shadow-[0_10px_26px_rgba(0,0,0,0.35)]",
                     )}
                   >
                     {s.title}
                   </h2>
 
-                  <div className="mt-5 flex justify-center">
+                  <div
+                    data-btn-wrap
+                    className="mt-4 flex items-center justify-center gap-4 md:mt-5"
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        prev();
+                      }}
+                      className={cn(
+                        "md:hidden inline-flex items-center justify-center",
+                        "h-9 w-9 shrink-0",
+                        "bg-transparent text-white",
+                        "border-0 shadow-none outline-none ring-0",
+                        "hover:opacity-80 transition-opacity",
+                        "cursor-pointer",
+                      )}
+                      aria-label="Предыдущий слайд"
+                    >
+                      <ChevronLeft className="h-7 w-7" strokeWidth={2.25} />
+                    </button>
+
                     <Link
                       data-btn
                       href={s.href}
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
                         "inline-flex items-center justify-center",
-                        "px-10 py-3",
-                        "bg-transparent",
-                        "text-white",
-                        "text-[12px] md:text-[13px] tracking-[0.22em] uppercase",
-                        "border border-white/80",
+                        "min-w-[160px] sm:min-w-[180px] md:min-w-[190px]",
+                        "px-7 sm:px-8 md:px-10 py-3",
+                        "bg-transparent text-white",
+                        "text-[11px] md:text-[13px] tracking-[0.18em] md:tracking-[0.22em] uppercase",
+                        "border border-white/75",
                         "transition-all duration-300",
                         "hover:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.9)]",
                         "cursor-pointer",
@@ -328,6 +404,25 @@ export default function GSAPHeroSlider({
                     >
                       {s.ctaLabel}
                     </Link>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        next();
+                      }}
+                      className={cn(
+                        "md:hidden inline-flex items-center justify-center",
+                        "h-9 w-9 shrink-0",
+                        "bg-transparent text-white",
+                        "border-0 shadow-none outline-none ring-0",
+                        "hover:opacity-80 transition-opacity",
+                        "cursor-pointer",
+                      )}
+                      aria-label="Следующий слайд"
+                    >
+                      <ChevronRight className="h-7 w-7" strokeWidth={2.25} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -341,18 +436,15 @@ export default function GSAPHeroSlider({
               prev();
             }}
             className={cn(
-              "absolute left-6 top-1/2 -translate-y-1/2 z-20",
-              "p-2",
-              "bg-transparent",
-              "rounded-none",
-              "shadow-none ring-0 border-0",
-              "text-white/90 hover:text-white",
-              "transition-opacity hover:opacity-70",
-              "cursor-pointer",
+              "hidden md:block absolute left-6 top-1/2 -translate-y-1/2 z-20",
+              "p-2 bg-transparent",
+              "rounded-none shadow-none ring-0 border-0 outline-none",
+              "text-white/90 hover:text-white hover:opacity-80",
+              "transition-opacity cursor-pointer",
             )}
             aria-label="Предыдущий слайд"
           >
-            <ChevronLeft className="h-7 w-7" />
+            <ChevronLeft className="h-8 w-8" strokeWidth={2.1} />
           </button>
 
           <button
@@ -362,21 +454,18 @@ export default function GSAPHeroSlider({
               next();
             }}
             className={cn(
-              "absolute right-6 top-1/2 -translate-y-1/2 z-20",
-              "p-2",
-              "bg-transparent",
-              "rounded-none",
-              "shadow-none ring-0 border-0",
-              "text-white/90 hover:text-white",
-              "transition-opacity hover:opacity-70",
-              "cursor-pointer",
+              "hidden md:block absolute right-6 top-1/2 -translate-y-1/2 z-20",
+              "p-2 bg-transparent",
+              "rounded-none shadow-none ring-0 border-0 outline-none",
+              "text-white/90 hover:text-white hover:opacity-80",
+              "transition-opacity cursor-pointer",
             )}
             aria-label="Следующий слайд"
           >
-            <ChevronRight className="h-7 w-7" />
+            <ChevronRight className="h-8 w-8" strokeWidth={2.1} />
           </button>
 
-          <div className="absolute bottom-4 left-0 right-0 z-[999] flex justify-center pointer-events-auto">
+          <div className="absolute bottom-4 left-0 right-0 z-[30] flex justify-center pointer-events-auto">
             <div className="rounded-full bg-black/18 px-3 py-2 backdrop-blur-[6px] ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
               <div className="flex items-center gap-2">
                 {Array.from({ length: slides.length }).map((_, idx) => {

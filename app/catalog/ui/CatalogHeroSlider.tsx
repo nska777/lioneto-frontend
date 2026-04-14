@@ -1,4 +1,3 @@
-// app/catalog/ui/CatalogHeroSlider.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -76,7 +75,6 @@ export default function CatalogHeroSlider({
     frontRef.current = front;
   }, [front]);
 
-  // reset + preload
   useEffect(() => {
     const first = safeSlides[0] || "";
     const second = safeSlides.length > 1 ? safeSlides[1] : first;
@@ -147,7 +145,6 @@ export default function CatalogHeroSlider({
     const pending = pendingRef.current;
     pendingRef.current = null;
     if (pending !== null && pending !== ni) {
-      // без задержек
       void goTo(pending);
     }
   }
@@ -156,7 +153,6 @@ export default function CatalogHeroSlider({
     void goTo(idxRef.current + delta);
   }
 
-  // какие src показываем сейчас (по front)
   const fallbackCurrent = safeSlides[idxRef.current] || safeSlides[0];
   const showSrcA = srcA || fallbackCurrent;
   const showSrcB =
@@ -165,16 +161,15 @@ export default function CatalogHeroSlider({
   return (
     <div
       className="
-    relative w-full overflow-hidden
-    border border-black/10 bg-white
-    shadow-[0_18px_60px_-40px_rgba(0,0,0,0.35)]
-    rounded-[0px]
-    h-[260px]
-    sm:h-[420px]
-    xl:h-[430px]
-  "
+        relative w-full overflow-hidden
+        border border-black/10 bg-white
+        shadow-[0_18px_60px_-40px_rgba(0,0,0,0.35)]
+        rounded-[0px]
+        h-[220px]
+        sm:h-[420px]
+        xl:h-[430px]
+      "
     >
-      {/* Слои */}
       <div className="absolute inset-0">
         <div
           className={cn(
@@ -188,6 +183,7 @@ export default function CatalogHeroSlider({
             fill
             priority
             sizes="100vw"
+            className="object-cover object-center"
           />
         </div>
 
@@ -201,17 +197,16 @@ export default function CatalogHeroSlider({
             src={showSrcB}
             alt={title || "collection"}
             fill
-            className="object-cover"
             sizes="100vw"
+            className="object-cover object-center"
           />
         </div>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-black/0 to-transparent pointer-events-none" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-black/0 to-transparent" />
       </div>
 
-      {/* Точки */}
       {safeSlides.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 flex items-center gap-2">
+        <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2">
           {safeSlides.slice(0, 12).map((_, i) => (
             <button
               key={i}
@@ -227,7 +222,6 @@ export default function CatalogHeroSlider({
         </div>
       )}
 
-      {/* Стрелки */}
       {safeSlides.length > 1 && (
         <>
           <button
