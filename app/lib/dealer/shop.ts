@@ -507,34 +507,21 @@ export async function getDealerCollectionPageData(
     return (raw.category ?? "").toLowerCase() !== "addon";
   });
 
-  const parentIds = visibleProducts.map((item) => item.id).filter(Boolean);
+  const addonParams = new URLSearchParams();
+  addonParams.set("filters[isActive][$eq]", "true");
+  addonParams.set("sort[0]", "sortOrder:asc");
+  addonParams.set("populate[0]", "parentProduct");
+  addonParams.set("populate[1]", "addonProduct");
+  addonParams.set("populate[2]", "addonProduct.image");
+  addonParams.set("populate[3]", "addonProduct.variants");
+  addonParams.set("populate[4]", "addonProduct.variants.media");
+  addonParams.set("pagination[pageSize]", "2000");
 
-  let addonRelations: StrapiAddonRelation[] = [];
+  const addonJson = await strapiFetch<{ data?: StrapiAddonRelation[] }>(
+    `/api/dealer-product-addons?${addonParams.toString()}`,
+  );
 
-  if (parentIds.length > 0) {
-    const addonParams = new URLSearchParams();
-    addonParams.set("filters[isActive][$eq]", "true");
-    addonParams.set("sort[0]", "sortOrder:asc");
-    addonParams.set("populate[0]", "parentProduct");
-    addonParams.set("populate[1]", "addonProduct");
-    addonParams.set("populate[2]", "addonProduct.image");
-    addonParams.set("populate[3]", "addonProduct.variants");
-    addonParams.set("populate[4]", "addonProduct.variants.media");
-    addonParams.set("pagination[pageSize]", "2000");
-
-    parentIds.forEach((id, index) => {
-      addonParams.set(
-        `filters[$or][${index}][parentProduct][documentId][$eq]`,
-        id,
-      );
-    });
-
-    const addonJson = await strapiFetch<{ data?: StrapiAddonRelation[] }>(
-      `/api/dealer-product-addons?${addonParams.toString()}`,
-    );
-
-    addonRelations = Array.isArray(addonJson?.data) ? addonJson.data : [];
-  }
+  const addonRelations = Array.isArray(addonJson?.data) ? addonJson.data : [];
 
   addonRelations.forEach((relation) => {
     const addonProduct = unwrapRelation(relation.addonProduct);
@@ -544,12 +531,15 @@ export async function getDealerCollectionPageData(
     }
   });
 
+  const visibleProductIds = new Set(visibleProducts.map((item) => item.id));
+
   const relationsByParent = new Map<string, StrapiAddonRelation[]>();
 
   addonRelations.forEach((relation) => {
     const parent = unwrapRelation(relation.parentProduct);
     const parentId = String(parent?.documentId ?? parent?.id ?? "");
     if (!parentId) return;
+    if (!visibleProductIds.has(parentId)) return;
 
     const list = relationsByParent.get(parentId) ?? [];
     list.push(relation);
@@ -558,10 +548,6 @@ export async function getDealerCollectionPageData(
 
   const allProducts = visibleProducts.map((product) =>
     withAddons(product, relationsByParent.get(product.id) ?? [], productById),
-  );
-
-  const currentCollectionProducts = allProducts.filter(
-    (product) => product.collectionSlug === collectionSlug,
   );
 
   const finalCollections = rawCollections.map((item) => {
