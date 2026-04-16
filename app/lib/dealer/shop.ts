@@ -476,7 +476,6 @@ export async function getDealerCollectionPageData(
 
   const productsParams = new URLSearchParams();
   productsParams.set("filters[isActive][$eq]", "true");
-  productsParams.set("filters[collection][slug][$eq]", collectionSlug);
   productsParams.set("sort[0]", "sortOrder:asc");
   productsParams.set("sort[1]", "title:asc");
   productsParams.set("populate[0]", "image");
@@ -521,7 +520,7 @@ export async function getDealerCollectionPageData(
     addonParams.set("populate[2]", "addonProduct.image");
     addonParams.set("populate[3]", "addonProduct.variants");
     addonParams.set("populate[4]", "addonProduct.variants.media");
-    addonParams.set("pagination[pageSize]", "1000");
+    addonParams.set("pagination[pageSize]", "2000");
 
     parentIds.forEach((id, index) => {
       addonParams.set(
@@ -557,16 +556,22 @@ export async function getDealerCollectionPageData(
     relationsByParent.set(parentId, list);
   });
 
-  const finalProducts = visibleProducts.map((product) =>
+  const allProducts = visibleProducts.map((product) =>
     withAddons(product, relationsByParent.get(product.id) ?? [], productById),
   );
 
-  const finalCollections = rawCollections.map((item) => {
-    if (item.slug !== collectionSlug) {
-      return normalizeCollection(item);
-    }
+  const currentCollectionProducts = allProducts.filter(
+    (product) => product.collectionSlug === collectionSlug,
+  );
 
-    return normalizeCollection(item, finalProducts);
+  const finalCollections = rawCollections.map((item) => {
+    const itemSlug = item.slug ?? "";
+
+    const collectionProducts = allProducts.filter(
+      (product) => product.collectionSlug === itemSlug,
+    );
+
+    return normalizeCollection(item, collectionProducts);
   });
 
   const finalCurrentCollection =
@@ -575,6 +580,6 @@ export async function getDealerCollectionPageData(
   return {
     collections: finalCollections,
     collection: finalCurrentCollection,
-    products: finalProducts,
+    products: allProducts,
   };
 }

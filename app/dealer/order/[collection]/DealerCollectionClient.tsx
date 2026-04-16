@@ -474,6 +474,10 @@ export default function DealerCollectionClient({
     setDrafts({});
     setSelectedProduct(null);
     setConfirmOrder(null);
+
+    saveCartProductIds([]);
+    saveAddonDrafts({});
+    saveDrafts({});
   }
 
   function handleOpenRelatedProduct(productId: string) {
@@ -482,7 +486,7 @@ export default function DealerCollectionClient({
     setSelectedProduct(product);
   }
 
-  const productCartItems = useMemo(() => {
+  const productCartItems = useMemo<CartEntry[]>(() => {
     return cartProductIds
       .map((productId) => {
         const product = allProductsById.get(productId);
@@ -490,11 +494,12 @@ export default function DealerCollectionClient({
 
         const draft = getDraft(productId);
         const selectedVariant = getSelectedProductVariant(product, draft);
+        const quantity = Math.max(1, draft.quantity || 1);
 
         const unitBasePrice =
           selectedVariant?.priceDelta?.[country] ?? product.price[country] ?? 0;
 
-        const totalBasePrice = unitBasePrice * draft.quantity;
+        const totalBasePrice = unitBasePrice * quantity;
 
         const selectedColor =
           draft.selectedColor ||
@@ -511,7 +516,7 @@ export default function DealerCollectionClient({
           articleShort: product.articleShort ?? "",
           color: selectedColor,
           size: product.size,
-          quantity: draft.quantity,
+          quantity,
           markupPercent: 0,
           unitBasePrice,
           unitFinalPrice: unitBasePrice,
@@ -522,7 +527,7 @@ export default function DealerCollectionClient({
       .filter(Boolean) as CartEntry[];
   }, [cartProductIds, drafts, country, allProductsById]);
 
-  const addonCartItems = useMemo(() => {
+  const addonCartItems = useMemo<CartEntry[]>(() => {
     const items: CartEntry[] = [];
 
     allProducts.forEach((product) => {

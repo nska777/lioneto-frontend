@@ -26,6 +26,10 @@ export function saveCartProductIds(value: string[]) {
   localStorage.setItem(STORAGE_KEYS.cart, JSON.stringify(value));
 }
 
+export function clearCartProductIds() {
+  localStorage.removeItem(STORAGE_KEYS.cart);
+}
+
 export function loadDrafts(): Record<string, ProductDraft> {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.drafts);
@@ -44,6 +48,10 @@ export function saveDrafts(value: Record<string, ProductDraft>) {
   localStorage.setItem(STORAGE_KEYS.drafts, JSON.stringify(value));
 }
 
+export function clearDrafts() {
+  localStorage.removeItem(STORAGE_KEYS.drafts);
+}
+
 export function loadAddonDrafts(): Record<string, AddonDraft> {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.addonDrafts);
@@ -60,6 +68,10 @@ export function loadAddonDrafts(): Record<string, AddonDraft> {
 
 export function saveAddonDrafts(value: Record<string, AddonDraft>) {
   localStorage.setItem(STORAGE_KEYS.addonDrafts, JSON.stringify(value));
+}
+
+export function clearAddonDrafts() {
+  localStorage.removeItem(STORAGE_KEYS.addonDrafts);
 }
 
 export function loadGlobalMarkup(): number {
