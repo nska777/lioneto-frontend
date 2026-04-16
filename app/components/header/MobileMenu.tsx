@@ -294,6 +294,11 @@ function StoreRowMini({
   );
 }
 
+function yandexEmbedUrl(query: string) {
+  const q = encodeURIComponent(query);
+  return `https://yandex.ru/map-widget/v1/?ll=&z=11&text=${q}`;
+}
+
 function ContactsMiniBlock() {
   const [region, setRegion] = useState<RegionKey>("uz");
   const stores = useMemo(
@@ -316,6 +321,10 @@ function ContactsMiniBlock() {
     setActiveId(first);
   };
 
+  const isRu = region === "ru";
+  const mapTitle = isRu ? "Москва" : (activeStore?.title ?? "");
+  const mapQuery = isRu ? "Москва" : (activeStore?.mapQuery ?? "");
+
   return (
     <div className="border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
       <div className="px-4 pt-4 pb-3">
@@ -324,33 +333,108 @@ function ContactsMiniBlock() {
           <div className="text-[11px] tracking-[0.18em] text-black/45 whitespace-nowrap">
             ВЫБРАНО:{" "}
             <span className="text-black/80">
-              {region === "ru" ? "РОССИЯ" : "УЗБЕКИСТАН"}
+              {isRu ? "РОССИЯ" : "УЗБЕКИСТАН"}
             </span>
           </div>
         </div>
       </div>
 
       <div className="px-4 pb-4">
-        <div className="rounded-[22px] border border-black/10 bg-white p-3">
-          <div className="max-h-[320px] overflow-auto overscroll-contain p-2">
-            <div className="grid gap-3">
-              {stores.map((s) => (
-                <StoreRowMini
-                  key={s.id}
-                  store={s}
-                  active={s.id === activeId}
-                  onClick={() => setActiveId(s.id)}
+        {!isRu ? (
+          <>
+            <div className="rounded-[22px] border border-black/10 bg-white p-3">
+              <div className="max-h-[320px] overflow-auto overscroll-contain p-2">
+                <div className="grid gap-3">
+                  {stores.map((s) => (
+                    <StoreRowMini
+                      key={s.id}
+                      store={s}
+                      active={s.id === activeId}
+                      onClick={() => setActiveId(s.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {activeStore?.title ? (
+              <div className="mt-3 text-[11px] tracking-[0.18em] text-black/45">
+                Выбрано:{" "}
+                <span className="text-black/75">{activeStore.title}</span>
+              </div>
+            ) : null}
+
+            <div className="mt-3 overflow-hidden rounded-[22px] border border-black/10 bg-white">
+              <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] tracking-[0.18em] text-black/45">
+                    КАРТА
+                  </div>
+                  <div className="truncate text-[13px] font-medium text-black/85">
+                    {mapTitle}
+                  </div>
+                </div>
+
+                <a
+                  href={`https://yandex.ru/maps/?text=${encodeURIComponent(
+                    mapQuery,
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-medium tracking-[0.14em] text-black/70 transition hover:border-black/20 hover:text-black"
+                >
+                  ОТКРЫТЬ
+                </a>
+              </div>
+
+              <div className="relative h-[220px] w-full">
+                <iframe
+                  key={`${region}-${activeStore?.id}`}
+                  title="Yandex Map Mini"
+                  src={yandexEmbedUrl(mapQuery)}
+                  className="absolute inset-0 h-full w-full"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
                 />
-              ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="overflow-hidden rounded-[22px] border border-black/10 bg-white">
+            <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-[10px] tracking-[0.18em] text-black/45">
+                  КАРТА
+                </div>
+                <div className="truncate text-[13px] font-medium text-black/85">
+                  {mapTitle}
+                </div>
+              </div>
+
+              <a
+                href={`https://yandex.ru/maps/?text=${encodeURIComponent(
+                  mapQuery,
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex shrink-0 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-medium tracking-[0.14em] text-black/70 transition hover:border-black/20 hover:text-black"
+              >
+                ОТКРЫТЬ
+              </a>
+            </div>
+
+            <div className="relative h-[280px] w-full">
+              <iframe
+                key={`${region}-moscow`}
+                title="Yandex Map Mini Moscow"
+                src={yandexEmbedUrl(mapQuery)}
+                className="absolute inset-0 h-full w-full"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
             </div>
           </div>
-        </div>
-
-        {activeStore?.title ? (
-          <div className="mt-3 text-[11px] tracking-[0.18em] text-black/45">
-            Выбрано: <span className="text-black/75">{activeStore.title}</span>
-          </div>
-        ) : null}
+        )}
       </div>
     </div>
   );

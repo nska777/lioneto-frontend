@@ -68,7 +68,7 @@ function StoreRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full text-left cursor-pointer rounded-3xl border p-5 transition",
+        "w-full cursor-pointer rounded-3xl border p-5 text-left transition",
         active
           ? "border-black/25 bg-black/[0.02]"
           : "border-black/10 bg-white hover:border-black/20",
@@ -77,7 +77,7 @@ function StoreRow({
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "mt-0.5 h-9 w-9 rounded-2xl border flex items-center justify-center",
+            "mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl border",
             active
               ? "border-black/20 bg-white"
               : "border-black/10 bg-black/[0.02]",
@@ -120,7 +120,6 @@ function StoreRow({
 }
 
 function yandexEmbedUrl(query: string) {
-  // ✅ Без API ключей — просто карта по поисковому запросу
   const q = encodeURIComponent(query);
   return `https://yandex.ru/map-widget/v1/?ll=&z=11&text=${q}`;
 }
@@ -128,27 +127,32 @@ function yandexEmbedUrl(query: string) {
 export default function ContactsClient() {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  const [region, setRegion] = useState<RegionKey>("ru");
+  const [region, setRegion] = useState<RegionKey>("uz");
+
   const stores = useMemo(
     () => (region === "ru" ? RU_STORES : UZ_STORES),
     [region],
   );
 
   const [activeId, setActiveId] = useState<string>(stores[0]?.id ?? "");
+
   const activeStore = useMemo(
     () => stores.find((s) => s.id === activeId) ?? stores[0],
     [stores, activeId],
   );
 
-  // при смене региона — выбираем первый магазин
+  const isRu = region === "ru";
+  const mapTitle = isRu ? "Москва" : (activeStore?.title ?? "");
+  const mapQuery = isRu ? "Москва" : (activeStore?.mapQuery ?? "");
+
   useLayoutEffect(() => {
     setActiveId(stores[0]?.id ?? "");
-  }, [region]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [region, stores]);
 
-  // лёгкий Apple-style reveal
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
       const blocks = gsap.utils.toArray<HTMLElement>("[data-reveal]");
+
       blocks.forEach((el) => {
         gsap.fromTo(
           el,
@@ -174,7 +178,6 @@ export default function ContactsClient() {
 
   return (
     <div ref={rootRef}>
-      {/* верхняя панель */}
       <div
         data-reveal
         className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
@@ -184,33 +187,37 @@ export default function ContactsClient() {
         <div className="text-[12px] tracking-[0.18em] text-black/45">
           ВЫБРАНО:{" "}
           <span className="text-black/80">
-            {region === "ru" ? "РОССИЯ" : "УЗБЕКИСТАН"}
+            {isRu ? "РОССИЯ" : "УЗБЕКИСТАН"}
           </span>
         </div>
       </div>
 
-      {/* сетка: слева адреса, справа карта */}
-      <div className="mt-6 grid gap-4 md:grid-cols-12 md:gap-6">
-        {/* список */}
-        <div data-reveal className="md:col-span-5">
-          <div className="rounded-3xl border border-black/10 bg-white p-3">
-            <div className="max-h-[520px] overflow-auto p-2">
-              <div className="grid gap-3">
-                {stores.map((s) => (
-                  <StoreRow
-                    key={s.id}
-                    store={s}
-                    active={s.id === activeId}
-                    onClick={() => setActiveId(s.id)}
-                  />
-                ))}
+      <div
+        className={cn(
+          "mt-6 grid gap-4 md:gap-6",
+          isRu ? "grid-cols-1" : "md:grid-cols-12",
+        )}
+      >
+        {!isRu && (
+          <div data-reveal className="md:col-span-5">
+            <div className="rounded-3xl border border-black/10 bg-white p-3">
+              <div className="max-h-[520px] overflow-auto p-2">
+                <div className="grid gap-3">
+                  {stores.map((s) => (
+                    <StoreRow
+                      key={s.id}
+                      store={s}
+                      active={s.id === activeId}
+                      onClick={() => setActiveId(s.id)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* карта */}
-        <div data-reveal className="md:col-span-7">
+        <div data-reveal className={isRu ? "" : "md:col-span-7"}>
           <div className="overflow-hidden rounded-3xl border border-black/10 bg-white">
             <div className="flex items-center justify-between gap-3 border-b border-black/10 px-5 py-4">
               <div className="min-w-0">
@@ -218,13 +225,13 @@ export default function ContactsClient() {
                   КАРТА
                 </div>
                 <div className="truncate text-[14px] font-semibold text-black/85">
-                  {activeStore?.title}
+                  {mapTitle}
                 </div>
               </div>
 
               <a
                 href={`https://yandex.ru/maps/?text=${encodeURIComponent(
-                  activeStore?.mapQuery ?? "",
+                  mapQuery,
                 )}`}
                 target="_blank"
                 rel="noreferrer"
@@ -236,9 +243,9 @@ export default function ContactsClient() {
 
             <div className="relative h-[520px] w-full">
               <iframe
-                key={`${region}-${activeStore?.id}`} // ✅ чтобы iframe точно обновлялся при переключениях
+                key={`${region}-${activeStore?.id}`}
                 title="Yandex Map"
-                src={yandexEmbedUrl(activeStore?.mapQuery ?? "")}
+                src={yandexEmbedUrl(mapQuery)}
                 className="absolute inset-0 h-full w-full"
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
