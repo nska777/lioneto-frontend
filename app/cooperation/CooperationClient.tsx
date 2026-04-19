@@ -37,18 +37,13 @@ const BENEFITS = [
 const FORMATS: Chip[] = [
   {
     id: "dealer",
-    title: "Дилер / мебельный салон",
+    title: "Дилер / Стать дилером",
     icon: <Store className="h-4 w-4" />,
   },
   {
     id: "designer",
-    title: "Дизайнер / студия интерьера",
+    title: "Услуги дизайнера / Фотоконтент (3D моделирование)",
     icon: <Palette className="h-4 w-4" />,
-  },
-  {
-    id: "b2b",
-    title: "B2B (отели, офисы, застройщики)",
-    icon: <BriefcaseBusiness className="h-4 w-4" />,
   },
   {
     id: "logistics",
@@ -57,7 +52,7 @@ const FORMATS: Chip[] = [
   },
   {
     id: "supplier",
-    title: "Поставщик материалов/комплектующих",
+    title: "Поставщик материалов/сырья",
     icon: <Package className="h-4 w-4" />,
   },
   {
@@ -83,34 +78,20 @@ const INTERESTS: Chip[] = [
     title: "Каталог / материалы / образцы",
     icon: <Check className="h-4 w-4" />,
   },
-  {
-    id: "production-time",
-    title: "Сроки производства",
-    icon: <Check className="h-4 w-4" />,
-  },
-  {
-    id: "delivery-assembly",
-    title: "Доставка и сборка",
-    icon: <Check className="h-4 w-4" />,
-  },
+
   {
     id: "custom-sizes",
-    title: "Индивидуальные размеры / проект",
+    title: "Индивидуальные заказы",
     icon: <Check className="h-4 w-4" />,
   },
   {
     id: "content-3d",
-    title: "Фотоконтент / 3D модели / модели для дизайнера",
-    icon: <Check className="h-4 w-4" />,
-  },
-  {
-    id: "export-terms",
-    title: "Экспортные условия",
+    title: "Заказать дизайн",
     icon: <Check className="h-4 w-4" />,
   },
   {
     id: "meeting-call",
-    title: "Встреча / звонок менеджера",
+    title: "Заказать встречу / звонок менеджера",
     icon: <Check className="h-4 w-4" />,
   },
 ];
@@ -134,7 +115,7 @@ function ChipCard({
         "group w-full cursor-pointer text-left rounded-3xl border p-4 md:p-5 transition",
         "outline-none focus-visible:ring-2 focus-visible:ring-black/10 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
         active
-          ? "border-black/20 bg-black/[0.03]"
+          ? "border-emerald-600 bg-emerald-600 hover:bg-emerald-700 hover:border-emerald-700"
           : "border-black/10 bg-white hover:border-black/18",
       )}
     >
@@ -143,18 +124,30 @@ function ChipCard({
           className={cn(
             "mt-0.5 h-9 w-9 rounded-2xl border flex items-center justify-center shrink-0 transition",
             active
-              ? "border-black/18 bg-white"
-              : "border-black/10 bg-black/[0.02] group-hover:bg-white",
+              ? "border-white/20 bg-white/10 text-white"
+              : "border-black/10 bg-black/[0.02] text-black/70 group-hover:bg-white",
           )}
         >
-          <span className="text-black/70">{icon}</span>
+          <span className={cn(active ? "text-white" : "text-black/70")}>
+            {icon}
+          </span>
         </div>
 
         <div className="min-w-0">
-          <div className="text-[14px] font-medium leading-6 text-black/85">
+          <div
+            className={cn(
+              "text-[14px] font-medium leading-6",
+              active ? "text-white" : "text-black/85",
+            )}
+          >
             {title}
           </div>
-          <div className="mt-2 text-[11px] tracking-[0.16em] text-black/45">
+          <div
+            className={cn(
+              "mt-2 text-[11px] tracking-[0.16em]",
+              active ? "text-white/85" : "text-black/45",
+            )}
+          >
             {active ? "ДОБАВЛЕНО ✓" : "ДОБАВИТЬ"}
           </div>
         </div>
@@ -219,7 +212,6 @@ function readRegionFromStorage(): Region {
 
 function writeRegionToStorage(r: Region) {
   if (typeof window === "undefined") return;
-  // Пишем в самый вероятный ключ, но не ломаем сайт: это только помощь форме.
   window.localStorage.setItem("lioneto:region", r);
 }
 
@@ -262,14 +254,10 @@ function convertDigitsForRegion(prev: Region, next: Region, digits: string) {
   const d = digitsOnly(digits);
   if (!d) return "";
 
-  // если был UZ и переключили на RU — возьмём последние 10 цифр (или обрежем)
   if (prev === "UZ" && next === "RU") {
-    // UZ хранит 9 цифр без 998, RU надо 10 цифр без 7
-    // не выдумываем лишнюю цифру — просто переносим как есть, добивать не нужно
     return d.slice(0, 10);
   }
 
-  // если был RU и переключили на UZ — возьмём первые 9 цифр
   if (prev === "RU" && next === "UZ") {
     return d.slice(0, 9);
   }
@@ -321,12 +309,10 @@ export default function CooperationClient({
 
   const [region, setRegion] = useState<Region>("UZ");
 
-  // при монтировании читаем регион
   useEffect(() => {
     setRegion(readRegionFromStorage());
   }, []);
 
-  // слушаем смену региона из других вкладок/скриптов (storage event)
   useEffect(() => {
     const onStorage = () => setRegion(readRegionFromStorage());
     window.addEventListener("storage", onStorage);
@@ -363,12 +349,9 @@ export default function CooperationClient({
       ? formatRuPhone(form.phoneDigits)
       : formatUzPhone(form.phoneDigits);
 
-  // при смене региона: подрежем/переведём номер под новую длину
   useEffect(() => {
     setForm((p) => {
       const converted = convertDigitsForRegion(region, region, p.phoneDigits);
-      // convertDigitsForRegion здесь не нужен, но оставим чисто для будущей логики.
-      // фактическую обрезку делаем ниже.
       const trimmed = digitsOnly(converted).slice(0, phoneView.maxLen);
       if (trimmed === p.phoneDigits) return p;
       return { ...p, phoneDigits: trimmed };
@@ -404,7 +387,7 @@ export default function CooperationClient({
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       email: form.email.trim(),
-      phone: phoneView.fullE164, // +998... / +7...
+      phone: phoneView.fullE164,
       company: form.company.trim(),
       city: form.city.trim(),
       contactMethod: form.method,
@@ -448,7 +431,6 @@ export default function CooperationClient({
 
   const onChangeRegion = (next: Region) => {
     setRegion((prev) => {
-      // перенос цифр при смене
       setForm((p) => ({
         ...p,
         phoneDigits: convertDigitsForRegion(prev, next, p.phoneDigits),
@@ -460,7 +442,6 @@ export default function CooperationClient({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 space-y-10 md:space-y-14">
-      {/* HERO */}
       <section className="rounded-3xl border border-black/10 bg-white p-6 md:p-10 relative overflow-hidden">
         <div
           aria-hidden
@@ -508,7 +489,6 @@ export default function CooperationClient({
               НАЧАТЬ
             </button>
 
-            {/* Регион прямо в hero (как ты просил) */}
             <div className="ml-0 md:ml-2">
               <div className="mb-2 text-[11px] tracking-[0.14em] text-black/45">
                 РЕГИОН ДЛЯ СВЯЗИ
@@ -519,10 +499,8 @@ export default function CooperationClient({
         </div>
       </section>
 
-      {/* MAIN */}
       <section ref={startRef} className="grid gap-6 md:grid-cols-12">
         <div className="md:col-span-7 space-y-10">
-          {/* Formats */}
           <div>
             <SectionTitle
               eyebrow="ШАГ 1"
@@ -542,7 +520,6 @@ export default function CooperationClient({
             </div>
           </div>
 
-          {/* Interests */}
           <div>
             <SectionTitle
               eyebrow="ШАГ 2"
@@ -562,7 +539,6 @@ export default function CooperationClient({
             </div>
           </div>
 
-          {/* Contacts */}
           <div>
             <SectionTitle
               eyebrow="ШАГ 3"
@@ -620,7 +596,6 @@ export default function CooperationClient({
                   />
                 </div>
 
-                {/* Phone */}
                 <div className="grid gap-2">
                   <div className="text-[12px] tracking-[0.14em] text-black/45">
                     Телефон*
@@ -652,7 +627,6 @@ export default function CooperationClient({
                   </div>
                 </div>
 
-                {/* Method */}
                 <div className="mt-2">
                   <div className="text-[12px] tracking-[0.14em] text-black/45">
                     Удобный способ связи
@@ -696,7 +670,6 @@ export default function CooperationClient({
           </div>
         </div>
 
-        {/* Summary */}
         <div className="md:col-span-5">
           <div className="md:sticky md:top-6">
             <div className="rounded-3xl border border-black/10 bg-white p-6">

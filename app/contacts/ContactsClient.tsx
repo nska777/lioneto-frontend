@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { MapPin, Phone, Clock, Check } from "lucide-react";
+import { MapPin, Phone, Clock, Check, Instagram, Send } from "lucide-react";
 
 import {
   UZ_STORES,
@@ -54,12 +54,48 @@ function RegionToggle({
   );
 }
 
+function ContactLinksInline() {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2">
+      <a
+        href="https://www.instagram.com/lioneto.uz?igsh=MWZoaHRzcjUxenF1bw%3D%3D&utm_source=qr"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-[12px] font-medium tracking-[0.14em] text-black/65 transition hover:border-black/20 hover:text-black"
+      >
+        <Instagram className="h-4 w-4" />
+        INSTAGRAM
+      </a>
+
+      <a
+        href="https://t.me/lianetouz"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-[12px] font-medium tracking-[0.14em] text-black/65 transition hover:border-black/20 hover:text-black"
+      >
+        <Send className="h-4 w-4" />
+        TELEGRAM
+      </a>
+
+      <a
+        href="tel:+998909256006"
+        className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-[12px] font-medium tracking-[0.14em] text-black/65 transition hover:border-black/20 hover:text-black"
+      >
+        <Phone className="h-4 w-4" />
+        +998 (90) 925-60-06
+      </a>
+    </div>
+  );
+}
+
 function StoreRow({
   active,
+  featured,
   store,
   onClick,
 }: {
   active: boolean;
+  featured: boolean;
   store: Store;
   onClick: () => void;
 }) {
@@ -68,31 +104,66 @@ function StoreRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full cursor-pointer rounded-3xl border p-5 text-left transition",
-        active
-          ? "border-black/25 bg-black/[0.02]"
-          : "border-black/10 bg-white hover:border-black/20",
+        "relative w-full cursor-pointer rounded-3xl border p-5 text-left transition",
+        featured
+          ? active
+            ? "border-[#ccb086] bg-[#f7f1e7] shadow-[0_8px_24px_rgba(0,0,0,0.05)]"
+            : "border-[#d8c3a5] bg-[#fbf7f1] hover:border-[#ccb086]"
+          : active
+            ? "border-black/25 bg-black/[0.02]"
+            : "border-black/10 bg-white hover:border-black/20",
       )}
     >
+      {featured ? (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="inline-flex rounded-full bg-[#d2ae7a] px-3 py-1 text-[10px] font-semibold tracking-[0.18em] text-white">
+            ГЛАВНЫЙ САЛОН
+          </span>
+
+          <span className="text-[10px] tracking-[0.18em] text-[#9b7a4a]">
+            РЕКОМЕНДУЕМ
+          </span>
+        </div>
+      ) : null}
+
       <div className="flex items-start gap-3">
         <div
           className={cn(
             "mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl border",
-            active
-              ? "border-black/20 bg-white"
-              : "border-black/10 bg-black/[0.02]",
+            featured
+              ? "border-[#d8c3a5] bg-white text-[#8e6d3f]"
+              : active
+                ? "border-black/20 bg-white"
+                : "border-black/10 bg-black/[0.02]",
           )}
         >
           {active ? (
-            <Check className="h-4 w-4 text-black/70" />
+            <Check
+              className={cn(
+                "h-4 w-4",
+                featured ? "text-[#8e6d3f]" : "text-black/70",
+              )}
+            />
           ) : (
-            <MapPin className="h-4 w-4 text-black/50" />
+            <MapPin
+              className={cn(
+                "h-4 w-4",
+                featured ? "text-[#8e6d3f]" : "text-black/50",
+              )}
+            />
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-semibold tracking-[-0.01em] text-black/90">
-            {store.title}
+          <div className="flex items-start justify-between gap-3">
+            <div
+              className={cn(
+                "text-[14px] font-semibold tracking-[-0.01em]",
+                featured ? "text-black" : "text-black/90",
+              )}
+            >
+              {store.title}
+            </div>
           </div>
 
           {store.phone && (
@@ -180,11 +251,17 @@ export default function ContactsClient() {
     <div ref={rootRef}>
       <div
         data-reveal
-        className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+        className="flex flex-col gap-4 md:grid md:grid-cols-[auto_1fr_auto] md:items-center md:gap-6"
       >
-        <RegionToggle value={region} onChange={setRegion} />
+        <div className="min-w-fit">
+          <RegionToggle value={region} onChange={setRegion} />
+        </div>
 
-        <div className="text-[12px] tracking-[0.18em] text-black/45">
+        <div className="min-w-0">
+          <ContactLinksInline />
+        </div>
+
+        <div className="text-[12px] tracking-[0.18em] text-black/45 md:text-right">
           ВЫБРАНО:{" "}
           <span className="text-black/80">
             {isRu ? "РОССИЯ" : "УЗБЕКИСТАН"}
@@ -203,14 +280,21 @@ export default function ContactsClient() {
             <div className="rounded-3xl border border-black/10 bg-white p-3">
               <div className="max-h-[520px] overflow-auto p-2">
                 <div className="grid gap-3">
-                  {stores.map((s) => (
-                    <StoreRow
-                      key={s.id}
-                      store={s}
-                      active={s.id === activeId}
-                      onClick={() => setActiveId(s.id)}
-                    />
-                  ))}
+                  {stores.map((s, index) => {
+                    const featured =
+                      index === 0 ||
+                      s.title.toLowerCase().includes("rich house");
+
+                    return (
+                      <StoreRow
+                        key={s.id}
+                        store={s}
+                        featured={featured}
+                        active={s.id === activeId}
+                        onClick={() => setActiveId(s.id)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>

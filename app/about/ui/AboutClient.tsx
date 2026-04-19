@@ -248,7 +248,7 @@ export default function AboutClient() {
             />
           </div>
 
-          <div className="mx-auto mt-10 max-w-[980px] space-y-4 text-[14px] leading-7 text-black/65 md:text-[15px]">
+          <div className="mx-auto mt-10 max-w-[980px] space-y-4 text-[18px] leading-8 text-black/65 md:text-[20px]">
             <p data-reveal>
               В 2025 году в мебельной индустрии произошло знаменательное
               событие: три компании с богатой историей и общими ценностями —

@@ -52,6 +52,7 @@ export default function CallModal({
     phone: string;
     region: string;
     pageUrl: string;
+    question: string;
   }) => void;
 }) {
   const { region, setRegion, lang } = useRegionLang();
@@ -130,6 +131,7 @@ export default function CallModal({
           const form = new FormData(e.currentTarget);
           const lastName = String(form.get("lastName") ?? "").trim();
           const firstName = String(form.get("firstName") ?? "").trim();
+          const question = String(form.get("question") ?? "").trim();
 
           const phone = `${phonePrefix} ${phoneDigits}`.trim();
 
@@ -139,6 +141,7 @@ export default function CallModal({
             phone,
             region: regionLabel,
             pageUrl: typeof window !== "undefined" ? window.location.href : "",
+            question,
           };
 
           try {
@@ -220,6 +223,15 @@ export default function CallModal({
             {tt("form.region", "Регион")}:{" "}
             <span className="text-black/70">{regionLabel}</span>
           </div>
+        </div>
+
+        <div>
+          <textarea
+            name="question"
+            rows={3}
+            className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] outline-none resize-none transition focus:border-black/20 focus:shadow-[0_0_0_6px_rgba(0,0,0,0.04)]"
+            placeholder="Кратко опишите ваш вопрос"
+          />
         </div>
 
         <div className="pt-2">

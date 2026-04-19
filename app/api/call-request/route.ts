@@ -96,7 +96,7 @@ function prettyPhone(phoneRaw: string, region?: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { firstName, lastName, phone, region } = body;
+    const { firstName, lastName, phone, region, question } = body;
 
     if (!firstName || !phone) {
       return NextResponse.json(
@@ -127,6 +127,8 @@ export async function POST(req: Request) {
     const { label } = getTimeZoneByRegion(region);
     const timeStr = formatDateTimeByRegion(region);
 
+    const cleanQuestion = String(question ?? "").trim();
+
     const text = `
 📞 *Заявка на звонок*
 —————————————
@@ -134,6 +136,7 @@ export async function POST(req: Request) {
 📱 *Телефон:* ${phonePretty}
 ${callLink ? `📞 *Позвонить:* ${callLink}` : ""}
 🌍 *Регион:* ${String(region ?? "").trim()}
+${cleanQuestion ? `❓ *Вопрос:* ${cleanQuestion}` : ""}
 🕒 *Время (${label}):* ${timeStr}
 `.trim();
 
