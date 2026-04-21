@@ -14,8 +14,14 @@ export type AddonDraft = {
   selectedColor?: string;
 };
 
+export type ReservationBadge = {
+  isReserved?: boolean;
+  reservationId?: string;
+  reservedUntil?: string;
+};
+
 export type CartEntry =
-  | {
+  | ({
       kind: "product";
       id: string;
       productId: string;
@@ -31,8 +37,8 @@ export type CartEntry =
       unitFinalPrice: number;
       totalBasePrice: number;
       totalFinalPrice: number;
-    }
-  | {
+    } & ReservationBadge)
+  | ({
       kind: "addon";
       id: string;
       parentProductId: string;
@@ -52,7 +58,7 @@ export type CartEntry =
       unitFinalPrice: number;
       totalBasePrice: number;
       totalFinalPrice: number;
-    };
+    } & ReservationBadge);
 
 export type DealerOrderVisibleItem = {
   id: string;
@@ -69,6 +75,8 @@ export type DealerOrderVisibleItem = {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  isReserved?: boolean;
+  reservedUntil?: string;
 };
 
 export type DealerOrderInternalItem = {
@@ -89,6 +97,8 @@ export type DealerOrderInternalItem = {
   unitFinalPrice: number;
   totalBasePrice: number;
   totalFinalPrice: number;
+  isReserved?: boolean;
+  reservedUntil?: string;
 };
 
 export type DealerOrder = {

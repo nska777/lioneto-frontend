@@ -32,7 +32,7 @@ function getVariantPrice(
   variant: DealerProductVariant | null | undefined,
   country: DealerCountryCode,
 ): number {
-  return variant?.priceDelta?.[country] ?? 0;
+  return variant?.price?.[country] ?? 0;
 }
 
 export default function RecommendedQuickAddCard({
@@ -45,17 +45,14 @@ export default function RecommendedQuickAddCard({
   onSelectAddonVariant,
   onOpenRelatedProduct,
 }: Props) {
-  const colorVariants = useMemo(
-    () => (addon.variants ?? []).filter((item) => item.type === "color"),
-    [addon.variants],
-  );
+  const colorVariants = useMemo(() => addon.variants ?? [], [addon.variants]);
 
   useEffect(() => {
     if (!colorVariants.length || !onSelectAddonVariant) return;
 
     const currentKey = addonState.selectedVariantKey ?? "";
     const hasCurrent = colorVariants.some(
-      (variant) => variant.variantKey === currentKey,
+      (variant) => variant.key === currentKey,
     );
 
     if (hasCurrent) return;
@@ -63,7 +60,11 @@ export default function RecommendedQuickAddCard({
     const firstVariant = colorVariants[0];
     if (!firstVariant) return;
 
-    onSelectAddonVariant(addon.id, firstVariant.variantKey, firstVariant.title);
+    onSelectAddonVariant(
+      addon.id,
+      firstVariant.key,
+      firstVariant.color || firstVariant.label || "",
+    );
   }, [
     addon.id,
     addonState.selectedVariantKey,
@@ -73,13 +74,17 @@ export default function RecommendedQuickAddCard({
 
   const selectedVariant =
     colorVariants.find(
-      (variant) => variant.variantKey === addonState.selectedVariantKey,
+      (variant) => variant.key === addonState.selectedVariantKey,
     ) ??
     colorVariants[0] ??
     null;
 
   const selectedColor =
-    addonState.selectedColor || selectedVariant?.title || addon.color || "";
+    addonState.selectedColor ||
+    selectedVariant?.color ||
+    selectedVariant?.label ||
+    addon.color ||
+    "";
 
   const displayArticle = getDisplayArticle(addon.article, selectedColor);
 
@@ -149,18 +154,17 @@ export default function RecommendedQuickAddCard({
       {colorVariants.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {colorVariants.map((variant) => {
-            const isSelected =
-              variant.variantKey === selectedVariant?.variantKey;
+            const isSelected = variant.key === selectedVariant?.key;
 
             return (
               <button
-                key={variant.id || variant.variantKey}
+                key={variant.key}
                 type="button"
                 onClick={() =>
                   onSelectAddonVariant?.(
                     addon.id,
-                    variant.variantKey,
-                    variant.title,
+                    variant.key,
+                    variant.color || variant.label || "",
                   )
                 }
                 className={cn(
@@ -178,7 +182,7 @@ export default function RecommendedQuickAddCard({
                       : "border-black/15 bg-[#d9c4ac]",
                   )}
                 />
-                <span>{variant.title}</span>
+                <span>{variant.label || variant.color || variant.key}</span>
               </button>
             );
           })}

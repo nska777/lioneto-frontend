@@ -1,64 +1,43 @@
-const STRAPI_URL =
-  process.env.STRAPI_URL ||
-  process.env.NEXT_PUBLIC_STRAPI_URL ||
-  "http://localhost:1337";
-
-const STRAPI_TOKEN =
-  process.env.STRAPI_DEALER_TOKEN ||
-  process.env.STRAPI_API_TOKEN ||
-  "";
+import { cache } from "react";
 
 export type DealerCountryCode = "RU" | "UZ" | "KZ" | "TJ";
-
 export type DealerCategory =
-  | "Спальни"
-  | "Гостиные"
-  | "Молодежные"
-  | "Прихожие"
-  | "Столы и стулья";
-
-export type DealerCollection = {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  image: string;
-  moduleCount: number;
-  categories: DealerCategory[];
-};
+  | "bedroom"
+  | "living"
+  | "children"
+  | "cabinet"
+  | "mattress"
+  | "decor"
+  | "addon"
+  | "other";
 
 export type DealerProductPriceMap = Record<DealerCountryCode, number>;
 
-export type DealerAddonKind = "required" | "recommended";
-export type DealerAddonSelectionType = "toggle" | "quantity";
-export type DealerProductVariantType = "color";
-
-export type DealerProductVariant = {
-  id: string;
-  title: string;
-  type: DealerProductVariantType;
-  variantKey: string;
-  image?: string;
-  priceDelta: DealerProductPriceMap;
+export type DealerFileAsset = {
+  name: string;
+  url: string;
 };
 
-export type DealerFileAsset = {
-  url: string;
-  name?: string;
+export type DealerProductVariant = {
+  key: string;
+  label: string;
+  color?: string;
+  image?: string;
+  price?: Partial<DealerProductPriceMap>;
 };
 
 export type DealerAddon = {
   id: string;
   title: string;
-  article?: string;
+  article: string;
   articleShort?: string;
-  description?: string;
-  image?: string;
-  kind: DealerAddonKind;
-  selectionType: DealerAddonSelectionType;
+  description: string;
+  image: string;
+  kind: "required" | "recommended";
+  selectionType: "toggle" | "quantity";
+  defaultQuantity: number;
+  minQuantity: number;
   price: DealerProductPriceMap;
-  defaultQuantity?: number;
-  minQuantity?: number;
   color?: string;
   size?: string;
   material?: string;
@@ -84,47 +63,51 @@ export type DealerProduct = {
   requiredItems?: DealerAddon[];
   recommendedItems?: DealerAddon[];
   addons?: DealerAddon[];
+
+  stockQty?: number;
+  reservedQty?: number;
+  isStockTracked?: boolean;
 };
 
-type StrapiMediaFormat = {
-  url?: string;
+export type DealerCollection = {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string;
+  coverImage?: string;
+  sortOrder?: number;
+  products?: DealerProduct[];
 };
 
 type StrapiMedia = {
   id?: number;
+  documentId?: string;
   url?: string;
   name?: string;
-  formats?: Record<string, StrapiMediaFormat>;
 };
-
-type StrapiMediaField =
-  | StrapiMedia
-  | { data?: StrapiMedia | null }
-  | null
-  | undefined;
 
 type StrapiCollection = {
   id?: number;
   documentId?: string;
-  title?: string;
   slug?: string;
+  title?: string;
+  description?: string;
   sortOrder?: number;
+  coverImage?: StrapiMedia | { data?: StrapiMedia | null } | null;
   isActive?: boolean;
-  cover?: StrapiMediaField;
 };
 
 type StrapiVariant = {
   id?: number;
   documentId?: string;
-  title?: string;
-  type?: string;
-  variantKey?: string;
-  priceDeltaRUB?: number;
-  priceDeltaUZS?: number;
-  priceDeltaKZT?: number;
-  priceDeltaTJS?: number;
-  media?: StrapiMediaField;
-  image?: StrapiMediaField;
+  key?: string;
+  label?: string;
+  color?: string;
+  media?: StrapiMedia | { data?: StrapiMedia | null } | null;
+  priceRU?: number | string | null;
+  priceUZ?: number | string | null;
+  priceKZ?: number | string | null;
+  priceTJ?: number | string | null;
 };
 
 type StrapiProduct = {
@@ -133,66 +116,57 @@ type StrapiProduct = {
   title?: string;
   article?: string;
   articleShort?: string;
-  slug?: string;
   description?: string;
+  category?: string;
   color?: string;
   size?: string;
   material?: string;
-  assemblyInstructionTitle?: string;
-  assemblyInstructionFile?: StrapiMediaField;
-  image?: StrapiMediaField;
-  gallery?: StrapiMediaField;
-  category?: string;
-  sortOrder?: number;
-  isActive?: boolean;
-  priceRU?: number;
-  priceUZ?: number;
-  priceKZ?: number;
-  priceTJ?: number;
+  image?: StrapiMedia | { data?: StrapiMedia | null } | null;
+  gallery?: StrapiMedia[] | { data?: StrapiMedia[] | null } | null;
+  collection?: StrapiCollection | { data?: StrapiCollection | null } | null;
   variants?: StrapiVariant[];
-  collection?:
-    | StrapiCollection
-    | { data?: StrapiCollection | null }
+  assemblyInstructionTitle?: string;
+  assemblyInstructionFile?:
+    | StrapiMedia
+    | { data?: StrapiMedia | null }
     | null;
+  priceRU?: number | string | null;
+  priceUZ?: number | string | null;
+  priceKZ?: number | string | null;
+  priceTJ?: number | string | null;
+  isActive?: boolean;
+
+  stockQty?: number;
+  reservedQty?: number;
+  isStockTracked?: boolean;
 };
 
 type StrapiAddonRelation = {
   id?: number;
   documentId?: string;
-  kind?: string;
-  defaultQty?: number;
-  sortOrder?: number;
+  parentProduct?: StrapiProduct | { data?: StrapiProduct | null } | null;
+  addonProduct?: StrapiProduct | { data?: StrapiProduct | null } | null;
+  addonKind?: "required" | "recommended" | string | null;
+  selectionType?: "toggle" | "quantity" | string | null;
+  defaultQty?: number | string | null;
+  minQty?: number | string | null;
+  sortOrder?: number | string | null;
   isActive?: boolean;
-  parentProduct?:
-    | StrapiProduct
-    | { data?: StrapiProduct | null }
-    | null;
-  addonProduct?:
-    | StrapiProduct
-    | { data?: StrapiProduct | null }
-    | null;
 };
 
-function getAuthHeaders(): HeadersInit {
-  const headers: Record<string, string> = {};
+const STRAPI_URL =
+  process.env.STRAPI_URL ||
+  process.env.NEXT_PUBLIC_STRAPI_URL ||
+  "http://localhost:1337";
 
-  if (STRAPI_TOKEN) {
-    headers.Authorization = `Bearer ${STRAPI_TOKEN}`;
-  }
+function getAuthHeaders(): { Authorization?: string } {
+  const token =
+    process.env.STRAPI_DEALER_TOKEN ||
+    process.env.STRAPI_API_TOKEN ||
+    process.env.STRAPI_READONLY_TOKEN ||
+    "";
 
-  return headers;
-}
-
-function toAbsoluteUrl(url?: string | null) {
-  if (!url) return "/images/placeholder-product.jpg";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  return `${STRAPI_URL}${url}`;
-}
-
-function toAbsoluteOptionalUrl(url?: string | null) {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  return `${STRAPI_URL}${url}`;
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 function unwrapRelation<T>(
@@ -207,98 +181,108 @@ function unwrapRelation<T>(
   return value as T;
 }
 
-function extractMediaUrl(media?: StrapiMediaField) {
-  const actual = unwrapRelation(media);
-  if (!actual) return "/images/placeholder-product.jpg";
-
-  const preferred =
-    actual.formats?.medium?.url ||
-    actual.formats?.small?.url ||
-    actual.url;
-
-  return toAbsoluteUrl(preferred);
-}
-
-function extractMediaFile(media?: StrapiMediaField): DealerFileAsset | null {
-  const actual = unwrapRelation(media);
-  if (!actual?.url) return null;
-
-  return {
-    url: toAbsoluteOptionalUrl(actual.url),
-    name: actual.name ?? "",
-  };
-}
-
 function normalizeCategory(value?: string | null): DealerCategory {
-  switch ((value ?? "").toLowerCase()) {
-    case "bedroom":
-      return "Спальни";
-    case "living-room":
-      return "Гостиные";
-    case "youth":
-      return "Молодежные";
-    case "hallway":
-      return "Прихожие";
-    case "tables-chairs":
-      return "Столы и стулья";
-    default:
-      return "Спальни";
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (
+    normalized === "bedroom" ||
+    normalized === "living" ||
+    normalized === "children" ||
+    normalized === "cabinet" ||
+    normalized === "mattress" ||
+    normalized === "decor" ||
+    normalized === "addon"
+  ) {
+    return normalized;
   }
+
+  return "other";
 }
 
-function mapPrices(product?: StrapiProduct | null): DealerProductPriceMap {
+function toNumber(value: unknown) {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function mapPrices(raw: {
+  priceRU?: number | string | null;
+  priceUZ?: number | string | null;
+  priceKZ?: number | string | null;
+  priceTJ?: number | string | null;
+}): DealerProductPriceMap {
   return {
-    RU: Number(product?.priceRU ?? 0),
-    UZ: Number(product?.priceUZ ?? 0),
-    KZ: Number(product?.priceKZ ?? 0),
-    TJ: Number(product?.priceTJ ?? 0),
+    RU: toNumber(raw.priceRU),
+    UZ: toNumber(raw.priceUZ),
+    KZ: toNumber(raw.priceKZ),
+    TJ: toNumber(raw.priceTJ),
   };
 }
 
-function mapVariantPrices(
-  variant?: StrapiVariant | null,
-): DealerProductPriceMap {
+function withAbsoluteUrl(url?: string | null) {
+  const clean = String(url ?? "").trim();
+  if (!clean) return "";
+
+  if (clean.startsWith("http://") || clean.startsWith("https://")) {
+    return clean;
+  }
+
+  return `${STRAPI_URL}${clean}`;
+}
+
+function extractMediaUrl(
+  value?: StrapiMedia | { data?: StrapiMedia | null } | null,
+) {
+  const media = unwrapRelation(value);
+  return withAbsoluteUrl(media?.url);
+}
+
+function extractMediaFile(
+  value?: StrapiMedia | { data?: StrapiMedia | null } | null,
+): DealerFileAsset | null {
+  const media = unwrapRelation(value);
+
+  if (!media?.url) return null;
+
   return {
-    RU: Number(variant?.priceDeltaRUB ?? 0),
-    UZ: Number(variant?.priceDeltaUZS ?? 0),
-    KZ: Number(variant?.priceDeltaKZT ?? 0),
-    TJ: Number(variant?.priceDeltaTJS ?? 0),
+    name: media.name ?? "file",
+    url: withAbsoluteUrl(media.url),
   };
 }
 
 function normalizeCollection(
   raw: StrapiCollection,
-  products: DealerProduct[] = [],
+  products?: DealerProduct[],
 ): DealerCollection {
-  const categories = Array.from(
-    new Set(products.map((item) => item.category)),
-  ) as DealerCategory[];
-
   return {
     id: String(raw.documentId ?? raw.id ?? ""),
     slug: raw.slug ?? "",
     title: raw.title ?? "",
-    description: "",
-    image: extractMediaUrl(raw.cover),
-    moduleCount: products.length,
-    categories,
+    description: raw.description ?? "",
+    coverImage: extractMediaUrl(raw.coverImage),
+    sortOrder: toNumber(raw.sortOrder),
+    products: products ?? [],
   };
 }
 
-function normalizeVariant(raw: StrapiVariant): DealerProductVariant | null {
-  const type = (raw.type ?? "").toLowerCase();
+function normalizeVariant(
+  raw: StrapiVariant | null | undefined,
+): DealerProductVariant | null {
+  if (!raw) return null;
 
-  if (type !== "color") return null;
-
-  const variantMedia = raw.media ?? raw.image;
+  const key = String(raw.key ?? raw.documentId ?? raw.id ?? "").trim();
+  if (!key) return null;
 
   return {
-    id: String(raw.documentId ?? raw.id ?? raw.variantKey ?? raw.title ?? ""),
-    title: raw.title ?? "",
-    type: "color",
-    variantKey: raw.variantKey ?? "",
-    image: variantMedia ? extractMediaUrl(variantMedia) : undefined,
-    priceDelta: mapVariantPrices(raw),
+    key,
+    label: raw.label ?? key,
+    color: raw.color ?? "",
+    image: extractMediaUrl(raw.media),
+    price: {
+      RU: toNumber(raw.priceRU),
+      UZ: toNumber(raw.priceUZ),
+      KZ: toNumber(raw.priceKZ),
+      TJ: toNumber(raw.priceTJ),
+    },
   };
 }
 
@@ -306,13 +290,16 @@ function normalizeAddon(
   relation: StrapiAddonRelation,
   addonProduct: StrapiProduct,
 ): DealerAddon {
-  const kind: DealerAddonKind =
-    relation.kind === "required" ? "required" : "recommended";
+  const kind =
+    relation.addonKind === "required" ? "required" : "recommended";
+
+  const selectionType =
+    relation.selectionType === "toggle" ? "toggle" : "quantity";
 
   const variants = Array.isArray(addonProduct.variants)
-    ? addonProduct.variants
+    ? (addonProduct.variants
         .map(normalizeVariant)
-        .filter(Boolean) as DealerProductVariant[]
+        .filter(Boolean) as DealerProductVariant[])
     : [];
 
   return {
@@ -323,9 +310,9 @@ function normalizeAddon(
     description: addonProduct.description ?? "",
     image: extractMediaUrl(addonProduct.image),
     kind,
-    selectionType: "quantity",
-    defaultQuantity: Math.max(1, Number(relation.defaultQty ?? 1)),
-    minQuantity: 1,
+    selectionType,
+    defaultQuantity: Math.max(1, toNumber(relation.defaultQty || 1)),
+    minQuantity: Math.max(1, toNumber(relation.minQty || 1)),
     price: mapPrices(addonProduct),
     color: addonProduct.color ?? "",
     size: addonProduct.size ?? "",
@@ -337,9 +324,7 @@ function normalizeAddon(
 function normalizeProductBase(raw: StrapiProduct): DealerProduct {
   const collection = unwrapRelation(raw.collection);
   const variants = Array.isArray(raw.variants)
-    ? raw.variants
-        .map(normalizeVariant)
-        .filter(Boolean) as DealerProductVariant[]
+    ? (raw.variants.map(normalizeVariant).filter(Boolean) as DealerProductVariant[])
     : [];
 
   return {
@@ -361,6 +346,10 @@ function normalizeProductBase(raw: StrapiProduct): DealerProduct {
     requiredItems: [],
     recommendedItems: [],
     addons: [],
+
+    stockQty: Math.max(0, toNumber(raw.stockQty)),
+    reservedQty: Math.max(0, toNumber(raw.reservedQty)),
+    isStockTracked: Boolean(raw.isStockTracked),
   };
 }
 
@@ -373,7 +362,7 @@ function withAddons(
   const recommendedItems: DealerAddon[] = [];
 
   addonRelations
-    .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
+    .sort((a, b) => toNumber(a.sortOrder) - toNumber(b.sortOrder))
     .forEach((relation) => {
       const addonRef = unwrapRelation(relation.addonProduct);
       const addonId = String(addonRef?.documentId ?? addonRef?.id ?? "");
@@ -403,11 +392,22 @@ function withAddons(
 async function strapiFetch<T>(path: string): Promise<T> {
   const url = `${STRAPI_URL}${path}`;
 
+  const headers = new Headers({
+    "Content-Type": "application/json",
+  });
+
+  const authHeaders = getAuthHeaders();
+
+  if (
+    "Authorization" in authHeaders &&
+    typeof authHeaders.Authorization === "string" &&
+    authHeaders.Authorization.length > 0
+  ) {
+    headers.set("Authorization", authHeaders.Authorization);
+  }
+
   const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
+    headers,
     next: { revalidate: 60 },
   });
 
@@ -421,21 +421,23 @@ async function strapiFetch<T>(path: string): Promise<T> {
   return response.json();
 }
 
-export async function getDealerCollections(): Promise<DealerCollection[]> {
-  const params = new URLSearchParams();
-  params.set("filters[isActive][$eq]", "true");
-  params.set("sort[0]", "sortOrder:asc");
-  params.set("sort[1]", "title:asc");
-  params.set("populate", "*");
-  params.set("pagination[pageSize]", "100");
+export const getDealerCollections = cache(
+  async (): Promise<DealerCollection[]> => {
+    const params = new URLSearchParams();
+    params.set("filters[isActive][$eq]", "true");
+    params.set("sort[0]", "sortOrder:asc");
+    params.set("sort[1]", "title:asc");
+    params.set("populate", "*");
+    params.set("pagination[pageSize]", "100");
 
-  const json = await strapiFetch<{ data?: StrapiCollection[] }>(
-    `/api/dealer-collections?${params.toString()}`,
-  );
+    const json = await strapiFetch<{ data?: StrapiCollection[] }>(
+      `/api/dealer-collections?${params.toString()}`,
+    );
 
-  const rows = Array.isArray(json?.data) ? json.data : [];
-  return rows.map((item) => normalizeCollection(item));
-}
+    const rows = Array.isArray(json?.data) ? json.data : [];
+    return rows.map((item) => normalizeCollection(item));
+  },
+);
 
 export async function getDealerCollectionPageData(
   collectionSlug: string,

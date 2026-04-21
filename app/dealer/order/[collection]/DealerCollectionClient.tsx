@@ -9,11 +9,13 @@ import type {
   DealerCountryCode,
   DealerProduct,
 } from "@/app/lib/dealer/shop";
+import ImagePreviewModal from "./ImagePreviewModal";
 import ProductDetailsModal from "./ProductDetailsModal";
 import ProductRow from "./ProductRow";
 import OrderConfirmModal from "./OrderConfirmModal";
 import OrderSidebar from "./OrderSidebar";
 import OrderSuccessModal from "./OrderSuccessModal";
+import ReservationSuccessModal from "@/app/dealer/components/ReservationSuccessModal";
 import {
   buildInternalItems,
   buildVisibleItems,
@@ -62,6 +64,24 @@ type DealerMe = {
 type DealerMeResponse = {
   dealer?: DealerMe;
 };
+
+type ReservationRecord = {
+  id: string;
+  documentId?: string;
+  productId: string;
+  quantity: number;
+  reservationStatus: "active" | "expired" | "converted" | "cancelled";
+  reservedUntil: string;
+};
+
+type ReservationMap = Record<
+  string,
+  {
+    quantity: number;
+    reservedUntil?: string;
+    reservationId?: string;
+  }
+>;
 
 function getProductOptions(product: DealerProduct) {
   const required = product.requiredItems ?? [];
@@ -125,9 +145,8 @@ function getSelectedProductVariant(
   if (!variantKey) return null;
 
   return (
-    (product.variants ?? []).find(
-      (variant) => variant.variantKey === variantKey,
-    ) ?? null
+    (product.variants ?? []).find((variant) => variant.key === variantKey) ??
+    null
   );
 }
 
@@ -148,11 +167,67 @@ export default function DealerCollectionClient({
   const [selectedProduct, setSelectedProduct] = useState<DealerProduct | null>(
     null,
   );
+  const [previewImage, setPreviewImage] = useState<{
+    src: string;
+    title: string;
+  } | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [confirmOrder, setConfirmOrder] = useState<DealerOrder | null>(null);
   const [successOrder, setSuccessOrder] = useState<DealerOrder | null>(null);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [draftOrderNumber, setDraftOrderNumber] = useState("");
+
+  const [reservationsMap, setReservationsMap] = useState<ReservationMap>({});
+  const [reservingProductId, setReservingProductId] = useState("");
+  const [reservationSuccess, setReservationSuccess] = useState<{
+    open: boolean;
+    productTitle: string;
+  }>({
+    open: false,
+    productTitle: "",
+  });
+
+  function buildReservationMap(rows: ReservationRecord[]) {
+    return rows.reduce<ReservationMap>((acc, row) => {
+      if (row.reservationStatus !== "active") return acc;
+
+      const current = acc[row.productId];
+
+      acc[row.productId] = {
+        quantity:
+          (current?.quantity ?? 0) + Math.max(1, Number(row.quantity ?? 1)),
+        reservedUntil: current?.reservedUntil || row.reservedUntil,
+        reservationId: current?.reservationId || row.documentId || row.id,
+      };
+
+      return acc;
+    }, {});
+  }
+
+  async function syncReservations() {
+    try {
+      await fetch("/api/dealer/reservations/release-expired", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      const res = await fetch("/api/dealer/reservations", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      if (!res.ok) return;
+
+      const data = (await res.json()) as {
+        reservations?: ReservationRecord[];
+      };
+
+      setReservationsMap(buildReservationMap(data.reservations ?? []));
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     setCartProductIds(loadCartProductIds());
@@ -203,11 +278,17 @@ export default function DealerCollectionClient({
     }
 
     loadDealerMe();
+    syncReservations();
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!dealerMe?.documentId) return;
+    syncReservations();
+  }, [dealerMe?.documentId]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -228,15 +309,32 @@ export default function DealerCollectionClient({
     return initialProducts;
   }, [initialProducts]);
 
+  const allProductsWithStock = useMemo(() => {
+    return allProducts.map((product) => {
+      const reservedFromReservations = reservationsMap[product.id]?.quantity;
+      const reservedQty =
+        reservedFromReservations != null
+          ? Math.max(0, Number(reservedFromReservations))
+          : Math.max(0, Number(product.reservedQty ?? 0));
+
+      return {
+        ...product,
+        reservedQty,
+      };
+    });
+  }, [allProducts, reservationsMap]);
+
   const currentCollectionProducts = useMemo(() => {
-    return allProducts.filter(
+    return allProductsWithStock.filter(
       (product) => product.collectionSlug === safeCollection.slug,
     );
-  }, [allProducts, safeCollection.slug]);
+  }, [allProductsWithStock, safeCollection.slug]);
 
   const allProductsById = useMemo(() => {
-    return new Map(allProducts.map((product) => [product.id, product]));
-  }, [allProducts]);
+    return new Map(
+      allProductsWithStock.map((product) => [product.id, product]),
+    );
+  }, [allProductsWithStock]);
 
   const allAddonsIndex = useMemo(() => {
     const map = new Map<
@@ -247,7 +345,7 @@ export default function DealerCollectionClient({
       }
     >();
 
-    allProducts.forEach((product) => {
+    allProductsWithStock.forEach((product) => {
       getProductOptions(product).forEach((addon) => {
         const draftKey = getAddonDraftKey(product.id, addon.id);
 
@@ -259,7 +357,7 @@ export default function DealerCollectionClient({
     });
 
     return map;
-  }, [allProducts]);
+  }, [allProductsWithStock]);
 
   function getDraft(productId: string): ProductDraft {
     return drafts[productId] ?? getDefaultDraft();
@@ -417,6 +515,84 @@ export default function DealerCollectionClient({
     );
   }
 
+  async function handleReserveProduct(product: DealerProduct) {
+    const draft = getDraft(product.id);
+    const quantity = Math.max(1, Number(draft.quantity ?? 1));
+
+    if (!dealerMe?.documentId) {
+      alert("Сначала войди как дилер");
+      return;
+    }
+
+    const stockQty = Math.max(0, Number(product.stockQty ?? 0));
+    const reservedQty = Math.max(0, Number(product.reservedQty ?? 0));
+    const availableQty = Math.max(0, stockQty - reservedQty);
+
+    if (product.isStockTracked && availableQty < quantity) {
+      alert("Недостаточно товара в остатке");
+      return;
+    }
+
+    try {
+      setReservingProductId(product.id);
+
+      const res = await fetch("/api/dealer/reservations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          productId: product.id,
+          quantity,
+          collectionSlug: product.collectionSlug,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        alert(data?.error || "Не удалось забронировать товар");
+        return;
+      }
+
+      setCartProductIds((prev) =>
+        prev.includes(product.id) ? prev : [...prev, product.id],
+      );
+
+      setReservationsMap((prev) => ({
+        ...prev,
+        [product.id]: {
+          quantity: Math.max(
+            0,
+            Number(
+              data?.stock?.reservedQty ??
+                prev[product.id]?.quantity ??
+                quantity,
+            ),
+          ),
+          reservedUntil:
+            data?.reservation?.reservedUntil ??
+            prev[product.id]?.reservedUntil ??
+            "",
+          reservationId:
+            data?.reservation?.documentId ??
+            data?.reservation?.id ??
+            prev[product.id]?.reservationId,
+        },
+      }));
+
+      setReservationSuccess({
+        open: true,
+        productTitle: product.title,
+      });
+    } catch {
+      alert("Ошибка бронирования");
+    } finally {
+      setReservingProductId("");
+    }
+  }
+
   function handleToggleAddonCartByKey(draftKey: string) {
     const entry = allAddonsIndex.get(draftKey);
     const addon = entry?.addon ?? null;
@@ -486,6 +662,15 @@ export default function DealerCollectionClient({
     setSelectedProduct(product);
   }
 
+  function handleOpenImagePreview(product: DealerProduct) {
+    if (!product.image) return;
+
+    setPreviewImage({
+      src: product.image,
+      title: product.title,
+    });
+  }
+
   const productCartItems = useMemo<CartEntry[]>(() => {
     return cartProductIds
       .map((productId) => {
@@ -497,13 +682,13 @@ export default function DealerCollectionClient({
         const quantity = Math.max(1, draft.quantity || 1);
 
         const unitBasePrice =
-          selectedVariant?.priceDelta?.[country] ?? product.price[country] ?? 0;
+          selectedVariant?.price?.[country] ?? product.price[country] ?? 0;
 
         const totalBasePrice = unitBasePrice * quantity;
 
         const selectedColor =
           draft.selectedColor ||
-          selectedVariant?.title ||
+          selectedVariant?.label ||
           getProductColor(product);
 
         return {
@@ -522,15 +707,18 @@ export default function DealerCollectionClient({
           unitFinalPrice: unitBasePrice,
           totalBasePrice,
           totalFinalPrice: totalBasePrice,
+          isReserved: Boolean(reservationsMap[product.id]),
+          reservedUntil: reservationsMap[product.id]?.reservedUntil,
+          reservationId: reservationsMap[product.id]?.reservationId,
         };
       })
       .filter(Boolean) as CartEntry[];
-  }, [cartProductIds, drafts, country, allProductsById]);
+  }, [cartProductIds, drafts, country, allProductsById, reservationsMap]);
 
   const addonCartItems = useMemo<CartEntry[]>(() => {
     const items: CartEntry[] = [];
 
-    allProducts.forEach((product) => {
+    allProductsWithStock.forEach((product) => {
       const addons = getProductOptions(product);
 
       addons.forEach((addon) => {
@@ -546,13 +734,11 @@ export default function DealerCollectionClient({
 
         const addonSelectedVariant =
           (addon.variants ?? []).find(
-            (variant) => variant.variantKey === addonDraft.selectedVariantKey,
+            (variant) => variant.key === addonDraft.selectedVariantKey,
           ) ?? null;
 
         const unitBasePrice =
-          addonSelectedVariant?.priceDelta?.[country] ??
-          addon.price[country] ??
-          0;
+          addonSelectedVariant?.price?.[country] ?? addon.price[country] ?? 0;
 
         const totalBasePrice = unitBasePrice * quantity;
 
@@ -564,10 +750,10 @@ export default function DealerCollectionClient({
 
         const selectedColor =
           addonDraft.selectedColor ||
-          addonSelectedVariant?.title ||
+          addonSelectedVariant?.label ||
           addon.color ||
           productDraft.selectedColor ||
-          selectedParentVariant?.title ||
+          selectedParentVariant?.label ||
           getProductColor(product);
 
         const baseAddonArticle =
@@ -602,7 +788,7 @@ export default function DealerCollectionClient({
     });
 
     return items;
-  }, [addonDrafts, country, allProducts, drafts]);
+  }, [addonDrafts, country, allProductsWithStock, drafts]);
 
   const cartItems = useMemo(() => {
     return [...productCartItems, ...addonCartItems];
@@ -834,7 +1020,10 @@ export default function DealerCollectionClient({
                     onIncreaseQty={handleIncreaseQty}
                     onDecreaseQty={handleDecreaseQty}
                     onOpenModal={setSelectedProduct}
+                    onOpenImagePreview={handleOpenImagePreview}
                     onToggleCart={handleToggleCart}
+                    onReserve={handleReserveProduct}
+                    isReserving={reservingProductId === product.id}
                   />
                 );
               })
@@ -859,6 +1048,11 @@ export default function DealerCollectionClient({
           </div>
         </div>
       </div>
+
+      <ImagePreviewModal
+        image={previewImage}
+        onClose={() => setPreviewImage(null)}
+      />
 
       <ProductDetailsModal
         product={selectedProduct}
@@ -893,6 +1087,17 @@ export default function DealerCollectionClient({
       <OrderSuccessModal
         order={successOrder}
         onClose={() => setSuccessOrder(null)}
+      />
+
+      <ReservationSuccessModal
+        open={reservationSuccess.open}
+        productTitle={reservationSuccess.productTitle}
+        onClose={() =>
+          setReservationSuccess({
+            open: false,
+            productTitle: "",
+          })
+        }
       />
     </>
   );

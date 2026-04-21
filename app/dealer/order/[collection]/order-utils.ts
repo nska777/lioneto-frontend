@@ -1,4 +1,4 @@
-import type { DealerCountryCode, DealerProduct } from "../data";
+import type { DealerCountryCode, DealerProduct } from "@/app/lib/dealer/shop";
 import { formatMoney } from "./utils";
 import type {
   CartEntry,

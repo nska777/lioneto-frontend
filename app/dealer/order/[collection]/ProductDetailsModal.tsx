@@ -50,7 +50,7 @@ function getVariantPrice(
   variant: DealerProductVariant | null | undefined,
   country: DealerCountryCode,
 ): number {
-  return variant?.priceDelta?.[country] ?? 0;
+  return variant?.price?.[country] ?? 0;
 }
 
 function getInstructionLabel(product: DealerProduct | null): string {
@@ -108,7 +108,7 @@ export default function ProductDetailsModal({
   const safeDraft = draft;
 
   const colorVariants = useMemo(
-    () => (safeProduct?.variants ?? []).filter((item) => item.type === "color"),
+    () => safeProduct?.variants ?? [],
     [safeProduct],
   );
 
@@ -120,7 +120,7 @@ export default function ProductDetailsModal({
 
     const draftVariantKey = draft?.selectedVariantKey ?? "";
     const hasDraftVariant = colorVariants.some(
-      (item) => item.variantKey === draftVariantKey,
+      (item) => item.key === draftVariantKey,
     );
 
     if (hasDraftVariant) {
@@ -131,7 +131,7 @@ export default function ProductDetailsModal({
     }
 
     const firstVariant = colorVariants[0] ?? null;
-    const firstVariantKey = firstVariant?.variantKey ?? "";
+    const firstVariantKey = firstVariant?.key ?? "";
 
     setSelectedVariantKey((prev) =>
       prev === firstVariantKey ? prev : firstVariantKey,
@@ -140,13 +140,9 @@ export default function ProductDetailsModal({
     if (
       safeProduct.id &&
       firstVariant &&
-      draft?.selectedVariantKey !== firstVariant.variantKey
+      draft?.selectedVariantKey !== firstVariant.key
     ) {
-      onSelectVariant(
-        safeProduct.id,
-        firstVariant.variantKey,
-        firstVariant.title,
-      );
+      onSelectVariant(safeProduct.id, firstVariant.key, firstVariant.label);
     }
   }, [
     safeProduct?.id,
@@ -159,7 +155,7 @@ export default function ProductDetailsModal({
     if (!colorVariants.length) return null;
 
     return (
-      colorVariants.find((item) => item.variantKey === selectedVariantKey) ??
+      colorVariants.find((item) => item.key === selectedVariantKey) ??
       colorVariants[0] ??
       null
     );
@@ -170,7 +166,7 @@ export default function ProductDetailsModal({
       ? selectedVariant.image
       : safeProduct?.image || "";
 
-  const selectedColorLabel = selectedVariant?.title || safeProduct?.color || "";
+  const selectedColorLabel = selectedVariant?.label || safeProduct?.color || "";
 
   const displayArticle = getDisplayArticle(
     safeProduct?.article,
@@ -395,19 +391,16 @@ export default function ProductDetailsModal({
                         <div className="mt-3 flex flex-wrap gap-2">
                           {colorVariants.map((variant) => (
                             <ColorVariantButton
-                              key={variant.id || variant.variantKey}
+                              key={variant.key}
                               variant={variant}
-                              selected={
-                                variant.variantKey ===
-                                selectedVariant?.variantKey
-                              }
+                              selected={variant.key === selectedVariantKey}
                               country={country}
                               onClick={() => {
-                                setSelectedVariantKey(variant.variantKey);
+                                setSelectedVariantKey(variant.key);
                                 onSelectVariant(
                                   safeProduct.id,
-                                  variant.variantKey,
-                                  variant.title,
+                                  variant.key,
+                                  variant.label,
                                 );
                               }}
                             />

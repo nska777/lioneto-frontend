@@ -17,7 +17,7 @@ function getVariantPrice(
   variant: DealerProductVariant | null | undefined,
   country: DealerCountryCode,
 ): number {
-  return variant?.priceDelta?.[country] ?? 0;
+  return variant?.price?.[country] ?? 0;
 }
 
 export default function ColorVariantButton({
@@ -47,7 +47,7 @@ export default function ColorVariantButton({
             : "border-black/15 bg-[#d9c4ac]",
         )}
       />
-      <span className="text-[13px] font-semibold">{variant.title}</span>
+      <span className="text-[13px] font-semibold">{variant.label}</span>
 
       {variantPrice > 0 ? (
         <span
