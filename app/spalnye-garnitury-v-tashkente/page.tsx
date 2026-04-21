@@ -7,13 +7,14 @@ const PAGE_URL = `${SITE_URL}/spalnye-garnitury-v-tashkente`;
 export const metadata: Metadata = {
   title: "Спальные гарнитуры в Ташкенте — Lioneto",
   description:
-    "Спальные гарнитуры в Ташкенте от Lioneto: кровати, шкафы, комоды, тумбы и цельные интерьерные решения для спальни. Каталог, коллекции и адреса салонов.",
+    "Спальные гарнитуры в Ташкенте от Lioneto: кровати, шкафы, комоды, тумбы и цельные интерьерные решения для спальни. Смотрите коллекции, каталог и адреса салонов.",
   keywords: [
     "спальные гарнитуры в Ташкенте",
     "спальный гарнитур Ташкент",
     "купить спальный гарнитур в Ташкенте",
     "мебель для спальни Ташкент",
     "спальни в Ташкенте",
+    "кровати в Ташкенте",
     "Lioneto спальни",
     "Lioneto Ташкент",
   ],
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Спальные гарнитуры в Ташкенте — Lioneto",
     description:
-      "Спальные гарнитуры Lioneto в Ташкенте: кровати, шкафы, комоды и интерьерные решения.",
+      "Спальные гарнитуры Lioneto в Ташкенте: кровати, шкафы, комоды, тумбы и интерьерные решения.",
     images: [`${SITE_URL}/og-image.jpg`],
   },
   robots: {
@@ -59,6 +60,21 @@ const pageJsonLd = {
     "Спальные гарнитуры в Ташкенте от Lioneto: кровати, шкафы, комоды, тумбы и цельные интерьерные решения.",
   inLanguage: "ru",
 };
+
+const faqItems = [
+  {
+    q: "Что входит в спальный гарнитур?",
+    a: "Обычно в спальный гарнитур входят кровать, прикроватные тумбы, шкаф, комод и иногда зеркало. У Lioneto основной акцент сделан на цельные интерьерные коллекции.",
+  },
+  {
+    q: "Чем спальный гарнитур отличается от просто спальни?",
+    a: "Спальный гарнитур — это готовое решение, где ключевые предметы мебели подобраны в одном стиле и воспринимаются как единый комплект.",
+  },
+  {
+    q: "Где посмотреть спальные гарнитуры Lioneto в Ташкенте?",
+    a: "На сайте можно перейти к каталогу и открыть страницу контактов с адресами салонов Lioneto в Ташкенте.",
+  },
+];
 
 export default function BedroomSetsInTashkentPage() {
   return (
@@ -85,7 +101,7 @@ export default function BedroomSetsInTashkentPage() {
           <p className="mt-5 text-[15px] leading-7 text-black/75 md:text-[18px] md:leading-8">
             Lioneto предлагает спальные гарнитуры в Ташкенте для современных
             интерьеров. Это цельные решения для спальни, где кровати, шкафы,
-            тумбы, комоды и зеркала выдержаны в одном стиле.
+            тумбы, комоды и другие элементы выдержаны в одном стиле.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -106,21 +122,67 @@ export default function BedroomSetsInTashkentPage() {
 
         <section className="mt-12 max-w-5xl">
           <h2 className="text-[26px] font-semibold tracking-[-0.02em] md:text-[36px]">
-            Цельные решения для спальни
+            Готовые решения для спальни
           </h2>
 
           <div className="mt-5 space-y-5 text-[15px] leading-7 text-black/75 md:text-[17px] md:leading-8">
             <p>
-              Если вы ищете спальный гарнитур в Ташкенте, лучше выбирать не
-              случайный набор мебели, а коллекцию, где все элементы сочетаются
-              по стилю, материалам и пропорциям. Именно такой подход использует
-              Lioneto.
+              Если вы ищете спальный гарнитур в Ташкенте, удобнее выбирать не
+              случайный набор мебели, а готовое решение, где все элементы
+              сочетаются между собой по стилю, материалам и пропорциям. Именно
+              такой подход использует Lioneto в своих интерьерных коллекциях.
             </p>
             <p>
-              На сайте можно открыть спальни по коллекциям, посмотреть кровати,
-              шкафы, комоды и другие элементы спальни, а затем перейти к
-              контактам салонов в Ташкенте.
+              Спальные гарнитуры подходят тем, кто хочет сразу получить единый
+              образ спальни без долгого подбора каждой позиции по отдельности.
+              Это особенно удобно, когда важно сохранить цельность интерьера и
+              быстро собрать мебель в одном визуальном ключе.
             </p>
+            <p>
+              На сайте можно посмотреть коллекции, перейти к кроватям, спальням
+              и другим категориям мебели. Такая структура помогает выбрать
+              готовый спальный гарнитур в Ташкенте и оценить, как разные
+              предметы мебели работают вместе.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-12">
+          <h2 className="text-[26px] font-semibold tracking-[-0.02em] md:text-[36px]">
+            Что входит в спальный гарнитур
+          </h2>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-5">
+            {["Кровать", "Шкаф", "Тумбы", "Комод", "Зеркало"].map((item) => (
+              <div
+                key={item}
+                className="rounded-3xl border border-black/10 p-5 text-center text-[15px] font-medium text-black/80"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-12">
+          <h2 className="text-[26px] font-semibold tracking-[-0.02em] md:text-[36px]">
+            Частые вопросы
+          </h2>
+
+          <div className="mt-6 space-y-4">
+            {faqItems.map((item) => (
+              <div
+                key={item.q}
+                className="rounded-3xl border border-black/10 p-6"
+              >
+                <h3 className="text-[18px] font-semibold tracking-[-0.02em]">
+                  {item.q}
+                </h3>
+                <p className="mt-3 text-[15px] leading-7 text-black/70">
+                  {item.a}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -132,9 +194,9 @@ export default function BedroomSetsInTashkentPage() {
             <div className="text-[12px] tracking-[0.18em] text-black/45">
               СПАЛЬНИ
             </div>
-            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+            <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
               Спальни в Ташкенте
-            </h2>
+            </h3>
             <p className="mt-3 text-[15px] leading-7 text-black/70">
               Откройте страницу со спальнями Lioneto в Ташкенте.
             </p>
@@ -147,26 +209,26 @@ export default function BedroomSetsInTashkentPage() {
             <div className="text-[12px] tracking-[0.18em] text-black/45">
               КРОВАТИ
             </div>
-            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+            <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
               Кровати в Ташкенте
-            </h2>
+            </h3>
             <p className="mt-3 text-[15px] leading-7 text-black/70">
               Перейдите к странице кроватей Lioneto для спальни.
             </p>
           </Link>
 
           <Link
-            href="/contacts"
+            href="/mebel-dlya-spalni-v-tashkente"
             className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
           >
             <div className="text-[12px] tracking-[0.18em] text-black/45">
-              КОНТАКТЫ
+              МЕБЕЛЬ ДЛЯ СПАЛЬНИ
             </div>
-            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
-              Салоны в Ташкенте
-            </h2>
+            <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+              Мебель для спальни
+            </h3>
             <p className="mt-3 text-[15px] leading-7 text-black/70">
-              Посмотрите адреса салонов Lioneto в Ташкенте.
+              Посмотрите отдельную страницу по мебели для спальни в Ташкенте.
             </p>
           </Link>
         </section>

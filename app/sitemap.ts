@@ -4,6 +4,10 @@ import { fetchNews } from "./lib/strapi/news";
 
 const BASE_URL = "https://lioneto.com";
 
+// Не ставим new Date() на каждый рендер.
+// Дай стабильную дату последнего крупного SEO-обновления.
+const STATIC_LASTMOD = new Date("2026-04-21T00:00:00.000Z");
+
 type SitemapProductItem = {
   slug: string;
   updatedAt?: string;
@@ -74,69 +78,57 @@ async function fetchProductsForSitemap(): Promise<SitemapProductItem[]> {
   }
 }
 
+function uniqueByUrl(
+  items: MetadataRoute.Sitemap,
+): MetadataRoute.Sitemap {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    if (!item.url || seen.has(item.url)) return false;
+    seen.add(item.url);
+    return true;
+  });
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const staticRoutes: MetadataRoute.Sitemap = [
-    {
-      url: `${BASE_URL}/`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 1,
-    },
-    {
-      url: `${BASE_URL}/kupit-mebel-v-tashkente`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-  url: `${BASE_URL}/mebel-v-tashkente`,
-  lastModified: new Date(),
-  changeFrequency: "weekly",
-  priority: 0.8,
-},
-{
-  url: `${BASE_URL}/spalni-v-tashkente`,
-  lastModified: new Date(),
-  changeFrequency: "weekly",
-  priority: 0.8,
-},
-{
-  url: `${BASE_URL}/spalnye-garnitury-v-tashkente`,
-  lastModified: new Date(),
-  changeFrequency: "weekly",
-  priority: 0.8,
-},
-{
-  url: `${BASE_URL}/krovati-v-tashkente`,
-  lastModified: new Date(),
-  changeFrequency: "weekly",
-  priority: 0.8,
-},
-    {
-      url: `${BASE_URL}/cooperation`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/news`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/catalog`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/contacts`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
+  const staticPaths = [
+    "/",
+    "/catalog",
+    "/contacts",
+    "/cooperation",
+    "/news",
+
+    // SEO pages
+    "/mebel-v-tashkente",
+    "/kupit-mebel-v-tashkente",
+    "/spalni-v-tashkente",
+    "/spalnye-garnitury-v-tashkente",
+    "/krovati-v-tashkente",
+    "/shkafy-v-tashkente",
+    "/mebel-dlya-spalni-v-tashkente",
+    "/komody-v-tashkente",
+    "/premium-mebel-v-tashkente",
+    "/mebel-iz-massiva-v-tashkente",
+    "/tumby-v-tashkente",
+
+ 
   ];
+
+  const staticRoutes: MetadataRoute.Sitemap = staticPaths.map((path) => ({
+    url: `${BASE_URL}${path}`,
+    lastModified: STATIC_LASTMOD,
+    changeFrequency: path === "/" ? "weekly" : "monthly",
+    priority:
+      path === "/"
+        ? 1
+        : path === "/catalog"
+          ? 0.9
+          : path.startsWith("/product/")
+            ? 0.85
+            : path.includes("-v-tashkente")
+              ? 0.85
+              : 0.8,
+  }));
 
   const [news, products] = await Promise.all([
     fetchNews(),
@@ -153,7 +145,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           ? new Date(item.publishedAt)
           : item.createdAt
             ? new Date(item.createdAt)
-            : new Date(),
+            : STATIC_LASTMOD,
       changeFrequency: "monthly" as const,
       priority: 0.7,
     }));
@@ -166,7 +158,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ? new Date(item.publishedAt)
         : item.createdAt
           ? new Date(item.createdAt)
-          : new Date(),
+          : STATIC_LASTMOD,
     changeFrequency: "weekly" as const,
     priority: 0.8,
   }));
@@ -174,22 +166,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const catalogCollectionRoutes: MetadataRoute.Sitemap = megaCategories
     .flatMap((category) =>
       category.items.map((item) => ({
-        href: typeof item.href === "string" ? item.href : "",
+        href: typeof item.href === "string" ? item.href.trim() : "",
       })),
     )
     .filter((entry) => entry.href.startsWith("/catalog/"))
     .map((entry) => ({
       url: `${BASE_URL}${entry.href}`,
-      lastModified: new Date(),
-      changeFrequency: "weekly" as const,
-      priority: 0.8,
+      lastModified: STATIC_LASTMOD,
+      changeFrequency: "monthly" as const,
+      priority: 0.75,
     }))
     .filter((item) => item.url !== `${BASE_URL}/catalog/`);
 
-  return [
+  return uniqueByUrl([
     ...staticRoutes,
     ...newsRoutes,
     ...productRoutes,
     ...catalogCollectionRoutes,
-  ];
+  ]);
 }

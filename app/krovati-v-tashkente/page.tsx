@@ -61,6 +61,21 @@ const pageJsonLd = {
   inLanguage: "ru",
 };
 
+const faqItems = [
+  {
+    q: "Где посмотреть кровати Lioneto в Ташкенте?",
+    a: "На сайте можно перейти в каталог и на страницу контактов, где указаны адреса салонов Lioneto в Ташкенте.",
+  },
+  {
+    q: "Можно ли подобрать кровать в составе коллекции?",
+    a: "Да, Lioneto делает акцент на интерьерных коллекциях, где кровати сочетаются с тумбами, шкафами, комодами и другими предметами спальни.",
+  },
+  {
+    q: "Подходят ли кровати Lioneto для современной спальни?",
+    a: "Да, на сайте представлены решения для современных и классических интерьеров спальни с упором на цельный стиль и визуальную гармонию.",
+  },
+];
+
 export default function BedsInTashkentPage() {
   return (
     <main className="bg-white text-black">
@@ -119,11 +134,40 @@ export default function BedsInTashkentPage() {
               элементами спальни.
             </p>
             <p>
-              На сайте можно перейти к спальням, открыть коллекции и посмотреть
-              каталог мебели. Эта страница подходит тем, кто ищет современные
-              кровати в Ташкенте, мебель для спальни и интерьерные решения
-              премиального уровня.
+              Кровати в Ташкенте от Lioneto подойдут для современных и
+              классических интерьеров спальни. На сайте можно посмотреть модели
+              в составе интерьерных коллекций и подобрать мебель, которая
+              сочетается по стилю, материалам и общему оформлению комнаты.
             </p>
+            <p>
+              При выборе кровати важно учитывать не только внешний вид, но и то,
+              как она будет смотреться вместе с тумбами, шкафом, комодом и
+              другими элементами спальни. Поэтому Lioneto делает акцент на
+              коллекциях, где кровати являются частью цельного интерьерного
+              решения.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-12">
+          <h2 className="text-[26px] font-semibold tracking-[-0.02em] md:text-[36px]">
+            Частые вопросы
+          </h2>
+
+          <div className="mt-6 space-y-4">
+            {faqItems.map((item) => (
+              <div
+                key={item.q}
+                className="rounded-3xl border border-black/10 p-6"
+              >
+                <h3 className="text-[18px] font-semibold tracking-[-0.02em]">
+                  {item.q}
+                </h3>
+                <p className="mt-3 text-[15px] leading-7 text-black/70">
+                  {item.a}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -135,9 +179,9 @@ export default function BedsInTashkentPage() {
             <div className="text-[12px] tracking-[0.18em] text-black/45">
               СПАЛЬНИ
             </div>
-            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+            <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
               Спальни в Ташкенте
-            </h2>
+            </h3>
             <p className="mt-3 text-[15px] leading-7 text-black/70">
               Откройте спальни Lioneto и перейдите к коллекциям мебели.
             </p>
@@ -150,26 +194,26 @@ export default function BedsInTashkentPage() {
             <div className="text-[12px] tracking-[0.18em] text-black/45">
               ГАРНИТУРЫ
             </div>
-            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+            <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
               Спальные гарнитуры
-            </h2>
+            </h3>
             <p className="mt-3 text-[15px] leading-7 text-black/70">
               Посмотрите страницу со спальными гарнитурами Lioneto.
             </p>
           </Link>
 
           <Link
-            href="/contacts"
+            href="/mebel-dlya-spalni-v-tashkente"
             className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
           >
             <div className="text-[12px] tracking-[0.18em] text-black/45">
-              КОНТАКТЫ
+              МЕБЕЛЬ ДЛЯ СПАЛЬНИ
             </div>
-            <h2 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
-              Салоны в Ташкенте
-            </h2>
+            <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+              Мебель для спальни
+            </h3>
             <p className="mt-3 text-[15px] leading-7 text-black/70">
-              Откройте адреса салонов Lioneto в Ташкенте.
+              Посмотрите отдельную страницу по мебели для спальни в Ташкенте.
             </p>
           </Link>
         </section>
