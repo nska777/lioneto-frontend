@@ -60,7 +60,7 @@ export default function OrderSidebar({
   const isEmpty = cartItems.length === 0;
 
   return (
-    <aside className="rounded-[24px] border border-black/10 bg-white shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)]">
+    <aside className="rounded-[24px] border border-black/10 bg-white shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] xl:flex xl:max-h-[calc(100vh-24px)] xl:flex-col xl:overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-black/10 px-5 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-white">
@@ -86,7 +86,7 @@ export default function OrderSidebar({
         </button>
       </div>
 
-      <div className="px-5 py-5">
+      <div className="px-5 py-5 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
         {isEmpty ? (
           <div className="rounded-[28px] border border-dashed border-black/10 px-6 py-14 text-center">
             <div className="text-[18px] font-semibold text-black/85">

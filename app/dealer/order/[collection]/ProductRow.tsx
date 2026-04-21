@@ -70,13 +70,15 @@ export default function ProductRow({
   const disableReserve =
     isReserving || (showStock && availableQty < Math.max(1, draft.quantity));
 
+  const hasRequiredItems = (product.requiredItems?.length ?? 0) > 0;
+
   return (
     <div className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="w-full sm:w-[210px] sm:flex-none">
           <button
             type="button"
-            onClick={() => onOpenImagePreview(product)}
+            onClick={() => onOpenModal(product)}
             className="group relative block h-[180px] w-full cursor-pointer overflow-hidden rounded-[18px] bg-[#f6f4ee] sm:h-[170px]"
           >
             {product.image ? (
@@ -186,34 +188,46 @@ export default function ProductRow({
             </button>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => onToggleCart(product.id)}
-              className={cn(
-                "inline-flex min-h-[42px] cursor-pointer items-center justify-center rounded-full px-4 text-sm font-semibold transition",
-                isInCart
-                  ? "bg-black text-white"
-                  : "border border-black/15 bg-white text-black hover:border-black/30",
-              )}
-            >
-              {isInCart ? "Добавлено" : "В корзину"}
-            </button>
+          {hasRequiredItems ? (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => onOpenModal(product)}
+                className="inline-flex min-h-[46px] w-full cursor-pointer items-center justify-center rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-black/90"
+              >
+                Собрать комплект
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onToggleCart(product.id)}
+                className={cn(
+                  "inline-flex min-h-[42px] cursor-pointer items-center justify-center rounded-full px-4 text-sm font-semibold transition",
+                  isInCart
+                    ? "bg-black text-white"
+                    : "border border-black/15 bg-white text-black hover:border-black/30",
+                )}
+              >
+                {isInCart ? "Добавлено" : "В корзину"}
+              </button>
 
-            <button
-              type="button"
-              onClick={() => onReserve(product)}
-              disabled={disableReserve}
-              className={cn(
-                "inline-flex min-h-[42px] items-center justify-center rounded-full px-4 text-sm font-semibold transition",
-                disableReserve
-                  ? "cursor-not-allowed bg-red-100 text-red-400"
-                  : "cursor-pointer bg-red-600 text-white hover:bg-red-700",
-              )}
-            >
-              {isReserving ? "Бронируем..." : "Забронировать"}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => onReserve(product)}
+                disabled={disableReserve}
+                className={cn(
+                  "inline-flex min-h-[42px] items-center justify-center rounded-full px-4 text-sm font-semibold transition",
+                  disableReserve
+                    ? "cursor-not-allowed bg-red-100 text-red-400"
+                    : "cursor-pointer bg-red-600 text-white hover:bg-red-700",
+                )}
+              >
+                {isReserving ? "Бронируем..." : "Забронировать"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

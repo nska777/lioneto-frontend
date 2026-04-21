@@ -63,7 +63,6 @@ export type DealerProduct = {
   requiredItems?: DealerAddon[];
   recommendedItems?: DealerAddon[];
   addons?: DealerAddon[];
-
   stockQty?: number;
   reservedQty?: number;
   isStockTracked?: boolean;
@@ -135,7 +134,6 @@ type StrapiProduct = {
   priceKZ?: number | string | null;
   priceTJ?: number | string | null;
   isActive?: boolean;
-
   stockQty?: number;
   reservedQty?: number;
   isStockTracked?: boolean;
@@ -146,7 +144,7 @@ type StrapiAddonRelation = {
   documentId?: string;
   parentProduct?: StrapiProduct | { data?: StrapiProduct | null } | null;
   addonProduct?: StrapiProduct | { data?: StrapiProduct | null } | null;
-  addonKind?: "required" | "recommended" | string | null;
+  kind?: "required" | "recommended" | string | null;
   selectionType?: "toggle" | "quantity" | string | null;
   defaultQty?: number | string | null;
   minQty?: number | string | null;
@@ -169,9 +167,7 @@ function getAuthHeaders(): { Authorization?: string } {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function unwrapRelation<T>(
-  value?: T | { data?: T | null } | null,
-): T | null {
+function unwrapRelation<T>(value?: T | { data?: T | null } | null): T | null {
   if (!value) return null;
 
   if (typeof value === "object" && value !== null && "data" in value) {
@@ -290,10 +286,12 @@ function normalizeAddon(
   relation: StrapiAddonRelation,
   addonProduct: StrapiProduct,
 ): DealerAddon {
-  const kind =
-    relation.addonKind === "required" ? "required" : "recommended";
+  const relationKind = String(relation.kind ?? "").trim().toLowerCase();
 
-  const selectionType =
+  const kind: "required" | "recommended" =
+    relationKind === "required" ? "required" : "recommended";
+
+  const selectionType: "toggle" | "quantity" =
     relation.selectionType === "toggle" ? "toggle" : "quantity";
 
   const variants = Array.isArray(addonProduct.variants)
@@ -346,7 +344,6 @@ function normalizeProductBase(raw: StrapiProduct): DealerProduct {
     requiredItems: [],
     recommendedItems: [],
     addons: [],
-
     stockQty: Math.max(0, toNumber(raw.stockQty)),
     reservedQty: Math.max(0, toNumber(raw.reservedQty)),
     isStockTracked: Boolean(raw.isStockTracked),

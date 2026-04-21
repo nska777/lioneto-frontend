@@ -54,7 +54,7 @@ export default function DealerLoginPage() {
   return (
     <div className="mx-auto max-w-[560px] px-6 py-14">
       <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-black">
-        Dealer Login
+        Кабинет Дилера
       </h1>
 
       <Link
