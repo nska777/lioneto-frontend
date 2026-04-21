@@ -20,11 +20,30 @@ type StrapiActivityItem = {
     login?: string;
     title?: string;
     email?: string;
-  };
+  } | null;
 };
 
 type StrapiListResponse = {
-  data?: StrapiActivityItem[];
+  data?: Array<
+    | StrapiActivityItem
+    | {
+        id?: number;
+        documentId?: string;
+        attributes?: Omit<StrapiActivityItem, "id" | "documentId"> & {
+          dealer?: {
+            data?: {
+              id?: number;
+              documentId?: string;
+              attributes?: {
+                login?: string;
+                title?: string;
+                email?: string;
+              };
+            } | null;
+          };
+        };
+      }
+  >;
 };
 
 type SearchParams = Promise<{
@@ -43,26 +62,116 @@ function getStrapiBase() {
   ).replace(/\/$/, "");
 }
 
+function getStrapiToken() {
+  return (
+    process.env.STRAPI_TOKEN ||
+    process.env.STRAPI_API_TOKEN ||
+    process.env.STRAPI_READONLY_TOKEN ||
+    process.env.STRAPI_DEALER_TOKEN ||
+    ""
+  );
+}
+
+function normalizeActivityItem(
+  item:
+    | StrapiActivityItem
+    | {
+        id?: number;
+        documentId?: string;
+        attributes?: Omit<StrapiActivityItem, "id" | "documentId"> & {
+          dealer?: {
+            data?: {
+              id?: number;
+              documentId?: string;
+              attributes?: {
+                login?: string;
+                title?: string;
+                email?: string;
+              };
+            } | null;
+          };
+        };
+      },
+): StrapiActivityItem | null {
+  if (!item || typeof item !== "object") return null;
+
+  if ("attributes" in item && item.attributes) {
+    const dealerData = item.attributes.dealer?.data;
+
+    return {
+      id: Number(item.id ?? 0),
+      documentId: item.documentId,
+      actionType: item.attributes.actionType,
+      entityType: item.attributes.entityType,
+      entityId: item.attributes.entityId,
+      entityTitle: item.attributes.entityTitle,
+      url: item.attributes.url,
+      ip: item.attributes.ip,
+      userAgent: item.attributes.userAgent,
+      payload: item.attributes.payload,
+      createdAt: item.attributes.createdAt,
+      dealer: dealerData
+        ? {
+            id: dealerData.id,
+            login: dealerData.attributes?.login,
+            title: dealerData.attributes?.title,
+            email: dealerData.attributes?.email,
+          }
+        : null,
+    };
+  }
+
+  return item as StrapiActivityItem;
+}
+
 async function getActivities(): Promise<StrapiActivityItem[]> {
-  const token = process.env.STRAPI_TOKEN;
+  const token = getStrapiToken();
   const base = getStrapiBase();
 
-  if (!token) return [];
+  if (!token) {
+    console.error("[dealer-admin/activity] Missing Strapi token");
+    return [];
+  }
 
-  const res = await fetch(
-    `${base}/api/dealer-activity-logs?populate[dealer]=*&sort[0]=createdAt:desc&pagination[pageSize]=300`,
-    {
+  try {
+    const qs = new URLSearchParams();
+    qs.set("sort[0]", "createdAt:desc");
+    qs.set("pagination[pageSize]", "300");
+
+    qs.set("populate[dealer][fields][0]", "login");
+    qs.set("populate[dealer][fields][1]", "title");
+    qs.set("populate[dealer][fields][2]", "email");
+
+    const url = `${base}/api/dealer-activity-logs?${qs.toString()}`;
+
+    const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
       cache: "no-store",
-    },
-  );
+    });
 
-  if (!res.ok) return [];
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(
+        "[dealer-admin/activity] Strapi fetch failed",
+        res.status,
+        text,
+      );
+      return [];
+    }
 
-  const json = (await res.json()) as StrapiListResponse;
-  return Array.isArray(json.data) ? json.data : [];
+    const json = (await res.json()) as StrapiListResponse;
+    const rows = Array.isArray(json.data) ? json.data : [];
+
+    return rows
+      .map((item) => normalizeActivityItem(item))
+      .filter(Boolean) as StrapiActivityItem[];
+  } catch (error) {
+    console.error("[dealer-admin/activity] getActivities failed", error);
+    return [];
+  }
 }
 
 function formatDate(value?: string) {
