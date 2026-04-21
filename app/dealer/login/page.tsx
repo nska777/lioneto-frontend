@@ -57,9 +57,12 @@ export default function DealerLoginPage() {
         Dealer Login
       </h1>
 
-      <p className="mt-2 text-[14px] text-black/55">
-        Войдите в дилерский кабинет Lioneto.
-      </p>
+      <Link
+        href="/cooperation?interest=dealer"
+        className="mt-4 inline-flex items-center justify-center rounded-xl border border-[#2E8B57] bg-transparent px-5 py-3 text-[14px] font-medium text-[#2E8B57] transition-colors hover:bg-[#2E8B57] hover:text-white"
+      >
+        Стать дилером
+      </Link>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
         <div>

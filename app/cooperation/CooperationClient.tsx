@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Store,
   Palette,
@@ -78,7 +79,6 @@ const INTERESTS: Chip[] = [
     title: "Каталог / материалы / образцы",
     icon: <Check className="h-4 w-4" />,
   },
-
   {
     id: "custom-sizes",
     title: "Индивидуальные заказы",
@@ -112,17 +112,17 @@ function ChipCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "group w-full cursor-pointer text-left rounded-3xl border p-4 md:p-5 transition",
+        "group w-full cursor-pointer rounded-3xl border p-4 text-left transition md:p-5",
         "outline-none focus-visible:ring-2 focus-visible:ring-black/10 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
         active
-          ? "border-emerald-600 bg-emerald-600 hover:bg-emerald-700 hover:border-emerald-700"
+          ? "border-emerald-600 bg-emerald-600 hover:border-emerald-700 hover:bg-emerald-700"
           : "border-black/10 bg-white hover:border-black/18",
       )}
     >
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "mt-0.5 h-9 w-9 rounded-2xl border flex items-center justify-center shrink-0 transition",
+            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border transition",
             active
               ? "border-white/20 bg-white/10 text-white"
               : "border-black/10 bg-black/[0.02] text-black/70 group-hover:bg-white",
@@ -190,7 +190,6 @@ function isValidEmail(s: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-// читаем регион из localStorage (без знания точного ключа)
 function readRegionFromStorage(): Region {
   if (typeof window === "undefined") return "UZ";
   const keys = [
@@ -249,7 +248,6 @@ function formatRuPhone(digitsRaw: string) {
   };
 }
 
-// пытаемся “перевести” уже введённый номер при смене региона, чтобы не сбрасывало
 function convertDigitsForRegion(prev: Region, next: Region, digits: string) {
   const d = digitsOnly(digits);
   if (!d) return "";
@@ -285,7 +283,7 @@ function RegionSwitch({
           type="button"
           onClick={() => onChange(x.id)}
           className={cn(
-            "rounded-full px-4 py-2 text-[12px] font-medium tracking-[0.14em] transition cursor-pointer",
+            "cursor-pointer rounded-full px-4 py-2 text-[12px] font-medium tracking-[0.14em] transition",
             value === x.id
               ? "bg-black text-white"
               : "bg-transparent text-black/60 hover:text-black",
@@ -306,19 +304,9 @@ export default function CooperationClient({
   blocks: unknown[];
 }) {
   const startRef = useRef<HTMLDivElement | null>(null);
+  const searchParams = useSearchParams();
 
   const [region, setRegion] = useState<Region>("UZ");
-
-  useEffect(() => {
-    setRegion(readRegionFromStorage());
-  }, []);
-
-  useEffect(() => {
-    const onStorage = () => setRegion(readRegionFromStorage());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
   const [formats, setFormats] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
@@ -333,6 +321,24 @@ export default function CooperationClient({
     method: "telegram" as ContactMethod,
     comment: "",
   });
+
+  useEffect(() => {
+    setRegion(readRegionFromStorage());
+  }, []);
+
+  useEffect(() => {
+    const onStorage = () => setRegion(readRegionFromStorage());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
+    const interest = searchParams.get("interest");
+
+    if (interest === "dealer") {
+      setFormats((prev) => (prev.includes("dealer") ? prev : ["dealer"]));
+    }
+  }, [searchParams]);
 
   const pickedFormats = useMemo(() => {
     const m = new Map(FORMATS.map((x) => [x.id, x.title]));
@@ -441,8 +447,8 @@ export default function CooperationClient({
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 space-y-10 md:space-y-14">
-      <section className="rounded-3xl border border-black/10 bg-white p-6 md:p-10 relative overflow-hidden">
+    <div className="mx-auto max-w-6xl space-y-10 px-4 py-10 md:space-y-14">
+      <section className="relative overflow-hidden rounded-3xl border border-black/10 bg-white p-6 md:p-10">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-80"
@@ -480,7 +486,7 @@ export default function CooperationClient({
               type="button"
               onClick={onStart}
               className={cn(
-                "inline-flex items-center gap-2 rounded-2xl bg-black px-4 py-3 cursor-pointer",
+                "inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-black px-4 py-3",
                 "text-[12px] font-medium tracking-[0.18em] text-white transition",
                 "hover:opacity-95 active:scale-[0.99]",
               )}
@@ -500,7 +506,7 @@ export default function CooperationClient({
       </section>
 
       <section ref={startRef} className="grid gap-6 md:grid-cols-12">
-        <div className="md:col-span-7 space-y-10">
+        <div className="space-y-10 md:col-span-7">
           <div>
             <SectionTitle
               eyebrow="ШАГ 1"
@@ -601,8 +607,8 @@ export default function CooperationClient({
                     Телефон*
                   </div>
 
-                  <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 flex items-center gap-3">
-                    <div className="text-[14px] text-black/55 select-none">
+                  <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3">
+                    <div className="select-none text-[14px] text-black/55">
                       {phoneView.prefix}
                     </div>
                     <input
@@ -644,7 +650,7 @@ export default function CooperationClient({
                         type="button"
                         onClick={() => setForm((p) => ({ ...p, method: m.id }))}
                         className={cn(
-                          "rounded-full border px-4 py-2 text-[12px] font-medium tracking-[0.16em] transition cursor-pointer",
+                          "cursor-pointer rounded-full border px-4 py-2 text-[12px] font-medium tracking-[0.16em] transition",
                           form.method === m.id
                             ? "border-black/15 bg-black text-white"
                             : "border-black/10 bg-white text-black/70 hover:border-black/18 hover:text-black",
@@ -736,13 +742,13 @@ export default function CooperationClient({
                 <button
                   type="button"
                   onClick={clearAll}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-[12px] tracking-[0.16em] text-black/70 hover:border-black/18 hover:text-black transition cursor-pointer"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-[12px] tracking-[0.16em] text-black/70 transition hover:border-black/18 hover:text-black"
                 >
                   <Trash2 className="h-4 w-4 text-black/45" />
                   ОЧИСТИТЬ
                 </button>
 
-                <div className="text-[11px] text-black/45 text-right">
+                <div className="text-right text-[11px] text-black/45">
                   Это уйдёт в Telegram менеджеру
                 </div>
               </div>
@@ -752,10 +758,10 @@ export default function CooperationClient({
                 onClick={submit}
                 disabled={!canSend || sending}
                 className={cn(
-                  "mt-5 w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-black px-4 py-3",
+                  "mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-black px-4 py-3",
                   "text-[12px] font-medium tracking-[0.18em] text-white transition",
                   "hover:opacity-95 active:scale-[0.99]",
-                  (!canSend || sending) && "opacity-40 cursor-not-allowed",
+                  (!canSend || sending) && "cursor-not-allowed opacity-40",
                 )}
               >
                 <Send className="h-4 w-4" />
