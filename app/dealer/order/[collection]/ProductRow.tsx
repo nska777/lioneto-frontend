@@ -73,83 +73,83 @@ export default function ProductRow({
   return (
     <div className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] sm:rounded-[24px] sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row">
-        <button
-          type="button"
-          onClick={() => onOpenImagePreview(product)}
-          className="group relative block h-[180px] w-full cursor-pointer overflow-hidden rounded-[18px] bg-[#f6f4ee] sm:h-[170px] sm:w-[210px] sm:flex-none"
-        >
-          {product.image ? (
-            <Image
-              src={product.image}
-              alt={product.title}
-              fill
-              className="object-cover transition duration-300 group-hover:scale-[1.03]"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-black/35">
-              Нет фото
+        <div className="w-full sm:w-[210px] sm:flex-none">
+          <button
+            type="button"
+            onClick={() => onOpenImagePreview(product)}
+            className="group relative block h-[180px] w-full cursor-pointer overflow-hidden rounded-[18px] bg-[#f6f4ee] sm:h-[170px]"
+          >
+            {product.image ? (
+              <Image
+                src={product.image}
+                alt={product.title}
+                fill
+                className="object-cover transition duration-300 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm text-black/35">
+                Нет фото
+              </div>
+            )}
+          </button>
+
+          <div className="mt-3 rounded-[16px] bg-[#f6f4ee] px-4 py-3">
+            <div className="text-[24px] font-semibold leading-none text-black">
+              {formatMoney(unitBasePrice, country)}
             </div>
-          )}
-        </button>
+            <div className="mt-1 text-[12px] text-black/45">за 1 шт.</div>
+          </div>
+        </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <button
-                type="button"
-                onClick={() => onOpenModal(product)}
-                className="cursor-pointer text-left"
-              >
-                <h3 className="text-[18px] font-semibold leading-[1.15] text-black transition hover:text-black/75 sm:text-[20px]">
-                  {product.title}
-                </h3>
-              </button>
+          <div className="min-w-0">
+            <button
+              type="button"
+              onClick={() => onOpenModal(product)}
+              className="cursor-pointer text-left"
+            >
+              <h3 className="max-w-full text-[18px] font-semibold leading-[1.1] text-black transition hover:text-black/75 sm:text-[20px] lg:text-[22px]">
+                {product.title}
+              </h3>
+            </button>
 
-              {displayArticle ? (
-                <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
-                  Артикул: {displayArticle}
-                </div>
-              ) : null}
-
-              {product.size ? (
-                <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
-                  Размер: {product.size}
-                </div>
-              ) : null}
-
-              {product.material ? (
-                <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
-                  Материал: {product.material}
-                </div>
-              ) : null}
-
-              {selectedColor ? (
-                <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
-                  Цвет: {selectedColor}
-                </div>
-              ) : null}
-
-              {showStock ? (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <span className="inline-flex rounded-full border border-black/10 bg-[#f6f4ee] px-2.5 py-1 text-[10px] font-medium text-black/75">
-                    Всего: {stockQty}
-                  </span>
-                  <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700">
-                    В наличии: {availableQty}
-                  </span>
-                  <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-700">
-                    Забронировано: {reservedQty}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="shrink-0 text-left sm:text-right">
-              <div className="text-[20px] font-semibold leading-none text-black sm:text-[24px]">
-                {formatMoney(unitBasePrice, country)}
+            {displayArticle ? (
+              <div className="mt-2 text-[12px] text-black/55 sm:text-[13px]">
+                Артикул: {displayArticle}
               </div>
-              <div className="mt-1 text-[12px] text-black/45">за 1 шт.</div>
-            </div>
+            ) : null}
+
+            {product.size ? (
+              <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
+                Размер: {product.size}
+              </div>
+            ) : null}
+
+            {product.material ? (
+              <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
+                Материал: {product.material}
+              </div>
+            ) : null}
+
+            {selectedColor ? (
+              <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
+                Цвет: {selectedColor}
+              </div>
+            ) : null}
+
+            {showStock ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="inline-flex rounded-full border border-black/10 bg-[#f6f4ee] px-2.5 py-1 text-[10px] font-medium text-black/75">
+                  Всего: {stockQty}
+                </span>
+                <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700">
+                  В наличии: {availableQty}
+                </span>
+                <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-700">
+                  Забронировано: {reservedQty}
+                </span>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">

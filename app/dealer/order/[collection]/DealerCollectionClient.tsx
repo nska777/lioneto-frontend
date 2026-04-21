@@ -1034,7 +1034,7 @@ export default function DealerCollectionClient({
             )}
           </div>
 
-          <div className="min-w-0">
+          <div className="min-w-0 xl:sticky xl:top-3 xl:self-start">
             <OrderSidebar
               cartItems={cartItems}
               totalQty={summary.totalQty}
