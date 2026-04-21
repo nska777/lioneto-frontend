@@ -92,7 +92,7 @@ type StrapiCollection = {
   title?: string;
   description?: string;
   sortOrder?: number;
-  coverImage?: StrapiMedia | { data?: StrapiMedia | null } | null;
+  cover?: StrapiMedia | { data?: StrapiMedia | null } | null;
   isActive?: boolean;
 };
 
@@ -254,7 +254,7 @@ function normalizeCollection(
     slug: raw.slug ?? "",
     title: raw.title ?? "",
     description: raw.description ?? "",
-    coverImage: extractMediaUrl(raw.coverImage),
+    coverImage: extractMediaUrl(raw.cover),
     sortOrder: toNumber(raw.sortOrder),
     products: products ?? [],
   };

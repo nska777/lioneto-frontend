@@ -18,8 +18,7 @@ export default async function DealerOrderPage() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {dealerCollections.map((collection) => {
-          const collectionImage =
-            (collection as { image?: string | null }).image?.trim() || "";
+          const collectionImage = collection.coverImage?.trim() || "";
 
           return (
             <Link
