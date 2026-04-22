@@ -1,10 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { AlertCircle, Download, PackageCheck, X, ZoomIn } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  Check,
+  Download,
+  PackageCheck,
+  X,
+  ZoomIn,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 
 import type {
+  DealerAddon,
   DealerCountryCode,
   DealerProduct,
   DealerProductVariant,
@@ -44,6 +52,15 @@ type ProductModalProps = {
   onIncreaseAddonQty?: (addonId: string) => void;
   onDecreaseAddonQty?: (addonId: string) => void;
   onToggleAddonCart?: (addonId: string) => void;
+  onChooseSingleAddonInGroup?: (groupKey: string, addonId: string) => void;
+};
+
+type ConstructorGroup = {
+  key: string;
+  title: string;
+  order: number;
+  selection: "single" | "multiple";
+  items: DealerAddon[];
 };
 
 function getVariantPrice(
@@ -79,6 +96,237 @@ function getInstructionDownloadHref(product: DealerProduct | null): string {
   return `/api/dealer/download?${params.toString()}`;
 }
 
+function getAddonUnitPrice(
+  addon: DealerAddon,
+  addonState: AddonDraftState | undefined,
+  country: DealerCountryCode,
+): number {
+  const selectedVariant =
+    (addon.variants ?? []).find(
+      (variant) => variant.key === addonState?.selectedVariantKey,
+    ) ?? null;
+
+  return selectedVariant?.price?.[country] ?? addon.price[country] ?? 0;
+}
+
+function getAddonQty(
+  addon: DealerAddon,
+  addonState: AddonDraftState | undefined,
+) {
+  return Math.max(
+    addon.minQuantity ?? 1,
+    addonState?.quantity ?? addon.defaultQuantity ?? 1,
+  );
+}
+
+function getAddonTotal(
+  addon: DealerAddon,
+  addonState: AddonDraftState | undefined,
+  country: DealerCountryCode,
+) {
+  return (
+    getAddonUnitPrice(addon, addonState, country) *
+    getAddonQty(addon, addonState)
+  );
+}
+
+function ConstructorChoiceCard({
+  addon,
+  country,
+  addonState,
+  isSelected,
+  groupKey,
+  onChoose,
+  onOpenImage,
+  cardWidthClass,
+}: {
+  addon: DealerAddon;
+  country: DealerCountryCode;
+  addonState: AddonDraftState;
+  isSelected: boolean;
+  groupKey: string;
+  onChoose?: (groupKey: string, addonId: string) => void;
+  onOpenImage: (src: string, title: string) => void;
+  cardWidthClass?: string;
+}) {
+  const unitPrice = getAddonUnitPrice(addon, addonState, country);
+
+  return (
+    <div
+      className={cn(
+        "flex h-full min-h-[330px] shrink-0 flex-col overflow-hidden rounded-[16px] border bg-white transition",
+        cardWidthClass ?? "w-[170px] sm:w-[180px] md:w-[190px]",
+        isSelected
+          ? "border-emerald-400 shadow-[0_12px_24px_-20px_rgba(0,0,0,0.28)]"
+          : "border-black/10 hover:border-black/20",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => addon.image && onOpenImage(addon.image, addon.title)}
+        className="relative block w-full cursor-pointer border-b border-black/6 bg-[#f7f4ee]"
+      >
+        <div className="relative aspect-square w-full p-3">
+          {addon.image ? (
+            <Image
+              src={addon.image}
+              alt={addon.title}
+              fill
+              className="object-contain p-3"
+              sizes="220px"
+            />
+          ) : null}
+        </div>
+
+        <div className="pointer-events-none absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-black/65 shadow-sm">
+          <ZoomIn className="h-3.5 w-3.5" />
+        </div>
+
+        {isSelected ? (
+          <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+            <Check className="h-3 w-3" />
+            Выбрано
+          </div>
+        ) : null}
+      </button>
+
+      <div className="flex flex-1 flex-col p-3">
+        <div className="min-h-[86px]">
+          <div className="line-clamp-3 text-[13px] font-semibold leading-4 text-black">
+            {addon.title}
+          </div>
+
+          {addon.article ? (
+            <div className="mt-2 inline-flex rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-medium text-black/50">
+              {addon.articleShort || addon.article}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-2 text-[12px] text-black/55">
+          Цена:{" "}
+          <span className="font-semibold text-black">
+            {formatMoney(unitPrice, country)}
+          </span>
+        </div>
+
+        <div className="mt-auto pt-3">
+          <button
+            type="button"
+            onClick={() => onChoose?.(groupKey, addon.id)}
+            className={cn(
+              "inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-[10px] border px-2 text-[12px] font-semibold transition",
+              isSelected
+                ? "border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
+                : "border-black bg-black text-white hover:opacity-95",
+            )}
+          >
+            {isSelected ? "Выбрано" : "Выбрать"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConstructorStepBlock({
+  stepNumber,
+  group,
+  addonDrafts,
+  country,
+  onChooseSingleAddonInGroup,
+  onOpenImage,
+  cardWidthClass,
+  rowClass,
+  fitContent,
+}: {
+  stepNumber: number;
+  group: ConstructorGroup;
+  addonDrafts?: Record<string, AddonDraftState>;
+  country: DealerCountryCode;
+  onChooseSingleAddonInGroup?: (groupKey: string, addonId: string) => void;
+  onOpenImage: (src: string, title: string) => void;
+  cardWidthClass?: string;
+  rowClass?: string;
+  fitContent?: boolean;
+}) {
+  const selectedItem =
+    group.items.find((item) => addonDrafts?.[item.id]?.isInCart) ?? null;
+
+  return (
+    <div className="rounded-[20px] border border-black/8 bg-[#fbfaf7] p-4 md:rounded-[20px] md:p-5">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-black/40">
+            Шаг {stepNumber}
+          </div>
+          <div className="mt-1 text-[20px] font-semibold tracking-[-0.02em] text-black">
+            {group.title}
+          </div>
+          <div className="mt-1 text-[13px] text-black/55">
+            Выберите один вариант для этого этапа сборки.
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "inline-flex w-fit rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
+            selectedItem
+              ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border border-amber-200 bg-amber-50 text-amber-700",
+          )}
+        >
+          {selectedItem ? "Выбрано" : "Не выбрано"}
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "mt-4",
+          fitContent
+            ? "overflow-hidden"
+            : "overflow-x-auto overflow-y-hidden pb-1",
+        )}
+      >
+        <div
+          className={cn(
+            fitContent
+              ? "flex items-stretch gap-3"
+              : "flex w-max items-stretch gap-3",
+            rowClass ?? "flex-nowrap",
+          )}
+        >
+          {group.items.map((addon) => {
+            const addonState = addonDrafts?.[addon.id] ?? {
+              quantity: addon.defaultQuantity ?? 1,
+              isInCart: false,
+              markupPercent: 0,
+              selectedVariantKey: "",
+              selectedColor: "",
+            };
+
+            const isSelected = Boolean(addonState.isInCart);
+
+            return (
+              <ConstructorChoiceCard
+                key={addon.id}
+                addon={addon}
+                country={country}
+                addonState={addonState}
+                isSelected={isSelected}
+                groupKey={group.key}
+                onChoose={onChooseSingleAddonInGroup}
+                onOpenImage={onOpenImage}
+                cardWidthClass={cardWidthClass}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductDetailsModal({
   product,
   country,
@@ -96,6 +344,7 @@ export default function ProductDetailsModal({
   onIncreaseAddonQty,
   onDecreaseAddonQty,
   onToggleAddonCart,
+  onChooseSingleAddonInGroup,
 }: ProductModalProps) {
   const [previewImage, setPreviewImage] = useState<{
     src: string;
@@ -112,52 +361,12 @@ export default function ProductDetailsModal({
     [safeProduct],
   );
 
-  useEffect(() => {
-    if (!safeProduct) {
-      setSelectedVariantKey((prev) => (prev === "" ? prev : ""));
-      return;
-    }
-
-    const draftVariantKey = draft?.selectedVariantKey ?? "";
-    const hasDraftVariant = colorVariants.some(
-      (item) => item.key === draftVariantKey,
-    );
-
-    if (hasDraftVariant) {
-      setSelectedVariantKey((prev) =>
-        prev === draftVariantKey ? prev : draftVariantKey,
-      );
-      return;
-    }
-
-    const firstVariant = colorVariants[0] ?? null;
-    const firstVariantKey = firstVariant?.key ?? "";
-
-    setSelectedVariantKey((prev) =>
-      prev === firstVariantKey ? prev : firstVariantKey,
-    );
-
-    if (
-      safeProduct.id &&
-      firstVariant &&
-      draft?.selectedVariantKey !== firstVariant.key
-    ) {
-      onSelectVariant(safeProduct.id, firstVariant.key, firstVariant.label);
-    }
-  }, [
-    safeProduct?.id,
-    colorVariants,
-    draft?.selectedVariantKey,
-    onSelectVariant,
-  ]);
-
   const selectedVariant = useMemo(() => {
     if (!colorVariants.length) return null;
+    if (!selectedVariantKey) return null;
 
     return (
-      colorVariants.find((item) => item.key === selectedVariantKey) ??
-      colorVariants[0] ??
-      null
+      colorVariants.find((item) => item.key === selectedVariantKey) ?? null
     );
   }, [colorVariants, selectedVariantKey]);
 
@@ -190,18 +399,109 @@ export default function ProductDetailsModal({
   const finalRecommendedItems =
     recommendedItems.length > 0 ? recommendedItems : fallbackRecommended;
 
+  const hasStructuredConstructor = finalRequiredItems.some((item) =>
+    Boolean(item.groupKey),
+  );
+
+  const constructorGroups = useMemo<ConstructorGroup[]>(() => {
+    if (!hasStructuredConstructor) return [];
+
+    const map = new Map<string, ConstructorGroup>();
+
+    finalRequiredItems.forEach((item, index) => {
+      const key = item.groupKey?.trim() || `group-${index + 1}`;
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.items.push(item);
+        return;
+      }
+
+      map.set(key, {
+        key,
+        title: item.groupTitle?.trim() || "Выберите вариант",
+        order: item.groupOrder ?? index + 1,
+        selection: item.groupSelection ?? "multiple",
+        items: [item],
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.order - b.order);
+  }, [finalRequiredItems, hasStructuredConstructor]);
+
+  const constructorSingleGroups = useMemo(
+    () => constructorGroups.filter((group) => group.selection === "single"),
+    [constructorGroups],
+  );
+
+  const extraGroups = useMemo(
+    () => constructorGroups.filter((group) => group.selection !== "single"),
+    [constructorGroups],
+  );
+
+  const stepOneGroup = constructorSingleGroups[0] ?? null;
+  const secondaryStepGroups = constructorSingleGroups.slice(1);
+
   const basePrice = safeProduct ? (safeProduct.price[country] ?? 0) : 0;
   const variantPrice = selectedVariant
     ? getVariantPrice(selectedVariant, country)
     : 0;
 
-  const effectivePrice = selectedVariant ? variantPrice : basePrice;
-  const mainTotal = effectivePrice * (safeDraft?.quantity ?? 1);
+  const effectiveBasePrice = selectedVariant ? variantPrice : basePrice;
+  const productQty = Math.max(1, safeDraft?.quantity ?? 1);
+
+  const selectedRequiredAndExtrasUnitTotal = useMemo(() => {
+    return finalRequiredItems.reduce((sum, addon) => {
+      const state = addonDrafts?.[addon.id];
+      if (!state?.isInCart) return sum;
+      return sum + getAddonTotal(addon, state, country);
+    }, 0);
+  }, [finalRequiredItems, addonDrafts, country]);
+
+  const selectedRequiredAndExtrasTotal =
+    selectedRequiredAndExtrasUnitTotal * productQty;
+
+  const modalGrandTotal =
+    (effectiveBasePrice + selectedRequiredAndExtrasUnitTotal) * productQty;
 
   const instructionHref = getInstructionDownloadHref(safeProduct);
   const instructionLabel = getInstructionLabel(safeProduct);
 
   const requiredProgress = useMemo(() => {
+    if (hasStructuredConstructor) {
+      if (!constructorSingleGroups.length) {
+        return {
+          total: 0,
+          completed: 0,
+          hasAnySelected: true,
+          done: true,
+          remaining: 0,
+        };
+      }
+
+      let completed = 0;
+
+      constructorSingleGroups.forEach((group) => {
+        const hasSelected = group.items.some((item) => {
+          const state = addonDrafts?.[item.id];
+          const minQty = item.minQuantity ?? 1;
+          const qty = Math.max(0, state?.quantity ?? 0);
+
+          return Boolean(state?.isInCart) && qty >= minQty;
+        });
+
+        if (hasSelected) completed += 1;
+      });
+
+      return {
+        total: constructorSingleGroups.length,
+        completed,
+        hasAnySelected: completed > 0,
+        done: completed === constructorSingleGroups.length,
+        remaining: Math.max(constructorSingleGroups.length - completed, 0),
+      };
+    }
+
     if (!finalRequiredItems.length) {
       return {
         total: 0,
@@ -231,9 +531,47 @@ export default function ProductDetailsModal({
       done: completed === finalRequiredItems.length,
       remaining: Math.max(finalRequiredItems.length - completed, 0),
     };
-  }, [finalRequiredItems, addonDrafts]);
+  }, [
+    finalRequiredItems,
+    addonDrafts,
+    hasStructuredConstructor,
+    constructorSingleGroups,
+  ]);
 
-  const hasRequiredItems = finalRequiredItems.length > 0;
+  const selectedConstructorSummary = useMemo(() => {
+    if (!hasStructuredConstructor) return [];
+
+    return constructorSingleGroups.map((group) => {
+      const selectedItem =
+        group.items.find((item) => {
+          const state = addonDrafts?.[item.id];
+          const minQty = item.minQuantity ?? 1;
+          const qty = Math.max(0, state?.quantity ?? 0);
+
+          return Boolean(state?.isInCart) && qty >= minQty;
+        }) ?? null;
+
+      return {
+        key: group.key,
+        title: group.title,
+        selectedItem,
+      };
+    });
+  }, [hasStructuredConstructor, constructorSingleGroups, addonDrafts]);
+
+  const selectedExtrasTitles = useMemo(() => {
+    return extraGroups.flatMap((group) =>
+      group.items
+        .filter((item) => Boolean(addonDrafts?.[item.id]?.isInCart))
+        .map((item) => item.title)
+        .filter(Boolean),
+    );
+  }, [extraGroups, addonDrafts]);
+
+  const hasRequiredItems = hasStructuredConstructor
+    ? constructorSingleGroups.length > 0
+    : finalRequiredItems.length > 0;
+
   const canAddMainProduct = requiredProgress.done;
   const isKitAssembled = hasRequiredItems && requiredProgress.done && isInCart;
 
@@ -246,7 +584,7 @@ export default function ProductDetailsModal({
     >
       <div className="flex min-h-full items-end justify-center sm:items-center">
         <div
-          className="relative w-full max-w-[1240px] rounded-t-[24px] bg-white shadow-[0_30px_90px_-30px_rgba(0,0,0,0.35)] sm:rounded-[28px]"
+          className="relative w-full max-w-[1320px] rounded-t-[24px] bg-white shadow-[0_30px_90px_-30px_rgba(0,0,0,0.35)] sm:rounded-[28px]"
           onClick={(event) => event.stopPropagation()}
         >
           <button
@@ -279,7 +617,7 @@ export default function ProductDetailsModal({
                         title: safeProduct.title,
                       })
                     }
-                    className="group relative h-[220px] w-full overflow-hidden rounded-[20px] bg-[#f1f1ed] text-left sm:h-[260px] md:h-[300px] md:rounded-[24px]"
+                    className="group relative h-[220px] w-full cursor-pointer overflow-hidden rounded-[20px] bg-[#f1f1ed] text-left sm:h-[260px] md:h-[300px] md:rounded-[24px]"
                   >
                     <Image
                       src={selectedImage}
@@ -342,7 +680,7 @@ export default function ProductDetailsModal({
                               <span className="text-black/45">Инструкция:</span>
                               <a
                                 href={instructionHref}
-                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-black/10 bg-[#f7f5f0] px-3 py-1.5 font-medium text-black transition hover:border-black/20 hover:bg-[#f1eee8]"
+                                className="inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-black/10 bg-[#f7f5f0] px-3 py-1.5 font-medium text-black transition hover:border-black/20 hover:bg-[#f1eee8]"
                               >
                                 <Download className="h-4 w-4 shrink-0" />
                                 <span>{instructionLabel}</span>
@@ -367,8 +705,8 @@ export default function ProductDetailsModal({
                             <AlertCircle className="h-4 w-4" />
                           )}
                           {isKitAssembled
-                            ? "Комплект собран"
-                            : "Соберите комплект"}
+                            ? "Конструктор собран"
+                            : "Соберите шкаф"}
                         </div>
                       ) : (
                         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-[#f5f5f3] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-black/55">
@@ -419,7 +757,7 @@ export default function ProductDetailsModal({
                       <div className="mt-4 rounded-[18px] bg-[#f6f5f2] p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-[13px] font-semibold text-black">
-                            Сборка комплекта
+                            Сборка шкафа
                           </div>
                           <div className="text-[12px] text-black/50">
                             {requiredProgress.completed} из{" "}
@@ -457,75 +795,216 @@ export default function ProductDetailsModal({
                         >
                           {requiredProgress.done
                             ? isInCart
-                              ? "Все обязательные элементы выбраны. Комплект собран."
-                              : "Все обязательные элементы выбраны. Нажмите «Собрать комплект»."
-                            : "Необходимо добавить еще комплектующие."}
+                              ? "Все обязательные части выбраны. Шкаф собран."
+                              : "Все обязательные части выбраны. Нажмите «Собрать комплект»."
+                            : "Сначала выберите наполнение и створки."}
                         </div>
                       </div>
                     ) : null}
                   </div>
                 </div>
 
-                <section className="mt-5 rounded-[20px] border border-black/8 bg-[#fbfaf7] p-4 md:rounded-[24px] md:p-5">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                    <div>
-                      <div className="text-[18px] font-semibold tracking-[-0.02em] text-black sm:text-[20px]">
-                        Обязательная комплектация
-                      </div>
-                      <div className="mt-1 text-[13px] text-black/55">
-                        Для сборки основного товара необходимо выбрать все
-                        обязательные комплектующие.
-                      </div>
-                    </div>
-
-                    {requiredProgress.total > 0 ? (
-                      <div
-                        className={cn(
-                          "inline-flex w-fit rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
-                          requiredProgress.done
-                            ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border border-amber-200 bg-amber-50 text-amber-700",
-                        )}
-                      >
-                        {requiredProgress.done ? "Готово" : "Нужно выбрать"}
-                      </div>
+                {hasStructuredConstructor ? (
+                  <section className="mt-5 space-y-4">
+                    {stepOneGroup ? (
+                      <ConstructorStepBlock
+                        stepNumber={1}
+                        group={stepOneGroup}
+                        addonDrafts={addonDrafts}
+                        country={country}
+                        cardWidthClass="w-[180px] sm:w-[200px] md:w-[210px]"
+                        rowClass="flex-nowrap"
+                        fitContent
+                        onChooseSingleAddonInGroup={onChooseSingleAddonInGroup}
+                        onOpenImage={(src, title) =>
+                          setPreviewImage({ src, title })
+                        }
+                      />
                     ) : null}
-                  </div>
 
-                  {finalRequiredItems.length > 0 ? (
-                    <div className="mt-4 space-y-3">
-                      {finalRequiredItems.map((addon) => {
-                        const addonState = addonDrafts?.[addon.id] ?? {
-                          quantity: addon.defaultQuantity ?? 1,
-                          isInCart: false,
-                          markupPercent: 0,
-                          selectedVariantKey: "",
-                          selectedColor: "",
-                        };
-
-                        return (
-                          <RequiredStepRow
-                            key={addon.id}
-                            addon={addon}
+                    {secondaryStepGroups.length > 0 ? (
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] xl:items-stretch">
+                        {secondaryStepGroups[0] ? (
+                          <ConstructorStepBlock
+                            stepNumber={2}
+                            group={secondaryStepGroups[0]}
+                            addonDrafts={addonDrafts}
                             country={country}
-                            addonState={addonState}
-                            onIncreaseAddonQty={onIncreaseAddonQty}
-                            onDecreaseAddonQty={onDecreaseAddonQty}
-                            onToggleAddonCart={onToggleAddonCart}
+                            cardWidthClass="w-[140px] sm:w-[150px] md:w-[160px]"
+                            rowClass="flex-nowrap"
+                            fitContent
+                            onChooseSingleAddonInGroup={
+                              onChooseSingleAddonInGroup
+                            }
                             onOpenImage={(src, title) =>
                               setPreviewImage({ src, title })
                             }
                           />
-                        );
-                      })}
+                        ) : (
+                          <div />
+                        )}
+
+                        <div className="hidden xl:block self-stretch rounded-full bg-black/8" />
+
+                        {secondaryStepGroups[1] ? (
+                          <ConstructorStepBlock
+                            stepNumber={3}
+                            group={secondaryStepGroups[1]}
+                            addonDrafts={addonDrafts}
+                            country={country}
+                            cardWidthClass="w-[140px] sm:w-[150px] md:w-[160px]"
+                            rowClass="flex-nowrap"
+                            fitContent
+                            onChooseSingleAddonInGroup={
+                              onChooseSingleAddonInGroup
+                            }
+                            onOpenImage={(src, title) =>
+                              setPreviewImage({ src, title })
+                            }
+                          />
+                        ) : (
+                          <div />
+                        )}
+                      </div>
+                    ) : null}
+
+                    {secondaryStepGroups.length > 2 ? (
+                      <div className="space-y-4">
+                        {secondaryStepGroups.slice(2).map((group, idx) => (
+                          <ConstructorStepBlock
+                            key={group.key}
+                            stepNumber={idx + 4}
+                            group={group}
+                            addonDrafts={addonDrafts}
+                            country={country}
+                            onChooseSingleAddonInGroup={
+                              onChooseSingleAddonInGroup
+                            }
+                            onOpenImage={(src, title) =>
+                              setPreviewImage({ src, title })
+                            }
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {extraGroups.length > 0 ? (
+                      <div className="rounded-[20px] border border-black/8 bg-[#fbfaf7] p-4 md:rounded-[24px] md:p-5">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-[20px] font-semibold tracking-[-0.02em] text-black">
+                            Прочее
+                          </div>
+                          <div className="text-[13px] text-black/55">
+                            Дополнительные позиции. Их можно добавить по
+                            желанию.
+                          </div>
+                        </div>
+
+                        <div className="mt-4 space-y-5">
+                          {extraGroups.map((group) => (
+                            <div key={group.key}>
+                              {group.title ? (
+                                <div className="mb-3 text-[14px] font-semibold text-black/75">
+                                  {group.title}
+                                </div>
+                              ) : null}
+
+                              <div className="space-y-3">
+                                {group.items.map((addon) => {
+                                  const addonState = addonDrafts?.[
+                                    addon.id
+                                  ] ?? {
+                                    quantity: addon.defaultQuantity ?? 1,
+                                    isInCart: false,
+                                    markupPercent: 0,
+                                    selectedVariantKey: "",
+                                    selectedColor: "",
+                                  };
+
+                                  return (
+                                    <RequiredStepRow
+                                      key={addon.id}
+                                      addon={addon}
+                                      country={country}
+                                      addonState={addonState}
+                                      onIncreaseAddonQty={onIncreaseAddonQty}
+                                      onDecreaseAddonQty={onDecreaseAddonQty}
+                                      onToggleAddonCart={onToggleAddonCart}
+                                      onOpenImage={(src, title) =>
+                                        setPreviewImage({ src, title })
+                                      }
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </section>
+                ) : (
+                  <section className="mt-5 rounded-[20px] border border-black/8 bg-[#fbfaf7] p-4 md:rounded-[24px] md:p-5">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                      <div>
+                        <div className="text-[18px] font-semibold tracking-[-0.02em] text-black sm:text-[20px]">
+                          Обязательная комплектация
+                        </div>
+                        <div className="mt-1 text-[13px] text-black/55">
+                          Для сборки основного товара необходимо выбрать все
+                          обязательные комплектующие.
+                        </div>
+                      </div>
+
+                      {requiredProgress.total > 0 ? (
+                        <div
+                          className={cn(
+                            "inline-flex w-fit rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]",
+                            requiredProgress.done
+                              ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border border-amber-200 bg-amber-50 text-amber-700",
+                          )}
+                        >
+                          {requiredProgress.done ? "Готово" : "Нужно выбрать"}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : (
-                    <div className="mt-4 rounded-[18px] border border-dashed border-black/12 bg-white px-4 py-5 text-[14px] text-black/50">
-                      Для этого товара обязательные комплектующие пока не
-                      заданы.
-                    </div>
-                  )}
-                </section>
+
+                    {finalRequiredItems.length > 0 ? (
+                      <div className="mt-4 space-y-3">
+                        {finalRequiredItems.map((addon) => {
+                          const addonState = addonDrafts?.[addon.id] ?? {
+                            quantity: addon.defaultQuantity ?? 1,
+                            isInCart: false,
+                            markupPercent: 0,
+                            selectedVariantKey: "",
+                            selectedColor: "",
+                          };
+
+                          return (
+                            <RequiredStepRow
+                              key={addon.id}
+                              addon={addon}
+                              country={country}
+                              addonState={addonState}
+                              onIncreaseAddonQty={onIncreaseAddonQty}
+                              onDecreaseAddonQty={onDecreaseAddonQty}
+                              onToggleAddonCart={onToggleAddonCart}
+                              onOpenImage={(src, title) =>
+                                setPreviewImage({ src, title })
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-[18px] border border-dashed border-black/12 bg-white px-4 py-5 text-[14px] text-black/50">
+                        Для этого товара обязательные комплектующие пока не
+                        заданы.
+                      </div>
+                    )}
+                  </section>
+                )}
               </div>
 
               <div className="min-w-0">
@@ -538,7 +1017,7 @@ export default function ProductDetailsModal({
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-[12px] text-black/45">Цена</span>
                       <span className="text-[20px] font-semibold leading-none text-black sm:text-[22px]">
-                        {formatMoney(effectivePrice, country)}
+                        {formatMoney(modalGrandTotal, country)}
                       </span>
                     </div>
 
@@ -548,7 +1027,7 @@ export default function ProductDetailsModal({
                       </span>
 
                       <QtyControl
-                        value={safeDraft.quantity}
+                        value={productQty}
                         onMinus={() => onDecreaseQty(safeProduct.id)}
                         onPlus={() => onIncreaseQty(safeProduct.id)}
                       />
@@ -556,13 +1035,66 @@ export default function ProductDetailsModal({
 
                     <div className="mt-4 border-t border-black/8 pt-4">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-[12px] text-black/45">Сумма</span>
+                        <span className="text-[12px] text-black/45">
+                          Комплектация
+                        </span>
+                        <span className="text-[16px] font-semibold leading-none text-black">
+                          {formatMoney(selectedRequiredAndExtrasTotal, country)}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-black/8 pt-4">
+                        <span className="text-[12px] text-black/45">Итого</span>
                         <span className="text-[18px] font-semibold leading-none text-black">
-                          {formatMoney(mainTotal, country)}
+                          {formatMoney(modalGrandTotal, country)}
                         </span>
                       </div>
                     </div>
                   </div>
+
+                  {hasStructuredConstructor ? (
+                    <div className="mt-4 rounded-[18px] bg-white p-4">
+                      <div className="text-[14px] font-semibold text-black">
+                        Сводка сборки
+                      </div>
+
+                      <div className="mt-3 space-y-2.5">
+                        {selectedConstructorSummary.map((row) => (
+                          <div
+                            key={row.key}
+                            className="flex items-start justify-between gap-3"
+                          >
+                            <span className="text-[12px] text-black/50">
+                              {row.title}
+                            </span>
+                            <span
+                              className={cn(
+                                "max-w-[180px] text-right text-[12px] font-medium",
+                                row.selectedItem
+                                  ? "text-black"
+                                  : "text-amber-700",
+                              )}
+                            >
+                              {row.selectedItem?.title || "Не выбрано"}
+                            </span>
+                          </div>
+                        ))}
+
+                        {extraGroups.length > 0 ? (
+                          <div className="flex items-start justify-between gap-3 border-t border-black/8 pt-2.5">
+                            <span className="text-[12px] text-black/50">
+                              Прочее
+                            </span>
+                            <span className="max-w-[180px] text-right text-[12px] font-medium text-black">
+                              {selectedExtrasTitles.length > 0
+                                ? selectedExtrasTitles.join(", ")
+                                : "Не добавлено"}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
 
                   {hasRequiredItems &&
                   requiredProgress.total > 0 &&
@@ -572,11 +1104,11 @@ export default function ProductDetailsModal({
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
                         <div>
                           <div className="text-[13px] font-semibold text-black">
-                            Не все обязательные комплектующие выбраны
+                            Не все обязательные части выбраны
                           </div>
                           <div className="mt-1 text-[12px] leading-5 text-black/55">
-                            Добавьте все обязательные позиции, после этого
-                            кнопка «Собрать комплект» станет активной.
+                            Сначала выберите наполнение, левую и правую створку,
+                            после этого кнопка сборки станет активной.
                           </div>
                         </div>
                       </div>
@@ -591,16 +1123,16 @@ export default function ProductDetailsModal({
                     }}
                     disabled={hasRequiredItems ? !canAddMainProduct : false}
                     className={cn(
-                      "mt-4 inline-flex h-11 w-full items-center justify-center rounded-[12px] px-4 text-[14px] font-semibold transition",
+                      "mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-[12px] px-4 text-[14px] font-semibold transition",
                       hasRequiredItems
                         ? canAddMainProduct
                           ? isInCart
-                            ? "cursor-pointer border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
-                            : "cursor-pointer border border-black bg-black text-white hover:opacity-95"
+                            ? "border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
+                            : "border border-black bg-black text-white hover:opacity-95"
                           : "cursor-not-allowed border border-black/10 bg-black/10 text-black/40"
                         : isInCart
-                          ? "cursor-pointer border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
-                          : "cursor-pointer border border-black bg-black text-white hover:opacity-95",
+                          ? "border border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
+                          : "border border-black bg-black text-white hover:opacity-95",
                     )}
                   >
                     {hasRequiredItems

@@ -26,6 +26,8 @@ export type DealerProductVariant = {
   price?: Partial<DealerProductPriceMap>;
 };
 
+export type DealerAddonGroupSelection = "single" | "multiple";
+
 export type DealerAddon = {
   id: string;
   title: string;
@@ -42,6 +44,18 @@ export type DealerAddon = {
   size?: string;
   material?: string;
   variants?: DealerProductVariant[];
+
+  /**
+   * Новая логика конструктора:
+   * groupKey: filling | left-door | right-door | extras
+   * groupTitle: человекочитаемый заголовок блока
+   * groupSelection: single -> можно выбрать только один вариант
+   * groupOrder: порядок показа блока
+   */
+  groupKey?: string;
+  groupTitle?: string;
+  groupSelection?: DealerAddonGroupSelection;
+  groupOrder?: number;
 };
 
 export type DealerProduct = {
@@ -150,6 +164,14 @@ type StrapiAddonRelation = {
   minQty?: number | string | null;
   sortOrder?: number | string | null;
   isActive?: boolean;
+
+  /**
+   * Новые поля relation в Strapi
+   */
+  groupKey?: string | null;
+  groupTitle?: string | null;
+  groupSelection?: "single" | "multiple" | string | null;
+  groupOrder?: number | string | null;
 };
 
 const STRAPI_URL =
@@ -300,6 +322,9 @@ function normalizeAddon(
         .filter(Boolean) as DealerProductVariant[])
     : [];
 
+  const groupSelection: DealerAddonGroupSelection =
+    relation.groupSelection === "single" ? "single" : "multiple";
+
   return {
     id: String(addonProduct.documentId ?? addonProduct.id ?? ""),
     title: addonProduct.title ?? "",
@@ -316,13 +341,19 @@ function normalizeAddon(
     size: addonProduct.size ?? "",
     material: addonProduct.material ?? "",
     variants,
+    groupKey: String(relation.groupKey ?? "").trim() || undefined,
+    groupTitle: String(relation.groupTitle ?? "").trim() || undefined,
+    groupSelection,
+    groupOrder: toNumber(relation.groupOrder),
   };
 }
 
 function normalizeProductBase(raw: StrapiProduct): DealerProduct {
   const collection = unwrapRelation(raw.collection);
   const variants = Array.isArray(raw.variants)
-    ? (raw.variants.map(normalizeVariant).filter(Boolean) as DealerProductVariant[])
+    ? (raw.variants
+        .map(normalizeVariant)
+        .filter(Boolean) as DealerProductVariant[])
     : [];
 
   return {

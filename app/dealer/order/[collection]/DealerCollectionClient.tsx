@@ -490,20 +490,57 @@ export default function DealerCollectionClient({
 
     if (product) {
       const requiredItems = product.requiredItems ?? [];
-      const hasRequired = requiredItems.length > 0;
+      const structuredSingleGroups = Array.from(
+        new Set(
+          requiredItems
+            .filter(
+              (item) =>
+                item.groupKey &&
+                (item.groupSelection ?? "multiple") === "single",
+            )
+            .map((item) => item.groupKey as string),
+        ),
+      );
 
-      if (hasRequired) {
-        const areAllRequiredSelected = requiredItems.every((item) => {
-          const state = getAddonDraft(product.id, item.id);
-          const minQty = item.minQuantity ?? 1;
-          const qty = Math.max(0, state?.quantity ?? 0);
+      if (structuredSingleGroups.length > 0) {
+        const areAllConstructorGroupsSelected = structuredSingleGroups.every(
+          (groupKey) => {
+            const groupItems = requiredItems.filter(
+              (item) =>
+                item.groupKey === groupKey &&
+                (item.groupSelection ?? "multiple") === "single",
+            );
 
-          return Boolean(state?.isInCart) && qty >= minQty;
-        });
+            return groupItems.some((item) => {
+              const state = getAddonDraft(product.id, item.id);
+              const minQty = item.minQuantity ?? 1;
+              const qty = Math.max(0, state?.quantity ?? 0);
 
-        if (!areAllRequiredSelected) {
+              return Boolean(state?.isInCart) && qty >= minQty;
+            });
+          },
+        );
+
+        if (!areAllConstructorGroupsSelected) {
           setSelectedProduct(product);
           return;
+        }
+      } else {
+        const hasRequired = requiredItems.length > 0;
+
+        if (hasRequired) {
+          const areAllRequiredSelected = requiredItems.every((item) => {
+            const state = getAddonDraft(product.id, item.id);
+            const minQty = item.minQuantity ?? 1;
+            const qty = Math.max(0, state?.quantity ?? 0);
+
+            return Boolean(state?.isInCart) && qty >= minQty;
+          });
+
+          if (!areAllRequiredSelected) {
+            setSelectedProduct(product);
+            return;
+          }
         }
       }
     }
@@ -611,6 +648,52 @@ export default function DealerCollectionClient({
           : prev.quantity,
         markupPercent: 0,
       };
+    });
+  }
+
+  function handleChooseSingleAddonInGroup(
+    parentProductId: string,
+    groupKey: string,
+    addonId: string,
+  ) {
+    const product = allProductsById.get(parentProductId);
+    if (!product) return;
+
+    const groupItems = (product.requiredItems ?? []).filter(
+      (item) =>
+        item.groupKey === groupKey &&
+        (item.groupSelection ?? "multiple") === "single",
+    );
+
+    if (!groupItems.length) return;
+
+    setAddonDrafts((prev) => {
+      const next = { ...prev };
+
+      groupItems.forEach((item) => {
+        const key = getAddonDraftKey(parentProductId, item.id);
+        const current = next[key] ?? getDefaultAddonDraft();
+
+        if (item.id === addonId) {
+          next[key] = {
+            ...current,
+            isInCart: true,
+            quantity: Math.max(
+              current.quantity || 1,
+              item.minQuantity ?? item.defaultQuantity ?? 1,
+            ),
+            markupPercent: 0,
+          };
+        } else {
+          next[key] = {
+            ...current,
+            isInCart: false,
+            markupPercent: 0,
+          };
+        }
+      });
+
+      return next;
     });
   }
 
@@ -847,6 +930,14 @@ export default function DealerCollectionClient({
     handleSelectAddonVariant(selectedProduct.id, addonId, variantKey, color);
   }
 
+  function handleSelectedProductChooseSingleAddonInGroup(
+    groupKey: string,
+    addonId: string,
+  ) {
+    if (!selectedProduct) return;
+    handleChooseSingleAddonInGroup(selectedProduct.id, groupKey, addonId);
+  }
+
   function getActiveOrderNumber() {
     if (draftOrderNumber) return draftOrderNumber;
     return generateOrderNumber(dealerMe?.login ?? "");
@@ -1073,6 +1164,9 @@ export default function DealerCollectionClient({
         onIncreaseAddonQty={handleSelectedProductIncreaseAddonQty}
         onDecreaseAddonQty={handleSelectedProductDecreaseAddonQty}
         onToggleAddonCart={handleSelectedProductToggleAddonCart}
+        onChooseSingleAddonInGroup={
+          handleSelectedProductChooseSingleAddonInGroup
+        }
       />
 
       <OrderConfirmModal
