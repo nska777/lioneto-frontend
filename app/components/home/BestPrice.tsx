@@ -116,6 +116,21 @@ function BestPriceBadge({
   text: string;
   discountPercent?: number | null;
 }) {
+  const isDiscount = typeof discountPercent === "number" && discountPercent > 0;
+
+  if (isDiscount) {
+    return (
+      <span className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full border-[3px] border-[#ff2b2b] bg-[#c4001a] text-center leading-none shadow-[0_8px_20px_rgba(196,0,26,0.2)]">
+        <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-white">
+          скидка
+        </span>
+        <span className="mt-1 text-[14px] font-extrabold text-white">
+          -{discountPercent} %
+        </span>
+      </span>
+    );
+  }
+
   return (
     <span className="relative inline-flex h-6 items-center overflow-hidden rounded-[10px] px-2">
       <span
@@ -139,21 +154,8 @@ function BestPriceBadge({
             "0 0 0 1px rgba(120,255,190,0.75), 0 10px 26px rgba(12,127,69,0.20)",
         }}
       />
-      <span
-        className="pointer-events-none absolute -left-[60%] top-0 h-full w-[60%] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{
-          background:
-            "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.65) 50%, transparent 100%)",
-          transform: "skewX(-20deg)",
-        }}
-      />
       <span className="relative z-10 inline-flex items-center whitespace-nowrap text-[10px] font-semibold tracking-[0.02em] text-[#064B2A]">
         {text}
-        {discountPercent ? (
-          <span className="ml-1 text-[10px] text-[#064B2A]/70">
-            −{discountPercent}%
-          </span>
-        ) : null}
       </span>
     </span>
   );
@@ -658,7 +660,7 @@ export default function BestPrice({
                     )}
                   >
                     <div className="relative overflow-visible rounded-t-[18px] bg-white">
-                      <div className="absolute left-3 top-0.5 z-20">
+                      <div className="absolute left-0 top-0 z-20">
                         <BestPriceBadge
                           text={p.badge}
                           discountPercent={p.discountPercent}

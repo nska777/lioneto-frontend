@@ -21,7 +21,6 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
 
   try {
     if (currency === "UZS") {
-      // ✅ всегда "UZS 34,176,000" и на SSR и на client
       return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "UZS",
@@ -30,7 +29,6 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
       }).format(v);
     }
 
-    // RUB — как было, но стабильно
     return new Intl.NumberFormat("ru-RU", {
       style: "currency",
       currency: "RUB",
@@ -44,7 +42,7 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
 }
 
 export type FeaturedProduct = {
-  id: string; // slug
+  id: string;
   slug: string;
   title: string;
   href: string;
@@ -109,31 +107,43 @@ function toCapsLabel(v?: string | null) {
 }
 
 function HitBadge({ text }: { text: string }) {
+  void text;
+
   return (
-    <span className="relative inline-flex h-6 items-center overflow-hidden rounded-[10px] px-2">
+    <span className="relative inline-flex h-[118px] w-[118px] items-center justify-center drop-shadow-[0_12px_24px_rgba(180,130,20,0.28)]">
       <span
-        className="absolute inset-0 rounded-[10px]"
+        className="absolute inset-0 bg-[#d29a1f]"
         style={{
+          clipPath:
+            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 72%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+        }}
+      />
+
+      <span
+        className="absolute inset-[4px] bg-[#f5c64d]"
+        style={{
+          clipPath:
+            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 72%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+        }}
+      />
+
+      <span
+        className="absolute inset-[10px]"
+        style={{
+          clipPath:
+            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 72%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
           background:
-            "radial-gradient(120% 140% at 30% 20%, #FFF6D8 0%, #FFE39A 26%, #F7C34E 52%, #D79A28 78%, #9B6A10 100%)",
+            "linear-gradient(180deg, #ffe8a3 0%, #f7c34e 48%, #d89a23 100%)",
         }}
       />
-      <span
-        className="absolute inset-[1px] rounded-[9px]"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.70), rgba(255,255,255,0.12))",
-        }}
-      />
-      <span
-        className="absolute inset-0 rounded-[10px]"
-        style={{
-          boxShadow:
-            "0 0 0 1px rgba(255,210,110,0.75), 0 10px 26px rgba(155,106,16,0.20)",
-        }}
-      />
-      <span className="relative z-10 inline-flex items-center whitespace-nowrap text-[10px] font-semibold tracking-[0.02em] text-[#5A3B06]">
-        {text}
+
+      <span className="relative z-10 -mt-2 flex max-w-[78px] flex-col items-center justify-center text-center leading-none">
+        <span className="text-[9px] font-extrabold uppercase tracking-[0.04em] text-[#6a4300]">
+          хит
+        </span>
+        <span className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.04em] text-[#6a4300]">
+          продаж
+        </span>
       </span>
     </span>
   );
@@ -225,7 +235,6 @@ export default function BestSellers({
   }, []);
 
   const list = useMemo<UIItem[]>(() => {
-    // ✅ Strapi products first
     if (products.length) {
       const items = products
         .filter((p) => p?.isActive !== false)
@@ -251,13 +260,10 @@ export default function BestSellers({
             title: String(p.title ?? "").trim(),
             href: p.href || `/product/${p.slug}`,
             image: String(p.image ?? ""),
-
             price_rub,
             price_uzs,
-
             old_price_rub,
             old_price_uzs,
-
             discountPercent,
             badge: "Хит продаж",
             skuLabel: p.slug ? String(p.slug) : null,
@@ -268,7 +274,6 @@ export default function BestSellers({
       return items.slice(0, Math.min(10, items.length));
     }
 
-    // ✅ fallback priceEntries -> mock
     if (!priceEntries.length) return [];
 
     const hit = priceEntries.filter(
@@ -308,13 +313,10 @@ export default function BestSellers({
           title: displayTitle,
           href: `/product/${product.id}`,
           image: String(product.image ?? ""),
-
           price_rub,
           price_uzs,
-
           old_price_rub,
           old_price_uzs,
-
           discountPercent,
           badge: "Хит продаж",
           skuLabel: product.sku ? String(product.sku) : `ID: ${product.id}`,
@@ -335,6 +337,7 @@ export default function BestSellers({
         window.matchMedia?.("(hover: none)")?.matches;
       setIsTouchMode(!!touch);
     };
+
     calc();
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
@@ -407,7 +410,10 @@ export default function BestSellers({
   }, [isTouchMode, pages]);
 
   const prev = () => {
-    if (!isTouchMode) return setPage((p) => Math.max(0, p - 1));
+    if (!isTouchMode) {
+      setPage((p) => Math.max(0, p - 1));
+      return;
+    }
 
     const vp = viewportRef.current;
     if (!vp) return;
@@ -426,7 +432,10 @@ export default function BestSellers({
   };
 
   const next = () => {
-    if (!isTouchMode) return setPage((p) => Math.min(pages - 1, p + 1));
+    if (!isTouchMode) {
+      setPage((p) => Math.min(pages - 1, p + 1));
+      return;
+    }
 
     const vp = viewportRef.current;
     if (!vp) return;
@@ -446,7 +455,10 @@ export default function BestSellers({
   };
 
   const goToPage = (i: number) => {
-    if (!isTouchMode) return setPage(i);
+    if (!isTouchMode) {
+      setPage(i);
+      return;
+    }
 
     const vp = viewportRef.current;
     if (!vp) return;
@@ -494,6 +506,7 @@ export default function BestSellers({
           actions.style.pointerEvents = "auto";
           return;
         }
+
         gsap.to(actions, {
           autoAlpha: 1,
           y: 0,
@@ -512,6 +525,7 @@ export default function BestSellers({
           actions.style.pointerEvents = "none";
           return;
         }
+
         gsap.to(actions, {
           autoAlpha: 0,
           y: 10,
@@ -539,12 +553,12 @@ export default function BestSellers({
   return (
     <section
       ref={rootRef}
-      className="w-full relative overflow-visible"
+      className="relative w-full overflow-visible"
       style={{ backgroundColor: "#f3f3f3" }}
     >
       <div className="mx-auto w-full max-w-[1200px] px-4 py-12">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.02em] text-black">
+          <h2 className="text-[30px] font-semibold tracking-[-0.02em] text-black md:text-[36px]">
             {title}
           </h2>
 
@@ -553,12 +567,12 @@ export default function BestSellers({
               onClick={prev}
               disabled={page === 0}
               className={cn(
-                "h-10 w-10 rounded-full grid place-items-center",
+                "grid h-10 w-10 place-items-center rounded-full",
                 "border border-black/10 bg-white",
                 "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                 "transition cursor-pointer",
                 page === 0
-                  ? "opacity-40 cursor-default"
+                  ? "cursor-default opacity-40"
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Назад"
@@ -570,12 +584,12 @@ export default function BestSellers({
               onClick={next}
               disabled={page >= pages - 1}
               className={cn(
-                "h-10 w-10 rounded-full grid place-items-center",
+                "grid h-10 w-10 place-items-center rounded-full",
                 "border border-black/10 bg-white",
                 "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                 "transition cursor-pointer",
                 page >= pages - 1
-                  ? "opacity-40 cursor-default"
+                  ? "cursor-default opacity-40"
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Вперёд"
@@ -630,10 +644,8 @@ export default function BestSellers({
                 >
                   <div
                     className={cn(
-                      "relative overflow-visible",
-                      "flex flex-col h-full",
-                      "border border-black/10 bg-white",
-                      "rounded-[18px]",
+                      "relative flex h-full flex-col overflow-visible",
+                      "rounded-[18px] border border-black/10 bg-white",
                       "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                       "transition",
                       "group-hover:-translate-y-[2px]",
@@ -641,7 +653,7 @@ export default function BestSellers({
                     )}
                   >
                     <div className="relative overflow-visible rounded-t-[18px] bg-white">
-                      <div className="absolute left-3 top-3 z-30">
+                      <div className="absolute left-[-10px] top-[-10px] z-30">
                         <HitBadge text={p.badge} />
                       </div>
 
@@ -673,11 +685,10 @@ export default function BestSellers({
                       </div>
                     </div>
 
-                    <div className="px-5 pt-3 pb-3 min-h-[112px]">
-                      {/* ✅ FIX: mobile stack old price under new */}
+                    <div className="min-h-[112px] px-5 pb-3 pt-3">
                       <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
-                          className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black"
+                          className="text-[20px] font-semibold tracking-[-0.01em] text-black md:text-[22px]"
                           suppressHydrationWarning
                         >
                           {formatPrice(price, currency)}
@@ -685,7 +696,7 @@ export default function BestSellers({
 
                         {old && old > price ? (
                           <div
-                            className="text-[12px] sm:text-[13px] text-black/35 sm:text-black/40 line-through"
+                            className="text-[12px] text-black/35 line-through sm:text-[13px] sm:text-black/40"
                             suppressHydrationWarning
                           >
                             {formatPrice(old, currency)}
@@ -695,17 +706,15 @@ export default function BestSellers({
 
                       <div
                         className={cn(
-                          "mt-2 text-[15px] md:text-[16px] leading-snug text-black/80",
-                          "whitespace-normal break-words",
-                          "line-clamp-2",
-                          "min-h-[36px]",
+                          "mt-2 min-h-[36px] text-[15px] leading-snug text-black/80 md:text-[16px]",
+                          "whitespace-normal break-words line-clamp-2",
                         )}
                         title={p.title}
                       >
                         {p.title}
                       </div>
 
-                      <div className="mt-3 text-[11px] tracking-[0.18em] uppercase text-black/45">
+                      <div className="mt-3 text-[11px] uppercase tracking-[0.18em] text-black/45">
                         {p.brandLine ?? "—"}
                       </div>
                     </div>
