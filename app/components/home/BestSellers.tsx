@@ -47,16 +47,12 @@ export type FeaturedProduct = {
   title: string;
   href: string;
   image: string;
-
   priceUZS: number;
   priceRUB: number;
-
   oldPriceUZS?: number;
   oldPriceRUB?: number;
-
   collectionBadge?: string;
   isActive?: boolean;
-
   brand?: string | null;
   collection?: string | null;
 };
@@ -64,13 +60,10 @@ export type FeaturedProduct = {
 type PriceEntry = {
   productId: string | number;
   title?: string;
-
   priceUZS: number;
   priceRUB: number;
-
   oldPriceUZS?: number;
   oldPriceRUB?: number;
-
   hasDiscount?: boolean;
   collectionBadge?: string;
   isActive?: boolean;
@@ -81,15 +74,11 @@ type UIItem = {
   title: string;
   href: string;
   image: string;
-
   price_rub: number;
   price_uzs: number;
-
   old_price_rub?: number | null;
   old_price_uzs?: number | null;
-
   discountPercent?: number | null;
-
   badge: string;
   skuLabel?: string | null;
   brandLine?: string | null;
@@ -107,43 +96,10 @@ function toCapsLabel(v?: string | null) {
 }
 
 function HitBadge({ text }: { text: string }) {
-  void text;
-
   return (
-    <span className="relative inline-flex h-[118px] w-[118px] items-center justify-center drop-shadow-[0_12px_24px_rgba(180,130,20,0.28)]">
-      <span
-        className="absolute inset-0 bg-[#d29a1f]"
-        style={{
-          clipPath:
-            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 72%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
-        }}
-      />
-
-      <span
-        className="absolute inset-[4px] bg-[#f5c64d]"
-        style={{
-          clipPath:
-            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 72%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
-        }}
-      />
-
-      <span
-        className="absolute inset-[10px]"
-        style={{
-          clipPath:
-            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 72%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
-          background:
-            "linear-gradient(180deg, #ffe8a3 0%, #f7c34e 48%, #d89a23 100%)",
-        }}
-      />
-
-      <span className="relative z-10 -mt-2 flex max-w-[78px] flex-col items-center justify-center text-center leading-none">
-        <span className="text-[9px] font-extrabold uppercase tracking-[0.04em] text-[#6a4300]">
-          хит
-        </span>
-        <span className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.04em] text-[#6a4300]">
-          продаж
-        </span>
+    <span className="pointer-events-none absolute left-[-22px] top-[14px] z-20 block w-[118px] -rotate-[38deg] bg-[#efe3bf] py-[5px] text-center shadow-[0_3px_8px_rgba(120,90,20,0.08)]">
+      <span className="block border-y border-[#dccb9d] py-[1px] text-[9px] font-semibold uppercase tracking-[0.14em] text-[#7a5a12]">
+        {text}
       </span>
     </span>
   );
@@ -652,10 +608,8 @@ export default function BestSellers({
                       "group-hover:shadow-[0_18px_50px_rgba(0,0,0,0.10)]",
                     )}
                   >
-                    <div className="relative overflow-visible rounded-t-[18px] bg-white">
-                      <div className="absolute left-[-10px] top-[-10px] z-30">
-                        <HitBadge text={p.badge} />
-                      </div>
+                    <div className="relative overflow-hidden rounded-t-[18px] bg-white">
+                      <HitBadge text={p.badge} />
 
                       <div
                         data-actions
@@ -674,14 +628,12 @@ export default function BestSellers({
                         />
                       </div>
 
-                      <div className="relative overflow-hidden rounded-t-[18px]">
-                        <div className="relative aspect-[4/3] bg-white">
-                          <SmartCover
-                            src={p.image}
-                            alt={p.title}
-                            priority={idx < 6}
-                          />
-                        </div>
+                      <div className="relative aspect-[4/3] bg-white">
+                        <SmartCover
+                          src={p.image}
+                          alt={p.title}
+                          priority={idx < 6}
+                        />
                       </div>
                     </div>
 
