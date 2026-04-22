@@ -95,40 +95,14 @@ function GreenPremiumBadge({ text }: { text: string }) {
   );
 }
 
-function GoldDiscountBadge({ text }: { text: string }) {
+function GoldDiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="relative inline-flex h-7 items-center overflow-hidden rounded-[12px] px-3">
-      <span
-        className="absolute inset-0 rounded-[12px]"
-        style={{
-          background:
-            "radial-gradient(120% 140% at 30% 20%, rgba(255,248,214,0.98) 0%, rgba(255,219,128,0.92) 35%, rgba(230,169,60,0.88) 70%, rgba(201,138,26,0.85) 100%)",
-        }}
-      />
-      <span
-        className="absolute inset-[1px] rounded-[11px]"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.10))",
-        }}
-      />
-      <span
-        className="absolute inset-0 rounded-[12px]"
-        style={{
-          boxShadow:
-            "0 0 0 1px rgba(215,181,107,0.80), 0 12px 30px rgba(201,138,26,0.22)",
-        }}
-      />
-      <span
-        className="pointer-events-none absolute -left-[60%] top-0 h-full w-[60%] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{
-          background:
-            "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.75) 50%, transparent 100%)",
-          transform: "skewX(-20deg)",
-        }}
-      />
-      <span className="relative z-10 text-[12px] font-semibold tracking-[0.04em] text-[#5A3A00]">
-        {text}
+    <span className="flex h-[92px] w-[92px] flex-col items-center justify-center rounded-full border-[5px] border-[#98001a] bg-white text-center leading-none shadow-sm">
+      <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#98001a]">
+        скидка
+      </span>
+      <span className="mt-2 text-[16px] font-extrabold text-[#98001a]">
+        -{percent} %
       </span>
     </span>
   );
@@ -398,7 +372,7 @@ export default function CatalogCard({
           {hasDiscount || featureBadge ? (
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
               {hasDiscount ? (
-                <GoldDiscountBadge text={`Скидка −${computedPct}%`} />
+                <GoldDiscountBadge percent={computedPct} />
               ) : (
                 <GreenPremiumBadge text={featureBadge} />
               )}
