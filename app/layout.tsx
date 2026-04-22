@@ -1,4 +1,3 @@
-// app/layout.tsx
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
@@ -6,10 +5,10 @@ import "./globals.css";
 
 import { RegionLangProvider } from "./context/region-lang";
 import { ShopStateProvider } from "./context/shop-state";
-import BackToTop from "./components/ui/BackToTop";
 
 import Header from "./components/Header";
 import Footer from "./components/sections/Footer";
+import CallWidget from "./components/modals/CallWidget";
 
 import { getGlobal } from "./lib/strapi";
 
@@ -236,10 +235,11 @@ export default async function RootLayout({
             <Header global={global} />
             <main className="flex-1">{children}</main>
             <Footer />
+            <CallWidget />
           </ShopStateProvider>
         </RegionLangProvider>
 
-        <BackToTop />
+        {/*<BackToTop />
 
         {/* Jivo */}
         {/* {jivoId ? <JivoProvider widgetId={jivoId} /> : null} */}
