@@ -5,17 +5,15 @@ import { useSearchParams } from "next/navigation";
 import {
   Store,
   Palette,
-  BriefcaseBusiness,
   Truck,
   Package,
   Globe,
-  Check,
   Trash2,
   ArrowDown,
   Send,
 } from "lucide-react";
 
-type ContactMethod = "telegram" | "call" | "whatsapp";
+type ContactMethod = "call" | "max" | "whatsapp" | "telegram";
 type Region = "UZ" | "RU";
 
 type Chip = {
@@ -60,39 +58,6 @@ const FORMATS: Chip[] = [
     id: "export",
     title: "Экспорт / оптовые закупки",
     icon: <Globe className="h-4 w-4" />,
-  },
-];
-
-const INTERESTS: Chip[] = [
-  {
-    id: "price-list",
-    title: "Прайс-лист",
-    icon: <Check className="h-4 w-4" />,
-  },
-  {
-    id: "dealer-terms",
-    title: "Условия дилера (маржа/скидки)",
-    icon: <Check className="h-4 w-4" />,
-  },
-  {
-    id: "catalog-samples",
-    title: "Каталог / материалы / образцы",
-    icon: <Check className="h-4 w-4" />,
-  },
-  {
-    id: "custom-sizes",
-    title: "Индивидуальные заказы",
-    icon: <Check className="h-4 w-4" />,
-  },
-  {
-    id: "content-3d",
-    title: "Заказать дизайн",
-    icon: <Check className="h-4 w-4" />,
-  },
-  {
-    id: "meeting-call",
-    title: "Заказать встречу / звонок менеджера",
-    icon: <Check className="h-4 w-4" />,
   },
 ];
 
@@ -182,12 +147,6 @@ function SectionTitle({
 
 function digitsOnly(s: string) {
   return s.replace(/\D/g, "");
-}
-
-function isValidEmail(s: string) {
-  const v = s.trim();
-  if (!v) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
 function readRegionFromStorage(): Region {
@@ -308,17 +267,14 @@ export default function CooperationClient({
 
   const [region, setRegion] = useState<Region>("UZ");
   const [formats, setFormats] = useState<string[]>([]);
-  const [interests, setInterests] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "",
-    lastName: "",
     email: "",
-    company: "",
     city: "",
     phoneDigits: "",
-    method: "telegram" as ContactMethod,
+    method: "call" as ContactMethod,
     comment: "",
   });
 
@@ -345,11 +301,6 @@ export default function CooperationClient({
     return formats.map((id) => m.get(id)).filter(Boolean) as string[];
   }, [formats]);
 
-  const pickedInterests = useMemo(() => {
-    const m = new Map(INTERESTS.map((x) => [x.id, x.title]));
-    return interests.map((id) => m.get(id)).filter(Boolean) as string[];
-  }, [interests]);
-
   const phoneView =
     region === "RU"
       ? formatRuPhone(form.phoneDigits)
@@ -367,8 +318,6 @@ export default function CooperationClient({
 
   const canSend =
     form.firstName.trim().length > 0 &&
-    form.lastName.trim().length > 0 &&
-    isValidEmail(form.email) &&
     phoneView.digits.length === phoneView.maxLen;
 
   const toggle = (arr: string[], id: string) =>
@@ -376,7 +325,6 @@ export default function CooperationClient({
 
   const clearAll = () => {
     setFormats([]);
-    setInterests([]);
   };
 
   const onStart = () => {
@@ -391,15 +339,15 @@ export default function CooperationClient({
 
     const payload = {
       firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
+      lastName: "",
       email: form.email.trim(),
       phone: phoneView.fullE164,
-      company: form.company.trim(),
+      company: "",
       city: form.city.trim(),
       contactMethod: form.method,
       comment: form.comment.trim(),
       formats: pickedFormats,
-      interests: pickedInterests,
+      interests: [],
       region,
       pageUrl,
     };
@@ -421,12 +369,10 @@ export default function CooperationClient({
       alert("Отправлено ✅");
       setForm({
         firstName: "",
-        lastName: "",
         email: "",
-        company: "",
         city: "",
         phoneDigits: "",
-        method: "telegram",
+        method: "call",
         comment: "",
       });
       clearAll();
@@ -528,76 +474,39 @@ export default function CooperationClient({
 
           <div>
             <SectionTitle
-              eyebrow="ШАГ 2"
-              title="Что именно вам нужно?"
-              desc="Отметьте детали — менеджер сразу поймёт, что подготовить."
-            />
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {INTERESTS.map((c) => (
-                <ChipCard
-                  key={c.id}
-                  title={c.title}
-                  icon={c.icon}
-                  active={interests.includes(c.id)}
-                  onClick={() => setInterests((p) => toggle(p, c.id))}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <SectionTitle
-              eyebrow="ШАГ 3"
+              eyebrow="КОНТАКТЫ"
               title="Контакты"
               desc="Оставьте контакты — мы свяжемся в удобном формате."
             />
 
             <div className="mt-5 rounded-3xl border border-black/10 bg-white p-5 md:p-6">
               <div className="grid gap-3">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input
-                    value={form.firstName}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, firstName: e.target.value }))
-                    }
-                    placeholder="Имя*"
-                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
-                  />
-                  <input
-                    value={form.lastName}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, lastName: e.target.value }))
-                    }
-                    placeholder="Фамилия*"
-                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
-                  />
-                </div>
-
                 <input
-                  value={form.email}
+                  value={form.firstName}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, email: e.target.value }))
+                    setForm((p) => ({ ...p, firstName: e.target.value }))
                   }
-                  placeholder="Email*"
-                  inputMode="email"
+                  placeholder="Имя*"
                   className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
                 />
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  <input
-                    value={form.company}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, company: e.target.value }))
-                    }
-                    placeholder="Компания / студия / магазин"
-                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
-                  />
                   <input
                     value={form.city}
                     onChange={(e) =>
                       setForm((p) => ({ ...p, city: e.target.value }))
                     }
                     placeholder="Город"
+                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
+                  />
+
+                  <input
+                    value={form.email}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, email: e.target.value }))
+                    }
+                    placeholder="Email (необязательно)"
+                    inputMode="email"
                     className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
                   />
                 </div>
@@ -628,7 +537,7 @@ export default function CooperationClient({
 
                   <div className="text-[12px] text-black/45">
                     {phoneView.digits.length
-                      ? `Ввод: ${phoneView.display}`
+                      ? `Пример: ${phoneView.display}`
                       : `Пример: ${phoneView.prefix} ${phoneView.placeholder}`}
                   </div>
                 </div>
@@ -640,9 +549,10 @@ export default function CooperationClient({
                   <div className="mt-2 flex flex-wrap gap-2">
                     {(
                       [
-                        { id: "telegram", label: "Telegram" },
                         { id: "call", label: "Звонок" },
+                        { id: "max", label: "MAX" },
                         { id: "whatsapp", label: "WhatsApp" },
+                        { id: "telegram", label: "Telegram" },
                       ] as const
                     ).map((m) => (
                       <button
@@ -668,7 +578,7 @@ export default function CooperationClient({
                     setForm((p) => ({ ...p, comment: e.target.value }))
                   }
                   rows={4}
-                  placeholder="Комментарий (опционально)"
+                  placeholder="Вкратце опишите цель звонка"
                   className="mt-2 w-full resize-none rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
                 />
               </div>
@@ -716,28 +626,6 @@ export default function CooperationClient({
                 )}
               </div>
 
-              <div className="mt-5">
-                <div className="text-[12px] tracking-[0.14em] text-black/45">
-                  Интересует:
-                </div>
-                {pickedInterests.length ? (
-                  <ul className="mt-2 grid gap-2">
-                    {pickedInterests.map((x) => (
-                      <li
-                        key={x}
-                        className="rounded-2xl border border-black/10 bg-black/[0.02] px-4 py-3 text-[13px] text-black/75"
-                      >
-                        {x}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="mt-2 text-[13px] leading-6 text-black/55">
-                    Отметьте, что именно вам нужно.
-                  </div>
-                )}
-              </div>
-
               <div className="mt-5 flex items-center justify-between gap-3">
                 <button
                   type="button"
@@ -749,7 +637,7 @@ export default function CooperationClient({
                 </button>
 
                 <div className="text-right text-[11px] text-black/45">
-                  Это уйдёт в Telegram менеджеру
+                  Это уйдёт менеджеру
                 </div>
               </div>
 
@@ -769,15 +657,8 @@ export default function CooperationClient({
               </button>
 
               <div className="mt-3 text-[11px] leading-5 text-black/45">
-                Для отправки нужно: <b>имя</b>, <b>фамилия</b>, <b>email</b> и{" "}
-                <b>телефон</b>.
+                Для отправки нужно: <b>имя</b> и <b>телефон</b>.
               </div>
-
-              {!isValidEmail(form.email) && form.email.trim().length > 0 ? (
-                <div className="mt-2 text-[11px] text-black/50">
-                  Проверьте email — должен быть в формате name@domain.com
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
