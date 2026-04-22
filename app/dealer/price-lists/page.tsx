@@ -33,6 +33,13 @@ const COLLECTION_LABELS: Record<CollectionSlug, string> = {
   buongiorno: "BUONGIORNO",
 };
 
+const UNIFIED_PRICE_CARD = {
+  id: "unified-price",
+  title: "Единый прайс по коллекциям",
+  subtitle: "Скачать Excel (.xlsx)",
+  fileHref: "/api/dealer/download?type=price-list&slug=unified-price",
+};
+
 const cardStyle: CSSProperties = {
   borderColor: "rgba(189, 160, 86, 0.22)",
   background:
@@ -116,10 +123,9 @@ export default async function Page() {
   const cards = buildCards(priceLists);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <header className="flex items-start justify-between gap-6">
         <div>
-          <div className="text-sm text-black/45">Dealer Portal</div>
           <h1 className="mt-1 text-[21px] font-semibold tracking-[-0.02em] text-black">
             Прайс-листы
           </h1>
@@ -183,6 +189,59 @@ export default async function Page() {
           Для вашего региона прайс-листы пока не добавлены.
         </div>
       )}
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="mt-1 text-[21px] font-semibold tracking-[-0.02em] text-black">
+            Единый прайс по коллекциям
+          </h2>
+        </div>
+
+        <a
+          href={UNIFIED_PRICE_CARD.fileHref}
+          download
+          target="_blank"
+          rel="noreferrer"
+          className={[
+            "group relative flex min-h-[110px] overflow-visible rounded-[22px] border px-6 py-5",
+            "items-center justify-between",
+            "transition-all duration-300 ease-out",
+            "hover:-translate-y-[2px] hover:shadow-[0_18px_44px_-30px_rgba(0,0,0,0.24)]",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
+          ].join(" ")}
+          style={cardStyle}
+          aria-label="Скачать единый прайс по коллекциям"
+        >
+          <span
+            className="pointer-events-none absolute inset-0 rounded-[22px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            style={glowStyle}
+          />
+
+          <span
+            className="pointer-events-none absolute left-[18px] top-[-8px] h-[18px] w-[74px] rounded-[10px] border"
+            style={tabStyle}
+          />
+
+          <span className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-transparent transition-all duration-300 group-hover:ring-[rgba(178,197,109,0.30)]" />
+
+          <span className="pointer-events-none absolute left-0 top-[14px] bottom-[14px] w-[4px] rounded-r-full bg-gradient-to-b from-[#efe5c6] via-[#ddcf9f] to-[#f5ecd3] opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
+
+          <div className="relative z-[1] min-w-0">
+            <div className="text-[13px] font-extrabold tracking-[0.18em] text-black">
+              {UNIFIED_PRICE_CARD.title}
+            </div>
+            <div className="mt-2 text-[11px] text-black/46 transition-colors duration-300 group-hover:text-black/58">
+              {UNIFIED_PRICE_CARD.subtitle}
+            </div>
+          </div>
+
+          <div className="relative z-[1] ml-4 flex shrink-0 items-center">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/86 text-black/60 shadow-[0_4px_12px_-10px_rgba(0,0,0,0.18)] transition-all duration-300 group-hover:border-black/12 group-hover:bg-white group-hover:text-black/82 group-hover:shadow-[0_8px_18px_-12px_rgba(0,0,0,0.22)]">
+              <DownloadIcon />
+            </span>
+          </div>
+        </a>
+      </section>
     </div>
   );
 }
