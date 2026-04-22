@@ -97,11 +97,11 @@ function GreenPremiumBadge({ text }: { text: string }) {
 
 function GoldDiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="flex h-[92px] w-[92px] flex-col items-center justify-center rounded-full border-[4px] border-[#8f001a] bg-[#b30021] text-center leading-none shadow-[0_10px_24px_rgba(143,0,26,0.22)]">
-      <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">
+    <span className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full border-[3px] border-[#ff2b2b] bg-[#c4001a] text-center leading-none shadow-[0_8px_20px_rgba(196,0,26,0.2)]">
+      <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-white">
         скидка
       </span>
-      <span className="mt-2 text-[16px] font-extrabold text-white">
+      <span className="mt-1 text-[14px] font-extrabold text-white">
         -{percent} %
       </span>
     </span>
