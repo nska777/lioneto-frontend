@@ -97,11 +97,11 @@ function GreenPremiumBadge({ text }: { text: string }) {
 
 function GoldDiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="flex h-[92px] w-[92px] flex-col items-center justify-center rounded-full border-[5px] border-[#98001a] bg-white text-center leading-none shadow-sm">
-      <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#98001a]">
+    <span className="flex h-[92px] w-[92px] flex-col items-center justify-center rounded-full border-[4px] border-[#8f001a] bg-[#b30021] text-center leading-none shadow-[0_10px_24px_rgba(143,0,26,0.22)]">
+      <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white">
         скидка
       </span>
-      <span className="mt-2 text-[16px] font-extrabold text-[#98001a]">
+      <span className="mt-2 text-[16px] font-extrabold text-white">
         -{percent} %
       </span>
     </span>
@@ -370,7 +370,7 @@ export default function CatalogCard({
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
 
           {hasDiscount || featureBadge ? (
-            <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+            <div className="absolute left-0 top-0 z-10">
               {hasDiscount ? (
                 <GoldDiscountBadge percent={computedPct} />
               ) : (
