@@ -11,6 +11,18 @@ function norm(v: unknown) {
     .toLowerCase();
 }
 
+type SetItemJson = {
+  id?: string | number;
+  title?: string;
+  slug?: string;
+  article?: string;
+  image?: string;
+  price_uzs?: number | string | null;
+  price_rub?: number | string | null;
+  quantity?: number | string | null;
+  sort_order?: number | string | null;
+};
+
 type StrapiProduct = {
   id?: string | number;
   documentId?: string;
@@ -45,6 +57,21 @@ type StrapiProduct = {
 
   assemblyInstructionTitle?: string | null;
   assemblyInstructionFile?: unknown;
+
+  set_items_json?: unknown;
+};
+
+type SetItemWithResolvedImage = {
+  id: string;
+  title: string;
+  article?: string;
+  image?: string;
+  price_rub?: number;
+  price_uzs?: number;
+  href?: string;
+  quantity: number;
+  sort_order: number;
+  slug?: string;
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -58,8 +85,14 @@ function pickText(...values: Array<unknown>): string | undefined {
   return undefined;
 }
 
+function toFiniteNumber(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function pickStrapiMediaUrl(m: unknown): string | undefined {
   if (!m) return undefined;
+
   const rec = isRecord(m) ? m : null;
   const data = rec && isRecord(rec.data) ? rec.data : null;
   const attrs =
@@ -86,6 +119,7 @@ function pickStrapiMediaUrl(m: unknown): string | undefined {
 
 function pickStrapiMediaName(m: unknown): string | undefined {
   if (!m) return undefined;
+
   const rec = isRecord(m) ? m : null;
   const data = rec && isRecord(rec.data) ? rec.data : null;
   const attrs =
@@ -103,8 +137,8 @@ function pickStrapiMediaName(m: unknown): string | undefined {
 
 function pickStrapiGalleryUrls(g: unknown): string[] {
   if (!g) return [];
-  const rec = isRecord(g) ? g : null;
 
+  const rec = isRecord(g) ? g : null;
   const data = rec ? rec.data : undefined;
   const arr = Array.isArray(data) ? data : Array.isArray(g) ? g : [];
   const out: string[] = [];
@@ -132,12 +166,11 @@ function pickStrapiGalleryUrls(g: unknown): string[] {
   return out.filter(Boolean);
 }
 
-function pickVariantImageUrl(v: unknown) {
+function pickVariantImageUrl(v: unknown): string | undefined {
   if (!v || !isRecord(v)) return undefined;
 
   const image = v.image;
   const imgRec = isRecord(image) ? image : null;
-
   const data = imgRec && isRecord(imgRec.data) ? imgRec.data : null;
   const attrs =
     (data && isRecord(data.attributes) ? data.attributes : null) ??
@@ -165,6 +198,7 @@ function extractTextFromRich(v: unknown): string {
 
   if (Array.isArray(v)) {
     const parts: string[] = [];
+
     for (const b of v) {
       if (!isRecord(b)) continue;
 
@@ -180,6 +214,7 @@ function extractTextFromRich(v: unknown): string {
       const t2 = b.text;
       if (typeof t2 === "string" && t2.trim()) parts.push(t2.trim());
     }
+
     return parts.join("\n").trim();
   }
 
@@ -195,6 +230,42 @@ function extractTextFromRich(v: unknown): string {
   }
 
   return "";
+}
+
+function parseSetItemsJson(value: unknown): SetItemWithResolvedImage[] {
+  if (!Array.isArray(value)) return [];
+
+  const items: SetItemWithResolvedImage[] = [];
+
+  value.forEach((item, index) => {
+    const raw = item as SetItemJson;
+    if (!isRecord(raw)) return;
+
+    const title = pickText(raw.title) || "Без названия";
+    const slug = pickText(raw.slug);
+    const article = pickText(raw.article);
+
+    const id =
+      (typeof raw.id === "string" && raw.id.trim()) ||
+      (typeof raw.id === "number" ? String(raw.id) : "") ||
+      slug ||
+      `set-item-${index + 1}`;
+
+    items.push({
+      id,
+      title,
+      article: article || undefined,
+      image: pickText(raw.image) || undefined,
+      price_rub: toFiniteNumber(raw.price_rub),
+      price_uzs: toFiniteNumber(raw.price_uzs),
+      href: slug ? `/product/${slug}` : undefined,
+      quantity: toFiniteNumber(raw.quantity) ?? 1,
+      sort_order: toFiniteNumber(raw.sort_order) ?? index + 1,
+      slug: slug || undefined,
+    });
+  });
+
+  return items.sort((a, b) => a.sort_order - b.sort_order);
 }
 
 async function fetchStrapiProductBySlug(
@@ -234,6 +305,12 @@ async function fetchStrapiProductBySlug(
       id:
         (src.id as string | number | undefined) ??
         (item.id as string | number | undefined),
+      documentId:
+        typeof src.documentId === "string"
+          ? src.documentId
+          : typeof item.documentId === "string"
+            ? item.documentId
+            : undefined,
 
       title: typeof src.title === "string" ? src.title : "",
       slug: typeof src.slug === "string" ? src.slug : "",
@@ -276,6 +353,8 @@ async function fetchStrapiProductBySlug(
           ? src.assemblyInstructionTitle
           : null,
       assemblyInstructionFile: src.assemblyInstructionFile ?? null,
+
+      set_items_json: src.set_items_json ?? null,
     };
   } catch {
     return null;
@@ -333,6 +412,29 @@ async function fetchRelatedStrapiProducts(seed: {
   } catch {
     return [];
   }
+}
+
+async function resolveSetItemsImages(
+  items: SetItemWithResolvedImage[],
+): Promise<SetItemWithResolvedImage[]> {
+  const resolved = await Promise.all(
+    items.map(async (item) => {
+      if (item.image || !item.slug) return item;
+
+      const linked = await fetchStrapiProductBySlug(item.slug);
+      const image =
+        pickStrapiMediaUrl(linked?.media) ||
+        pickStrapiGalleryUrls(linked?.gallery)[0] ||
+        undefined;
+
+      return {
+        ...item,
+        image,
+      };
+    }),
+  );
+
+  return resolved;
 }
 
 async function getProductSeoData(slugOrId: string) {
@@ -481,7 +583,6 @@ export default async function ProductPage({
   if (!seo) return notFound();
 
   const { sp, slug, description, sku, canonical, image } = seo;
-
   const galleryFinal = seo.gallery;
 
   const relatedStrapi = await fetchRelatedStrapiProducts({
@@ -500,6 +601,9 @@ export default async function ProductPage({
   const assemblyInstructionName = pickStrapiMediaName(
     sp.assemblyInstructionFile,
   );
+
+  const setItemsRaw = parseSetItemsJson(sp.set_items_json);
+  const setItems = await resolveSetItemsImages(setItemsRaw);
 
   const product = {
     id: slug,
@@ -589,6 +693,12 @@ export default async function ProductPage({
       color: colorVal || "—",
       material: materialVal || "—",
     },
+
+    setItems,
+    isCollection:
+      String(sp.module ?? "")
+        .trim()
+        .toLowerCase() === "scene",
 
     related: relatedStrapi.slice(0, 4).map((rp) => {
       const rSlug = String(rp.slug);

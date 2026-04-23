@@ -90,6 +90,7 @@ export type ProductPageModel = {
     id: string;
     title: string;
     article?: string;
+    image?: string;
     price_rub?: number;
     price_uzs?: number;
     href?: string;
@@ -415,13 +416,18 @@ export default function ProductClient({
   const { isFav, toggleFav, isInCart, addToCart, removeFromCart } = shop;
 
   const [leadModalOpen, setLeadModalOpen] = useState(false);
-  const [visibleSetItems, setVisibleSetItems] = useState(
-    product.setItems ?? [],
+  const [collapsedSetItemIds, setCollapsedSetItemIds] = useState<string[]>([]);
+  const [hoveredSetItemId, setHoveredSetItemId] = useState<string | null>(null);
+
+  const visibleSetItems = useMemo(
+    () => product.setItems ?? [],
+    [product.setItems],
   );
 
   useEffect(() => {
-    setVisibleSetItems(product.setItems ?? []);
-  }, [product.setItems]);
+    setCollapsedSetItemIds([]);
+    setHoveredSetItemId(null);
+  }, [product.id, product.setItems]);
 
   const {
     selectedByGroup,
@@ -535,7 +541,41 @@ export default function ProductClient({
   const baseUnitPrice =
     currency === "RUB" ? product.price_rub : product.price_uzs;
   const unitPrice = baseUnitPrice + variantDelta;
-  const totalPrice = unitPrice * qty;
+
+  const collapsedSet = useMemo(
+    () => new Set(collapsedSetItemIds),
+    [collapsedSetItemIds],
+  );
+
+  const excludedOneSetSum = useMemo(() => {
+    return visibleSetItems.reduce((sum, item) => {
+      if (!collapsedSet.has(item.id)) return sum;
+
+      const itemPrice =
+        currency === "RUB"
+          ? Number(item.price_rub ?? 0)
+          : Number(item.price_uzs ?? 0);
+
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + itemPrice * itemQty;
+    }, 0);
+  }, [visibleSetItems, collapsedSet, currency]);
+
+  const displayUnitPrice = Math.max(0, unitPrice - excludedOneSetSum);
+  const displayTotalPrice = displayUnitPrice * qty;
+
+  const hoveredSetItem = useMemo(
+    () => visibleSetItems.find((item) => item.id === hoveredSetItemId) ?? null,
+    [visibleSetItems, hoveredSetItemId],
+  );
+
+  const toggleSetItemCollapsed = (itemId: string) => {
+    setCollapsedSetItemIds((prev) =>
+      prev.includes(itemId)
+        ? prev.filter((id) => id !== itemId)
+        : [...prev, itemId],
+    );
+  };
 
   function saveCartMeta() {
     const imageFromVariant =
@@ -769,7 +809,7 @@ export default function ProductClient({
 
             <div className="mt-3 flex items-start justify-between gap-6">
               <div className="text-[28px] font-semibold text-black">
-                {formatPrice(totalPrice, currency)}
+                {formatPrice(displayTotalPrice, currency)}
               </div>
 
               <div className="shrink-0">
@@ -842,82 +882,155 @@ export default function ProductClient({
             </div>
 
             {product.isCollection && visibleSetItems.length > 0 ? (
-              <section className="mt-6">
-                <h2 className="text-[16px] font-semibold text-black">
-                  В комплектацию входит:
-                </h2>
+              <section className="relative mt-6">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-[16px] font-semibold text-black sm:text-[18px]">
+                    В комплектацию входит:
+                  </h2>
 
-                <div className="mt-3 overflow-hidden border-2 border-black">
-                  <div className="grid grid-cols-[1.6fr_.8fr_.9fr_auto] gap-0 border-b-2 border-black bg-white">
-                    <div className="border-r-2 border-black px-3 py-3 text-[14px] font-semibold text-black">
-                      Название модуля
+                  {collapsedSetItemIds.length > 0 ? (
+                    <div className="text-[12px] text-black/45">
+                      Исключено: {collapsedSetItemIds.length}
                     </div>
-                    <div className="border-r-2 border-black px-3 py-3 text-[14px] font-semibold text-black">
-                      Артикул
+                  ) : null}
+                </div>
+
+                {hoveredSetItem?.image ? (
+                  <div className="pointer-events-none absolute right-3 top-14 z-30 hidden w-[240px] overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-[0_24px_60px_-32px_rgba(0,0,0,0.35)] xl:block">
+                    <div className="aspect-[4/3] bg-black/5">
+                      <img
+                        src={hoveredSetItem.image}
+                        alt={hoveredSetItem.title}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
-                    <div className="border-r-2 border-black px-3 py-3 text-[14px] font-semibold text-black">
-                      Цена
-                    </div>
-                    <div className="px-3 py-3 text-[14px] font-semibold text-black">
-                      —
+                    <div className="px-3 py-3">
+                      <div className="text-[13px] font-semibold text-black">
+                        {hoveredSetItem.title}
+                      </div>
+                      <div className="mt-1 text-[12px] text-black/50">
+                        {hoveredSetItem.article || "Без артикула"}
+                      </div>
                     </div>
                   </div>
+                ) : null}
 
+                <div className="space-y-2">
                   {visibleSetItems.map((item) => {
                     const itemPrice =
                       currency === "RUB"
-                        ? (item.price_rub ?? 0)
-                        : (item.price_uzs ?? 0);
+                        ? Number(item.price_rub ?? 0)
+                        : Number(item.price_uzs ?? 0);
+
+                    const itemQty = Math.max(1, Number(item.quantity ?? 1));
+                    const collapsed = collapsedSet.has(item.id);
 
                     return (
                       <div
                         key={item.id}
-                        className="grid grid-cols-[1.6fr_.8fr_.9fr_auto] gap-0 border-b-2 border-black last:border-b-0"
+                        onMouseEnter={() => setHoveredSetItemId(item.id)}
+                        onMouseLeave={() =>
+                          setHoveredSetItemId((current) =>
+                            current === item.id ? null : current,
+                          )
+                        }
+                        className={cn(
+                          "overflow-hidden rounded-[18px] border border-black/10 bg-white transition-all duration-300 ease-out",
+                          "hover:border-black/20 hover:shadow-[0_12px_30px_-24px_rgba(0,0,0,0.22)]",
+                          collapsed ? "px-3 py-2.5" : "px-3 py-3 sm:px-4",
+                        )}
                       >
-                        <div className="border-r-2 border-black px-3 py-3 text-[13px] text-black">
-                          {item.href ? (
-                            <Link
-                              href={item.href}
-                              className="underline underline-offset-4 hover:text-black/70"
-                            >
-                              {item.title}
-                              {item.quantity && item.quantity > 1
-                                ? ` × ${item.quantity}`
-                                : ""}
-                            </Link>
-                          ) : (
-                            <span>
-                              {item.title}
-                              {item.quantity && item.quantity > 1
-                                ? ` × ${item.quantity}`
-                                : ""}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="border-r-2 border-black px-3 py-3 text-[13px] text-black">
-                          {item.article || "—"}
-                        </div>
-
-                        <div className="border-r-2 border-black px-3 py-3 text-[13px] text-black">
-                          {itemPrice > 0
-                            ? formatPrice(itemPrice, currency)
-                            : "—"}
-                        </div>
-
-                        <div className="px-2 py-2">
+                        <div className="flex items-center gap-3">
                           <button
                             type="button"
-                            onClick={() =>
-                              setVisibleSetItems((prev) =>
-                                prev.filter((x) => x.id !== item.id),
-                              )
+                            onClick={() => toggleSetItemCollapsed(item.id)}
+                            className={cn(
+                              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition",
+                              collapsed
+                                ? "border-black/15 bg-white text-black/70 hover:border-black/30 hover:bg-black/[0.03] hover:text-black"
+                                : "border-black/15 bg-black/[0.04] text-black/80 hover:border-black/30 hover:bg-black/[0.07] hover:text-black",
+                            )}
+                            aria-label={
+                              collapsed
+                                ? `Вернуть в комплект ${item.title}`
+                                : `Убрать из комплекта ${item.title}`
                             }
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/15 text-black/60 transition hover:border-black/25 hover:text-black"
-                            aria-label={`Удалить ${item.title}`}
+                            title={
+                              collapsed
+                                ? "Вернуть в комплект"
+                                : "Убрать из комплекта"
+                            }
                           >
-                            <X className="h-4 w-4" />
+                            {collapsed ? (
+                              <Plus className="h-4 w-4" />
+                            ) : (
+                              <Minus className="h-4 w-4" />
+                            )}
                           </button>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 shrink-0 rounded-full bg-black" />
+
+                              {item.href ? (
+                                <Link
+                                  href={item.href}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="truncate text-[15px] font-semibold text-black underline-offset-4 hover:underline"
+                                >
+                                  {item.title}
+                                  {itemQty > 1 ? ` × ${itemQty}` : ""}
+                                </Link>
+                              ) : (
+                                <div className="truncate text-[15px] font-semibold text-black">
+                                  {item.title}
+                                  {itemQty > 1 ? ` × ${itemQty}` : ""}
+                                </div>
+                              )}
+                            </div>
+
+                            <div
+                              className={cn(
+                                "overflow-hidden transition-all duration-300 ease-out",
+                                collapsed
+                                  ? "max-h-0 translate-x-[-16px] opacity-0"
+                                  : "mt-1 max-h-10 translate-x-0 opacity-100",
+                              )}
+                            >
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-black/50">
+                                <span>
+                                  Артикул:{" "}
+                                  <span className="text-black/75">
+                                    {item.article || "—"}
+                                  </span>
+                                </span>
+                                {itemQty > 1 ? (
+                                  <span>
+                                    Кол-во:{" "}
+                                    <span className="text-black/75">
+                                      {itemQty}
+                                    </span>
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            className={cn(
+                              "shrink-0 overflow-hidden transition-all duration-300 ease-out",
+                              collapsed
+                                ? "max-w-0 translate-x-6 opacity-0"
+                                : "max-w-[220px] translate-x-0 opacity-100",
+                            )}
+                          >
+                            <div className="whitespace-nowrap rounded-full bg-black px-3 py-1.5 text-[13px] font-semibold text-white">
+                              {itemPrice > 0
+                                ? formatPrice(itemPrice * itemQty, currency)
+                                : "—"}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
