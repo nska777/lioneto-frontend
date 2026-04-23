@@ -120,3 +120,14 @@ export type DealerOrder = {
   internalTotal: number;
   internalItems: DealerOrderInternalItem[];
 };
+
+export type ReservationOrderItem = CartEntry;
+
+export type ReservationOrder = {
+  reservationNumber: string;
+  createdAt: string;
+  reservedUntil: string;
+  items: ReservationOrderItem[];
+  totalQty: number;
+  subtotal: number;
+};

@@ -272,6 +272,7 @@ export default function CooperationClient({
   const [form, setForm] = useState({
     firstName: "",
     email: "",
+    website: "",
     city: "",
     phoneDigits: "",
     method: "call" as ContactMethod,
@@ -341,6 +342,7 @@ export default function CooperationClient({
       firstName: form.firstName.trim(),
       lastName: "",
       email: form.email.trim(),
+      website: form.website.trim(),
       phone: phoneView.fullE164,
       company: "",
       city: form.city.trim(),
@@ -370,6 +372,7 @@ export default function CooperationClient({
       setForm({
         firstName: "",
         email: "",
+        website: "",
         city: "",
         phoneDigits: "",
         method: "call",
@@ -510,6 +513,16 @@ export default function CooperationClient({
                     className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
                   />
                 </div>
+
+                <input
+                  value={form.website}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, website: e.target.value }))
+                  }
+                  placeholder="Web сайт (необязательно)"
+                  inputMode="url"
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] text-black/80 outline-none transition focus:border-black/25"
+                />
 
                 <div className="grid gap-2">
                   <div className="text-[12px] tracking-[0.14em] text-black/45">

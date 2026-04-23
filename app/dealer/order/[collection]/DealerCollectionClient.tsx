@@ -15,7 +15,8 @@ import ProductRow from "./ProductRow";
 import OrderConfirmModal from "./OrderConfirmModal";
 import OrderSidebar from "./OrderSidebar";
 import OrderSuccessModal from "./OrderSuccessModal";
-import ReservationSuccessModal from "@/app/dealer/components/ReservationSuccessModal";
+import ReserveOrderModal from "./ReserveOrderModal";
+import MyReservationsModal from "./MyReservationsModal";
 import {
   buildInternalItems,
   buildVisibleItems,
@@ -36,7 +37,13 @@ import {
   saveCartProductIds,
   saveDrafts,
 } from "./storage";
-import type { AddonDraft, CartEntry, DealerOrder, ProductDraft } from "./types";
+import type {
+  AddonDraft,
+  CartEntry,
+  DealerOrder,
+  ProductDraft,
+  ReservationOrder,
+} from "./types";
 import { cn } from "./utils";
 
 type Props = {
@@ -69,9 +76,16 @@ type ReservationRecord = {
   id: string;
   documentId?: string;
   productId: string;
+  productTitle: string;
+  productArticle?: string;
   quantity: number;
   reservationStatus: "active" | "expired" | "converted" | "cancelled";
   reservedUntil: string;
+  orderNumber?: string;
+  snapshotPrice?: number;
+  currency?: string;
+  collectionTitle?: string;
+  notes?: string;
 };
 
 type ReservationMap = Record<
@@ -150,6 +164,143 @@ function getSelectedProductVariant(
   );
 }
 
+function buildReservationMap(rows: ReservationRecord[]) {
+  return rows.reduce<ReservationMap>((acc, row) => {
+    if (row.reservationStatus !== "active") return acc;
+
+    const current = acc[row.productId];
+
+    acc[row.productId] = {
+      quantity:
+        (current?.quantity ?? 0) + Math.max(1, Number(row.quantity ?? 1)),
+      reservedUntil: current?.reservedUntil || row.reservedUntil,
+      reservationId: current?.reservationId || row.documentId || row.id,
+    };
+
+    return acc;
+  }, {});
+}
+
+function parseReservationNotes(row: ReservationRecord) {
+  try {
+    return row.notes ? JSON.parse(row.notes) : {};
+  } catch {
+    return {};
+  }
+}
+
+function groupReservationOrders(rows: ReservationRecord[]): ReservationOrder[] {
+  const activeRows = rows.filter((item) => item.reservationStatus === "active");
+  const groups = new Map<string, ReservationRecord[]>();
+
+  activeRows.forEach((row) => {
+    const key = String(row.orderNumber ?? row.documentId ?? row.id).trim();
+    if (!key) return;
+    const list = groups.get(key) ?? [];
+    list.push(row);
+    groups.set(key, list);
+  });
+
+  return Array.from(groups.entries())
+    .map(([reservationNumber, items]) => {
+      const normalizedItems: CartEntry[] = items.map((row) => {
+        const meta = parseReservationNotes(row);
+
+        if (meta.kind === "addon") {
+          return {
+            kind: "addon",
+            id: String(row.documentId ?? row.id),
+            parentProductId: meta.parentProductId ?? "",
+            addonId: row.productId,
+            addonKind: meta.addonKind,
+            addonSelectionType: meta.addonSelectionType,
+            parentProductTitle: meta.parentProductTitle,
+            collectionSlug: row.collectionTitle ?? "",
+            title: row.productTitle,
+            article: row.productArticle ?? "",
+            articleShort: meta.articleShort ?? "",
+            color: meta.color ?? "",
+            size: meta.size ?? "",
+            quantity: Math.max(1, Number(row.quantity ?? 1)),
+            markupPercent: 0,
+            unitBasePrice: Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0),
+            unitFinalPrice: Number(
+              meta.unitFinalPrice ?? row.snapshotPrice ?? 0,
+            ),
+            totalBasePrice:
+              Number(meta.totalBasePrice ?? 0) ||
+              Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0) *
+                Math.max(1, Number(row.quantity ?? 1)),
+            totalFinalPrice:
+              Number(meta.totalFinalPrice ?? 0) ||
+              Number(meta.unitFinalPrice ?? row.snapshotPrice ?? 0) *
+                Math.max(1, Number(row.quantity ?? 1)),
+            isReserved: true,
+            reservedUntil: row.reservedUntil,
+            reservationId: row.documentId ?? row.id,
+          };
+        }
+
+        return {
+          kind: "product",
+          id: row.productId,
+          productId: row.productId,
+          collectionSlug: row.collectionTitle ?? "",
+          title: row.productTitle,
+          article: row.productArticle ?? "",
+          articleShort: meta.articleShort ?? "",
+          color: meta.color ?? "",
+          size: meta.size ?? "",
+          quantity: Math.max(1, Number(row.quantity ?? 1)),
+          markupPercent: 0,
+          unitBasePrice: Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0),
+          unitFinalPrice: Number(meta.unitFinalPrice ?? row.snapshotPrice ?? 0),
+          totalBasePrice:
+            Number(meta.totalBasePrice ?? 0) ||
+            Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0) *
+              Math.max(1, Number(row.quantity ?? 1)),
+          totalFinalPrice:
+            Number(meta.totalFinalPrice ?? 0) ||
+            Number(meta.unitFinalPrice ?? row.snapshotPrice ?? 0) *
+              Math.max(1, Number(row.quantity ?? 1)),
+          isReserved: true,
+          reservedUntil: row.reservedUntil,
+          reservationId: row.documentId ?? row.id,
+        };
+      });
+
+      const totalQty = normalizedItems.reduce(
+        (sum, item) => sum + item.quantity,
+        0,
+      );
+      const subtotal = normalizedItems.reduce(
+        (sum, item) => sum + item.totalBasePrice,
+        0,
+      );
+
+      const reservedUntil = items.reduce((max, row) => {
+        if (!max) return row.reservedUntil;
+        return new Date(row.reservedUntil).getTime() > new Date(max).getTime()
+          ? row.reservedUntil
+          : max;
+      }, "");
+
+      return {
+        reservationNumber,
+        createdAt: items[0]?.reservedUntil ?? new Date().toISOString(),
+        reservedUntil,
+        items: normalizedItems,
+        totalQty,
+        subtotal,
+      };
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.reservedUntil).getTime() -
+        new Date(a.reservedUntil).getTime(),
+    );
+}
+
 export default function DealerCollectionClient({
   initialCollection,
   initialCollections,
@@ -178,31 +329,27 @@ export default function DealerCollectionClient({
   const [draftOrderNumber, setDraftOrderNumber] = useState("");
 
   const [reservationsMap, setReservationsMap] = useState<ReservationMap>({});
-  const [reservingProductId, setReservingProductId] = useState("");
-  const [reservationSuccess, setReservationSuccess] = useState<{
-    open: boolean;
-    productTitle: string;
-  }>({
-    open: false,
-    productTitle: "",
-  });
+  const [reservationOrders, setReservationOrders] = useState<
+    ReservationOrder[]
+  >([]);
+  const [reservationModalOpen, setReservationModalOpen] = useState(false);
+  const [reservationsModalOpen, setReservationsModalOpen] = useState(false);
+  const [isSubmittingReservation, setIsSubmittingReservation] = useState(false);
+  const [confirmingReservationNumber, setConfirmingReservationNumber] =
+    useState<string>("");
 
-  function buildReservationMap(rows: ReservationRecord[]) {
-    return rows.reduce<ReservationMap>((acc, row) => {
-      if (row.reservationStatus !== "active") return acc;
+  useEffect(() => {
+    setCartProductIds(loadCartProductIds());
+    setDrafts(loadDrafts());
 
-      const current = acc[row.productId];
+    const rawAddonDrafts = loadAddonDrafts();
+    const sanitizedAddonDrafts = Object.fromEntries(
+      Object.entries(rawAddonDrafts).filter(([key]) => key.includes("::")),
+    );
 
-      acc[row.productId] = {
-        quantity:
-          (current?.quantity ?? 0) + Math.max(1, Number(row.quantity ?? 1)),
-        reservedUntil: current?.reservedUntil || row.reservedUntil,
-        reservationId: current?.reservationId || row.documentId || row.id,
-      };
-
-      return acc;
-    }, {});
-  }
+    setAddonDrafts(sanitizedAddonDrafts);
+    setIsHydrated(true);
+  }, []);
 
   async function syncReservations() {
     try {
@@ -223,24 +370,13 @@ export default function DealerCollectionClient({
         reservations?: ReservationRecord[];
       };
 
-      setReservationsMap(buildReservationMap(data.reservations ?? []));
+      const rows = data.reservations ?? [];
+      setReservationsMap(buildReservationMap(rows));
+      setReservationOrders(groupReservationOrders(rows));
     } catch {
       // ignore
     }
   }
-
-  useEffect(() => {
-    setCartProductIds(loadCartProductIds());
-    setDrafts(loadDrafts());
-
-    const rawAddonDrafts = loadAddonDrafts();
-    const sanitizedAddonDrafts = Object.fromEntries(
-      Object.entries(rawAddonDrafts).filter(([key]) => key.includes("::")),
-    );
-
-    setAddonDrafts(sanitizedAddonDrafts);
-    setIsHydrated(true);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -305,9 +441,7 @@ export default function DealerCollectionClient({
     saveAddonDrafts(addonDrafts);
   }, [addonDrafts, isHydrated]);
 
-  const allProducts = useMemo(() => {
-    return initialProducts;
-  }, [initialProducts]);
+  const allProducts = useMemo(() => initialProducts, [initialProducts]);
 
   const allProductsWithStock = useMemo(() => {
     return allProducts.map((product) => {
@@ -348,7 +482,6 @@ export default function DealerCollectionClient({
     allProductsWithStock.forEach((product) => {
       getProductOptions(product).forEach((addon) => {
         const draftKey = getAddonDraftKey(product.id, addon.id);
-
         map.set(draftKey, {
           parentProduct: product,
           addon,
@@ -485,62 +618,53 @@ export default function DealerCollectionClient({
     }));
   }
 
+  function resetStructuredConstructorDrafts(product: DealerProduct) {
+    const options = getProductOptions(product);
+    if (!options.length) return;
+
+    setAddonDrafts((prev) => {
+      const next = { ...prev };
+
+      options.forEach((addon) => {
+        const draftKey = getAddonDraftKey(product.id, addon.id);
+
+        next[draftKey] = {
+          quantity: addon.defaultQuantity ?? 1,
+          isInCart: false,
+          markupPercent: 0,
+          selectedVariantKey: "",
+          selectedColor: "",
+        };
+      });
+
+      return next;
+    });
+  }
+
+  function handleOpenProductModal(product: DealerProduct) {
+    resetStructuredConstructorDrafts(product);
+    setSelectedProduct(product);
+  }
+
   function handleToggleCart(productId: string) {
     const product = allProductsById.get(productId);
 
     if (product) {
       const requiredItems = product.requiredItems ?? [];
-      const structuredSingleGroups = Array.from(
-        new Set(
-          requiredItems
-            .filter(
-              (item) =>
-                item.groupKey &&
-                (item.groupSelection ?? "multiple") === "single",
-            )
-            .map((item) => item.groupKey as string),
-        ),
-      );
+      const hasRequired = requiredItems.length > 0;
 
-      if (structuredSingleGroups.length > 0) {
-        const areAllConstructorGroupsSelected = structuredSingleGroups.every(
-          (groupKey) => {
-            const groupItems = requiredItems.filter(
-              (item) =>
-                item.groupKey === groupKey &&
-                (item.groupSelection ?? "multiple") === "single",
-            );
+      if (hasRequired) {
+        const areAllRequiredSelected = requiredItems.every((item) => {
+          const state = getAddonDraft(product.id, item.id);
+          const minQty = item.minQuantity ?? 1;
+          const qty = Math.max(0, state?.quantity ?? 0);
 
-            return groupItems.some((item) => {
-              const state = getAddonDraft(product.id, item.id);
-              const minQty = item.minQuantity ?? 1;
-              const qty = Math.max(0, state?.quantity ?? 0);
+          return Boolean(state?.isInCart) && qty >= minQty;
+        });
 
-              return Boolean(state?.isInCart) && qty >= minQty;
-            });
-          },
-        );
-
-        if (!areAllConstructorGroupsSelected) {
+        if (!areAllRequiredSelected) {
           setSelectedProduct(product);
           return;
-        }
-      } else {
-        const hasRequired = requiredItems.length > 0;
-
-        if (hasRequired) {
-          const areAllRequiredSelected = requiredItems.every((item) => {
-            const state = getAddonDraft(product.id, item.id);
-            const minQty = item.minQuantity ?? 1;
-            const qty = Math.max(0, state?.quantity ?? 0);
-
-            return Boolean(state?.isInCart) && qty >= minQty;
-          });
-
-          if (!areAllRequiredSelected) {
-            setSelectedProduct(product);
-            return;
-          }
         }
       }
     }
@@ -550,84 +674,6 @@ export default function DealerCollectionClient({
         ? prev.filter((id) => id !== productId)
         : [...prev, productId],
     );
-  }
-
-  async function handleReserveProduct(product: DealerProduct) {
-    const draft = getDraft(product.id);
-    const quantity = Math.max(1, Number(draft.quantity ?? 1));
-
-    if (!dealerMe?.documentId) {
-      alert("Сначала войди как дилер");
-      return;
-    }
-
-    const stockQty = Math.max(0, Number(product.stockQty ?? 0));
-    const reservedQty = Math.max(0, Number(product.reservedQty ?? 0));
-    const availableQty = Math.max(0, stockQty - reservedQty);
-
-    if (product.isStockTracked && availableQty < quantity) {
-      alert("Недостаточно товара в остатке");
-      return;
-    }
-
-    try {
-      setReservingProductId(product.id);
-
-      const res = await fetch("/api/dealer/reservations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          productId: product.id,
-          quantity,
-          collectionSlug: product.collectionSlug,
-        }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        alert(data?.error || "Не удалось забронировать товар");
-        return;
-      }
-
-      setCartProductIds((prev) =>
-        prev.includes(product.id) ? prev : [...prev, product.id],
-      );
-
-      setReservationsMap((prev) => ({
-        ...prev,
-        [product.id]: {
-          quantity: Math.max(
-            0,
-            Number(
-              data?.stock?.reservedQty ??
-                prev[product.id]?.quantity ??
-                quantity,
-            ),
-          ),
-          reservedUntil:
-            data?.reservation?.reservedUntil ??
-            prev[product.id]?.reservedUntil ??
-            "",
-          reservationId:
-            data?.reservation?.documentId ??
-            data?.reservation?.id ??
-            prev[product.id]?.reservationId,
-        },
-      }));
-
-      setReservationSuccess({
-        open: true,
-        productTitle: product.title,
-      });
-    } catch {
-      alert("Ошибка бронирования");
-    } finally {
-      setReservingProductId("");
-    }
   }
 
   function handleToggleAddonCartByKey(draftKey: string) {
@@ -651,46 +697,36 @@ export default function DealerCollectionClient({
     });
   }
 
-  function handleChooseSingleAddonInGroup(
-    parentProductId: string,
-    groupKey: string,
-    addonId: string,
-  ) {
-    const product = allProductsById.get(parentProductId);
-    if (!product) return;
+  function handleChooseSingleAddonInGroup(groupKey: string, addonId: string) {
+    if (!selectedProduct) return;
 
-    const groupItems = (product.requiredItems ?? []).filter(
-      (item) =>
-        item.groupKey === groupKey &&
-        (item.groupSelection ?? "multiple") === "single",
-    );
-
-    if (!groupItems.length) return;
+    const options = getProductOptions(selectedProduct);
+    if (!options.length) return;
 
     setAddonDrafts((prev) => {
       const next = { ...prev };
 
-      groupItems.forEach((item) => {
-        const key = getAddonDraftKey(parentProductId, item.id);
-        const current = next[key] ?? getDefaultAddonDraft();
+      const sameGroupItems = options.filter(
+        (item) =>
+          item.groupKey === groupKey && item.groupSelection === "single",
+      );
 
-        if (item.id === addonId) {
-          next[key] = {
-            ...current,
-            isInCart: true,
-            quantity: Math.max(
-              current.quantity || 1,
-              item.minQuantity ?? item.defaultQuantity ?? 1,
-            ),
-            markupPercent: 0,
-          };
-        } else {
-          next[key] = {
-            ...current,
-            isInCart: false,
-            markupPercent: 0,
-          };
-        }
+      sameGroupItems.forEach((item) => {
+        const draftKey = getAddonDraftKey(selectedProduct.id, item.id);
+        const current = next[draftKey] ?? getDefaultAddonDraft();
+
+        next[draftKey] = {
+          ...current,
+          isInCart: item.id === addonId,
+          quantity:
+            item.id === addonId
+              ? Math.max(
+                  current.quantity || 1,
+                  item.minQuantity ?? item.defaultQuantity ?? 1,
+                )
+              : Math.max(1, item.defaultQuantity ?? 1),
+          markupPercent: 0,
+        };
       });
 
       return next;
@@ -742,7 +778,8 @@ export default function DealerCollectionClient({
   function handleOpenRelatedProduct(productId: string) {
     const product = allProductsById.get(productId);
     if (!product) return;
-    setSelectedProduct(product);
+
+    handleOpenProductModal(product);
   }
 
   function handleOpenImagePreview(product: DealerProduct) {
@@ -790,13 +827,13 @@ export default function DealerCollectionClient({
           unitFinalPrice: unitBasePrice,
           totalBasePrice,
           totalFinalPrice: totalBasePrice,
-          isReserved: Boolean(reservationsMap[product.id]),
-          reservedUntil: reservationsMap[product.id]?.reservedUntil,
-          reservationId: reservationsMap[product.id]?.reservationId,
+          isReserved: false,
+          reservedUntil: undefined,
+          reservationId: undefined,
         };
       })
       .filter(Boolean) as CartEntry[];
-  }, [cartProductIds, drafts, country, allProductsById, reservationsMap]);
+  }, [cartProductIds, drafts, country, allProductsById]);
 
   const addonCartItems = useMemo<CartEntry[]>(() => {
     const items: CartEntry[] = [];
@@ -877,6 +914,12 @@ export default function DealerCollectionClient({
     return [...productCartItems, ...addonCartItems];
   }, [productCartItems, addonCartItems]);
 
+  const reservationOrdersById = useMemo(() => {
+    return new Map(
+      reservationOrders.map((item) => [item.reservationNumber, item]),
+    );
+  }, [reservationOrders]);
+
   const summary = useMemo(() => {
     const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = cartItems.reduce(
@@ -935,7 +978,7 @@ export default function DealerCollectionClient({
     addonId: string,
   ) {
     if (!selectedProduct) return;
-    handleChooseSingleAddonInGroup(selectedProduct.id, groupKey, addonId);
+    handleChooseSingleAddonInGroup(groupKey, addonId);
   }
 
   function getActiveOrderNumber() {
@@ -943,10 +986,16 @@ export default function DealerCollectionClient({
     return generateOrderNumber(dealerMe?.login ?? "");
   }
 
-  function buildCurrentOrder(orderNumberOverride?: string): DealerOrder {
+  function buildOrderFromItems(
+    items: CartEntry[],
+    orderNumberOverride?: string,
+  ): DealerOrder {
     const collectionSlugs = Array.from(
-      new Set(cartItems.map((item) => item.collectionSlug)),
+      new Set(items.map((item) => item.collectionSlug)),
     );
+
+    const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
+    const subtotal = items.reduce((sum, item) => sum + item.totalBasePrice, 0);
 
     return {
       id: generateOrderId(),
@@ -955,16 +1004,20 @@ export default function DealerCollectionClient({
       country,
       collectionSlug: collectionSlugs[0] ?? safeCollection.slug,
       collectionSlugs,
-      totalQty: summary.totalQty,
-      visibleSubtotal: summary.subtotal,
-      visibleItems: buildVisibleItems(cartItems),
-      internalSubtotal: summary.subtotal,
-      internalTotalWithItemMarkup: summary.subtotal,
+      totalQty,
+      visibleSubtotal: subtotal,
+      visibleItems: buildVisibleItems(items),
+      internalSubtotal: subtotal,
+      internalTotalWithItemMarkup: subtotal,
       globalMarkupPercent: 0,
       globalMarkupAmount: 0,
-      internalTotal: summary.subtotal,
-      internalItems: buildInternalItems(cartItems),
+      internalTotal: subtotal,
+      internalItems: buildInternalItems(items),
     };
+  }
+
+  function buildCurrentOrder(orderNumberOverride?: string): DealerOrder {
+    return buildOrderFromItems(cartItems, orderNumberOverride);
   }
 
   function handleCheckout() {
@@ -975,6 +1028,7 @@ export default function DealerCollectionClient({
 
     const orderNumber = getActiveOrderNumber();
     setDraftOrderNumber(orderNumber);
+    setConfirmingReservationNumber("");
     setConfirmOrder(buildCurrentOrder(orderNumber));
   }
 
@@ -1014,9 +1068,27 @@ export default function DealerCollectionClient({
         throw new Error(data?.error || "Не удалось сохранить заказ");
       }
 
-      handleClearCart();
+      if (confirmingReservationNumber) {
+        await fetch("/api/dealer/reservations", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            orderNumber: confirmingReservationNumber,
+            action: "convert",
+          }),
+        });
+
+        await syncReservations();
+      } else {
+        handleClearCart();
+      }
+
       setSuccessOrder(confirmOrder);
       setConfirmOrder(null);
+      setConfirmingReservationNumber("");
 
       resetDraftOrderNumber(dealerMe?.login ?? "");
       setDraftOrderNumber(generateOrderNumber(dealerMe?.login ?? ""));
@@ -1052,6 +1124,113 @@ export default function DealerCollectionClient({
       summary.subtotal,
       false,
     );
+  }
+
+  async function handleReserveOrder(hours: number) {
+    if (cartItems.length === 0) {
+      alert("Корзина пуста");
+      return;
+    }
+
+    try {
+      setIsSubmittingReservation(true);
+
+      const reservationNumber = `RSV-${dealerMe?.login ?? "DEALER"}-${Date.now()}`;
+
+      const res = await fetch("/api/dealer/reservations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          items: cartItems,
+          hours,
+          reservationNumber,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Не удалось забронировать заказ");
+      }
+
+      setReservationModalOpen(false);
+      await syncReservations();
+      handleClearCart();
+      setReservationsModalOpen(true);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Не удалось забронировать заказ",
+      );
+    } finally {
+      setIsSubmittingReservation(false);
+    }
+  }
+
+  function handlePrintReservation(reservationNumber: string) {
+    const reservation = reservationOrdersById.get(reservationNumber);
+    if (!reservation) return;
+
+    openCartPrintWindow(
+      reservation.items,
+      country,
+      reservation.reservationNumber,
+      safeCollection.title,
+      reservation.totalQty,
+      reservation.subtotal,
+      reservation.subtotal,
+      0,
+      0,
+      reservation.subtotal,
+      false,
+    );
+  }
+
+  function handleCheckoutReservation(reservationNumber: string) {
+    const reservation = reservationOrdersById.get(reservationNumber);
+    if (!reservation) return;
+
+    setConfirmingReservationNumber(reservationNumber);
+    setConfirmOrder(
+      buildOrderFromItems(
+        reservation.items,
+        generateOrderNumber(dealerMe?.login ?? ""),
+      ),
+    );
+    setReservationsModalOpen(false);
+  }
+
+  async function handleExtendReservation(reservationNumber: string) {
+    const extra = prompt("На сколько часов продлить бронь? От 1 до 48", "6");
+    const hours = Math.min(48, Math.max(1, Number(extra ?? 0)));
+
+    if (!Number.isFinite(hours) || hours <= 0) return;
+
+    const res = await fetch("/api/dealer/reservations", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        orderNumber: reservationNumber,
+        hours,
+        action: "extend",
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      alert(data?.error || "Не удалось продлить бронь");
+      return;
+    }
+
+    await syncReservations();
   }
 
   return (
@@ -1108,13 +1287,12 @@ export default function DealerCollectionClient({
                     country={country}
                     draft={draft}
                     isInCart={cartProductIds.includes(product.id)}
+                    myReservedQty={reservationsMap[product.id]?.quantity ?? 0}
                     onIncreaseQty={handleIncreaseQty}
                     onDecreaseQty={handleDecreaseQty}
-                    onOpenModal={setSelectedProduct}
+                    onOpenModal={handleOpenProductModal}
                     onOpenImagePreview={handleOpenImagePreview}
                     onToggleCart={handleToggleCart}
-                    onReserve={handleReserveProduct}
-                    isReserving={reservingProductId === product.id}
                   />
                 );
               })
@@ -1131,10 +1309,13 @@ export default function DealerCollectionClient({
               totalQty={summary.totalQty}
               subtotal={summary.subtotal}
               country={country}
+              reservationsCount={reservationOrders.length}
               onClearCart={handleClearCart}
               onRemoveItem={handleRemoveItem}
               onCheckout={handleCheckout}
               onPrintBase={handlePrintBase}
+              onReserveOrder={() => setReservationModalOpen(true)}
+              onOpenReservations={() => setReservationsModalOpen(true)}
             />
           </div>
         </div>
@@ -1174,6 +1355,7 @@ export default function DealerCollectionClient({
         onClose={() => {
           if (isSubmittingOrder) return;
           setConfirmOrder(null);
+          setConfirmingReservationNumber("");
         }}
         onConfirm={handleConfirmOrder}
       />
@@ -1183,15 +1365,21 @@ export default function DealerCollectionClient({
         onClose={() => setSuccessOrder(null)}
       />
 
-      <ReservationSuccessModal
-        open={reservationSuccess.open}
-        productTitle={reservationSuccess.productTitle}
-        onClose={() =>
-          setReservationSuccess({
-            open: false,
-            productTitle: "",
-          })
-        }
+      <ReserveOrderModal
+        open={reservationModalOpen}
+        isSubmitting={isSubmittingReservation}
+        onClose={() => setReservationModalOpen(false)}
+        onConfirm={handleReserveOrder}
+      />
+
+      <MyReservationsModal
+        open={reservationsModalOpen}
+        country={country}
+        reservations={reservationOrders}
+        onClose={() => setReservationsModalOpen(false)}
+        onPrint={handlePrintReservation}
+        onCheckout={handleCheckoutReservation}
+        onExtend={handleExtendReservation}
       />
     </>
   );

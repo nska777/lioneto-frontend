@@ -49,6 +49,9 @@ type StrapiProduct = {
   documentId?: string;
   title?: string;
   article?: string;
+  stockQty?: number;
+  reservedQty?: number;
+  isStockTracked?: boolean;
 };
 
 type StrapiReservation = {
@@ -142,6 +145,27 @@ export function getReservationExpiresAt(hours = 24) {
 export function isReservationExpired(reservedUntil?: string | null) {
   if (!reservedUntil) return true;
   return new Date(reservedUntil).getTime() <= Date.now();
+}
+
+export async function getDealerProductsByIds(productIds: string[]) {
+  const uniqueIds = Array.from(new Set(productIds.filter(Boolean)));
+  if (!uniqueIds.length) return new Map<string, StrapiProduct>();
+
+  const params = new URLSearchParams();
+  params.set("pagination[pageSize]", "500");
+
+  uniqueIds.forEach((id, index) => {
+    params.set(`filters[$or][${index}][documentId][$eq]`, id);
+  });
+
+  const json = await strapiFetch<{ data?: StrapiProduct[] }>(
+    `/api/dealer-products?${params.toString()}`,
+  );
+
+  const rows = Array.isArray(json?.data) ? json.data : [];
+  return new Map(
+    rows.map((item) => [String(item.documentId ?? item.id ?? ""), item]),
+  );
 }
 
 export async function getActiveReservationsByProductIds(
@@ -250,8 +274,12 @@ export async function createDealerReservation(input: {
   snapshotPrice?: number;
   currency?: string;
   notes?: string;
+  hours?: number;
+  orderNumber?: string;
 }) {
-  const reservedUntil = getReservationExpiresAt(24);
+  const reservedUntil = getReservationExpiresAt(
+    Math.min(48, Math.max(1, Number(input.hours ?? 24))),
+  );
 
   const json = await strapiFetch<{ data?: StrapiReservation }>(
     `/api/dealer-reservations`,
@@ -270,6 +298,7 @@ export async function createDealerReservation(input: {
           snapshotPrice: Number(input.snapshotPrice ?? 0),
           currency: input.currency ?? "",
           notes: input.notes ?? "",
+          orderNumber: input.orderNumber ?? "",
         },
       }),
     },
@@ -280,6 +309,73 @@ export async function createDealerReservation(input: {
   }
 
   return normalizeReservation(json.data);
+}
+
+export async function extendReservationsByOrderNumber(
+  dealerDocumentId: string,
+  orderNumber: string,
+  hours: number,
+) {
+  const reservations = await getMyActiveReservations(dealerDocumentId);
+  const grouped = reservations.filter(
+    (item) =>
+      item.orderNumber === orderNumber && item.reservationStatus === "active",
+  );
+
+  if (!grouped.length) {
+    throw new Error("Reservation group not found");
+  }
+
+  const currentMax = grouped.reduce((max, item) => {
+    const value = new Date(item.reservedUntil).getTime();
+    return value > max ? value : max;
+  }, Date.now());
+
+  const nextDate = new Date(currentMax);
+  nextDate.setHours(
+    nextDate.getHours() + Math.min(48, Math.max(1, Number(hours || 1))),
+  );
+
+  await Promise.all(
+    grouped.map((item) =>
+      strapiFetch(`/api/dealer-reservations/${item.documentId || item.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          data: {
+            reservedUntil: nextDate.toISOString(),
+          },
+        }),
+      }),
+    ),
+  );
+
+  return nextDate.toISOString();
+}
+
+export async function markReservationsConvertedByOrderNumber(
+  dealerDocumentId: string,
+  orderNumber: string,
+) {
+  const reservations = await getMyActiveReservations(dealerDocumentId);
+  const grouped = reservations.filter(
+    (item) =>
+      item.orderNumber === orderNumber && item.reservationStatus === "active",
+  );
+
+  await Promise.all(
+    grouped.map((item) =>
+      strapiFetch(`/api/dealer-reservations/${item.documentId || item.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          data: {
+            reservationStatus: "converted",
+          },
+        }),
+      }),
+    ),
+  );
+
+  return grouped.length;
 }
 
 export async function syncProductReservedQty(

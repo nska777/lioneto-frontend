@@ -15,13 +15,12 @@ type ProductRowProps = {
   country: DealerCountryCode;
   draft: ProductDraft;
   isInCart: boolean;
+  myReservedQty?: number;
   onIncreaseQty: (productId: string) => void;
   onDecreaseQty: (productId: string) => void;
   onOpenModal: (product: DealerProduct) => void;
   onOpenImagePreview: (product: DealerProduct) => void;
   onToggleCart: (productId: string) => void;
-  onReserve: (product: DealerProduct) => void;
-  isReserving?: boolean;
 };
 
 export default function ProductRow({
@@ -29,13 +28,12 @@ export default function ProductRow({
   country,
   draft,
   isInCart,
+  myReservedQty = 0,
   onIncreaseQty,
   onDecreaseQty,
   onOpenModal,
   onOpenImagePreview,
   onToggleCart,
-  onReserve,
-  isReserving = false,
 }: ProductRowProps) {
   const selectedVariant =
     product.variants?.find(
@@ -67,9 +65,6 @@ export default function ProductRow({
   const availableQty = Math.max(0, stockQty - reservedQty);
   const showStock = Boolean(product.isStockTracked);
 
-  const disableReserve =
-    isReserving || (showStock && availableQty < Math.max(1, draft.quantity));
-
   const hasRequiredItems = (product.requiredItems?.length ?? 0) > 0;
 
   return (
@@ -95,12 +90,14 @@ export default function ProductRow({
             )}
           </button>
 
-          <div className="mt-3 rounded-[16px] bg-[#f6f4ee] px-4 py-3">
-            <div className="text-[24px] font-semibold leading-none text-black">
-              {formatMoney(unitBasePrice, country)}
+          {!hasRequiredItems ? (
+            <div className="mt-3 rounded-[16px] bg-[#f6f4ee] px-4 py-3">
+              <div className="text-[24px] font-semibold leading-none text-black">
+                {formatMoney(unitBasePrice, country)}
+              </div>
+              <div className="mt-1 text-[12px] text-black/45">за 1 шт.</div>
             </div>
-            <div className="mt-1 text-[12px] text-black/45">за 1 шт.</div>
-          </div>
+          ) : null}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -144,12 +141,16 @@ export default function ProductRow({
                 <span className="inline-flex rounded-full border border-black/10 bg-[#f6f4ee] px-2.5 py-1 text-[10px] font-medium text-black/75">
                   Всего: {stockQty}
                 </span>
+
                 <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700">
                   В наличии: {availableQty}
                 </span>
-                <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-700">
-                  Забронировано: {reservedQty}
-                </span>
+
+                {myReservedQty > 0 ? (
+                  <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-700">
+                    Забронировано: {myReservedQty} шт.
+                  </span>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -199,32 +200,18 @@ export default function ProductRow({
               </button>
             </div>
           ) : (
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3">
               <button
                 type="button"
                 onClick={() => onToggleCart(product.id)}
                 className={cn(
-                  "inline-flex min-h-[42px] cursor-pointer items-center justify-center rounded-full px-4 text-sm font-semibold transition",
+                  "inline-flex min-h-[42px] w-full cursor-pointer items-center justify-center rounded-full px-4 text-sm font-semibold transition",
                   isInCart
                     ? "bg-black text-white"
                     : "border border-black/15 bg-white text-black hover:border-black/30",
                 )}
               >
-                {isInCart ? "Добавлено" : "В корзину"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onReserve(product)}
-                disabled={disableReserve}
-                className={cn(
-                  "inline-flex min-h-[42px] items-center justify-center rounded-full px-4 text-sm font-semibold transition",
-                  disableReserve
-                    ? "cursor-not-allowed bg-red-100 text-red-400"
-                    : "cursor-pointer bg-red-600 text-white hover:bg-red-700",
-                )}
-              >
-                {isReserving ? "Бронируем..." : "Забронировать"}
+                {isInCart ? "В корзине" : "Добавить в корзину"}
               </button>
             </div>
           )}

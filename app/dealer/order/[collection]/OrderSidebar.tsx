@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Printer, ShoppingCart, Trash2, X } from "lucide-react";
+import { Archive, Printer, ShoppingCart, Trash2, X } from "lucide-react";
 
 import type { DealerCountryCode } from "@/app/lib/dealer/shop";
 import type { CartEntry } from "./types";
@@ -12,10 +12,13 @@ type Props = {
   totalQty: number;
   subtotal: number;
   country: DealerCountryCode;
+  reservationsCount: number;
   onClearCart: () => void;
   onRemoveItem: (itemId: string) => void;
   onCheckout: () => void;
   onPrintBase: () => void;
+  onReserveOrder: () => void;
+  onOpenReservations: () => void;
 };
 
 function formatReservationDate(value?: string) {
@@ -51,10 +54,13 @@ export default function OrderSidebar({
   totalQty,
   subtotal,
   country,
+  reservationsCount,
   onClearCart,
   onRemoveItem,
   onCheckout,
   onPrintBase,
+  onReserveOrder,
+  onOpenReservations,
 }: Props) {
   const groupedItems = groupCartItems(cartItems);
   const isEmpty = cartItems.length === 0;
@@ -283,7 +289,17 @@ export default function OrderSidebar({
             disabled={isEmpty}
             className="inline-flex min-h-[58px] w-full cursor-pointer items-center justify-center rounded-[18px] bg-black px-5 text-[18px] font-semibold text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/20"
           >
-            Заказать
+            Корзина
+          </button>
+
+          <button
+            type="button"
+            onClick={onReserveOrder}
+            disabled={isEmpty}
+            className="inline-flex min-h-[54px] w-full cursor-pointer items-center justify-center gap-2 rounded-[18px] border border-red-200 bg-red-50 px-5 text-[18px] font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Archive className="h-5 w-5" />
+            Забронировать заказ
           </button>
 
           <button
@@ -294,6 +310,14 @@ export default function OrderSidebar({
           >
             <Printer className="h-5 w-5" />
             Печать
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenReservations}
+            className="inline-flex min-h-[54px] w-full cursor-pointer items-center justify-center rounded-[18px] border border-black/10 bg-white px-5 text-[18px] font-medium text-black transition hover:bg-black/[0.03]"
+          >
+            Мои брони {reservationsCount > 0 ? `(${reservationsCount})` : ""}
           </button>
 
           <Link
