@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import type {
@@ -17,6 +17,9 @@ import OrderSidebar from "./OrderSidebar";
 import OrderSuccessModal from "./OrderSuccessModal";
 import ReserveOrderModal from "./ReserveOrderModal";
 import MyReservationsModal from "./MyReservationsModal";
+import ExtendReservationModal from "./ExtendReservationModal";
+import ReservationExtendedSuccessModal from "./ReservationExtendedSuccessModal";
+import ReservationExtendLimitModal from "./ReservationExtendLimitModal";
 import {
   buildInternalItems,
   buildVisibleItems,
@@ -96,6 +99,14 @@ type ReservationMap = Record<
     reservationId?: string;
   }
 >;
+
+type ReservationExtendMeta = {
+  reservationNumber: string;
+  reservedUntil: string;
+  initialHours: number;
+  extendedHours: number;
+  maxExtendHours: number;
+};
 
 function getProductOptions(product: DealerProduct) {
   const required = product.requiredItems ?? [];
@@ -189,6 +200,51 @@ function parseReservationNotes(row: ReservationRecord) {
   }
 }
 
+function formatDateTime(value?: string) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function buildReservationExtendMeta(rows: ReservationRecord[]) {
+  const map = new Map<string, ReservationExtendMeta>();
+
+  rows.forEach((row) => {
+    if (row.reservationStatus !== "active") return;
+
+    const reservationNumber = String(
+      row.orderNumber ?? row.documentId ?? row.id,
+    ).trim();
+
+    if (!reservationNumber || map.has(reservationNumber)) return;
+
+    const notes = parseReservationNotes(row);
+
+    const initialHours = Math.max(1, Number(notes.initialHours ?? 24));
+    const extendedHours = Math.max(0, Number(notes.extendedHours ?? 0));
+    const maxExtendHours = Math.max(0, Number(notes.maxExtendHours ?? 24));
+
+    map.set(reservationNumber, {
+      reservationNumber,
+      reservedUntil: row.reservedUntil,
+      initialHours,
+      extendedHours,
+      maxExtendHours,
+    });
+  });
+
+  return map;
+}
+
 function groupReservationOrders(rows: ReservationRecord[]): ReservationOrder[] {
   const activeRows = rows.filter((item) => item.reservationStatus === "active");
   const groups = new Map<string, ReservationRecord[]>();
@@ -227,14 +283,8 @@ function groupReservationOrders(rows: ReservationRecord[]): ReservationOrder[] {
             unitFinalPrice: Number(
               meta.unitFinalPrice ?? row.snapshotPrice ?? 0,
             ),
-            totalBasePrice:
-              Number(meta.totalBasePrice ?? 0) ||
-              Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0) *
-                Math.max(1, Number(row.quantity ?? 1)),
-            totalFinalPrice:
-              Number(meta.totalFinalPrice ?? 0) ||
-              Number(meta.unitFinalPrice ?? row.snapshotPrice ?? 0) *
-                Math.max(1, Number(row.quantity ?? 1)),
+            totalBasePrice: Number(meta.totalBasePrice ?? 0),
+            totalFinalPrice: Number(meta.totalFinalPrice ?? 0),
             isReserved: true,
             reservedUntil: row.reservedUntil,
             reservationId: row.documentId ?? row.id,
@@ -269,11 +319,17 @@ function groupReservationOrders(rows: ReservationRecord[]): ReservationOrder[] {
         };
       });
 
-      const totalQty = normalizedItems.reduce(
+      const productItems = normalizedItems.filter(
+        (item): item is Extract<CartEntry, { kind: "product" }> =>
+          item.kind === "product",
+      );
+
+      const totalQty = productItems.reduce(
         (sum, item) => sum + item.quantity,
         0,
       );
-      const subtotal = normalizedItems.reduce(
+
+      const subtotal = productItems.reduce(
         (sum, item) => sum + item.totalBasePrice,
         0,
       );
@@ -307,6 +363,7 @@ export default function DealerCollectionClient({
   initialProducts,
 }: Props) {
   const safeCollection = initialCollection;
+  const cartSidebarRef = useRef<HTMLDivElement | null>(null);
 
   const [country, setCountry] = useState<DealerCountryCode>("UZ");
   const [dealerMe, setDealerMe] = useState<DealerMe | null>(null);
@@ -332,11 +389,26 @@ export default function DealerCollectionClient({
   const [reservationOrders, setReservationOrders] = useState<
     ReservationOrder[]
   >([]);
+  const [reservationExtendMeta, setReservationExtendMeta] = useState<
+    Map<string, ReservationExtendMeta>
+  >(new Map());
+
   const [reservationModalOpen, setReservationModalOpen] = useState(false);
   const [reservationsModalOpen, setReservationsModalOpen] = useState(false);
   const [isSubmittingReservation, setIsSubmittingReservation] = useState(false);
   const [confirmingReservationNumber, setConfirmingReservationNumber] =
     useState<string>("");
+
+  const [extendModalOpen, setExtendModalOpen] = useState(false);
+  const [extendLimitModalOpen, setExtendLimitModalOpen] = useState(false);
+  const [extendSuccessModalOpen, setExtendSuccessModalOpen] = useState(false);
+  const [extendReservationNumber, setExtendReservationNumber] = useState("");
+  const [extendHours, setExtendHours] = useState(1);
+  const [extendRemainingHours, setExtendRemainingHours] = useState(0);
+  const [extendMaxHours, setExtendMaxHours] = useState(0);
+  const [extendUntilText, setExtendUntilText] = useState("");
+  const [extendedSuccessHours, setExtendedSuccessHours] = useState(0);
+  const [isSubmittingExtend, setIsSubmittingExtend] = useState(false);
 
   useEffect(() => {
     setCartProductIds(loadCartProductIds());
@@ -373,6 +445,7 @@ export default function DealerCollectionClient({
       const rows = data.reservations ?? [];
       setReservationsMap(buildReservationMap(rows));
       setReservationOrders(groupReservationOrders(rows));
+      setReservationExtendMeta(buildReservationExtendMeta(rows));
     } catch {
       // ignore
     }
@@ -654,15 +727,60 @@ export default function DealerCollectionClient({
       const hasRequired = requiredItems.length > 0;
 
       if (hasRequired) {
-        const areAllRequiredSelected = requiredItems.every((item) => {
-          const state = getAddonDraft(product.id, item.id);
-          const minQty = item.minQuantity ?? 1;
-          const qty = Math.max(0, state?.quantity ?? 0);
+        const hasStructuredConstructor = requiredItems.some((item) =>
+          Boolean(item.groupKey),
+        );
 
-          return Boolean(state?.isInCart) && qty >= minQty;
-        });
+        let canAddProduct = true;
 
-        if (!areAllRequiredSelected) {
+        if (hasStructuredConstructor) {
+          const singleGroupsMap = new Map<
+            string,
+            {
+              key: string;
+              items: typeof requiredItems;
+            }
+          >();
+
+          requiredItems.forEach((item, index) => {
+            if (item.groupSelection !== "single") return;
+
+            const key = item.groupKey?.trim() || `group-${index + 1}`;
+            const existing = singleGroupsMap.get(key);
+
+            if (existing) {
+              existing.items.push(item);
+              return;
+            }
+
+            singleGroupsMap.set(key, {
+              key,
+              items: [item],
+            });
+          });
+
+          const singleGroups = Array.from(singleGroupsMap.values());
+
+          canAddProduct = singleGroups.every((group) => {
+            return group.items.some((item) => {
+              const state = getAddonDraft(product.id, item.id);
+              const minQty = item.minQuantity ?? 1;
+              const qty = Math.max(0, state?.quantity ?? 0);
+
+              return Boolean(state?.isInCart) && qty >= minQty;
+            });
+          });
+        } else {
+          canAddProduct = requiredItems.every((item) => {
+            const state = getAddonDraft(product.id, item.id);
+            const minQty = item.minQuantity ?? 1;
+            const qty = Math.max(0, state?.quantity ?? 0);
+
+            return Boolean(state?.isInCart) && qty >= minQty;
+          });
+        }
+
+        if (!canAddProduct) {
           setSelectedProduct(product);
           return;
         }
@@ -791,6 +909,13 @@ export default function DealerCollectionClient({
     });
   }
 
+  function handleScrollToCart() {
+    cartSidebarRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
   const productCartItems = useMemo<CartEntry[]>(() => {
     return cartProductIds
       .map((productId) => {
@@ -801,15 +926,38 @@ export default function DealerCollectionClient({
         const selectedVariant = getSelectedProductVariant(product, draft);
         const quantity = Math.max(1, draft.quantity || 1);
 
-        const unitBasePrice =
+        const productUnitPrice =
           selectedVariant?.price?.[country] ?? product.price[country] ?? 0;
-
-        const totalBasePrice = unitBasePrice * quantity;
 
         const selectedColor =
           draft.selectedColor ||
           selectedVariant?.label ||
           getProductColor(product);
+
+        const productOptions = getProductOptions(product);
+
+        const addonsUnitTotal = productOptions.reduce((sum, addon) => {
+          const addonDraft = getAddonDraft(product.id, addon.id);
+          if (!addonDraft?.isInCart) return sum;
+
+          const addonSelectedVariant =
+            (addon.variants ?? []).find(
+              (variant) => variant.key === addonDraft.selectedVariantKey,
+            ) ?? null;
+
+          const addonUnitPrice =
+            addonSelectedVariant?.price?.[country] ?? addon.price[country] ?? 0;
+
+          const addonQty = Math.max(
+            addon.minQuantity ?? 1,
+            addonDraft.quantity || addon.defaultQuantity || 1,
+          );
+
+          return sum + addonUnitPrice * addonQty;
+        }, 0);
+
+        const unitBasePrice = productUnitPrice + addonsUnitTotal;
+        const totalBasePrice = unitBasePrice * quantity;
 
         return {
           kind: "product" as const,
@@ -833,7 +981,7 @@ export default function DealerCollectionClient({
         };
       })
       .filter(Boolean) as CartEntry[];
-  }, [cartProductIds, drafts, country, allProductsById]);
+  }, [cartProductIds, drafts, country, allProductsById, addonDrafts]);
 
   const addonCartItems = useMemo<CartEntry[]>(() => {
     const items: CartEntry[] = [];
@@ -921,8 +1069,12 @@ export default function DealerCollectionClient({
   }, [reservationOrders]);
 
   const summary = useMemo(() => {
-    const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = cartItems.reduce(
+    const totalQty = productCartItems.reduce(
+      (sum, item) => sum + item.quantity,
+      0,
+    );
+
+    const subtotal = productCartItems.reduce(
       (sum, item) => sum + item.totalBasePrice,
       0,
     );
@@ -931,7 +1083,7 @@ export default function DealerCollectionClient({
       totalQty,
       subtotal,
     };
-  }, [cartItems]);
+  }, [productCartItems]);
 
   const selectedDraft = selectedProduct ? getDraft(selectedProduct.id) : null;
 
@@ -994,8 +1146,18 @@ export default function DealerCollectionClient({
       new Set(items.map((item) => item.collectionSlug)),
     );
 
-    const totalQty = items.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = items.reduce((sum, item) => sum + item.totalBasePrice, 0);
+    const productItems = items.filter(
+      (item): item is Extract<CartEntry, { kind: "product" }> =>
+        item.kind === "product",
+    );
+
+    const baseItems = productItems.length > 0 ? productItems : items;
+
+    const totalQty = baseItems.reduce((sum, item) => sum + item.quantity, 0);
+    const subtotal = baseItems.reduce(
+      (sum, item) => sum + item.totalBasePrice,
+      0,
+    );
 
     return {
       id: generateOrderId(),
@@ -1204,33 +1366,81 @@ export default function DealerCollectionClient({
     setReservationsModalOpen(false);
   }
 
-  async function handleExtendReservation(reservationNumber: string) {
-    const extra = prompt("На сколько часов продлить бронь? От 1 до 48", "6");
-    const hours = Math.min(48, Math.max(1, Number(extra ?? 0)));
+  function handleExtendReservation(reservationNumber: string) {
+    const meta = reservationExtendMeta.get(reservationNumber);
 
-    if (!Number.isFinite(hours) || hours <= 0) return;
+    const maxExtendHours = Math.max(0, Number(meta?.maxExtendHours ?? 24));
+    const extendedHours = Math.max(0, Number(meta?.extendedHours ?? 0));
+    const remainingHours = Math.max(0, maxExtendHours - extendedHours);
 
-    const res = await fetch("/api/dealer/reservations", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        orderNumber: reservationNumber,
-        hours,
-        action: "extend",
-      }),
-    });
+    setExtendReservationNumber(reservationNumber);
+    setExtendMaxHours(maxExtendHours);
+    setExtendRemainingHours(remainingHours);
+    setExtendHours(remainingHours > 0 ? 1 : 0);
 
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      alert(data?.error || "Не удалось продлить бронь");
+    if (remainingHours <= 0) {
+      setExtendLimitModalOpen(true);
       return;
     }
 
-    await syncReservations();
+    setExtendModalOpen(true);
+  }
+
+  async function handleConfirmExtendReservation() {
+    if (!extendReservationNumber || extendHours <= 0) return;
+
+    try {
+      setIsSubmittingExtend(true);
+
+      const res = await fetch("/api/dealer/reservations", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          orderNumber: extendReservationNumber,
+          hours: extendHours,
+          action: "extend",
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const errorText = String(data?.error || "");
+
+        if (
+          errorText.toLowerCase().includes("limit") ||
+          errorText.toLowerCase().includes("лимит")
+        ) {
+          setExtendModalOpen(false);
+          setExtendLimitModalOpen(true);
+          return;
+        }
+
+        throw new Error(data?.error || "Не удалось продлить бронь");
+      }
+
+      const newReservedUntil =
+        data?.reservedUntil ||
+        data?.reservation?.reservedUntil ||
+        data?.data?.reservedUntil ||
+        "";
+
+      setExtendUntilText(formatDateTime(newReservedUntil));
+      setExtendedSuccessHours(extendHours);
+
+      setExtendModalOpen(false);
+      await syncReservations();
+      setExtendSuccessModalOpen(true);
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Не удалось продлить бронь",
+      );
+    } finally {
+      setIsSubmittingExtend(false);
+    }
   }
 
   return (
@@ -1303,7 +1513,10 @@ export default function DealerCollectionClient({
             )}
           </div>
 
-          <div className="min-w-0 xl:sticky xl:top-3 xl:self-start">
+          <div
+            ref={cartSidebarRef}
+            className="min-w-0 xl:sticky xl:top-3 xl:self-start"
+          >
             <OrderSidebar
               cartItems={cartItems}
               totalQty={summary.totalQty}
@@ -1348,6 +1561,10 @@ export default function DealerCollectionClient({
         onChooseSingleAddonInGroup={
           handleSelectedProductChooseSingleAddonInGroup
         }
+        onGoToCart={handleScrollToCart}
+        onContinueShopping={() => {
+          setSelectedProduct(null);
+        }}
       />
 
       <OrderConfirmModal
@@ -1380,6 +1597,36 @@ export default function DealerCollectionClient({
         onPrint={handlePrintReservation}
         onCheckout={handleCheckoutReservation}
         onExtend={handleExtendReservation}
+      />
+
+      <ExtendReservationModal
+        open={extendModalOpen}
+        hours={extendHours}
+        maxHours={extendMaxHours}
+        remainingHours={extendRemainingHours}
+        isSubmitting={isSubmittingExtend}
+        onChangeHours={(value) =>
+          setExtendHours(
+            Math.max(1, Math.min(extendRemainingHours, Number(value || 1))),
+          )
+        }
+        onClose={() => {
+          if (isSubmittingExtend) return;
+          setExtendModalOpen(false);
+        }}
+        onConfirm={handleConfirmExtendReservation}
+      />
+
+      <ReservationExtendedSuccessModal
+        open={extendSuccessModalOpen}
+        hours={extendedSuccessHours}
+        untilText={extendUntilText}
+        onClose={() => setExtendSuccessModalOpen(false)}
+      />
+
+      <ReservationExtendLimitModal
+        open={extendLimitModalOpen}
+        onClose={() => setExtendLimitModalOpen(false)}
       />
     </>
   );
