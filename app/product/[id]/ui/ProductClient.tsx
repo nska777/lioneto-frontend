@@ -86,6 +86,15 @@ export type ProductPageModel = {
     href: string;
     badge?: string;
   }>;
+  setItems?: Array<{
+    id: string;
+    title: string;
+    article?: string;
+    price_rub?: number;
+    price_uzs?: number;
+    href?: string;
+    quantity?: number;
+  }>;
   variants?: ProductVariant[];
   brand?: string;
   category?: string;
@@ -406,6 +415,13 @@ export default function ProductClient({
   const { isFav, toggleFav, isInCart, addToCart, removeFromCart } = shop;
 
   const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const [visibleSetItems, setVisibleSetItems] = useState(
+    product.setItems ?? [],
+  );
+
+  useEffect(() => {
+    setVisibleSetItems(product.setItems ?? []);
+  }, [product.setItems]);
 
   const {
     selectedByGroup,
@@ -824,6 +840,91 @@ export default function ProductClient({
                 Купить в 1 клик
               </button>
             </div>
+
+            {product.isCollection && visibleSetItems.length > 0 ? (
+              <section className="mt-6">
+                <h2 className="text-[16px] font-semibold text-black">
+                  В комплектацию входит:
+                </h2>
+
+                <div className="mt-3 overflow-hidden border-2 border-black">
+                  <div className="grid grid-cols-[1.6fr_.8fr_.9fr_auto] gap-0 border-b-2 border-black bg-white">
+                    <div className="border-r-2 border-black px-3 py-3 text-[14px] font-semibold text-black">
+                      Название модуля
+                    </div>
+                    <div className="border-r-2 border-black px-3 py-3 text-[14px] font-semibold text-black">
+                      Артикул
+                    </div>
+                    <div className="border-r-2 border-black px-3 py-3 text-[14px] font-semibold text-black">
+                      Цена
+                    </div>
+                    <div className="px-3 py-3 text-[14px] font-semibold text-black">
+                      —
+                    </div>
+                  </div>
+
+                  {visibleSetItems.map((item) => {
+                    const itemPrice =
+                      currency === "RUB"
+                        ? (item.price_rub ?? 0)
+                        : (item.price_uzs ?? 0);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="grid grid-cols-[1.6fr_.8fr_.9fr_auto] gap-0 border-b-2 border-black last:border-b-0"
+                      >
+                        <div className="border-r-2 border-black px-3 py-3 text-[13px] text-black">
+                          {item.href ? (
+                            <Link
+                              href={item.href}
+                              className="underline underline-offset-4 hover:text-black/70"
+                            >
+                              {item.title}
+                              {item.quantity && item.quantity > 1
+                                ? ` × ${item.quantity}`
+                                : ""}
+                            </Link>
+                          ) : (
+                            <span>
+                              {item.title}
+                              {item.quantity && item.quantity > 1
+                                ? ` × ${item.quantity}`
+                                : ""}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="border-r-2 border-black px-3 py-3 text-[13px] text-black">
+                          {item.article || "—"}
+                        </div>
+
+                        <div className="border-r-2 border-black px-3 py-3 text-[13px] text-black">
+                          {itemPrice > 0
+                            ? formatPrice(itemPrice, currency)
+                            : "—"}
+                        </div>
+
+                        <div className="px-2 py-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVisibleSetItems((prev) =>
+                                prev.filter((x) => x.id !== item.id),
+                              )
+                            }
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/15 text-black/60 transition hover:border-black/25 hover:text-black"
+                            aria-label={`Удалить ${item.title}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
 
             {showCollectionCard && (
               <Link

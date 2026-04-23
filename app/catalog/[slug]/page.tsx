@@ -5,6 +5,7 @@ import ProductClient from "@/app/product/[id]/ui/ProductClient";
 
 import { megaCategories, MEGA_PREVIEWS } from "@/app/lib/headerData";
 import { CATALOG_MOCK, CATALOG_BY_ID } from "@/app/lib/mock/catalog-products";
+import { strapiFetch } from "@/app/lib/strapi";
 
 const BASE_URL = "https://lioneto.com";
 
@@ -186,6 +187,226 @@ function buildCatalogCollectionState(slug: string) {
   };
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function getRecord(v: unknown, key: string): Record<string, unknown> | null {
+  if (!isRecord(v)) return null;
+  const value = v[key];
+  return isRecord(value) ? value : null;
+}
+
+function getValue(obj: unknown, ...keys: string[]) {
+  let current: unknown = obj;
+  for (const key of keys) {
+    if (!isRecord(current)) return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
+function getText(obj: unknown, ...keys: string[]) {
+  const value = getValue(obj, ...keys);
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function getNum(obj: unknown, ...keys: string[]) {
+  const value = getValue(obj, ...keys);
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function unwrapEntity(entity: unknown): Record<string, unknown> | null {
+  if (!isRecord(entity)) return null;
+
+  const attrs = getRecord(entity, "attributes");
+  if (attrs) {
+    const id = entity["id"];
+    return isRecord(attrs)
+      ? {
+          ...(typeof id === "number" || typeof id === "string" ? { id } : {}),
+          ...attrs,
+        }
+      : null;
+  }
+
+  return entity;
+}
+
+function unwrapRelationOne(value: unknown): Record<string, unknown> | null {
+  if (!value) return null;
+
+  if (isRecord(value) && "data" in value) {
+    return unwrapEntity((value as Record<string, unknown>).data);
+  }
+
+  return unwrapEntity(value);
+}
+
+function unwrapRelationMany(value: unknown): Record<string, unknown>[] {
+  if (!value) return [];
+
+  if (isRecord(value) && "data" in value) {
+    const data = (value as Record<string, unknown>).data;
+    return Array.isArray(data)
+      ? (data.map(unwrapEntity).filter(Boolean) as Record<string, unknown>[])
+      : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(unwrapEntity).filter(Boolean) as Record<string, unknown>[];
+  }
+
+  return [];
+}
+
+function buildStrapiMediaUrl(url?: string | null) {
+  const raw = String(url ?? "").trim();
+  if (!raw) return "";
+
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const base = (process.env.NEXT_PUBLIC_STRAPI_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+  if (!base) return raw;
+
+  return `${base}${raw.startsWith("/") ? raw : `/${raw}`}`;
+}
+
+function buildSceneProductSlug(brand: string, category: string) {
+  return `scene-${category}-${brand}`;
+}
+
+type StrapiSceneData = {
+  sceneProduct: Record<string, unknown> | null;
+  setItems: Array<{
+    id: string;
+    title: string;
+    article?: string;
+    price_rub?: number;
+    price_uzs?: number;
+    href?: string;
+    quantity?: number;
+  }>;
+};
+
+async function getSceneProductSetData(
+  brand: string,
+  category: string,
+): Promise<StrapiSceneData> {
+  const sceneSlug = buildSceneProductSlug(brand, category);
+
+  const sceneQuery = `/api/products?filters[slug][$eq]=${encodeURIComponent(
+    sceneSlug,
+  )}&pagination[pageSize]=1&populate[media]=true&populate[gallery]=true`;
+
+  const sceneJson = await strapiFetch<any>(sceneQuery);
+
+  const sceneDataRaw =
+    Array.isArray(sceneJson?.data) && sceneJson.data.length > 0
+      ? sceneJson.data[0]
+      : null;
+
+  const sceneProduct = unwrapEntity(sceneDataRaw);
+
+  const setItemsQuery =
+    `/api/product-set-items?` +
+    `filters[parent_product][slug][$eq]=${encodeURIComponent(sceneSlug)}` +
+    `&sort[0]=sort_order:asc` +
+    `&pagination[pageSize]=100` +
+    `&populate[item_product][populate][media]=true` +
+    `&populate[item_product][populate][gallery]=true`;
+
+  const setJson = await strapiFetch<any>(setItemsQuery);
+
+  const rows: unknown[] = Array.isArray(setJson?.data) ? setJson.data : [];
+
+  const normalizedRows: Record<string, unknown>[] = [];
+
+  for (const row of rows) {
+    const normalized = unwrapEntity(row);
+    if (normalized) {
+      normalizedRows.push(normalized);
+    }
+  }
+
+  const setItems: StrapiSceneData["setItems"] = [];
+
+  normalizedRows.forEach((row: Record<string, unknown>) => {
+    const itemProduct = unwrapRelationOne(row.item_product);
+    if (!itemProduct) return;
+
+    const itemId =
+      String(
+        row.documentId ??
+          row.id ??
+          itemProduct.documentId ??
+          itemProduct.id ??
+          Math.random(),
+      ) || "";
+
+    const itemTitle =
+      getText(itemProduct, "title") ??
+      getText(itemProduct, "name") ??
+      "Без названия";
+
+    const itemSlug = getText(itemProduct, "slug");
+    const itemHref = itemSlug ? `/product/${itemSlug}` : undefined;
+
+    setItems.push({
+      id: itemId,
+      title: itemTitle,
+      article:
+        getText(itemProduct, "article") ??
+        getText(itemProduct, "articleShort") ??
+        undefined,
+      price_rub:
+        getNum(itemProduct, "priceRUB") ??
+        getNum(itemProduct, "price_rub") ??
+        undefined,
+      price_uzs:
+        getNum(itemProduct, "priceUZS") ??
+        getNum(itemProduct, "price_uzs") ??
+        undefined,
+      href: itemHref,
+      quantity: getNum(row, "quantity") ?? 1,
+    });
+  });
+
+  return {
+    sceneProduct,
+    setItems,
+  };
+}
+
+function mergeSceneGallery(
+  fallbackGallery: string[],
+  sceneProduct: Record<string, unknown> | null,
+) {
+  const mediaOne = unwrapRelationOne(sceneProduct?.media);
+  const galleryMany = unwrapRelationMany(sceneProduct?.gallery);
+
+  const fromMedia = buildStrapiMediaUrl(
+    getText(mediaOne, "url") ?? getText(mediaOne, "formats", "large", "url"),
+  );
+
+  const fromGallery = galleryMany
+    .map((img) =>
+      buildStrapiMediaUrl(
+        getText(img, "url") ?? getText(img, "formats", "large", "url"),
+      ),
+    )
+    .filter(Boolean);
+
+  const merged = [fromMedia, ...fromGallery, ...fallbackGallery].filter(
+    Boolean,
+  );
+
+  return Array.from(new Set(merged));
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -271,29 +492,82 @@ export default async function CatalogSlugPage({
   const modules4 = pickDeterministic(modulesAll, collectionId, 4);
   const canonical = `${BASE_URL}${href}`;
 
+  const { sceneProduct, setItems } = await getSceneProductSetData(
+    parsed.brand,
+    parsed.category,
+  );
+
+  const mergedGallery = mergeSceneGallery(gallery, sceneProduct);
+  const primaryImage = mergedGallery[0] || previewMain || firstImage || "";
+
+  const sceneTitle =
+    getText(sceneProduct, "title") ??
+    pickLabel(previewRaw) ??
+    `Коллекция «${collectionLabel}»`;
+
+  const sceneDescription =
+    getText(sceneProduct, "description") ??
+    "Это витрина коллекции. Вы можете добавить коллекцию в корзину как единый товар, либо выбрать модуль ниже и посмотреть характеристики.";
+
+  const sceneArticle =
+    getText(sceneProduct, "article") ?? collectionId.toUpperCase();
+
+  const sceneSize = getText(sceneProduct, "size") ?? "—";
+  const sceneColor = getText(sceneProduct, "color") ?? "—";
+  const sceneMaterial = getText(sceneProduct, "material") ?? "—";
+
+  const scenePriceRub =
+    getNum(sceneProduct, "priceRUB") ??
+    getNum(sceneProduct, "price_rub") ??
+    price_rub;
+
+  const scenePriceUzs =
+    getNum(sceneProduct, "priceUZS") ??
+    getNum(sceneProduct, "price_uzs") ??
+    price_uzs;
+
+  const assemblyInstructionTitle =
+    getText(sceneProduct, "assemblyInstructionTitle") ?? undefined;
+
+  const assemblyInstructionFileEntity = unwrapRelationOne(
+    sceneProduct?.assemblyInstructionFile,
+  );
+
+  const assemblyInstructionUrl = buildStrapiMediaUrl(
+    getText(assemblyInstructionFileEntity, "url"),
+  );
+
   type ProductClientProduct = ComponentProps<typeof ProductClient>["product"];
 
   const product = {
-    id: collectionId,
-    title: pickLabel(previewRaw) ?? `Коллекция «${collectionLabel}»`,
+    id: String(sceneProduct?.documentId ?? sceneProduct?.id ?? collectionId),
+    title: sceneTitle,
     badge: "Коллекция",
     href,
-    sku: collectionId.toUpperCase(),
-    image: previewMain ?? firstImage,
-    gallery: gallery.length ? gallery : [firstImage],
+    sku: sceneArticle,
+    image: primaryImage,
+    gallery: mergedGallery.length ? mergedGallery : [firstImage],
 
-    price_rub,
-    price_uzs,
+    price_rub: scenePriceRub,
+    price_uzs: scenePriceUzs,
 
-    description:
-      "Это витрина коллекции. Вы можете добавить коллекцию в корзину как единый товар, либо выбрать модуль ниже и посмотреть характеристики.",
+    description: sceneDescription,
 
     extra: {
-      article: collectionId.toUpperCase(),
-      size: "—",
-      color: "—",
-      material: "—",
+      article: sceneArticle,
+      size: sceneSize,
+      color: sceneColor,
+      material: sceneMaterial,
     },
+
+    assemblyInstructionTitle,
+    assemblyInstructionFile: assemblyInstructionUrl
+      ? {
+          url: assemblyInstructionUrl,
+          name:
+            getText(assemblyInstructionFileEntity, "name") ?? "instruction.pdf",
+        }
+      : null,
 
     related: modules4.map((x) => {
       const productSlug = asString(x.slug) || String(x.id);
@@ -309,6 +583,8 @@ export default async function CatalogSlugPage({
       };
     }),
 
+    setItems,
+
     brand: parsed.brand,
     category: parsed.category,
     collectionHref: href,
@@ -319,8 +595,7 @@ export default async function CatalogSlugPage({
     isCollection: true,
   } as ProductClientProduct;
 
-  const collectionTitle =
-    pickLabel(previewRaw) ?? `Коллекция ${collectionLabel}`;
+  const collectionTitle = sceneTitle;
   const image = product.gallery?.[0] || `${BASE_URL}/og-image.jpg`;
 
   const breadcrumbJsonLd = {
