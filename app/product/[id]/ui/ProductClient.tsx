@@ -896,7 +896,7 @@ export default function ProductClient({
                 </div>
 
                 {hoveredSetItem?.image ? (
-                  <div className="pointer-events-none absolute right-3 top-14 z-30 hidden w-[240px] overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-[0_24px_60px_-32px_rgba(0,0,0,0.35)] xl:block">
+                  <div className="pointer-events-none absolute right-[170px] top-10 z-30 hidden w-[240px] overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-[0_24px_60px_-32px_rgba(0,0,0,0.35)] xl:block">
                     <div className="aspect-[4/3] bg-black/5">
                       <img
                         src={hoveredSetItem.image}
