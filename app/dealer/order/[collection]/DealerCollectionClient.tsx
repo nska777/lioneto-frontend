@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
@@ -252,6 +253,7 @@ function groupReservationOrders(rows: ReservationRecord[]): ReservationOrder[] {
   activeRows.forEach((row) => {
     const key = String(row.orderNumber ?? row.documentId ?? row.id).trim();
     if (!key) return;
+
     const list = groups.get(key) ?? [];
     list.push(row);
     groups.set(key, list);
@@ -336,6 +338,7 @@ function groupReservationOrders(rows: ReservationRecord[]): ReservationOrder[] {
 
       const reservedUntil = items.reduce((max, row) => {
         if (!max) return row.reservedUntil;
+
         return new Date(row.reservedUntil).getTime() > new Date(max).getTime()
           ? row.reservedUntil
           : max;
@@ -364,6 +367,10 @@ export default function DealerCollectionClient({
 }: Props) {
   const safeCollection = initialCollection;
   const cartSidebarRef = useRef<HTMLDivElement | null>(null);
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [country, setCountry] = useState<DealerCountryCode>("UZ");
   const [dealerMe, setDealerMe] = useState<DealerMe | null>(null);
@@ -395,6 +402,7 @@ export default function DealerCollectionClient({
 
   const [reservationModalOpen, setReservationModalOpen] = useState(false);
   const [reservationsModalOpen, setReservationsModalOpen] = useState(false);
+  const [isLoadingReservations, setIsLoadingReservations] = useState(false);
   const [isSubmittingReservation, setIsSubmittingReservation] = useState(false);
   const [confirmingReservationNumber, setConfirmingReservationNumber] =
     useState<string>("");
@@ -423,8 +431,28 @@ export default function DealerCollectionClient({
     setIsHydrated(true);
   }, []);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "dealer-current-order-collection",
+        safeCollection.slug,
+      );
+    } catch {
+      // ignore
+    }
+  }, [safeCollection.slug]);
+
+  useEffect(() => {
+    if (searchParams.get("reservations") !== "1") return;
+
+    setReservationsModalOpen(true);
+    router.replace(pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   async function syncReservations() {
     try {
+      setIsLoadingReservations(true);
+
       await fetch("/api/dealer/reservations/release-expired", {
         method: "POST",
         credentials: "include",
@@ -448,6 +476,8 @@ export default function DealerCollectionClient({
       setReservationExtendMeta(buildReservationExtendMeta(rows));
     } catch {
       // ignore
+    } finally {
+      setIsLoadingReservations(false);
     }
   }
 
@@ -1354,18 +1384,22 @@ export default function DealerCollectionClient({
 
   function handleCheckoutReservation(reservationNumber: string) {
     const reservation = reservationOrdersById.get(reservationNumber);
-    if (!reservation) return;
+
+    if (!reservation) {
+      alert("Бронь не найдена. Обновите страницу и попробуйте снова.");
+      return;
+    }
+
+    const orderNumber = generateOrderNumber(dealerMe?.login ?? "");
+    const order = buildOrderFromItems(reservation.items, orderNumber);
 
     setConfirmingReservationNumber(reservationNumber);
-    setConfirmOrder(
-      buildOrderFromItems(
-        reservation.items,
-        generateOrderNumber(dealerMe?.login ?? ""),
-      ),
-    );
     setReservationsModalOpen(false);
-  }
 
+    window.setTimeout(() => {
+      setConfirmOrder(order);
+    }, 80);
+  }
   function handleExtendReservation(reservationNumber: string) {
     const meta = reservationExtendMeta.get(reservationNumber);
 
@@ -1593,6 +1627,7 @@ export default function DealerCollectionClient({
         open={reservationsModalOpen}
         country={country}
         reservations={reservationOrders}
+        isLoading={isLoadingReservations}
         onClose={() => setReservationsModalOpen(false)}
         onPrint={handlePrintReservation}
         onCheckout={handleCheckoutReservation}

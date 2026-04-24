@@ -279,18 +279,71 @@ function buildSceneProductSlug(brand: string, category: string) {
   return `scene-${category}-${brand}`;
 }
 
+type SceneSetItem = {
+  id: string;
+  title: string;
+  article?: string;
+  price_rub?: number;
+  price_uzs?: number;
+  href?: string;
+  quantity?: number;
+};
+
 type StrapiSceneData = {
   sceneProduct: Record<string, unknown> | null;
-  setItems: Array<{
-    id: string;
-    title: string;
-    article?: string;
-    price_rub?: number;
-    price_uzs?: number;
-    href?: string;
-    quantity?: number;
-  }>;
+  setItems: SceneSetItem[];
 };
+
+function parseSetItemsJson(value: unknown): SceneSetItem[] {
+  if (!Array.isArray(value)) return [];
+
+  const result: SceneSetItem[] = [];
+
+  value.forEach((item, index) => {
+    if (!isRecord(item)) return;
+
+    const idRaw = item.id;
+    const slug = asString(item.slug);
+    const title = asString(item.title) ?? "Без названия";
+
+    const id =
+      (typeof idRaw === "string" && idRaw.trim()) ||
+      (typeof idRaw === "number" ? String(idRaw) : "") ||
+      slug ||
+      `set-item-${index + 1}`;
+
+    const article = asString(item.article);
+    const priceRub = toFiniteNum(item.price_rub);
+    const priceUzs = toFiniteNum(item.price_uzs);
+    const quantity = toFiniteNum(item.quantity);
+
+    const setItem: SceneSetItem = {
+      id,
+      title,
+      quantity: quantity ?? 1,
+    };
+
+    if (article) {
+      setItem.article = article;
+    }
+
+    if (typeof priceRub === "number") {
+      setItem.price_rub = priceRub;
+    }
+
+    if (typeof priceUzs === "number") {
+      setItem.price_uzs = priceUzs;
+    }
+
+    if (slug) {
+      setItem.href = `/product/${slug}`;
+    }
+
+    result.push(setItem);
+  });
+
+  return result;
+}
 
 async function getSceneProductSetData(
   brand: string,
@@ -300,7 +353,7 @@ async function getSceneProductSetData(
 
   const sceneQuery = `/api/products?filters[slug][$eq]=${encodeURIComponent(
     sceneSlug,
-  )}&pagination[pageSize]=1&populate[media]=true&populate[gallery]=true`;
+  )}&pagination[pageSize]=1&populate[media]=true&populate[gallery]=true&populate[assemblyInstructionFile]=true`;
 
   const sceneJson = await strapiFetch<any>(sceneQuery);
 
@@ -310,70 +363,7 @@ async function getSceneProductSetData(
       : null;
 
   const sceneProduct = unwrapEntity(sceneDataRaw);
-
-  const setItemsQuery =
-    `/api/product-set-items?` +
-    `filters[parent_product][slug][$eq]=${encodeURIComponent(sceneSlug)}` +
-    `&sort[0]=sort_order:asc` +
-    `&pagination[pageSize]=100` +
-    `&populate[item_product][populate][media]=true` +
-    `&populate[item_product][populate][gallery]=true`;
-
-  const setJson = await strapiFetch<any>(setItemsQuery);
-
-  const rows: unknown[] = Array.isArray(setJson?.data) ? setJson.data : [];
-
-  const normalizedRows: Record<string, unknown>[] = [];
-
-  for (const row of rows) {
-    const normalized = unwrapEntity(row);
-    if (normalized) {
-      normalizedRows.push(normalized);
-    }
-  }
-
-  const setItems: StrapiSceneData["setItems"] = [];
-
-  normalizedRows.forEach((row: Record<string, unknown>) => {
-    const itemProduct = unwrapRelationOne(row.item_product);
-    if (!itemProduct) return;
-
-    const itemId =
-      String(
-        row.documentId ??
-          row.id ??
-          itemProduct.documentId ??
-          itemProduct.id ??
-          Math.random(),
-      ) || "";
-
-    const itemTitle =
-      getText(itemProduct, "title") ??
-      getText(itemProduct, "name") ??
-      "Без названия";
-
-    const itemSlug = getText(itemProduct, "slug");
-    const itemHref = itemSlug ? `/product/${itemSlug}` : undefined;
-
-    setItems.push({
-      id: itemId,
-      title: itemTitle,
-      article:
-        getText(itemProduct, "article") ??
-        getText(itemProduct, "articleShort") ??
-        undefined,
-      price_rub:
-        getNum(itemProduct, "priceRUB") ??
-        getNum(itemProduct, "price_rub") ??
-        undefined,
-      price_uzs:
-        getNum(itemProduct, "priceUZS") ??
-        getNum(itemProduct, "price_uzs") ??
-        undefined,
-      href: itemHref,
-      quantity: getNum(row, "quantity") ?? 1,
-    });
-  });
+  const setItems = parseSetItemsJson(sceneProduct?.set_items_json);
 
   return {
     sceneProduct,

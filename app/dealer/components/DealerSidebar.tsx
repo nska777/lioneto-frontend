@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { Route } from "next";
-import { ShoppingBag } from "lucide-react";
+import { Archive, ShoppingBag } from "lucide-react";
 
 type NavItem = {
   href: Route;
   label: string;
+};
+
+type ReservationRecord = {
+  id?: string | number;
+  documentId?: string;
+  orderNumber?: string;
+  reservationStatus?: "active" | "expired" | "converted" | "cancelled";
 };
 
 const NAV = [
@@ -24,6 +32,28 @@ const NAV = [
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
+function getCollectionSlugFromPath(pathname: string) {
+  const match = pathname.match(/^\/dealer\/order\/([^/?#]+)/);
+  return match?.[1] ?? "";
+}
+
+function countActiveReservationOrders(rows: ReservationRecord[]) {
+  const active = rows.filter((item) => item.reservationStatus === "active");
+  const groups = new Set<string>();
+
+  active.forEach((item) => {
+    const key = String(
+      item.orderNumber ?? item.documentId ?? item.id ?? "",
+    ).trim();
+
+    if (key) {
+      groups.add(key);
+    }
+  });
+
+  return groups.size;
+}
+
 export default function DealerSidebar({
   canAccessAdmin,
 }: {
@@ -31,8 +61,83 @@ export default function DealerSidebar({
 }) {
   const pathname = usePathname();
 
+  const [lastOrderCollectionSlug, setLastOrderCollectionSlug] = useState("");
+  const [reservationsCount, setReservationsCount] = useState(0);
+
   const orderActive =
     pathname === "/dealer/order" || pathname.startsWith("/dealer/order/");
+
+  useEffect(() => {
+    const slugFromPath = getCollectionSlugFromPath(pathname);
+
+    if (slugFromPath) {
+      setLastOrderCollectionSlug(slugFromPath);
+
+      try {
+        window.localStorage.setItem(
+          "dealer-current-order-collection",
+          slugFromPath,
+        );
+      } catch {
+        // ignore
+      }
+
+      return;
+    }
+
+    try {
+      const saved = window.localStorage.getItem(
+        "dealer-current-order-collection",
+      );
+
+      if (saved) {
+        setLastOrderCollectionSlug(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadReservationsCount() {
+      try {
+        const res = await fetch("/api/dealer/reservations", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const data = (await res.json()) as {
+          reservations?: ReservationRecord[];
+        };
+
+        if (cancelled) return;
+
+        setReservationsCount(
+          countActiveReservationOrders(data.reservations ?? []),
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    loadReservationsCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
+  const reservationsHref = useMemo(() => {
+    const slugFromPath = getCollectionSlugFromPath(pathname);
+    const slug = slugFromPath || lastOrderCollectionSlug || "amber";
+
+    return `/dealer/order/${slug}?reservations=1` as Route;
+  }, [pathname, lastOrderCollectionSlug]);
 
   return (
     <aside className="w-[260px] shrink-0 border-r border-black/10 bg-white">
@@ -48,7 +153,7 @@ export default function DealerSidebar({
       </div>
 
       <nav className="px-4 py-2">
-        <div className="mb-3">
+        <div className="mb-3 space-y-2">
           <Link
             href="/dealer/order"
             className={cn(
@@ -60,6 +165,23 @@ export default function DealerSidebar({
           >
             <ShoppingBag className="h-4 w-4 shrink-0" />
             <span className="min-w-0">Заказать товар</span>
+          </Link>
+
+          <Link
+            href={reservationsHref}
+            className={cn(
+              "relative flex w-full items-center justify-start gap-2 rounded-[10px] border px-3 py-2.5 pr-10 text-left text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors duration-200",
+              "border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100 hover:text-red-800",
+            )}
+          >
+            <Archive className="h-4 w-4 shrink-0" />
+            <span className="min-w-0">Мои брони</span>
+
+            {reservationsCount > 0 ? (
+              <span className="absolute right-2 top-1/2 inline-flex h-6 min-w-6 -translate-y-1/2 items-center justify-center rounded-full border border-red-300 bg-white px-1.5 text-[12px] font-bold leading-none text-red-700 shadow-sm">
+                {reservationsCount}
+              </span>
+            ) : null}
           </Link>
         </div>
 
