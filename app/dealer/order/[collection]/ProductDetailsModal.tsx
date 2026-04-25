@@ -133,6 +133,152 @@ function getAddonTotal(
   );
 }
 
+function normalizeChoiceText(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е");
+}
+
+function getDoorType(addon?: DealerAddon | null): "mirror" | "solid" | "" {
+  const text = normalizeChoiceText(
+    [
+      addon?.title,
+      addon?.article,
+      addon?.articleShort,
+      addon?.description,
+      addon?.color,
+      addon?.material,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  if (
+    text.includes("зерк") ||
+    text.includes("mirror") ||
+    text.includes("отраж")
+  ) {
+    return "mirror";
+  }
+
+  if (
+    text.includes("глух") ||
+    text.includes("solid") ||
+    text.includes("дсп") ||
+    text.includes("лдсп")
+  ) {
+    return "solid";
+  }
+
+  return "";
+}
+
+function isFillingGroup(group: ConstructorGroup) {
+  const key = normalizeChoiceText(group.key);
+  const title = normalizeChoiceText(group.title);
+
+  return (
+    key.includes("filling") ||
+    key.includes("napolnen") ||
+    key.includes("fill") ||
+    key.includes("content") ||
+    title.includes("тип шкафа") ||
+    title.includes("наполн")
+  );
+}
+
+function isLeftDoorGroup(group: ConstructorGroup) {
+  const key = normalizeChoiceText(group.key);
+  const title = normalizeChoiceText(group.title);
+
+  return (
+    key.includes("left") ||
+    key.includes("left-door") ||
+    key.includes("lev") ||
+    key.includes("leva") ||
+    title.includes("левая")
+  );
+}
+
+function isRightDoorGroup(group: ConstructorGroup) {
+  const key = normalizeChoiceText(group.key);
+  const title = normalizeChoiceText(group.title);
+
+  return (
+    key.includes("right") ||
+    key.includes("right-door") ||
+    key.includes("prav") ||
+    key.includes("prava") ||
+    title.includes("правая")
+  );
+}
+
+function getSelectedAddonInGroup(
+  group: ConstructorGroup | null,
+  addonDrafts?: Record<string, AddonDraftState>,
+) {
+  if (!group) return null;
+
+  return (
+    group.items.find((item) => {
+      const state = addonDrafts?.[item.id];
+      return Boolean(state?.isInCart);
+    }) ?? null
+  );
+}
+
+function getManualWardrobeImage({
+  fillingAddon,
+  leftDoorAddon,
+  rightDoorAddon,
+}: {
+  fillingAddon: DealerAddon | null;
+  leftDoorAddon: DealerAddon | null;
+  rightDoorAddon: DealerAddon | null;
+}) {
+  if (!fillingAddon) return "";
+
+  const leftDoorType = getDoorType(leftDoorAddon);
+  const rightDoorType = getDoorType(rightDoorAddon);
+
+  const basePath = "/dealer/constructor/salvador/wardrobe";
+
+  if (leftDoorType === "mirror" && rightDoorType === "mirror") {
+    return `${basePath}/both-mirror.jpg`;
+  }
+
+  if (leftDoorType === "solid" && rightDoorType === "solid") {
+    return `${basePath}/both-solid.jpg`;
+  }
+
+  if (leftDoorType === "mirror" && rightDoorType === "solid") {
+    return `${basePath}/left-mirror-right-solid.png`;
+  }
+
+  if (leftDoorType === "solid" && rightDoorType === "mirror") {
+    return `${basePath}/left-solid-right-mirror.png`;
+  }
+
+  if (leftDoorType === "mirror" && !rightDoorType) {
+    return `${basePath}/left-mirror.png`;
+  }
+
+  if (leftDoorType === "solid" && !rightDoorType) {
+    return `${basePath}/left-solid.png`;
+  }
+
+  if (!leftDoorType && rightDoorType === "mirror") {
+    return `${basePath}/right-mirror.png`;
+  }
+
+  if (!leftDoorType && rightDoorType === "solid") {
+    return `${basePath}/right-solid.png`;
+  }
+
+  return "";
+}
+
 function ConstructorChoiceCard({
   addon,
   country,
@@ -375,7 +521,7 @@ export default function ProductDetailsModal({
     );
   }, [colorVariants, selectedVariantKey]);
 
-  const selectedImage =
+  const selectedProductVariantImage =
     selectedVariant?.image && selectedVariant.image.trim().length > 0
       ? selectedVariant.image
       : safeProduct?.image || "";
@@ -446,6 +592,52 @@ export default function ProductDetailsModal({
 
   const stepOneGroup = constructorSingleGroups[0] ?? null;
   const secondaryStepGroups = constructorSingleGroups.slice(1);
+
+  const fillingGroup = useMemo(() => {
+    return constructorSingleGroups.find(isFillingGroup) || stepOneGroup || null;
+  }, [constructorSingleGroups, stepOneGroup]);
+
+  const leftDoorGroup = useMemo(() => {
+    return constructorSingleGroups.find(isLeftDoorGroup) || null;
+  }, [constructorSingleGroups]);
+
+  const rightDoorGroup = useMemo(() => {
+    return constructorSingleGroups.find(isRightDoorGroup) || null;
+  }, [constructorSingleGroups]);
+
+  const selectedFillingAddon = useMemo(() => {
+    return getSelectedAddonInGroup(fillingGroup, addonDrafts);
+  }, [fillingGroup, addonDrafts]);
+
+  const selectedLeftDoorAddon = useMemo(() => {
+    return getSelectedAddonInGroup(leftDoorGroup, addonDrafts);
+  }, [leftDoorGroup, addonDrafts]);
+
+  const selectedRightDoorAddon = useMemo(() => {
+    return getSelectedAddonInGroup(rightDoorGroup, addonDrafts);
+  }, [rightDoorGroup, addonDrafts]);
+
+  const manualWardrobeImage = useMemo(() => {
+    return getManualWardrobeImage({
+      fillingAddon: selectedFillingAddon,
+      leftDoorAddon: selectedLeftDoorAddon,
+      rightDoorAddon: selectedRightDoorAddon,
+    });
+  }, [selectedFillingAddon, selectedLeftDoorAddon, selectedRightDoorAddon]);
+
+  const selectedImage = useMemo(() => {
+    if (manualWardrobeImage) {
+      return manualWardrobeImage;
+    }
+
+    const fillingImage = selectedFillingAddon?.image?.trim();
+
+    if (fillingImage) {
+      return fillingImage;
+    }
+
+    return selectedProductVariantImage;
+  }, [manualWardrobeImage, selectedFillingAddon, selectedProductVariantImage]);
 
   const basePrice = safeProduct ? (safeProduct.price[country] ?? 0) : 0;
   const variantPrice = selectedVariant
@@ -617,22 +809,39 @@ export default function ProductDetailsModal({
                   <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        if (!selectedImage) return;
+
                         setPreviewImage({
                           src: selectedImage,
-                          title: safeProduct.title,
-                        })
-                      }
+                          title:
+                            selectedLeftDoorAddon?.title ||
+                            selectedRightDoorAddon?.title ||
+                            selectedFillingAddon?.title ||
+                            safeProduct.title,
+                        });
+                      }}
                       className="group relative h-[220px] w-full cursor-pointer overflow-hidden rounded-[20px] bg-[#f1f1ed] text-left sm:h-[260px] md:h-[300px] md:rounded-[24px]"
                     >
-                      <Image
-                        src={selectedImage}
-                        alt={safeProduct.title}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                        sizes="(max-width: 1024px) 100vw, 280px"
-                        priority
-                      />
+                      {selectedImage ? (
+                        <Image
+                          src={selectedImage}
+                          alt={
+                            selectedLeftDoorAddon?.title ||
+                            selectedRightDoorAddon?.title ||
+                            selectedFillingAddon?.title ||
+                            safeProduct.title
+                          }
+                          fill
+                          className="object-contain p-4 transition-transform duration-300 group-hover:scale-[1.02]"
+                          sizes="(max-width: 1024px) 100vw, 280px"
+                          priority
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[13px] text-black/35">
+                          Нет фото
+                        </div>
+                      )}
 
                       <div className="pointer-events-none absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white/90 text-black/65 shadow-sm">
                         <ZoomIn className="h-4 w-4" />
