@@ -859,20 +859,33 @@ export default function DealerCollectionClient({
           item.groupKey === groupKey && item.groupSelection === "single",
       );
 
+      const selectedItem = sameGroupItems.find((item) => item.id === addonId);
+
+      const selectedDraftKey = selectedItem
+        ? getAddonDraftKey(selectedProduct.id, selectedItem.id)
+        : "";
+
+      const selectedCurrent = selectedDraftKey
+        ? (next[selectedDraftKey] ?? getDefaultAddonDraft())
+        : getDefaultAddonDraft();
+
+      const shouldUnselect = Boolean(selectedCurrent.isInCart);
+
       sameGroupItems.forEach((item) => {
         const draftKey = getAddonDraftKey(selectedProduct.id, item.id);
         const current = next[draftKey] ?? getDefaultAddonDraft();
 
+        const nextIsInCart = shouldUnselect ? false : item.id === addonId;
+
         next[draftKey] = {
           ...current,
-          isInCart: item.id === addonId,
-          quantity:
-            item.id === addonId
-              ? Math.max(
-                  current.quantity || 1,
-                  item.minQuantity ?? item.defaultQuantity ?? 1,
-                )
-              : Math.max(1, item.defaultQuantity ?? 1),
+          isInCart: nextIsInCart,
+          quantity: nextIsInCart
+            ? Math.max(
+                current.quantity || 1,
+                item.minQuantity ?? item.defaultQuantity ?? 1,
+              )
+            : Math.max(1, item.defaultQuantity ?? 1),
           markupPercent: 0,
         };
       });
@@ -1017,6 +1030,8 @@ export default function DealerCollectionClient({
     const items: CartEntry[] = [];
 
     allProductsWithStock.forEach((product) => {
+      if (!cartProductIds.includes(product.id)) return;
+
       const addons = getProductOptions(product);
 
       addons.forEach((addon) => {
@@ -1086,7 +1101,7 @@ export default function DealerCollectionClient({
     });
 
     return items;
-  }, [addonDrafts, country, allProductsWithStock, drafts]);
+  }, [addonDrafts, country, allProductsWithStock, drafts, cartProductIds]);
 
   const cartItems = useMemo(() => {
     return [...productCartItems, ...addonCartItems];
@@ -1327,7 +1342,9 @@ export default function DealerCollectionClient({
     try {
       setIsSubmittingReservation(true);
 
-      const reservationNumber = `RSV-${dealerMe?.login ?? "DEALER"}-${Date.now()}`;
+      const reservationNumber = `RSV-${
+        dealerMe?.login ?? "DEALER"
+      }-${Date.now()}`;
 
       const res = await fetch("/api/dealer/reservations", {
         method: "POST",
@@ -1400,6 +1417,7 @@ export default function DealerCollectionClient({
       setConfirmOrder(order);
     }, 80);
   }
+
   function handleExtendReservation(reservationNumber: string) {
     const meta = reservationExtendMeta.get(reservationNumber);
 

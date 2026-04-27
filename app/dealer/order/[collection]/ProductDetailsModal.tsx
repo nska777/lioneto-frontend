@@ -300,35 +300,41 @@ function ConstructorChoiceCard({
 }) {
   const unitPrice = getAddonUnitPrice(addon, addonState, country);
 
+  const handleChoose = () => {
+    onChoose?.(groupKey, addon.id);
+  };
+
+  const handleOpenImage = () => {
+    if (!addon.image) return;
+    onOpenImage(addon.image, addon.title);
+  };
+
   return (
     <div
       className={cn(
-        "flex h-full min-h-[330px] shrink-0 flex-col overflow-hidden rounded-[16px] border bg-white transition",
+        "flex h-[345px] shrink-0 flex-col overflow-hidden rounded-[16px] border bg-white transition",
         cardWidthClass ?? "w-[170px] sm:w-[180px] md:w-[190px]",
         isSelected
           ? "border-emerald-400 shadow-[0_12px_24px_-20px_rgba(0,0,0,0.28)]"
-          : "border-black/10 hover:border-black/20",
+          : "border-black/10 hover:border-black/20 hover:shadow-[0_10px_22px_-20px_rgba(0,0,0,0.35)]",
       )}
     >
       <button
         type="button"
-        onClick={() => addon.image && onOpenImage(addon.image, addon.title)}
-        className="relative block w-full cursor-pointer border-b border-black/6 bg-[#f7f4ee]"
+        onClick={handleOpenImage}
+        className="relative block h-[145px] w-full shrink-0 cursor-zoom-in border-b border-black/6 bg-[#f7f4ee]"
+        aria-label={`Открыть фото: ${addon.title}`}
       >
-        <div className="relative aspect-square w-full p-3">
+        <div className="relative h-full w-full p-3">
           {addon.image ? (
             <Image
               src={addon.image}
               alt={addon.title}
               fill
-              className="object-contain p-3"
+              className="object-contain p-3 transition-transform duration-200 hover:scale-[1.03]"
               sizes="220px"
             />
           ) : null}
-        </div>
-
-        <div className="pointer-events-none absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 bg-white/95 text-black/65 shadow-sm">
-          <ZoomIn className="h-3.5 w-3.5" />
         </div>
 
         {isSelected ? (
@@ -339,8 +345,15 @@ function ConstructorChoiceCard({
         ) : null}
       </button>
 
-      <div className="flex flex-1 flex-col p-3">
-        <div className="min-h-[86px]">
+      <button
+        type="button"
+        onClick={handleChoose}
+        className={cn(
+          "flex min-h-0 flex-1 cursor-pointer flex-col p-3 text-left transition",
+          isSelected ? "bg-emerald-50/45" : "bg-white hover:bg-black/[0.025]",
+        )}
+      >
+        <div className="min-h-[62px]">
           <div className="line-clamp-3 text-[13px] font-semibold leading-4 text-black">
             {addon.title}
           </div>
@@ -352,28 +365,26 @@ function ConstructorChoiceCard({
           ) : null}
         </div>
 
-        <div className="mt-2 text-[12px] text-black/55">
+        <div className="mt-2 min-h-[34px] text-[12px] leading-4 text-black/55">
           Цена:{" "}
           <span className="font-semibold text-black">
             {formatMoney(unitPrice, country)}
           </span>
         </div>
 
-        <div className="mt-auto pt-3">
-          <button
-            type="button"
-            onClick={() => onChoose?.(groupKey, addon.id)}
+        <div className="mt-auto pt-2">
+          <span
             className={cn(
-              "inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-[10px] border px-2 text-[12px] font-semibold transition",
+              "inline-flex h-9 w-full items-center justify-center rounded-[10px] border px-2 text-[12px] font-semibold transition",
               isSelected
-                ? "border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700"
-                : "border-black bg-black text-white hover:opacity-95",
+                ? "border-red-500 bg-red-50 text-red-600"
+                : "border-black bg-black text-white",
             )}
           >
-            {isSelected ? "Выбрано" : "Выбрать"}
-          </button>
+            {isSelected ? "Отменить выбор" : "Выбрать"}
+          </span>
         </div>
-      </div>
+      </button>
     </div>
   );
 }

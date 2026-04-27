@@ -74,7 +74,7 @@ export default function OrderSidebar({
           <div className="min-w-0">
             <div className="text-[18px] font-semibold text-black">Корзина</div>
             <div className="text-[13px] text-black/45">
-              {totalQty} поз. / {cartItems.length} ед.
+              {cartItems.length} поз. / {totalQty} ед.
             </div>
           </div>
         </div>
