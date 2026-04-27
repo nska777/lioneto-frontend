@@ -115,12 +115,14 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
+
 function pickStrapi(item: unknown): Record<string, unknown> {
   if (!isRecord(item)) return {};
   const attrs = item["attributes"];
   if (isRecord(attrs)) return attrs;
   return item;
 }
+
 function pickStrapiImageUrl(item: unknown): string {
   const a = pickStrapi(item);
 
@@ -353,6 +355,7 @@ export default function CollectionsSlider({
       closeT.current = null;
     }
   }, []);
+
   const scheduleClose = useCallback(() => {
     cancelClose();
     closeT.current = window.setTimeout(() => setOpenHotspotId(null), 180);
@@ -360,6 +363,7 @@ export default function CollectionsSlider({
 
   const manualHoldRef = useRef(false);
   const holdTimeoutRef = useRef<number | null>(null);
+
   const holdFor = useCallback((ms = 2500) => {
     manualHoldRef.current = true;
     if (holdTimeoutRef.current) window.clearTimeout(holdTimeoutRef.current);
@@ -526,16 +530,19 @@ export default function CollectionsSlider({
       clampIndex(activeCollection - 1, safeCollections.length),
     );
   };
+
   const goNextCollection = () => {
     holdFor();
     setCollectionIndex(
       clampIndex(activeCollection + 1, safeCollections.length),
     );
   };
+
   const goPrevImage = () => {
     holdFor();
     setImageIndex(clampIndex(activeImage - 1, currentImages.length));
   };
+
   const goNextImage = () => {
     holdFor();
     setImageIndex(clampIndex(activeImage + 1, currentImages.length));
@@ -577,338 +584,341 @@ export default function CollectionsSlider({
               Коллекции
             </h2>
           </div>
+        </div>
 
-          <div className="mt-2 flex items-center gap-2">
+        {/* Main */}
+        <div data-col-wrap className="mt-6 md:mt-8">
+          <div className="relative w-full">
+            {/* Стрелка слева */}
             <button
               type="button"
               aria-label="Предыдущая коллекция"
               onClick={goPrevCollection}
               className={cn(
-                "grid h-10 w-10 place-items-center rounded-full",
-                "border border-black/10 bg-white",
-                "shadow-[0_10px_28px_rgba(0,0,0,0.06)]",
-                "transition hover:-translate-y-[1px] hover:shadow-[0_14px_36px_rgba(0,0,0,0.08)]",
-                "active:translate-y-0",
+                "absolute left-[-58px] top-1/2 z-[90]",
+                "hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full lg:grid",
+                "border border-black/10 bg-white text-black",
+                "shadow-[0_12px_34px_rgba(0,0,0,0.12)]",
+                "transition hover:bg-black hover:text-white hover:shadow-[0_16px_40px_rgba(0,0,0,0.16)]",
               )}
               style={{ cursor: "pointer" }}
             >
-              <ChevronLeft className="h-5 w-5 text-black/70" />
+              <ChevronLeft className="h-5 w-5" />
             </button>
+
+            {/* Стрелка справа */}
             <button
               type="button"
               aria-label="Следующая коллекция"
               onClick={goNextCollection}
               className={cn(
-                "grid h-10 w-10 place-items-center rounded-full",
-                "border border-black/10 bg-white",
-                "shadow-[0_10px_28px_rgba(0,0,0,0.06)]",
-                "transition hover:-translate-y-[1px] hover:shadow-[0_14px_36px_rgba(0,0,0,0.08)]",
-                "active:translate-y-0",
+                "absolute right-[-58px] top-1/2 z-[90]",
+                "hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full lg:grid",
+                "border border-black/10 bg-white text-black",
+                "shadow-[0_12px_34px_rgba(0,0,0,0.12)]",
+                "transition hover:bg-black hover:text-white hover:shadow-[0_16px_40px_rgba(0,0,0,0.16)]",
               )}
               style={{ cursor: "pointer" }}
             >
-              <ChevronRight className="h-5 w-5 text-black/70" />
+              <ChevronRight className="h-5 w-5" />
             </button>
-          </div>
-        </div>
 
-        {/* Main */}
-        <div data-col-wrap className="mt-6 md:mt-8">
-          <div
-            className={cn(
-              "relative w-full overflow-visible rounded-2xl",
-              "border border-black/10 bg-white",
-              "shadow-[0_22px_60px_rgba(0,0,0,0.08)]",
-            )}
-          >
-            <div className="relative overflow-hidden rounded-2xl">
-              {/* outer НЕ button (внутри есть button hotspots) */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  holdFor();
-                  setLightboxOpen(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
+            <div
+              className={cn(
+                "relative w-full overflow-visible rounded-2xl",
+                "border border-black/10 bg-white",
+                "shadow-[0_22px_60px_rgba(0,0,0,0.08)]",
+              )}
+            >
+              <div className="relative overflow-hidden rounded-2xl">
+                {/* outer НЕ button (внутри есть button hotspots) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
                     holdFor();
                     setLightboxOpen(true);
-                  }
-                }}
-                className="relative block w-full"
-                style={{ cursor: "pointer" }}
-              >
-                <div
-                  className="
-                    relative w-full
-                    h-[420px]
-                    sm:h-[480px]
-                    md:h-[560px]
-                    lg:h-[640px]
-                    xl:h-[720px]
-                  "
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      holdFor();
+                      setLightboxOpen(true);
+                    }
+                  }}
+                  className="relative block w-full"
+                  style={{ cursor: "pointer" }}
                 >
-                  {currentHeroSrc ? (
-                    <Image
-                      src={currentHeroSrc}
-                      alt={
-                        currentImg?.alternativeText ||
-                        current?.title ||
-                        "Коллекция"
-                      }
-                      fill
-                      sizes="(max-width: 768px) 100vw, 1200px"
-                      className="object-cover"
-                      priority
-                    />
-                  ) : (
-                    <div className="absolute inset-0 bg-black/5" />
-                  )}
-
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent" />
-
-                  <div className="absolute left-3 top-3 rounded-full bg-white/80 px-3 py-1 text-[12px] text-black/70">
-                    {activeCollection + 1}/{safeCollections.length} •{" "}
-                    {activeImage + 1}/{currentImages.length}
-                  </div>
-
-                  {/* ✅ HOTSPOTS */}
-                  {hotspots.map((h) => (
-                    <button
-                      key={`${String(current?.id)}-${activeImage}-${h.id}`}
-                      type="button"
-                      data-hotspot
-                      onMouseEnter={() => {
-                        cancelClose();
-                        setOpenHotspotId(h.id);
-                        ensureOneProduct(String(h.productId || "").trim());
-                      }}
-                      onMouseLeave={() => scheduleClose()}
-                      onFocus={() => {
-                        cancelClose();
-                        setOpenHotspotId(h.id);
-                        ensureOneProduct(String(h.productId || "").trim());
-                      }}
-                      onBlur={() => scheduleClose()}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        ensureOneProduct(String(h.productId || "").trim());
-                        setOpenHotspotId((prev) =>
-                          prev === h.id ? null : h.id,
-                        );
-                      }}
-                      className={cn(
-                        "absolute z-[70] h-16 w-16 -translate-x-1/2 -translate-y-1/2",
-                        "bg-transparent shadow-none ring-0",
-                        "cursor-pointer focus:outline-none",
-                        "focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
-                        "transition-transform hover:scale-[1.02]",
-                      )}
-                      style={{ left: `${h.xPct}%`, top: `${h.yPct}%` }}
-                      aria-label="Открыть модуль"
-                    >
-                      {/* (маркер оставлен невидимым как hitbox) */}
-                      <span
-                        className="pointer-events-none absolute inset-0 rounded-full opacity-0"
-                        style={{
-                          background: "rgba(0,0,0,0.18)",
-                          boxShadow:
-                            "0 0 0 3px rgba(255,255,255,0.35), 0 14px 28px rgba(0,0,0,0.20)",
-                        }}
-                      />
-                    </button>
-                  ))}
-
-                  {/* Карточка товара */}
-                  {openHotspotId && activeHotspot ? (
-                    <div
-                      ref={cardRef}
-                      className={cn(
-                        "absolute z-[80]",
-                        "w-[320px] max-w-[86vw]",
-                        "rounded-2xl border border-white/40",
-                        "bg-white/88 backdrop-blur-xl",
-                        "shadow-[0_22px_70px_rgba(0,0,0,0.22)]",
-                        "p-3",
-                      )}
-                      style={{
-                        left: `${activeHotspot.xPct}%`,
-                        top: `${activeHotspot.yPct}%`,
-                        transform:
-                          computedSide === "left"
-                            ? "translate(calc(-100% - 14px), -50%)"
-                            : "translate(14px, -50%)",
-                      }}
-                      onMouseEnter={() => cancelClose()}
-                      onMouseLeave={() => scheduleClose()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="text-[11px] tracking-[0.18em] text-black/45">
-                          LIONETO • MODULE
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setOpenHotspotId(null);
-                          }}
-                          className="grid h-7 w-7 place-items-center rounded-full bg-black/5 transition hover:bg-black/8"
-                          style={{ cursor: "pointer" }}
-                          aria-label="Закрыть"
-                        >
-                          <X className="h-4 w-4 text-black/65" />
-                        </button>
-                      </div>
-
-                      {activeProduct ? (
-                        <Link
-                          href={`/product/${activeProduct.slug}`}
-                          className="mt-2 block"
-                          style={{ cursor: "pointer" }}
-                          onClick={() => setOpenHotspotId(null)}
-                        >
-                          <div className="flex gap-3">
-                            <div className="relative h-[64px] w-[92px] overflow-hidden rounded-xl bg-white ring-1 ring-black/10">
-                              {activeProductImgSrc ? (
-                                <Image
-                                  src={activeProductImgSrc}
-                                  alt={activeProduct.title}
-                                  fill
-                                  sizes="92px"
-                                  className="object-contain p-1.5"
-                                />
-                              ) : (
-                                <div className="absolute inset-0 bg-black/5" />
-                              )}
-                              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/[0.04] to-transparent" />
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="line-clamp-2 text-[14px] font-semibold leading-snug text-black">
-                                {activeProduct.title}
-                              </div>
-
-                              {activePriceRaw ? (
-                                <div className="mt-1 text-[13px] font-semibold text-black">
-                                  {formatPrice(activePriceRaw, currency)}
-                                </div>
-                              ) : (
-                                <div className="mt-1 text-[12px] text-black/45">
-                                  Цена уточняется
-                                </div>
-                              )}
-
-                              <div className="mt-1 text-[12px] text-black/45">
-                                Открыть товар →
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      ) : (
-                        <div className="mt-3 rounded-xl bg-black/[0.04] p-3">
-                          <div className="text-[14px] font-semibold text-black">
-                            Товар не найден
-                          </div>
-                          <div className="mt-1 text-[12px] text-black/55">
-                            slug: {activeSlug || "—"}
-                          </div>
-                          <div className="mt-2 text-[12px] text-black/45">
-                            Подожди 1–2 секунды: сейчас докачаю товар из Strapi
-                            по slug.
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {/* Описание справа */}
                   <div
-                    className={cn(
-                      "pointer-events-none absolute right-4 top-4 hidden md:flex",
-                      "z-[26]",
-                      "w-[340px] max-w-[40%]",
-                      "flex-col",
-                      "rounded-2xl border border-white/40",
-                      "bg-white/82 backdrop-blur-xl",
-                      "shadow-[0_18px_60px_rgba(0,0,0,0.12)]",
-                      "p-5",
-                    )}
-                    style={{ maxHeight: "calc(100% - 32px)" }}
+                    className="
+                      relative w-full
+                      h-[420px]
+                      sm:h-[480px]
+                      md:h-[560px]
+                      lg:h-[640px]
+                      xl:h-[720px]
+                    "
                   >
-                    <div>
-                      <div className="text-[18px] font-semibold tracking-[-0.01em] text-black">
-                        {current?.title || "Коллекция"}
-                      </div>
-                      {current?.description ? (
-                        <div className="mt-3 line-clamp-6 text-[13px] leading-[1.75] text-black/60">
-                          {current.description}
-                        </div>
-                      ) : null}
+                    {currentHeroSrc ? (
+                      <Image
+                        src={currentHeroSrc}
+                        alt={
+                          currentImg?.alternativeText ||
+                          current?.title ||
+                          "Коллекция"
+                        }
+                        fill
+                        sizes="(max-width: 768px) 100vw, 1200px"
+                        className="object-cover"
+                        priority
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-black/5" />
+                    )}
+
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent" />
+
+                    <div className="absolute left-3 top-3 rounded-full bg-white/80 px-3 py-1 text-[12px] text-black/70">
+                      {activeCollection + 1}/{safeCollections.length} •{" "}
+                      {activeImage + 1}/{currentImages.length}
                     </div>
 
-                    <div className="pointer-events-auto mt-4 flex items-center gap-2">
-                      {safeCollections.map((c, i) => (
-                        <button
-                          key={String(c.id)}
-                          type="button"
-                          aria-label={`Коллекция ${i + 1}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            holdFor();
-                            setCollectionIndex(i);
+                    {/* ✅ HOTSPOTS */}
+                    {hotspots.map((h) => (
+                      <button
+                        key={`${String(current?.id)}-${activeImage}-${h.id}`}
+                        type="button"
+                        data-hotspot
+                        onMouseEnter={() => {
+                          cancelClose();
+                          setOpenHotspotId(h.id);
+                          ensureOneProduct(String(h.productId || "").trim());
+                        }}
+                        onMouseLeave={() => scheduleClose()}
+                        onFocus={() => {
+                          cancelClose();
+                          setOpenHotspotId(h.id);
+                          ensureOneProduct(String(h.productId || "").trim());
+                        }}
+                        onBlur={() => scheduleClose()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          ensureOneProduct(String(h.productId || "").trim());
+                          setOpenHotspotId((prev) =>
+                            prev === h.id ? null : h.id,
+                          );
+                        }}
+                        className={cn(
+                          "absolute z-[70] h-16 w-16 -translate-x-1/2 -translate-y-1/2",
+                          "bg-transparent shadow-none ring-0",
+                          "cursor-pointer focus:outline-none",
+                          "focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+                          "transition-transform hover:scale-[1.02]",
+                        )}
+                        style={{ left: `${h.xPct}%`, top: `${h.yPct}%` }}
+                        aria-label="Открыть модуль"
+                      >
+                        {/* (маркер оставлен невидимым как hitbox) */}
+                        <span
+                          className="pointer-events-none absolute inset-0 rounded-full opacity-0"
+                          style={{
+                            background: "rgba(0,0,0,0.18)",
+                            boxShadow:
+                              "0 0 0 3px rgba(255,255,255,0.35), 0 14px 28px rgba(0,0,0,0.20)",
                           }}
-                          className={cn(
-                            "h-2 w-2 rounded-full transition",
-                            i === activeCollection
-                              ? "bg-black/70"
-                              : "bg-black/20 hover:bg-black/35",
-                          )}
-                          style={{ cursor: "pointer" }}
                         />
-                      ))}
+                      </button>
+                    ))}
+
+                    {/* Карточка товара */}
+                    {openHotspotId && activeHotspot ? (
+                      <div
+                        ref={cardRef}
+                        className={cn(
+                          "absolute z-[80]",
+                          "w-[320px] max-w-[86vw]",
+                          "rounded-2xl border border-white/40",
+                          "bg-white/88 backdrop-blur-xl",
+                          "shadow-[0_22px_70px_rgba(0,0,0,0.22)]",
+                          "p-3",
+                        )}
+                        style={{
+                          left: `${activeHotspot.xPct}%`,
+                          top: `${activeHotspot.yPct}%`,
+                          transform:
+                            computedSide === "left"
+                              ? "translate(calc(-100% - 14px), -50%)"
+                              : "translate(14px, -50%)",
+                        }}
+                        onMouseEnter={() => cancelClose()}
+                        onMouseLeave={() => scheduleClose()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-[11px] tracking-[0.18em] text-black/45">
+                            LIONETO • MODULE
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setOpenHotspotId(null);
+                            }}
+                            className="grid h-7 w-7 place-items-center rounded-full bg-black/5 transition hover:bg-black/8"
+                            style={{ cursor: "pointer" }}
+                            aria-label="Закрыть"
+                          >
+                            <X className="h-4 w-4 text-black/65" />
+                          </button>
+                        </div>
+
+                        {activeProduct ? (
+                          <Link
+                            href={`/product/${activeProduct.slug}`}
+                            className="mt-2 block"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => setOpenHotspotId(null)}
+                          >
+                            <div className="flex gap-3">
+                              <div className="relative h-[64px] w-[92px] overflow-hidden rounded-xl bg-white ring-1 ring-black/10">
+                                {activeProductImgSrc ? (
+                                  <Image
+                                    src={activeProductImgSrc}
+                                    alt={activeProduct.title}
+                                    fill
+                                    sizes="92px"
+                                    className="object-contain p-1.5"
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 bg-black/5" />
+                                )}
+                                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-black/[0.04] to-transparent" />
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="line-clamp-2 text-[14px] font-semibold leading-snug text-black">
+                                  {activeProduct.title}
+                                </div>
+
+                                {activePriceRaw ? (
+                                  <div className="mt-1 text-[13px] font-semibold text-black">
+                                    {formatPrice(activePriceRaw, currency)}
+                                  </div>
+                                ) : (
+                                  <div className="mt-1 text-[12px] text-black/45">
+                                    Цена уточняется
+                                  </div>
+                                )}
+
+                                <div className="mt-1 text-[12px] text-black/45">
+                                  Открыть товар →
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ) : (
+                          <div className="mt-3 rounded-xl bg-black/[0.04] p-3">
+                            <div className="text-[14px] font-semibold text-black">
+                              Товар не найден
+                            </div>
+                            <div className="mt-1 text-[12px] text-black/55">
+                              slug: {activeSlug || "—"}
+                            </div>
+                            <div className="mt-2 text-[12px] text-black/45">
+                              Подожди 1–2 секунды: сейчас докачаю товар из
+                              Strapi по slug.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {/* Описание справа */}
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute right-4 top-4 hidden md:flex",
+                        "z-[26]",
+                        "w-[340px] max-w-[40%]",
+                        "flex-col",
+                        "rounded-2xl border border-white/40",
+                        "bg-white/82 backdrop-blur-xl",
+                        "shadow-[0_18px_60px_rgba(0,0,0,0.12)]",
+                        "p-5",
+                      )}
+                      style={{ maxHeight: "calc(100% - 32px)" }}
+                    >
+                      <div>
+                        <div className="text-[18px] font-semibold tracking-[-0.01em] text-black">
+                          {current?.title || "Коллекция"}
+                        </div>
+                        {current?.description ? (
+                          <div className="mt-3 line-clamp-6 text-[13px] leading-[1.75] text-black/60">
+                            {current.description}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="pointer-events-auto mt-4 flex items-center gap-2">
+                        {safeCollections.map((c, i) => (
+                          <button
+                            key={String(c.id)}
+                            type="button"
+                            aria-label={`Коллекция ${i + 1}`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              holdFor();
+                              setCollectionIndex(i);
+                            }}
+                            className={cn(
+                              "h-2 w-2 rounded-full transition",
+                              i === activeCollection
+                                ? "bg-black/70"
+                                : "bg-black/20 hover:bg-black/35",
+                            )}
+                            style={{ cursor: "pointer" }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Mobile description */}
-            <div className="px-4 pb-4 pt-4 md:hidden">
-              <h3 className="text-[20px] font-semibold leading-snug tracking-[-0.01em] text-black">
-                {current?.title || "Коллекция"}
-              </h3>
+              {/* Mobile description */}
+              <div className="px-4 pb-4 pt-4 md:hidden">
+                <h3 className="text-[20px] font-semibold leading-snug tracking-[-0.01em] text-black">
+                  {current?.title || "Коллекция"}
+                </h3>
 
-              {current?.description && (
-                <p className="mt-3 whitespace-pre-line text-[14px] leading-[1.75] text-black/60">
-                  {current.description}
-                </p>
-              )}
+                {current?.description && (
+                  <p className="mt-3 whitespace-pre-line text-[14px] leading-[1.75] text-black/60">
+                    {current.description}
+                  </p>
+                )}
 
-              <div className="mt-4 flex items-center gap-2">
-                {safeCollections.map((c, i) => (
-                  <button
-                    key={String(c.id)}
-                    type="button"
-                    aria-label={`Коллекция ${i + 1}`}
-                    onClick={() => {
-                      holdFor();
-                      setCollectionIndex(i);
-                    }}
-                    className={cn(
-                      "h-2 w-2 rounded-full transition",
-                      i === activeCollection
-                        ? "bg-black/70"
-                        : "bg-black/20 hover:bg-black/35",
-                    )}
-                    style={{ cursor: "pointer" }}
-                  />
-                ))}
+                <div className="mt-4 flex items-center gap-2">
+                  {safeCollections.map((c, i) => (
+                    <button
+                      key={String(c.id)}
+                      type="button"
+                      aria-label={`Коллекция ${i + 1}`}
+                      onClick={() => {
+                        holdFor();
+                        setCollectionIndex(i);
+                      }}
+                      className={cn(
+                        "h-2 w-2 rounded-full transition",
+                        i === activeCollection
+                          ? "bg-black/70"
+                          : "bg-black/20 hover:bg-black/35",
+                      )}
+                      style={{ cursor: "pointer" }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
