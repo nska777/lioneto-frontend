@@ -71,7 +71,7 @@ export default function DealerLoginPage() {
             href="/cooperation?interest=dealer"
             className="inline-flex h-8 items-center justify-center rounded-[6px] border border-[#2E8B57] bg-white px-3 text-[12px] font-medium text-[#2E8B57] transition-colors hover:bg-[#2E8B57] hover:text-white"
           >
-            Стать дилером
+            Пройти регистрацию
           </Link>
         </div>
       </div>
