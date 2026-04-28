@@ -11,6 +11,10 @@ import {
   Clock,
   Check,
   Globe,
+  Building2,
+  FileText,
+  Hash,
+  Landmark,
 } from "lucide-react";
 
 import {
@@ -30,12 +34,15 @@ function cn(...s: Array<string | false | null | undefined>) {
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
+
 function isString(v: unknown): v is string {
   return typeof v === "string";
 }
+
 function getProp(o: unknown, key: string): unknown {
   return isRecord(o) ? o[key] : undefined;
 }
+
 function normalizeStr(v: unknown): string {
   if (v === null || v === undefined) return "";
   if (isString(v)) return v.trim();
@@ -61,6 +68,7 @@ function catItems(cat: unknown): unknown[] {
     getProp(cat, "list") ??
     getProp(cat, "collections") ??
     [];
+
   return Array.isArray(a) ? a : [];
 }
 
@@ -175,7 +183,7 @@ function RowBtn({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full text-left cursor-pointer select-none",
+        "w-full cursor-pointer select-none text-left",
         "px-4 py-3.5",
         "flex items-center justify-between gap-3",
         "transition hover:bg-black/[0.035]",
@@ -191,6 +199,7 @@ function RowBtn({
       >
         {children}
       </span>
+
       {right}
     </button>
   );
@@ -217,6 +226,7 @@ function RegionToggleMini({
       >
         UZ
       </button>
+
       <button
         type="button"
         onClick={() => onChange("ru")}
@@ -294,13 +304,112 @@ function StoreRowMini({
   );
 }
 
+function RussiaLegalMiniCard({
+  store,
+  active,
+  onClick,
+}: {
+  store: Store;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const legal = store.legalDetails;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full rounded-[18px] border p-3 text-left transition",
+        active
+          ? "border-[#ccb086] bg-[#f7f1e7]"
+          : "border-black/10 bg-white hover:bg-black/[0.02]",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+            active
+              ? "border-[#d8c3a5] bg-white text-[#8e6d3f]"
+              : "border-black/15 text-black/45",
+          )}
+        >
+          {active ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <Building2 className="h-4 w-4" />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold text-black/90">
+            {store.title}
+          </div>
+
+          <div className="mt-3 rounded-[16px] border border-[#d8c3a5] bg-white/80 p-3">
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9b7a4a]">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              Юридический адрес
+            </div>
+
+            <div className="text-[12px] font-medium leading-5 text-black/75">
+              {legal?.legalAddress ?? store.address}
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[16px] border border-black/10 bg-white p-3">
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-black/45">
+              <Landmark className="h-3.5 w-3.5 shrink-0" />
+              Реквизиты
+            </div>
+
+            <div className="grid gap-2 text-[12px] text-black/75">
+              {legal?.ogrn ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-black/[0.035] px-2.5 py-2">
+                  <span className="flex items-center gap-1.5 font-medium text-black/45">
+                    <Hash className="h-3.5 w-3.5 shrink-0" />
+                    ОГРН
+                  </span>
+                  <span className="font-semibold text-black">{legal.ogrn}</span>
+                </div>
+              ) : null}
+
+              {legal?.inn ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-black/[0.035] px-2.5 py-2">
+                  <span className="flex items-center gap-1.5 font-medium text-black/45">
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    ИНН
+                  </span>
+                  <span className="font-semibold text-black">{legal.inn}</span>
+                </div>
+              ) : null}
+
+              {legal?.kpp ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-black/[0.035] px-2.5 py-2">
+                  <span className="flex items-center gap-1.5 font-medium text-black/45">
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    КПП
+                  </span>
+                  <span className="font-semibold text-black">{legal.kpp}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function yandexEmbedUrl(query: string) {
   const q = encodeURIComponent(query);
-  return `https://yandex.ru/map-widget/v1/?ll=&z=11&text=${q}`;
+  return `https://yandex.ru/map-widget/v1/?z=15&text=${q}`;
 }
 
 function ContactsMiniBlock() {
   const [region, setRegion] = useState<RegionKey>("uz");
+
   const stores = useMemo(
     () => (region === "ru" ? RU_STORES : UZ_STORES),
     [region],
@@ -322,15 +431,20 @@ function ContactsMiniBlock() {
   };
 
   const isRu = region === "ru";
-  const mapTitle = isRu ? "Москва" : (activeStore?.title ?? "");
-  const mapQuery = isRu ? "Москва" : (activeStore?.mapQuery ?? "");
+
+  const mapTitle = isRu
+    ? (activeStore?.address ?? "")
+    : (activeStore?.title ?? "");
+
+  const mapQuery = activeStore?.mapQuery ?? activeStore?.address ?? "";
 
   return (
-    <div className="border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
+    <div className="overflow-hidden rounded-none border border-black/10 bg-white shadow-sm">
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-center justify-between gap-3">
           <RegionToggleMini value={region} onChange={onRegionChange} />
-          <div className="text-[11px] tracking-[0.18em] text-black/45 whitespace-nowrap">
+
+          <div className="whitespace-nowrap text-[11px] tracking-[0.18em] text-black/45">
             ВЫБРАНО:{" "}
             <span className="text-black/80">
               {isRu ? "РОССИЯ" : "УЗБЕКИСТАН"}
@@ -340,101 +454,75 @@ function ContactsMiniBlock() {
       </div>
 
       <div className="px-4 pb-4">
-        {!isRu ? (
-          <>
-            <div className="rounded-[22px] border border-black/10 bg-white p-3">
-              <div className="max-h-[320px] overflow-auto overscroll-contain p-2">
-                <div className="grid gap-3">
-                  {stores.map((s) => (
-                    <StoreRowMini
+        <div className="rounded-[22px] border border-black/10 bg-white p-3">
+          <div className="max-h-[320px] overflow-auto overscroll-contain p-2">
+            <div className="grid gap-3">
+              {stores.map((s) => {
+                if (isRu) {
+                  return (
+                    <RussiaLegalMiniCard
                       key={s.id}
                       store={s}
                       active={s.id === activeId}
                       onClick={() => setActiveId(s.id)}
                     />
-                  ))}
-                </div>
-              </div>
-            </div>
+                  );
+                }
 
-            {activeStore?.title ? (
-              <div className="mt-3 text-[11px] tracking-[0.18em] text-black/45">
-                Выбрано:{" "}
-                <span className="text-black/75">{activeStore.title}</span>
-              </div>
-            ) : null}
-
-            <div className="mt-3 overflow-hidden rounded-[22px] border border-black/10 bg-white">
-              <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
-                <div className="min-w-0">
-                  <div className="text-[10px] tracking-[0.18em] text-black/45">
-                    КАРТА
-                  </div>
-                  <div className="truncate text-[13px] font-medium text-black/85">
-                    {mapTitle}
-                  </div>
-                </div>
-
-                <a
-                  href={`https://yandex.ru/maps/?text=${encodeURIComponent(
-                    mapQuery,
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex shrink-0 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-medium tracking-[0.14em] text-black/70 transition hover:border-black/20 hover:text-black"
-                >
-                  ОТКРЫТЬ
-                </a>
-              </div>
-
-              <div className="relative h-[220px] w-full">
-                <iframe
-                  key={`${region}-${activeStore?.id}`}
-                  title="Yandex Map Mini"
-                  src={yandexEmbedUrl(mapQuery)}
-                  className="absolute inset-0 h-full w-full"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                />
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="overflow-hidden rounded-[22px] border border-black/10 bg-white">
-            <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
-              <div className="min-w-0">
-                <div className="text-[10px] tracking-[0.18em] text-black/45">
-                  КАРТА
-                </div>
-                <div className="truncate text-[13px] font-medium text-black/85">
-                  {mapTitle}
-                </div>
-              </div>
-
-              <a
-                href={`https://yandex.ru/maps/?text=${encodeURIComponent(
-                  mapQuery,
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex shrink-0 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-medium tracking-[0.14em] text-black/70 transition hover:border-black/20 hover:text-black"
-              >
-                ОТКРЫТЬ
-              </a>
-            </div>
-
-            <div className="relative h-[280px] w-full">
-              <iframe
-                key={`${region}-moscow`}
-                title="Yandex Map Mini Moscow"
-                src={yandexEmbedUrl(mapQuery)}
-                className="absolute inset-0 h-full w-full"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
+                return (
+                  <StoreRowMini
+                    key={s.id}
+                    store={s}
+                    active={s.id === activeId}
+                    onClick={() => setActiveId(s.id)}
+                  />
+                );
+              })}
             </div>
           </div>
-        )}
+        </div>
+
+        {activeStore?.title ? (
+          <div className="mt-3 text-[11px] tracking-[0.18em] text-black/45">
+            Выбрано: <span className="text-black/75">{activeStore.title}</span>
+          </div>
+        ) : null}
+
+        <div className="mt-3 overflow-hidden rounded-[22px] border border-black/10 bg-white">
+          <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-[10px] tracking-[0.18em] text-black/45">
+                КАРТА
+              </div>
+
+              <div className="truncate text-[13px] font-medium text-black/85">
+                {mapTitle}
+              </div>
+            </div>
+
+            <a
+              href={`https://yandex.ru/maps/?text=${encodeURIComponent(
+                mapQuery,
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-medium tracking-[0.14em] text-black/70 transition hover:border-black/20 hover:text-black"
+            >
+              ОТКРЫТЬ
+            </a>
+          </div>
+
+          <div className="relative h-[240px] w-full">
+            <iframe
+              key={`${region}-${activeStore?.id}`}
+              title="Yandex Map Mini"
+              src={yandexEmbedUrl(mapQuery)}
+              className="absolute inset-0 h-full w-full"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -459,7 +547,7 @@ function LanguageMiniBlock({
           type="button"
           onClick={() => setLang("ru")}
           className={cn(
-            "h-9 rounded-full px-4 text-[12px] tracking-[0.14em] transition cursor-pointer",
+            "h-9 cursor-pointer rounded-full px-4 text-[12px] tracking-[0.14em] transition",
             lang === "ru"
               ? "bg-black text-white"
               : "text-black/70 hover:bg-black/5 hover:text-black",
@@ -467,11 +555,12 @@ function LanguageMiniBlock({
         >
           RU
         </button>
+
         <button
           type="button"
           onClick={() => setLang("uz")}
           className={cn(
-            "h-9 rounded-full px-4 text-[12px] tracking-[0.14em] transition cursor-pointer",
+            "h-9 cursor-pointer rounded-full px-4 text-[12px] tracking-[0.14em] transition",
             lang === "uz"
               ? "bg-black text-white"
               : "text-black/70 hover:bg-black/5 hover:text-black",
@@ -518,6 +607,7 @@ export default function MobileMenu({
       width: body.style.width,
       overflow: body.style.overflow,
     };
+
     const prevHtmlOverflow = html.style.overflow;
 
     body.style.position = "fixed";
@@ -544,10 +634,13 @@ export default function MobileMenu({
 
   useEffect(() => {
     if (!open) return;
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+
     document.addEventListener("keydown", onKey);
+
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
@@ -558,6 +651,7 @@ export default function MobileMenu({
       .filter(Boolean)
       .map((c, idx) => {
         const title = catTitle(c);
+
         const items = catItems(c)
           .map(
             (it): RoomItem => ({
@@ -568,6 +662,7 @@ export default function MobileMenu({
           .filter((x) => x.title && x.href);
 
         const keyBase = normKey(title) || `room-${idx}`;
+
         return { key: keyBase, title, items };
       })
       .filter((r) => r.title);
@@ -579,10 +674,12 @@ export default function MobileMenu({
   const onToggleCatalog = () => {
     setCatalogOpen((v) => {
       const next = !v;
+
       if (next) {
         const firstKey = rooms[0]?.key ?? "";
         setOpenRoomKey((prev) => prev || firstKey);
       }
+
       return next;
     });
   };
@@ -624,7 +721,7 @@ export default function MobileMenu({
           <button
             type="button"
             onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full transition hover:bg-black/[0.05] cursor-pointer"
+            className="grid h-10 w-10 cursor-pointer place-items-center rounded-full transition hover:bg-black/[0.05]"
             aria-label="Close menu"
           >
             <X className="h-5 w-5 text-black/55" />
@@ -634,7 +731,7 @@ export default function MobileMenu({
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
           <LanguageMiniBlock lang={lang} setLang={setLang} />
 
-          <div className="mt-3 border border-black/10 bg-white shadow-sm rounded-none overflow-hidden">
+          <div className="mt-3 overflow-hidden rounded-none border border-black/10 bg-white shadow-sm">
             <RowBtn
               strong
               upper
@@ -653,6 +750,7 @@ export default function MobileMenu({
             {catalogOpen ? (
               <div>
                 <Divider />
+
                 {rooms.map((r, idx) => {
                   const isOpen = openRoomKey === r.key;
 
@@ -703,6 +801,7 @@ export default function MobileMenu({
                   external={l.isExternal}
                   onClick={onClose}
                 />
+
                 {idx !== menuLinks.length - 1 ? <Divider /> : null}
               </div>
             ))}

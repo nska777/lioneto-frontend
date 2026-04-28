@@ -1,13 +1,20 @@
 export type RegionKey = "uz" | "ru";
 
+export type StoreLegalDetails = {
+  ogrn?: string;
+  inn?: string;
+  kpp?: string;
+  legalAddress?: string;
+};
+
 export type Store = {
   id: string;
   title: string;
   phone?: string;
   address: string;
   hours?: string;
-  // для карты — текст запроса (Yandex maps ищет по нему)
   mapQuery: string;
+  legalDetails?: StoreLegalDetails;
 };
 
 export const UZ_STORES: Store[] = [
@@ -47,35 +54,18 @@ export const UZ_STORES: Store[] = [
 
 export const RU_STORES: Store[] = [
   {
-    id: "ru-1",
-    title: 'Москва • МЦ "Гранд"',
-    phone: "+7 (495) 565-37-55 доб. 101",
-    address: "Ленинградское ш., 4 • МЦ «Гранд», 3 этаж",
-    hours: "10:00 — 21:00",
-    mapQuery: "Москва МЦ Гранд Ленинградское шоссе 4",
-  },
-  {
-    id: "ru-2",
-    title: 'Москва • МЦ "Империя"',
-    phone: "+7 (495) 565-37-55 доб. 301",
-    address: "Дмитровское ш., 161Б • МЦ «Империя», 3 этаж",
-    hours: "10:00 — 21:00",
-    mapQuery: "Москва Дмитровское шоссе 161Б МЦ Империя",
-  },
-  {
-    id: "ru-3",
-    title: "Москва • ТК «ТРИ КИТА»",
-    phone: "+7 (495) 565-37-55 доб. 701",
-    address: "Одинцовский р-н, Новоивановское, ул. Луговая, 1",
-    hours: "10:00 — 21:00",
-    mapQuery: "ТК Три Кита Новоивановское Луговая 1",
-  },
-  {
-    id: "ru-4",
-    title: "Тверь • МЦ «Тандем»",
-    phone: "+7 (4822) 00-00-00",
-    address: "пр-т Октябрьский, 70 • МЦ «Тандем»",
-    hours: "10:00 — 20:00",
-    mapQuery: "Тверь проспект Октябрьский 70",
+    id: "ru-comfort-plus",
+    title: 'ООО "КОМФОРТ ПЛЮС"',
+    address:
+      "109443, г. Москва, вн.тер.г. муниципальный округ Кузьминки, пр-кт Волгоградский, д. 135 к. 3, помещ. 7М",
+    mapQuery:
+      "109443, Москва, Волгоградский проспект, 135 к 3, помещение 7М",
+    legalDetails: {
+      ogrn: "1267700104352",
+      inn: "9721264165",
+      kpp: "772101001",
+      legalAddress:
+        "109443, г. Москва, вн.тер.г. муниципальный округ Кузьминки, пр-кт Волгоградский, д. 135 к. 3, помещ. 7М",
+    },
   },
 ];

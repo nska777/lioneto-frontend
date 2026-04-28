@@ -3,7 +3,18 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { MapPin, Phone, Clock, Check, Instagram, Send } from "lucide-react";
+import {
+  MapPin,
+  Phone,
+  Clock,
+  Check,
+  Instagram,
+  Send,
+  Building2,
+  FileText,
+  Hash,
+  Landmark,
+} from "lucide-react";
 
 import {
   UZ_STORES,
@@ -30,7 +41,7 @@ function RegionToggle({
         type="button"
         onClick={() => onChange("ru")}
         className={cn(
-          "h-9 px-5 rounded-full text-[12px] font-medium tracking-[0.18em] transition cursor-pointer",
+          "h-9 cursor-pointer rounded-full px-5 text-[12px] font-medium tracking-[0.18em] transition",
           value === "ru"
             ? "bg-black text-white"
             : "text-black/70 hover:text-black",
@@ -38,11 +49,12 @@ function RegionToggle({
       >
         РОССИЯ
       </button>
+
       <button
         type="button"
         onClick={() => onChange("uz")}
         className={cn(
-          "h-9 px-5 rounded-full text-[12px] font-medium tracking-[0.18em] transition cursor-pointer",
+          "h-9 cursor-pointer rounded-full px-5 text-[12px] font-medium tracking-[0.18em] transition",
           value === "uz"
             ? "bg-black text-white"
             : "text-black/70 hover:text-black",
@@ -129,7 +141,7 @@ function StoreRow({
       <div className="flex items-start gap-3">
         <div
           className={cn(
-            "mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl border",
+            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border",
             featured
               ? "border-[#d8c3a5] bg-white text-[#8e6d3f]"
               : active
@@ -155,35 +167,138 @@ function StoreRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div
-              className={cn(
-                "text-[14px] font-semibold tracking-[-0.01em]",
-                featured ? "text-black" : "text-black/90",
-              )}
-            >
-              {store.title}
-            </div>
+          <div
+            className={cn(
+              "text-[14px] font-semibold tracking-[-0.01em]",
+              featured ? "text-black" : "text-black/90",
+            )}
+          >
+            {store.title}
           </div>
 
-          {store.phone && (
+          {store.phone ? (
             <div className="mt-2 flex items-center gap-2 text-[13px] text-black/70">
-              <Phone className="h-4 w-4 text-black/40" />
+              <Phone className="h-4 w-4 shrink-0 text-black/40" />
               <span className="truncate">{store.phone}</span>
             </div>
-          )}
+          ) : null}
 
           <div className="mt-2 flex items-start gap-2 text-[13px] text-black/70">
-            <MapPin className="mt-0.5 h-4 w-4 text-black/40" />
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-black/40" />
             <span className="leading-6">{store.address}</span>
           </div>
 
-          {store.hours && (
+          {store.hours ? (
             <div className="mt-2 flex items-center gap-2 text-[13px] text-black/70">
-              <Clock className="h-4 w-4 text-black/40" />
+              <Clock className="h-4 w-4 shrink-0 text-black/40" />
               <span>{store.hours}</span>
             </div>
+          ) : null}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function RussiaCompanyCard({
+  active,
+  store,
+  onClick,
+}: {
+  active: boolean;
+  store: Store;
+  onClick: () => void;
+}) {
+  const legal = store.legalDetails;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative w-full cursor-pointer rounded-3xl border p-5 text-left transition",
+        active
+          ? "border-[#ccb086] bg-[#f7f1e7] shadow-[0_8px_24px_rgba(0,0,0,0.05)]"
+          : "border-black/10 bg-white hover:border-black/20",
+      )}
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <span className="text-[10px] tracking-[0.18em] text-[#9b7a4a]">
+          РОССИЯ
+        </span>
+      </div>
+
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-[#d8c3a5] bg-white text-[#8e6d3f]">
+          {active ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <Building2 className="h-4 w-4" />
           )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold text-black">
+            {store.title}
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <div className="rounded-2xl border border-[#d8c3a5] bg-white/80 p-4">
+              <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9b7a4a]">
+                <MapPin className="h-4 w-4 shrink-0" />
+                Юридический адрес
+              </div>
+
+              <div className="text-[13px] font-semibold leading-6 text-black/75">
+                {legal?.legalAddress ?? store.address}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
+              <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-black/45">
+                <Landmark className="h-4 w-4 shrink-0" />
+                Реквизиты
+              </div>
+
+              <div className="grid gap-2.5 text-[13px] text-black/75">
+                {legal?.ogrn ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.035] px-3 py-2">
+                    <span className="flex items-center gap-2 font-medium text-black/45">
+                      <Hash className="h-4 w-4 shrink-0" />
+                      ОГРН
+                    </span>
+                    <span className="font-semibold text-black">
+                      {legal.ogrn}
+                    </span>
+                  </div>
+                ) : null}
+
+                {legal?.inn ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.035] px-3 py-2">
+                    <span className="flex items-center gap-2 font-medium text-black/45">
+                      <FileText className="h-4 w-4 shrink-0" />
+                      ИНН
+                    </span>
+                    <span className="font-semibold text-black">
+                      {legal.inn}
+                    </span>
+                  </div>
+                ) : null}
+
+                {legal?.kpp ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-black/[0.035] px-3 py-2">
+                    <span className="flex items-center gap-2 font-medium text-black/45">
+                      <FileText className="h-4 w-4 shrink-0" />
+                      КПП
+                    </span>
+                    <span className="font-semibold text-black">
+                      {legal.kpp}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </button>
@@ -192,7 +307,7 @@ function StoreRow({
 
 function yandexEmbedUrl(query: string) {
   const q = encodeURIComponent(query);
-  return `https://yandex.ru/map-widget/v1/?ll=&z=11&text=${q}`;
+  return `https://yandex.ru/map-widget/v1/?z=15&text=${q}`;
 }
 
 export default function ContactsClient() {
@@ -213,8 +328,9 @@ export default function ContactsClient() {
   );
 
   const isRu = region === "ru";
-  const mapTitle = isRu ? "Москва" : (activeStore?.title ?? "");
-  const mapQuery = isRu ? "Москва" : (activeStore?.mapQuery ?? "");
+
+  const mapTitle = activeStore?.title ?? "";
+  const mapQuery = activeStore?.mapQuery ?? activeStore?.address ?? "";
 
   useLayoutEffect(() => {
     setActiveId(stores[0]?.id ?? "");
@@ -269,45 +385,49 @@ export default function ContactsClient() {
         </div>
       </div>
 
-      <div
-        className={cn(
-          "mt-6 grid gap-4 md:gap-6",
-          isRu ? "grid-cols-1" : "md:grid-cols-12",
-        )}
-      >
-        {!isRu && (
-          <div data-reveal className="md:col-span-5">
-            <div className="rounded-3xl border border-black/10 bg-white p-3">
-              <div className="max-h-[520px] overflow-auto p-2">
-                <div className="grid gap-3">
-                  {stores.map((s, index) => {
-                    const featured =
-                      index === 0 ||
-                      s.title.toLowerCase().includes("rich house");
+      <div className="mt-6 grid gap-4 md:grid-cols-12 md:gap-6">
+        <div data-reveal className="md:col-span-5">
+          <div className="rounded-3xl border border-black/10 bg-white p-3">
+            <div className="max-h-[520px] overflow-auto p-2">
+              <div className="grid gap-3">
+                {stores.map((s, index) => {
+                  const featured =
+                    index === 0 || s.title.toLowerCase().includes("rich house");
 
+                  if (isRu) {
                     return (
-                      <StoreRow
+                      <RussiaCompanyCard
                         key={s.id}
                         store={s}
-                        featured={featured}
                         active={s.id === activeId}
                         onClick={() => setActiveId(s.id)}
                       />
                     );
-                  })}
-                </div>
+                  }
+
+                  return (
+                    <StoreRow
+                      key={s.id}
+                      store={s}
+                      featured={featured}
+                      active={s.id === activeId}
+                      onClick={() => setActiveId(s.id)}
+                    />
+                  );
+                })}
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        <div data-reveal className={isRu ? "" : "md:col-span-7"}>
+        <div data-reveal className="md:col-span-7">
           <div className="overflow-hidden rounded-3xl border border-black/10 bg-white">
             <div className="flex items-center justify-between gap-3 border-b border-black/10 px-5 py-4">
               <div className="min-w-0">
                 <div className="text-[12px] tracking-[0.18em] text-black/50">
                   КАРТА
                 </div>
+
                 <div className="truncate text-[14px] font-semibold text-black/85">
                   {mapTitle}
                 </div>
