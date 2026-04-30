@@ -8,7 +8,12 @@ import {
   FACADE_ITEMS,
   VITRINI_FACADE_ITEMS,
 } from "./catalog-constants";
-import { norm, getRoomSlug, getCollectionSlug, getModuleSlug } from "./catalog-utils";
+import {
+  norm,
+  getRoomSlug,
+  getCollectionSlug,
+  getModuleSlug,
+} from "./catalog-utils";
 
 import type { SortKey } from "./useCatalogParams";
 import type { FiltersValue } from "./FiltersSidebar";
@@ -27,7 +32,23 @@ function getStr(obj: UnknownRecord, key: string): string | undefined {
 
 function getNum(obj: UnknownRecord, key: string): number | undefined {
   const v = obj[key];
-  return typeof v === "number" ? v : undefined;
+
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+
+  if (typeof v === "string") {
+    const n = Number(
+      v
+        .replace(/\u00A0/g, " ")
+        .replace(/\u202F/g, " ")
+        .replace(/\s+/g, "")
+        .replace(/,/g, ".")
+        .trim(),
+    );
+
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  return undefined;
 }
 
 function getNestedRecord(obj: UnknownRecord, key: string): UnknownRecord | null {
@@ -44,6 +65,133 @@ function idToString(v: unknown): string {
   if (typeof v === "string") return v;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return "";
+}
+
+function cleanSlug(v: unknown) {
+  const s = norm(String(v ?? ""));
+
+  /**
+   * На фронте у нас фильтр коллекции обычно scandi,
+   * а в Excel/Strapi может быть scandy.
+   */
+  if (s === "scandy") return "scandi";
+
+  return s;
+}
+
+function isRoomSlug(v: string) {
+  return (
+    v === "bedrooms" ||
+    v === "living" ||
+    v === "youth" ||
+    v === "hallway" ||
+    v === "tables_chairs"
+  );
+}
+
+function isSceneProduct(p: UnknownRecord) {
+  const module = cleanSlug(getStr(p, "module") || "");
+  const slug = cleanSlug(getStr(p, "slug") || "");
+  const cat = cleanSlug(getStr(p, "cat") || "");
+  const collection = cleanSlug(getStr(p, "collection") || "");
+
+  /**
+   * Главный признак scene:
+   * module=scene или slug начинается с scene-.
+   *
+   * Дополнительно страхуемся:
+   * если slug содержит scene и cat/collection похожи на комнату.
+   */
+  return (
+    module === "scene" ||
+    slug.startsWith("scene-") ||
+    (slug.includes("scene") && isRoomSlug(cat)) ||
+    (slug.includes("scene") && isRoomSlug(collection))
+  );
+}
+
+function getCollectionSlugSafe(p: UnknownRecord) {
+  const scene = isSceneProduct(p);
+
+  const brand = cleanSlug(getStr(p, "brand") || "");
+  const collection = cleanSlug(getStr(p, "collection") || "");
+  const collectionSlug = cleanSlug(getStr(p, "collectionSlug") || "");
+  const brandSlug = cleanSlug(getStr(p, "brandSlug") || "");
+
+  /**
+   * ВАЖНО:
+   * scene-карточка может иметь collection=bedrooms/living/youth,
+   * но настоящая коллекция у неё лежит в brand=amber/scandy/etc.
+   */
+  if (scene && brand) return brand;
+
+  const direct = collection || brand || collectionSlug || brandSlug;
+  if (direct) return direct;
+
+  try {
+    return cleanSlug(getCollectionSlug(p as ProductAny));
+  } catch {
+    return "";
+  }
+}
+
+function getModuleSlugSafe(p: UnknownRecord) {
+  if (isSceneProduct(p)) return "scene";
+
+  const direct =
+    getStr(p, "module") ||
+    getStr(p, "cat") ||
+    getStr(p, "moduleSlug") ||
+    getStr(p, "category");
+
+  if (direct) return cleanSlug(direct);
+
+  try {
+    return cleanSlug(getModuleSlug(p as ProductAny));
+  } catch {
+    return "";
+  }
+}
+
+function getRoomSlugSafe(p: UnknownRecord) {
+  const cat = cleanSlug(getStr(p, "cat") || "");
+  const collection = cleanSlug(getStr(p, "collection") || "");
+  const room = cleanSlug(getStr(p, "room") || "");
+  const menu = cleanSlug(getStr(p, "menu") || "");
+  const category = cleanSlug(getStr(p, "category") || "");
+  const slug = cleanSlug(getStr(p, "slug") || "");
+
+  if (room && ROOM_MENUS_SET.has(room)) return room;
+  if (menu && ROOM_MENUS_SET.has(menu)) return menu;
+
+  /**
+   * Для scene-карточек комната обычно лежит в cat:
+   * cat=bedrooms/living/youth.
+   */
+  if (cat && ROOM_MENUS_SET.has(cat)) return cat;
+
+  if (collection && ROOM_MENUS_SET.has(collection)) return collection;
+  if (category && ROOM_MENUS_SET.has(category)) return category;
+
+  if (slug.includes("bedroom") || slug.includes("spal")) return "bedrooms";
+  if (slug.includes("living") || slug.includes("gost")) return "living";
+  if (slug.includes("youth") || slug.includes("molod")) return "youth";
+
+  try {
+    return cleanSlug(getRoomSlug(p as ProductAny));
+  } catch {
+    return "";
+  }
+}
+
+function isActiveProduct(p: UnknownRecord) {
+  if (p.isActive === false) return false;
+
+  if (Object.prototype.hasOwnProperty.call(p, "publishedAt")) {
+    if (p.publishedAt === null) return false;
+  }
+
+  return true;
 }
 
 export function useCatalogData({
@@ -65,9 +213,9 @@ export function useCatalogData({
   selectedFacades: string[];
   baseItems: unknown[];
 }) {
-  const menu = sidebarValue.menu;
-  const collections = sidebarValue.collections;
-  const types = sidebarValue.types;
+  const menu = sidebarValue.menu.map(cleanSlug).filter(Boolean);
+  const collections = sidebarValue.collections.map(cleanSlug).filter(Boolean);
+  const types = sidebarValue.types.map(cleanSlug).filter(Boolean);
   const priceMin = sidebarValue.priceMin;
   const priceMax = sidebarValue.priceMax;
 
@@ -75,214 +223,231 @@ export function useCatalogData({
   const activeCollection = collections[0] || "";
   const activeModule = types[0] || "";
 
-  const isRoomMode = !!activeRoom && ROOM_MENUS_SET.has(norm(activeRoom));
+  const isRoomMode = !!activeRoom && ROOM_MENUS_SET.has(activeRoom);
   const isDoorsFacadeUI = activeModule === "shkafy" || activeModule === "vitrini";
 
   const facadeItems =
     activeModule === "vitrini" ? VITRINI_FACADE_ITEMS : FACADE_ITEMS;
 
-  const DATA = useMemo<unknown[]>(
-    () => (Array.isArray(baseItems) ? baseItems : []),
-    [baseItems]
+  const DATA = useMemo<UnknownRecord[]>(
+    () => (Array.isArray(baseItems) ? baseItems.filter(isRecord) : []),
+    [baseItems],
   );
 
-  const { bedroomsFirst, bedroomsFirstList, collectionRest, sorted } = useMemo(() => {
-    const needle = (qFromUrl || "").toLowerCase().trim();
+  const { bedroomsFirst, bedroomsFirstList, collectionRest, sorted } =
+    useMemo(() => {
+      const needle = (qFromUrl || "").toLowerCase().trim();
 
-    const hasRoom = menu.length > 0;
-    const hasCollection = collections.length > 0;
-    const hasModule = types.length > 0;
+      const hasRoom = menu.length > 0;
+      const hasCollection = collections.length > 0;
+      const hasModule = types.length > 0;
 
- 
-    const shouldIgnoreRoomFilter = hasRoom && (hasCollection || hasModule);
+      const isDoorFacadeFilter =
+        types.includes("shkafy") || types.includes("vitrini");
 
+      const doorsSet = new Set(selectedDoors);
+      const facadeSet = new Set(selectedFacades);
 
-    const isDoorFacadeFilter = types.includes("shkafy") || types.includes("vitrini");
+      const safePriceOf = (pAny: unknown) => {
+        if (!isRecord(pAny)) return 0;
 
-    const doorsSet = new Set(selectedDoors);
-    const facadeSet = new Set(selectedFacades);
+        const raw =
+          region === "uz"
+            ? getNum(pAny, "priceUZS") ??
+              getNum(pAny, "priceUzs") ??
+              getNum(pAny, "price_uzs") ??
+              getNum(pAny, "priceUZSBase") ??
+              getNum(pAny, "priceUzsBase")
+            : getNum(pAny, "priceRUB") ??
+              getNum(pAny, "priceRub") ??
+              getNum(pAny, "price_rub") ??
+              getNum(pAny, "priceRUBBase") ??
+              getNum(pAny, "priceRubBase");
 
+        const n1 = toNum(raw);
+        if (n1 > 0) return n1;
 
-    const safePriceOf = (pAny: unknown) => {
-      if (!isRecord(pAny)) return 0;
+        const n2 = toNum(priceOf(pAny as ProductAny));
+        return n2;
+      };
 
-      const raw =
-        region === "uz"
-          ? getNum(pAny, "priceUZS") ??
-            getNum(pAny, "priceUzs") ??
-            getNum(pAny, "price_uzs") ??
-            getNum(pAny, "priceUZSBase") ??
-            getNum(pAny, "priceUzsBase")
-          : getNum(pAny, "priceRUB") ??
-            getNum(pAny, "priceRub") ??
-            getNum(pAny, "price_rub") ??
-            getNum(pAny, "priceRUBBase") ??
-            getNum(pAny, "priceRubBase");
+      const minBound = Math.max(0, toNum(priceMin));
+      const maxRaw = toNum(priceMax);
+      const maxBound = maxRaw > 0 ? maxRaw : Number.POSITIVE_INFINITY;
 
-      const n1 = toNum(raw);
-      if (n1 > 0) return n1;
-
-      const n2 = toNum(priceOf(pAny as ProductAny));
-      return n2;
-    };
-
-   
-    const minBound = Math.max(0, toNum(priceMin));
-    const maxRaw = toNum(priceMax);
-    const maxBound = maxRaw > 0 ? maxRaw : Number.POSITIVE_INFINITY;
-
-    const baseFiltered = DATA.filter((pAny) => {
-      if (!isRecord(pAny)) return false;
-      const p = pAny as ProductAny;
-
-      const room = getRoomSlug(p);
-      const isScene = ROOM_MENUS_SET.has(norm(room)); // сцены: bedrooms/living/youth
-      const col = getCollectionSlug(p);
-
-      // ROOM — только если НЕ игнорим room
-      if (!shouldIgnoreRoomFilter) {
-        if (menu.length) {
-          if (room && !menu.includes(room)) return false;
-        }
-      }
-
-      // COLLECTION — всегда
-      if (collections.length) {
-        if (!collections.includes(col)) return false;
-      }
-
-      // MODULE — только для НЕ-сцен
-      const mod = getModuleSlug(p);
-      if (hasModule && !isScene) {
-        if (!types.includes(mod)) return false;
-
-        // doors/facade для шкафов/витрин
-        if (isDoorFacadeFilter && (mod === "shkafy" || mod === "vitrini")) {
-          const attrs = getNestedRecord(p, "attrs");
-
-          if (doorsSet.size) {
-            const d = attrs ? idToString(attrs["doors"]) : "";
-            if (!doorsSet.has(d)) return false;
-          }
-          if (facadeSet.size) {
-            const f = attrs ? idToString(attrs["facade"]) : "";
-            if (!facadeSet.has(f)) return false;
-          }
-        }
-      }
-
-      const price = safePriceOf(pAny);
-      if (price < minBound) return false;
-      if (price > maxBound) return false;
-
-      // SEARCH
-      if (needle) {
-        const title = getStr(p, "title") ?? "";
-        const badge = getStr(p, "badge") ?? "";
-        const hay = `${title} ${badge}`.toLowerCase();
-        if (!hay.includes(needle)) return false;
-      }
-
-      return true;
-    });
-
-
-    const priorityRoom = hasRoom ? norm(activeRoom) : "bedrooms";
-
-    const pickScenes = (roomSlug: string) =>
-      DATA.filter((x): x is ProductAny => isRecord(x)).filter((p) => {
-        const room = norm(getRoomSlug(p));
-        const isScene = ROOM_MENUS_SET.has(room);
-        if (!isScene) return false;
-
-        if (room !== roomSlug) return false;
-
-        if (activeCollection) {
-          if (getCollectionSlug(p) !== activeCollection) return false;
-        }
-
-
+      const passesTextAndPrice = (p: UnknownRecord) => {
         const price = safePriceOf(p);
-        if (price < minBound) return false;
-        if (price > maxBound) return false;
+
+        /**
+         * Scene-карточку не режем ценовым фильтром, потому что у неё часто цена 0.
+         * Обычные товары режем по цене как раньше.
+         */
+        if (!isSceneProduct(p)) {
+          if (price < minBound) return false;
+          if (price > maxBound) return false;
+        }
 
         if (needle) {
           const title = getStr(p, "title") ?? "";
           const badge = getStr(p, "badge") ?? "";
-          const hay = `${title} ${badge}`.toLowerCase();
+          const sku = getStr(p, "sku") ?? "";
+          const articleShort = getStr(p, "articleShort") ?? "";
+          const slug = getStr(p, "slug") ?? "";
+          const hay =
+            `${title} ${badge} ${sku} ${articleShort} ${slug}`.toLowerCase();
+
           if (!hay.includes(needle)) return false;
         }
 
         return true;
+      };
+
+      /**
+       * Если выбрана комната — scene ищем по ней.
+       * Если комната не выбрана — по умолчанию спальни.
+       */
+      const priorityRoom = hasRoom ? activeRoom : "bedrooms";
+
+      /**
+       * 1. Сначала scene-карточки выбранной коллекции.
+       */
+      const scenesTop = DATA.filter((p) => {
+        if (!isActiveProduct(p)) return false;
+        if (!isSceneProduct(p)) return false;
+
+        const sceneRoom = getRoomSlugSafe(p);
+        const sceneCollection = getCollectionSlugSafe(p);
+
+        if (priorityRoom && sceneRoom && sceneRoom !== priorityRoom) {
+          return false;
+        }
+
+        if (activeCollection && sceneCollection !== activeCollection) {
+          return false;
+        }
+
+        return passesTextAndPrice(p);
+      }).sort((a, b) => {
+        const sa = toNum(a.sortOrder);
+        const sb = toNum(b.sortOrder);
+
+        if (sa !== sb) return sa - sb;
+
+        const ta = getStr(a, "title") ?? "";
+        const tb = getStr(b, "title") ?? "";
+
+        return ta.localeCompare(tb, "ru");
       });
 
-    let scenesTop = pickScenes(priorityRoom);
+      const sceneIds = new Set(scenesTop.map((p) => idToString(p.id)));
 
-  
-    if (!hasRoom && !scenesTop.length) {
-      scenesTop = pickScenes("bedrooms");
-    }
+      /**
+       * 2. Потом обычные товары/модули.
+       */
+      const rest = DATA.filter((p) => {
+        if (!isActiveProduct(p)) return false;
 
- 
-    const topIds = new Set(scenesTop.map((p) => idToString(p.id)));
+        const id = idToString(p.id);
+        if (sceneIds.has(id)) return false;
 
-    const rest = baseFiltered.filter((p) => {
-      if (!isRecord(p)) return false;
+        /**
+         * Scene-карточки не должны попадать в обычную сетку второй раз.
+         */
+        if (isSceneProduct(p)) return false;
 
-      const pid = idToString(p.id);
-      if (topIds.has(pid)) return false;
+        const room = getRoomSlugSafe(p);
+        const col = getCollectionSlugSafe(p);
+        const mod = getModuleSlugSafe(p);
 
-      const room = norm(getRoomSlug(p as ProductAny));
-      const isScene = ROOM_MENUS_SET.has(room);
-      if (isScene) return false;
+        /**
+         * Если выбрана коллекция, НЕ режем обычные товары по bedrooms,
+         * потому что у товаров cat=krovati/shkafy/tumby и т.д.
+         */
+        if (!hasCollection && hasRoom) {
+          if (room && !menu.includes(room)) return false;
+        }
 
-      return true;
-    });
+        if (hasCollection) {
+          if (!collections.includes(col)) return false;
+        }
 
-    const restSorted = [...rest];
+        if (hasModule) {
+          if (!types.includes(mod)) return false;
 
-    switch (sort) {
-      case "title_asc":
-        restSorted.sort((a, b) => {
-          const ta = isRecord(a) ? (getStr(a, "title") ?? "") : "";
-          const tb = isRecord(b) ? (getStr(b, "title") ?? "") : "";
-          return ta.localeCompare(tb, "ru");
-        });
-        break;
-      case "price_asc":
-        restSorted.sort((a, b) => safePriceOf(a) - safePriceOf(b));
-        break;
-      case "price_desc":
-        restSorted.sort((a, b) => safePriceOf(b) - safePriceOf(a));
-        break;
-      default:
-        break;
-    }
+          if (isDoorFacadeFilter && (mod === "shkafy" || mod === "vitrini")) {
+            const attrs = getNestedRecord(p, "attrs");
 
-    const fullSorted = scenesTop.length ? [...scenesTop, ...restSorted] : restSorted;
+            if (doorsSet.size) {
+              const d = attrs ? idToString(attrs["doors"]) : "";
+              if (!doorsSet.has(d)) return false;
+            }
 
-    return {
-      bedroomsFirst: scenesTop[0] || null,
-      bedroomsFirstList: scenesTop,
-      collectionRest: restSorted,
-      sorted: fullSorted,
-    };
-  }, [
-    DATA,
-    qFromUrl,
-    region,
-    sort,
-    menu,
-    collections,
-    types,
-    priceMin,
-    priceMax,
-    selectedDoors,
-    selectedFacades,
-    activeRoom,
-    activeCollection,
-    priceOf,
-  ]);
+            if (facadeSet.size) {
+              const f = attrs ? idToString(attrs["facade"]) : "";
+              if (!facadeSet.has(f)) return false;
+            }
+          }
+        }
+
+        return passesTextAndPrice(p);
+      });
+
+      const restSorted = [...rest];
+
+      switch (sort) {
+        case "title_asc":
+          restSorted.sort((a, b) => {
+            const ta = getStr(a, "title") ?? "";
+            const tb = getStr(b, "title") ?? "";
+            return ta.localeCompare(tb, "ru");
+          });
+          break;
+
+        case "price_asc":
+          restSorted.sort((a, b) => safePriceOf(a) - safePriceOf(b));
+          break;
+
+        case "price_desc":
+          restSorted.sort((a, b) => safePriceOf(b) - safePriceOf(a));
+          break;
+
+        default:
+          restSorted.sort((a, b) => {
+            const sa = toNum(a.sortOrder);
+            const sb = toNum(b.sortOrder);
+
+            if (sa !== sb) return sa - sb;
+
+            const ta = getStr(a, "title") ?? "";
+            const tb = getStr(b, "title") ?? "";
+
+            return ta.localeCompare(tb, "ru");
+          });
+          break;
+      }
+
+      return {
+        bedroomsFirst: scenesTop[0] || null,
+        bedroomsFirstList: scenesTop,
+        collectionRest: restSorted,
+        sorted: [...scenesTop, ...restSorted],
+      };
+    }, [
+      DATA,
+      qFromUrl,
+      region,
+      sort,
+      menu,
+      collections,
+      types,
+      priceMin,
+      priceMax,
+      selectedDoors,
+      selectedFacades,
+      activeRoom,
+      activeCollection,
+      priceOf,
+    ]);
 
   return {
     activeRoom,

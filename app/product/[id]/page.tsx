@@ -6,9 +6,13 @@ import { resolveStrapiImage } from "@/app/lib/strapi/resolveImage";
 const BASE_URL = "https://lioneto.com";
 
 function norm(v: unknown) {
-  return String(v ?? "")
+  const s = String(v ?? "")
     .trim()
     .toLowerCase();
+
+  if (s === "scandy") return "scandi";
+
+  return s;
 }
 
 type SetItemJson = {
@@ -29,6 +33,8 @@ type StrapiProduct = {
   title?: string;
   slug?: string;
   isActive?: boolean;
+  publishedAt?: string | null;
+
   brand?: string;
   cat?: string;
   module?: string;
@@ -73,6 +79,23 @@ type SetItemWithResolvedImage = {
   sort_order: number;
   slug?: string;
 };
+
+function isSceneProduct(
+  p: Pick<StrapiProduct, "module" | "slug" | "cat"> | null,
+) {
+  if (!p) return false;
+
+  const module = norm(p.module);
+  const slug = norm(p.slug);
+  const cat = norm(p.cat);
+
+  return (
+    module === "scene" ||
+    slug.startsWith("scene-") ||
+    (slug.includes("scene") &&
+      (cat === "bedrooms" || cat === "living" || cat === "youth"))
+  );
+}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -276,6 +299,12 @@ async function fetchStrapiProductBySlug(
     process.env.STRAPI_URL ||
     "http://localhost:1337";
 
+  /**
+   * ВАЖНО:
+   * Тут НЕ добавляем populate image/cover.
+   * Если таких полей нет в Strapi product, Strapi отдаёт 400,
+   * и все товары становятся 404.
+   */
   const url =
     `${String(base).replace(/\/$/, "")}` +
     `/api/products?filters[slug][$eq]=${encodeURIComponent(slug)}` +
@@ -287,7 +316,15 @@ async function fetchStrapiProductBySlug(
 
   try {
     const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
+
+    if (!res.ok) {
+      console.error("[ProductPage] Strapi product fetch failed", {
+        status: res.status,
+        slug,
+        url,
+      });
+      return null;
+    }
 
     const json: unknown = await res.json();
     const root = isRecord(json) ? json : null;
@@ -315,6 +352,10 @@ async function fetchStrapiProductBySlug(
       title: typeof src.title === "string" ? src.title : "",
       slug: typeof src.slug === "string" ? src.slug : "",
       isActive: typeof src.isActive === "boolean" ? src.isActive : true,
+      publishedAt:
+        typeof src.publishedAt === "string" || src.publishedAt === null
+          ? (src.publishedAt as string | null)
+          : undefined,
 
       brand: typeof src.brand === "string" ? src.brand : undefined,
       cat: typeof src.cat === "string" ? src.cat : undefined,
@@ -356,7 +397,8 @@ async function fetchStrapiProductBySlug(
 
       set_items_json: src.set_items_json ?? null,
     };
-  } catch {
+  } catch (e) {
+    console.error("[ProductPage] product fetch fatal", e);
     return null;
   }
 }
@@ -439,7 +481,23 @@ async function resolveSetItemsImages(
 
 async function getProductSeoData(slugOrId: string) {
   const sp = await fetchStrapiProductBySlug(slugOrId);
-  if (!sp || sp.isActive === false) return null;
+  if (!sp) return null;
+
+  const scene = isSceneProduct(sp);
+
+  /**
+   * Обычные товары скрываем, если isActive=false.
+   * Scene-карточки временно разрешаем даже при isActive=false,
+   * потому что старый Excel import мог оставить их выключенными.
+   */
+  if (!scene && sp.isActive === false) return null;
+
+  /**
+   * Если товар снят с публикации в Strapi — скрываем.
+   */
+  if (Object.prototype.hasOwnProperty.call(sp, "publishedAt")) {
+    if (sp.publishedAt === null) return null;
+  }
 
   const slug = String(sp.slug || slugOrId);
   const image = pickStrapiMediaUrl(sp.media) || "";
@@ -514,6 +572,7 @@ async function getProductSeoData(slugOrId: string) {
     size,
     seoTitle,
     keywords,
+    isScene: scene,
   };
 }
 
@@ -582,13 +641,17 @@ export default async function ProductPage({
   const seo = await getProductSeoData(id);
   if (!seo) return notFound();
 
-  const { sp, slug, description, sku, canonical, image } = seo;
+  const { sp, slug, description, sku, canonical, image, isScene } = seo;
   const galleryFinal = seo.gallery;
 
   const relatedStrapi = await fetchRelatedStrapiProducts({
+    /**
+     * Для scene collection часто равен bedrooms/living/youth,
+     * поэтому похожие товары берём по brand.
+     */
     brand: sp.brand ?? null,
-    collection: sp.collection ?? null,
-    cat: sp.cat ?? null,
+    collection: isScene ? null : (sp.collection ?? null),
+    cat: isScene ? null : (sp.cat ?? null),
     currentSlug: slug,
   });
 
@@ -695,10 +758,7 @@ export default async function ProductPage({
     },
 
     setItems,
-    isCollection:
-      String(sp.module ?? "")
-        .trim()
-        .toLowerCase() === "scene",
+    isCollection: isScene,
 
     related: relatedStrapi.slice(0, 4).map((rp) => {
       const rSlug = String(rp.slug);

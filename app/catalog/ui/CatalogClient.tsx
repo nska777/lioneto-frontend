@@ -28,8 +28,6 @@ const isRecord = (v: unknown): v is UnknownRecord =>
 
 const isString = (v: unknown): v is string => typeof v === "string";
 const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
-const isNumber = (v: unknown): v is number =>
-  typeof v === "number" && Number.isFinite(v);
 
 const getUnknown = (v: unknown, key: string): unknown => {
   if (!isRecord(v)) return undefined;
@@ -58,14 +56,32 @@ const getBoolean = (v: unknown, key: string, fallback: boolean): boolean => {
 
 const getNumberOr = (v: unknown, key: string, fallback: number): number => {
   const val = getUnknown(v, key);
-  return isNumber(val) ? val : fallback;
+
+  if (typeof val === "number" && Number.isFinite(val)) return val;
+
+  if (typeof val === "string") {
+    const n = Number(
+      val
+        .replace(/\u00A0/g, " ")
+        .replace(/\u202F/g, " ")
+        .replace(/\s+/g, "")
+        .replace(/,/g, ".")
+        .trim(),
+    );
+
+    if (Number.isFinite(n)) return n;
+  }
+
+  return fallback;
 };
 
 function joinUrl(base: string, path: string) {
   const b = String(base || "").replace(/\/+$/, "");
   const p = String(path || "").trim();
+
   if (!p) return b;
   if (/^https?:\/\//i.test(p)) return p;
+
   return `${b}${p.startsWith("/") ? "" : "/"}${p}`;
 }
 
@@ -75,6 +91,9 @@ type CatalogStrapiItem = ProductAnyLocal & {
   slug?: string;
 
   title: string;
+  sku?: string;
+  articleShort?: string;
+
   brand?: string;
   cat?: string;
   collection?: string;
@@ -84,6 +103,7 @@ type CatalogStrapiItem = ProductAnyLocal & {
   collectionBadge?: string;
 
   isActive: boolean;
+  publishedAt?: string | null;
   sortOrder?: number;
 
   priceUZS: number;
@@ -98,6 +118,74 @@ type CatalogStrapiItem = ProductAnyLocal & {
   __openKey: string;
   __catalogHref: string;
 };
+
+function normalizeCollectionForCatalog(v: unknown) {
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (s === "scandy") return "scandi";
+
+  return s;
+}
+
+function normalizeModuleForCatalog(v: unknown) {
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (s === "tumbi") return "tumby";
+  if (s === "tumba") return "tumby";
+  if (s === "shkaf") return "shkafy";
+  if (s === "zerkalo") return "zerkala";
+
+  return s;
+}
+
+function isCatalogSceneItem(p: Record<string, unknown>) {
+  const slug = String(p.slug ?? "")
+    .trim()
+    .toLowerCase();
+
+  const module = normalizeModuleForCatalog(p.module);
+
+  return slug.startsWith("scene-") || module === "scene";
+}
+
+function getCatalogItemCollection(p: Record<string, unknown>) {
+  const scene = isCatalogSceneItem(p);
+
+  const collection = normalizeCollectionForCatalog(p.collection);
+  const brand = normalizeCollectionForCatalog(p.brand);
+
+  if (scene && brand) return brand;
+
+  return collection || brand;
+}
+
+function getCatalogSortOrder(p: Record<string, unknown>) {
+  const raw = p.sortOrder;
+  const n = typeof raw === "number" ? raw : Number(raw);
+
+  return Number.isFinite(n) ? n : 999999;
+}
+
+function isVisibleFromStrapi(p: Record<string, unknown>) {
+  const scene = isCatalogSceneItem(p);
+
+  /**
+   * Временная защита:
+   * scene-карточки показываем даже если isActive:false,
+   * потому что старый импорт мог оставить их выключенными.
+   */
+  if (!scene && p.isActive === false) return false;
+
+  if (Object.prototype.hasOwnProperty.call(p, "publishedAt")) {
+    if (p.publishedAt === null) return false;
+  }
+
+  return true;
+}
 
 function pickStrapiItem(item: unknown): CatalogStrapiItem {
   const itemRec = isRecord(item) ? item : {};
@@ -116,6 +204,7 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
     (() => {
       const d = media ? getRecord(media, "data") : null;
       const a = d ? getRecord(d, "attributes") : null;
+
       return (a ? getString(a, "url") : "") || (d ? getString(d, "url") : "");
     })() ||
     "";
@@ -130,7 +219,9 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
   const gallery = galleryArr
     .map((g) => {
       if (!isRecord(g)) return "";
+
       const attrs = getRecord(g, "attributes");
+
       return (
         (attrs ? getString(attrs, "url") : "") || getString(g, "url") || ""
       );
@@ -149,30 +240,50 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
   const badge =
     getOptionalString(src, "collectionBadge") ??
     getOptionalString(src, "badge");
+
   const collectionBadge = getOptionalString(src, "collectionBadge");
 
   const isActive = getBoolean(src, "isActive", true);
 
+  const publishedAtRaw = getUnknown(src, "publishedAt");
+  const publishedAt =
+    typeof publishedAtRaw === "string" || publishedAtRaw === null
+      ? publishedAtRaw
+      : undefined;
+
   const sortOrderRaw = getUnknown(src, "sortOrder");
-  const sortOrder = isNumber(sortOrderRaw) ? sortOrderRaw : undefined;
+  const sortOrder =
+    typeof sortOrderRaw === "number" && Number.isFinite(sortOrderRaw)
+      ? sortOrderRaw
+      : undefined;
 
   const priceUZS = getNumberOr(src, "priceUZS", 0);
   const priceRUB = getNumberOr(src, "priceRUB", 0);
 
-  const oldPriceUZSRaw = getUnknown(src, "oldPriceUZS");
-  const oldPriceUZS = isNumber(oldPriceUZSRaw) ? oldPriceUZSRaw : undefined;
-
-  const oldPriceRUBRaw = getUnknown(src, "oldPriceRUB");
-  const oldPriceRUB = isNumber(oldPriceRUBRaw) ? oldPriceRUBRaw : undefined;
+  const oldPriceUZS = getNumberOr(src, "oldPriceUZS", 0) || undefined;
+  const oldPriceRUB = getNumberOr(src, "oldPriceRUB", 0) || undefined;
 
   const openKey = String(slug ?? productId ?? id ?? "")
     .trim()
     .toLowerCase();
 
-  const colQ = String(collection ?? brand ?? "")
+  const rawSlug = String(slug ?? "")
     .trim()
     .toLowerCase();
-  const modQ = String(moduleSlug ?? cat ?? "")
+
+  const scene =
+    rawSlug.startsWith("scene-") ||
+    String(moduleSlug ?? "")
+      .trim()
+      .toLowerCase() === "scene";
+
+  const colQ = String(
+    scene ? (brand ?? collection ?? "") : (collection ?? brand ?? ""),
+  )
+    .trim()
+    .toLowerCase();
+
+  const modQ = String(scene ? "scene" : (moduleSlug ?? cat ?? ""))
     .trim()
     .toLowerCase();
 
@@ -190,6 +301,9 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
     slug,
 
     title: getString(src, "title"),
+    sku: getOptionalString(src, "sku"),
+    articleShort: getOptionalString(src, "articleShort"),
+
     brand,
     cat,
     collection,
@@ -199,6 +313,7 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
     collectionBadge,
 
     isActive,
+    publishedAt,
     sortOrder,
 
     priceUZS,
@@ -219,10 +334,56 @@ function declOfGoods(n: number) {
   const nn = Math.abs(Number(n || 0));
   const n100 = nn % 100;
   const n10 = nn % 10;
+
   if (n100 >= 11 && n100 <= 14) return "товаров";
   if (n10 === 1) return "товар";
   if (n10 >= 2 && n10 <= 4) return "товара";
+
   return "товаров";
+}
+
+function CatalogLoadingSkeleton({ hero = false }: { hero?: boolean }) {
+  return (
+    <div className="mt-2">
+      {hero ? (
+        <div className="mb-5 flex items-start gap-6">
+          <div className="h-[22px] w-36 animate-pulse rounded bg-black/10" />
+          <div className="h-[22px] w-24 animate-pulse rounded bg-black/10" />
+        </div>
+      ) : null}
+
+      <div className="mb-5 flex items-center gap-3">
+        <div className="h-3 w-28 animate-pulse rounded bg-black/10" />
+        <div className="h-3 w-20 animate-pulse rounded bg-black/10" />
+        <div className="h-3 w-24 animate-pulse rounded bg-black/10" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="overflow-hidden rounded-[18px] border border-black/10 bg-white shadow-sm"
+          >
+            <div className="h-[210px] animate-pulse bg-gradient-to-b from-black/[0.04] via-black/[0.02] to-black/[0.10]" />
+
+            <div className="space-y-3 p-4">
+              <div className="h-4 w-[80%] animate-pulse rounded bg-black/10" />
+              <div className="h-3 w-[52%] animate-pulse rounded bg-black/10" />
+
+              <div className="flex items-center gap-1">
+                <div className="h-3 w-16 animate-pulse rounded bg-black/10" />
+                <div className="h-3 w-10 animate-pulse rounded bg-black/10" />
+              </div>
+
+              <div className="h-4 w-24 animate-pulse rounded bg-black/10" />
+
+              <div className="h-10 animate-pulse rounded-[12px] border border-black/10 bg-black/[0.03]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 const HERO_DESC_BY_COLLECTION: Record<string, string> = {
@@ -233,7 +394,7 @@ const HERO_DESC_BY_COLLECTION: Record<string, string> = {
   amber:
     "В рамках коллекция AMBER современные тенденции гармонично сочетаются с высоким качеством материалов. Особого шарма коллекции придаёт грамотное комбинирование различных материалов и текстур, что выделяет ее на фоне других решений.",
   buongiorno:
-    "Коллекция BUONGIORNO, выполненная в стиле арт‑деко, дарит ощущение праздника и роскоши — к такой красоте хочется прикасаться снова и снова. Необычное исполнение фасадов, покрытие итальянской матовой эмалью и элегантные хрустальные ручки создают гармоничный образ с продуманными акцентами.",
+    "Коллекция BUONGIORNO, выполненная в стиле арт-деко, дарит ощущение праздника и роскоши — к такой красоте хочется прикасаться снова и снова. Необычное исполнение фасадов, покрытие итальянской матовой эмалью и элегантные хрустальные ручки создают гармоничный образ с продуманными акцентами.",
   salvador:
     "Коллекция SALVADOR выполнена в неоклассическом стиле. Продуманная работа с акцентами, благородство шпонированных плит и безупречное сочетание различных материалов. Каждое изделие идеально вписывается в общую цветовую схему, создавая целостный и гармоничный образ.",
   scandi:
@@ -286,16 +447,6 @@ export default function CatalogClient({
 
   const STRAPI_URL = String(process.env.NEXT_PUBLIC_STRAPI_URL || "").trim();
 
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log("CATALOG ENV DEBUG:", {
-      CATALOG_SOURCE,
-      STRAPI_URL,
-      TEST_MODE,
-    });
-  }, [CATALOG_SOURCE, STRAPI_URL, TEST_MODE]);
-
-  // ==========================
   const uniq = (arr: string[]) =>
     Array.from(
       new Set(
@@ -315,6 +466,7 @@ export default function CatalogClient({
     list: string[],
   ) => {
     const clean = uniq(list);
+
     if (clean.length === 0) params.delete(key);
     else params.set(key, clean.join(","));
   };
@@ -322,6 +474,7 @@ export default function CatalogClient({
   const setNumParam = (params: URLSearchParams, key: string, n: number) => {
     const num = Number(n);
     const v = Number.isFinite(num) ? String(num) : "";
+
     if (!v || v === "0") params.delete(key);
     else params.set(key, v);
   };
@@ -353,8 +506,6 @@ export default function CatalogClient({
     });
   };
 
-  // ==========================
-
   const [strapiItems, setStrapiItems] = useState<CatalogStrapiItem[] | null>(
     null,
   );
@@ -374,8 +525,7 @@ export default function CatalogClient({
       }
 
       try {
-        const pageSize = 200;
-
+        const pageSize = 100;
         let page = 1;
         let pageCount = 1;
         const acc: unknown[] = [];
@@ -391,23 +541,30 @@ export default function CatalogClient({
               `fields[4]=brand&` +
               `fields[5]=cat&` +
               `fields[6]=isActive&` +
-              `fields[7]=sortOrder&` +
-              `fields[8]=priceUZS&` +
-              `fields[9]=priceRUB&` +
-              `fields[10]=oldPriceUZS&` +
-              `fields[11]=oldPriceRUB&` +
-              `fields[12]=collectionBadge&` +
+              `fields[7]=publishedAt&` +
+              `fields[8]=sortOrder&` +
+              `fields[9]=priceUZS&` +
+              `fields[10]=priceRUB&` +
+              `fields[11]=oldPriceUZS&` +
+              `fields[12]=oldPriceRUB&` +
+              `fields[13]=collectionBadge&` +
+              `fields[14]=sku&` +
+              `fields[15]=articleShort&` +
               `populate[media][fields][0]=url&` +
               `pagination[page]=${page}&pagination[pageSize]=${pageSize}&` +
               `sort=sortOrder:asc,updatedAt:desc`,
           );
 
-          const res = await fetch(url, { next: { revalidate: 60 } });
-          if (!res.ok) throw new Error("Strapi products fetch failed");
+          const res = await fetch(url, { cache: "no-store" });
+
+          if (!res.ok) {
+            throw new Error("Strapi products fetch failed");
+          }
 
           const json: unknown = await res.json();
           const data = isRecord(json) ? getUnknown(json, "data") : undefined;
           const arr = Array.isArray(data) ? data : [];
+
           acc.push(...arr);
 
           const meta = isRecord(json) ? getRecord(json, "meta") : null;
@@ -415,27 +572,30 @@ export default function CatalogClient({
           const pc = pagination
             ? getUnknown(pagination, "pageCount")
             : undefined;
+
           pageCount = typeof pc === "number" && pc > 0 ? pc : 1;
 
           page += 1;
+
           if (!alive) return;
         }
 
         const mapped = acc.map((it) => pickStrapiItem(it));
 
         if (alive) {
-          // eslint-disable-next-line no-console
-          console.log("[catalog] strapi fetched:", mapped.length);
           setStrapiItems(mapped);
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error("Strapi products fetch failed", e);
-        if (alive) setStrapiItems([]);
+
+        if (alive) {
+          setStrapiItems([]);
+        }
       }
     };
 
     void run();
+
     return () => {
       alive = false;
     };
@@ -444,8 +604,11 @@ export default function CatalogClient({
   const baseItems = useMemo(() => {
     if (CATALOG_SOURCE !== "strapi") return [] as CatalogStrapiItem[];
     if (!Array.isArray(strapiItems)) return [] as CatalogStrapiItem[];
+
     return strapiItems;
   }, [CATALOG_SOURCE, strapiItems]);
+
+  const isStrapiLoading = CATALOG_SOURCE === "strapi" && strapiItems === null;
 
   const {
     activeRoom,
@@ -471,26 +634,80 @@ export default function CatalogClient({
   });
 
   type CatalogItemRec = Record<string, unknown>;
+
   const isCatalogItemActive = (p: unknown): p is CatalogItemRec => {
     if (!isRecord(p)) return false;
 
-    if (getUnknown(p, "isActive") === false) return false;
-
-    if (Object.prototype.hasOwnProperty.call(p, "publishedAt")) {
-      if (getUnknown(p, "publishedAt") === null) return false;
-    }
-
-    return true;
+    return isVisibleFromStrapi(p);
   };
 
-  const sorted3 = (sorted ?? []).filter(isCatalogItemActive);
-  const bedroomsFirstList3 = (bedroomsFirstList ?? []).filter(
+  /**
+   * Fallback:
+   * Если useCatalogData по какой-то причине вернул 0,
+   * но товары этой коллекции реально есть в Strapi,
+   * показываем их напрямую.
+   *
+   * Scene / сборная карточка идет первой.
+   */
+  const fallbackCollectionItems = useMemo<CatalogItemRec[]>(() => {
+    const currentCollection = normalizeCollectionForCatalog(activeCollection);
+
+    if (!currentCollection) return [];
+    if (!Array.isArray(baseItems) || baseItems.length === 0) return [];
+
+    const list = (baseItems as unknown[])
+      .filter((x): x is CatalogItemRec => isRecord(x))
+      .filter((p) => isVisibleFromStrapi(p))
+      .filter((p) => getCatalogItemCollection(p) === currentCollection)
+      .sort((a, b) => {
+        const sceneA = isCatalogSceneItem(a);
+        const sceneB = isCatalogSceneItem(b);
+
+        if (sceneA !== sceneB) return sceneA ? -1 : 1;
+
+        const sa = getCatalogSortOrder(a);
+        const sb = getCatalogSortOrder(b);
+
+        if (sa !== sb) return sa - sb;
+
+        const ia = Number(a.id ?? 0);
+        const ib = Number(b.id ?? 0);
+
+        if (Number.isFinite(ia) && Number.isFinite(ib) && ia !== ib) {
+          return ia - ib;
+        }
+
+        return String(a.title ?? "").localeCompare(String(b.title ?? ""), "ru");
+      });
+
+    return list;
+  }, [baseItems, activeCollection]);
+
+  const sortedFromHook = (sorted ?? []).filter(isCatalogItemActive);
+
+  const bedroomsFirstListFromHook = (bedroomsFirstList ?? []).filter(
     isCatalogItemActive,
   );
-  const collectionRest3 = (collectionRest ?? []).filter(isCatalogItemActive);
+
+  const collectionRestFromHook = (collectionRest ?? []).filter(
+    isCatalogItemActive,
+  );
+
+  const useFallback =
+    sortedFromHook.length === 0 && fallbackCollectionItems.length > 0;
+
+  const sorted3 = useFallback ? fallbackCollectionItems : sortedFromHook;
+
+  const bedroomsFirstList3 = useFallback ? [] : bedroomsFirstListFromHook;
+
+  const collectionRest3 = useFallback
+    ? fallbackCollectionItems
+    : collectionRestFromHook;
 
   const bedroomsFirst3: CatalogItemRec | null =
-    bedroomsFirst && isCatalogItemActive(bedroomsFirst) ? bedroomsFirst : null;
+    !useFallback && bedroomsFirst && isCatalogItemActive(bedroomsFirst)
+      ? bedroomsFirst
+      : null;
 
   const activeDoor = selectedDoors[0] || "";
   const activeFacade = selectedFacades[0] || "";
@@ -500,29 +717,29 @@ export default function CatalogClient({
   const moduleItemsForCollection = useMemo(() => {
     if (!activeCollection) return [];
 
-    const getCollectionSlugSafe = (p: CatalogStrapiItem): string => {
-      const raw = String(p.collection ?? p.brand ?? "").trim();
-      return raw ? norm(raw) : "";
-    };
-
-    const getModuleSlugSafe = (p: CatalogStrapiItem): string => {
-      const raw = String(p.module ?? p.cat ?? "").trim();
-      return raw ? norm(raw) : "";
-    };
-
+    const currentCollection = normalizeCollectionForCatalog(activeCollection);
     const set = new Set<string>();
+
     for (const p of baseItems) {
-      const col = getCollectionSlugSafe(p);
-      if (col && col === activeCollection) {
-        const mod = getModuleSlugSafe(p);
-        if (mod) set.add(mod);
+      if (!isVisibleFromStrapi(p)) continue;
+
+      const col = getCatalogItemCollection(p);
+
+      if (col && col === currentCollection) {
+        const mod = normalizeModuleForCatalog(p.module ?? p.cat);
+
+        if (mod && !isCatalogSceneItem(p)) {
+          set.add(mod);
+        }
       }
     }
 
     const known = Array.from(MODULE_ITEMS).filter((m) =>
       set.has(String(m.value)),
     );
+
     const knownSet = new Set(known.map((m) => String(m.value)));
+
     const unknown = Array.from(set)
       .filter((v) => !knownSet.has(v))
       .map((v) => ({ label: v, value: v }));
@@ -536,25 +753,32 @@ export default function CatalogClient({
     const v = String(heroRoomEffective || "")
       .trim()
       .toLowerCase();
+
     if (v === "bedrooms") return "Спальни";
     if (v === "living") return "Гостиные";
     if (v === "youth") return "Молодёжные";
     if (v === "tables_chairs") return "Столы и стулья";
     if (v === "hallway") return "Прихожие";
+
     return "";
   }, [heroRoomEffective]);
 
   const heroTitle = useMemo(() => {
     if (!activeCollection) return "";
+
     return String(activeCollection).toUpperCase();
   }, [activeCollection]);
 
   const heroDescription = useMemo(() => {
     if (!activeCollection) return "";
+
     const key = String(activeCollection).trim().toLowerCase();
     const base = HERO_DESC_BY_COLLECTION[key];
+
     if (base) return base;
+
     const rn = roomLabel ? roomLabel.toLowerCase() : "интерьер";
+
     return `Коллекция ${String(activeCollection).toUpperCase()} — премиальное решение для ${rn}. Чистый дизайн, качественные материалы и продуманная функциональность создают цельный и дорогой образ пространства.`;
   }, [activeCollection, roomLabel]);
 
@@ -566,6 +790,7 @@ export default function CatalogClient({
     const key = `${room}:${col}`;
 
     const conf = HERO_SLIDES_MANIFEST?.[key];
+
     if (!conf) return [];
 
     return makeSlidesFromConf(conf);
@@ -579,12 +804,15 @@ export default function CatalogClient({
   const strapiLen = Array.isArray(strapiItems) ? strapiItems.length : 0;
 
   useEffect(() => {
-    if (!gridRef.current) return;
+    if (!gridRef.current || isStrapiLoading) return;
+
     const cards = gridRef.current.querySelectorAll("[data-card]");
+
     gsap.killTweensOf(cards);
 
     cards.forEach((el) => {
       const h = el as HTMLElement;
+
       h.style.opacity = "1";
       h.style.transform = "translate3d(0,0,0)";
       h.style.filter = "none";
@@ -615,6 +843,8 @@ export default function CatalogClient({
     selectedFacades,
     CATALOG_SOURCE,
     strapiLen,
+    sorted3.length,
+    isStrapiLoading,
   ]);
 
   const TopBar = (
@@ -653,10 +883,12 @@ export default function CatalogClient({
           const clean = String(next ?? "")
             .trim()
             .toLowerCase();
+
           if (!clean) params.delete("types");
           else params.set("types", clean);
 
           const m = norm(clean);
+
           if (m !== "shkafy" && m !== "vitrini") {
             params.delete("doors");
             params.delete("facade");
@@ -677,19 +909,24 @@ export default function CatalogClient({
   );
 
   const sortKey = String(sort ?? "").toLowerCase();
+
   const isPopular = sortKey.includes("popular") || sortKey.includes("pop");
+
   const isUpdated =
     sortKey.includes("update") ||
     sortKey.includes("new") ||
     sortKey.includes("date");
+
   const isPrice =
     sortKey.includes("price") ||
     sortKey.includes("cost") ||
     sortKey.includes("sum");
+
   const isPriceDesc =
     sortKey.includes("desc") ||
     sortKey.includes("down") ||
     sortKey.includes("high");
+
   const isPriceAsc = isPrice && !isPriceDesc;
 
   const POPULAR_SORT: SortValue = "popular";
@@ -699,12 +936,26 @@ export default function CatalogClient({
 
   const setPopularSort = () => setSort(POPULAR_SORT);
   const setUpdatedSort = () => setSort(UPDATED_SORT);
+
   const togglePriceSort = () => {
-    if (isPrice) setSort(isPriceAsc ? PRICE_DESC : PRICE_ASC);
-    else setSort(PRICE_ASC);
+    if (isPrice) {
+      setSort(isPriceAsc ? PRICE_DESC : PRICE_ASC);
+    } else {
+      setSort(PRICE_ASC);
+    }
   };
+
   const safeTitle =
-    heroTitle?.toLowerCase() === "scandi" ? "SCANDY" : heroTitle;
+    normalizeCollectionForCatalog(heroTitle) === "scandi"
+      ? "SCANDY"
+      : heroTitle;
+
+  const visibleCount = isStrapiLoading ? "..." : sorted3.length;
+
+  const visibleCountLabel = isStrapiLoading
+    ? "товаров"
+    : declOfGoods(sorted3.length);
+
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-2 pb-24">
       {!hero ? (
@@ -713,9 +964,11 @@ export default function CatalogClient({
             <h1 className="text-[24px] font-medium tracking-[-0.02em]">
               Каталог
             </h1>
+
             <p className="mt-1 text-[13px] text-black/55">
-              Товары: {sorted3.length}
+              Товары: {visibleCount}
             </p>
+
             {TEST_MODE ? (
               <p className="mt-1 text-[12px] text-black/40">
                 TEST_MODE: on • source: {CATALOG_SOURCE}
@@ -745,12 +998,12 @@ export default function CatalogClient({
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3">
-                    <h1 className="whitespace-nowrap text-[22px] font-semibold tracking-[-0.03em] leading-none">
+                    <h1 className="whitespace-nowrap text-[22px] font-semibold leading-none tracking-[-0.03em]">
                       {safeTitle || "Коллекция"}
                     </h1>
 
-                    <span className="shrink-0 whitespace-nowrap inline-flex h-7 items-center rounded-none border border-black/10 bg-[#f3f3f3] px-3 text-[11px] font-medium tracking-[0.22em] uppercase text-black/55 leading-none">
-                      {sorted3.length} {declOfGoods(sorted3.length)}
+                    <span className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-none border border-black/10 bg-[#f3f3f3] px-3 text-[11px] font-medium leading-none tracking-[0.22em] text-black/55 uppercase">
+                      {visibleCount} {visibleCountLabel}
                     </span>
                   </div>
                 </div>
@@ -787,7 +1040,7 @@ export default function CatalogClient({
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-black/35">
+                <div className="text-[11px] font-medium tracking-[0.22em] text-black/35 uppercase">
                   Сортировать по:
                 </div>
 
@@ -809,7 +1062,7 @@ export default function CatalogClient({
                     type="button"
                     onClick={togglePriceSort}
                     className={cn(
-                      "cursor-pointer text-[13px] font-medium inline-flex items-center gap-1",
+                      "inline-flex cursor-pointer items-center gap-1 text-[13px] font-medium",
                       isPrice
                         ? "text-black"
                         : "text-black/35 hover:text-black/70",
@@ -842,21 +1095,25 @@ export default function CatalogClient({
             TopBar
           )}
 
-          <CatalogGrid
-            gridRef={gridRef}
-            items={sorted3}
-            fmtPrice={fmtPrice}
-            bedroomsFirst={bedroomsFirst3}
-            bedroomsFirstList={bedroomsFirstList3}
-            collectionRest={collectionRest3}
-            collectionTitle={
-              activeCollection?.toLowerCase() === "scandi"
-                ? "SCANDY"
-                : activeCollection
-            }
-          />
+          {isStrapiLoading ? (
+            <CatalogLoadingSkeleton hero={hero} />
+          ) : (
+            <CatalogGrid
+              gridRef={gridRef}
+              items={sorted3}
+              fmtPrice={fmtPrice}
+              bedroomsFirst={bedroomsFirst3}
+              bedroomsFirstList={bedroomsFirstList3}
+              collectionRest={collectionRest3}
+              collectionTitle={
+                normalizeCollectionForCatalog(activeCollection) === "scandi"
+                  ? "SCANDY"
+                  : activeCollection
+              }
+            />
+          )}
 
-          {sorted3.length === 0 ? (
+          {!isStrapiLoading && sorted3.length === 0 ? (
             <div className="mt-8 rounded-2xl border border-black/10 bg-[#F7F5F2] p-8 text-center text-black/60">
               Ничего не найдено. Попробуй изменить поиск или снять часть
               фильтров.
@@ -867,6 +1124,7 @@ export default function CatalogClient({
             .catalog-filters-wrap [class*="rounded-"] {
               border-radius: 12px !important;
             }
+
             .catalog-filters-wrap [class*="rounded-full"] {
               border-radius: 12px !important;
             }
