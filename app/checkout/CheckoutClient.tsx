@@ -1,10 +1,15 @@
-// app/checkout/CheckoutClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  type SyntheticEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Download, X } from "lucide-react";
 
 import { useRegionLang } from "@/app/context/region-lang";
 import { useShopState } from "@/app/context/shop-state";
@@ -15,6 +20,7 @@ const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
 type Region = "uz" | "ru";
+type OfferConsent = "accepted" | "declined" | null;
 
 function formatMoney(n: number, region: Region) {
   if (region === "uz") return new Intl.NumberFormat("ru-RU").format(n) + " сум";
@@ -24,16 +30,20 @@ function formatMoney(n: number, region: Region) {
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
+
 function isString(v: unknown): v is string {
   return typeof v === "string";
 }
+
 function toStringSafe(v: unknown): string {
   return isString(v) ? v : String(v ?? "");
 }
+
 function toNumSafe(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
 }
+
 function getProp(obj: unknown, key: string): unknown {
   if (!isRecord(obj)) return undefined;
   return obj[key];
@@ -68,6 +78,7 @@ function labelByBrandSlug(slug: string | null | undefined) {
     .trim()
     .toLowerCase();
   if (!s) return null;
+
   const found = BRANDS.find((b) => String(b.slug).toLowerCase() === s);
   return found ? found.title : s.toUpperCase();
 }
@@ -82,6 +93,34 @@ type VariantLite = {
   gallery?: string[];
 };
 
+type CartLineMeta = {
+  productId?: string;
+  variantId?: string;
+  variantTitle?: string | null;
+  title?: string;
+  href?: string;
+  imageUrl?: string | null;
+  sku?: string;
+  price_uzs?: number;
+  price_rub?: number;
+
+  selectedColor?: string | null;
+  selectedVariantKey?: string | null;
+
+  selectedSetItemId?: string | null;
+  selectedSetItemTitle?: string | null;
+  selectedSetItemOptionKey?: string | null;
+  selectedSetItemColorKey?: string | null;
+  selectedSetItemArticle?: string | null;
+  selectedSetItemNote?: string | null;
+
+  optionTitle?: string | null;
+  optionKey?: string | null;
+  colorKey?: string | null;
+
+  quantity?: number;
+};
+
 type CheckoutItem = {
   key: string;
   productId: string;
@@ -93,8 +132,151 @@ type CheckoutItem = {
   title: string;
   collectionLabel: string | null;
   variantTitle: string | null;
+  selectedColor: string | null;
+  selectedSetItemTitle: string | null;
+  selectedSetItemOptionKey: string | null;
+  selectedSetItemColorKey: string | null;
   imageUrl: string | null;
 };
+
+function metaString(v: unknown): string | null {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s ? s : null;
+}
+
+function asMetaRecord(v: unknown): CartLineMeta | null {
+  if (!isRecord(v)) return null;
+  return v as CartLineMeta;
+}
+
+function metaMatches(
+  meta: CartLineMeta | null,
+  productId: string,
+  variantId: string,
+) {
+  if (!meta) return false;
+
+  const mp = String(meta.productId ?? "").trim();
+  const mv = String(meta.variantId ?? "base").trim() || "base";
+
+  return mp === productId && mv === variantId;
+}
+
+function findMetaInValue(
+  value: unknown,
+  productId: string,
+  variantId: string,
+): CartLineMeta | null {
+  if (!value) return null;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const meta = asMetaRecord(item);
+      if (metaMatches(meta, productId, variantId)) return meta;
+    }
+    return null;
+  }
+
+  if (!isRecord(value)) return null;
+
+  const directKeys = [
+    `${productId}::${variantId}`,
+    `${productId}|${variantId}`,
+    `${productId}:${variantId}`,
+    `${productId}__${variantId}`,
+    `${productId}-${variantId}`,
+  ];
+
+  for (const key of directKeys) {
+    const direct = asMetaRecord(value[key]);
+    if (direct) return direct;
+  }
+
+  const nested = value[productId];
+  if (isRecord(nested)) {
+    const byVariant =
+      asMetaRecord(nested[variantId]) ||
+      asMetaRecord(nested[`variant:${variantId}`]) ||
+      asMetaRecord(nested["base"]);
+
+    if (byVariant) return byVariant;
+  }
+
+  for (const item of Object.values(value)) {
+    const meta = asMetaRecord(item);
+    if (metaMatches(meta, productId, variantId)) return meta;
+
+    const nestedMeta = findMetaInValue(item, productId, variantId);
+    if (nestedMeta) return nestedMeta;
+  }
+
+  return null;
+}
+
+function readCartLineMeta(
+  productId: string,
+  variantId: string,
+): CartLineMeta | null {
+  if (typeof window === "undefined") return null;
+
+  const preferredKeys = [
+    "lioneto:cart:line-meta:v1",
+    "lioneto:cart-line-meta:v1",
+    "lioneto:cart-line-meta",
+    "lioneto:cart:meta",
+    "cart-line-meta",
+  ];
+
+  for (const key of preferredKeys) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const found = findMetaInValue(parsed, productId, variantId);
+      if (found) return found;
+    } catch {
+      // ignore
+    }
+  }
+
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (!key) continue;
+
+    const lower = key.toLowerCase();
+
+    if (
+      !lower.includes("cart") &&
+      !lower.includes("lead") &&
+      !lower.includes("meta")
+    ) {
+      continue;
+    }
+
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const found = findMetaInValue(parsed, productId, variantId);
+      if (found) return found;
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+function readMetaPrice(meta: CartLineMeta | null, region: Region): number {
+  if (!meta) return 0;
+
+  const raw = region === "uz" ? meta.price_uzs : meta.price_rub;
+  const n = Number(raw);
+
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
 
 function flattenVariantsForCheckout(product: unknown): VariantLite[] {
   const raw = getProp(product, "variants");
@@ -107,6 +289,7 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
 
   if (looksGrouped) {
     const out: VariantLite[] = [];
+
     for (const g of raw) {
       if (!isRecord(g)) continue;
 
@@ -124,6 +307,7 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
         const mergedGroup = (itGroup || group || "").trim() || undefined;
 
         const title = toStringSafe(getProp(it, "title")).trim();
+
         const imageRaw = getProp(it, "image");
         const image = imageRaw == null ? null : toStringSafe(imageRaw);
 
@@ -146,10 +330,12 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
         });
       }
     }
+
     return out;
   }
 
   const out: VariantLite[] = [];
+
   for (const v of raw) {
     if (!isRecord(v)) continue;
 
@@ -180,6 +366,7 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
       priceDeltaUZS,
     });
   }
+
   return out;
 }
 
@@ -252,9 +439,11 @@ function parseCompositeVariantForCart(
     .map((v) => {
       const t = v.title ? String(v.title).trim() : "";
       if (t) return t;
+
       const id = String(v.id ?? "").trim();
       if (id === "white") return "Белый";
       if (id === "cappuccino") return "Капучино";
+
       return id;
     })
     .filter(Boolean)
@@ -287,6 +476,8 @@ function prettyVariantToken(token: string) {
     pink: "Розовый",
     walnut: "Орех",
     oak: "Дуб",
+    "bez-ramki": "Без рамки паспарту",
+    "s-ramkoy": "С рамкой паспарту",
   };
 
   return map[t] ?? token;
@@ -381,6 +572,7 @@ function readPriceAny(obj: unknown, region: Region): number {
     getProp(obj, "priceUZS") ??
     getProp(obj, "price_uzs") ??
     getProp(obj, "priceUzs");
+
   const ru =
     getProp(obj, "priceRUB") ??
     getProp(obj, "price_rub") ??
@@ -388,7 +580,334 @@ function readPriceAny(obj: unknown, region: Region): number {
 
   const raw = region === "uz" ? uz : ru;
   const n = toNumSafe(raw);
+
   return n > 0 ? n : 0;
+}
+
+function OfferAgreementWindow({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open || typeof document === "undefined") return null;
+
+  const stopAll = (e: SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/55 px-4 py-6"
+      onClick={stopAll}
+      onMouseDown={stopAll}
+      onPointerDown={stopAll}
+      onTouchStart={stopAll}
+    >
+      <div
+        className="relative flex max-h-[90vh] w-full max-w-[920px] flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-5 border-b border-black/10 px-5 py-5 sm:px-7">
+          <div>
+            <p className="text-[12px] uppercase tracking-[0.22em] text-black/45">
+              LIONETO
+            </p>
+
+            <h2 className="mt-2 text-[20px] font-semibold leading-tight text-black sm:text-[24px]">
+              Договор оферты / Условия продажи товаров
+            </h2>
+
+            <p className="mt-2 text-[13px] leading-6 text-black/55">
+              Публичная оферта, условия оформления заказа, оплаты, доставки,
+              возврата и обработки персональных данных.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            className="shrink-0 cursor-pointer rounded-full p-2 text-black/45 transition hover:bg-black/5 hover:text-black"
+            aria-label="Закрыть"
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        <div
+          className="overflow-y-auto px-5 py-6 text-[14px] leading-7 text-black/70 sm:px-7"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
+          <div className="mb-6 rounded-[22px] bg-black/[0.03] px-5 py-4">
+            <h3 className="text-[18px] font-semibold leading-tight text-black">
+              Договор оферты или Условия продажи товаров
+            </h3>
+
+            <p className="mt-2 text-[13px] leading-6 text-black/55">
+              Данный документ, расположенный на сайте https://lioneto.com/,
+              является публичной офертой Продавца и содержит все существенные
+              условия продажи, оплаты, доставки, возврата и обмена товаров.
+            </p>
+          </div>
+
+          <section className="space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">
+              1. Общие положения
+            </h3>
+
+            <p>
+              Данный документ является публичной офертой Продавца в соответствии
+              с п. 1 ст. 435 и п. 2 ст. 437 ГК РФ и содержит все существенные
+              условия продажи, оплаты, доставки, возврата и обмена товаров,
+              представленных на сайте Продавца по адресу https://lioneto.com/.
+            </p>
+
+            <p>
+              В случае принятия изложенных условий и оформления заказа
+              юридическое или физическое лицо, производящее акцепт оферты,
+              становится Покупателем, а Продавец и Покупатель совместно —
+              сторонами договора. Акцепт оферты осуществляется Покупателем при
+              оформлении заказа на сайте интернет-магазина путем нажатия кнопки
+              «Оформить заказ» или «Подтвердить заказ».
+            </p>
+          </section>
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">
+              2. Термины и определения
+            </h3>
+
+            <p>
+              Покупатель — физическое или юридическое лицо, оформляющее заказы
+              на сайте https://lioneto.com/. Соглашаясь с условиями оферты,
+              Покупатель подтверждает, что является дееспособным гражданином,
+              достигшим 18 лет, либо представителем действующей компании.
+            </p>
+
+            <p>
+              Продавец — Общество с ограниченной ответственностью «Комфорт
+              плюс», ИНН 9721264165. Юридический адрес: 109443, г. Москва,
+              вн.тер.г. муниципальный округ Кузьминки, пр-кт Волгоградский, д.
+              135 к. 3, помещ. 7М.
+            </p>
+
+            <p>
+              Интернет-магазин — сайт, расположенный по адресу
+              https://lioneto.com/, где представлены товары, предлагаемые
+              Продавцом, а также условия доставки, оплаты, возврата и обмена.
+            </p>
+
+            <p>
+              Заказ — запрос Покупателя на покупку товаров, размещенный
+              Покупателем самостоятельно на сайте или по телефону.
+            </p>
+
+            <p>
+              Товар — продукция, представленная к продаже и доступная для
+              резервирования в интернет-магазине Продавца.
+            </p>
+          </section>
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">3. Предмет</h3>
+
+            <p>
+              Предметом настоящего договора является продажа Покупателю товаров
+              и услуг, представленных на сайте Продавца, согласно оформленному
+              заказу Покупателя.
+            </p>
+
+            <p>
+              Покупатель имеет право оплатить сумму по договору полностью в
+              момент заключения договора либо в любые удобные сроки в пределах
+              графика платежей, согласованного с Продавцом.
+            </p>
+
+            <p>
+              При оплате части стоимости договора по графику, согласованному с
+              Покупателем, Продавец гарантирует, что товар будет доставлен и
+              собран в согласованные с Покупателем даты при условии соблюдения
+              графика платежей.
+            </p>
+          </section>
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">
+              4. Информация о товарах
+            </h3>
+
+            <p>
+              Товары представлены на сайте через фото-образцы, рендеры и
+              описания. Все информационные материалы, представленные на сайте,
+              носят справочный характер.
+            </p>
+
+            <p>
+              В изделиях могут применяться натуральные материалы природного
+              происхождения. Различия тонов мебели, сучки, глазки и природные
+              особенности материалов не являются дефектами.
+            </p>
+
+            <p>
+              При продаже уцененного товара, имеющего определенные внешние
+              недостатки на момент заключения договора, Покупатель не вправе
+              предъявлять претензии по заранее оговоренным недостаткам.
+            </p>
+
+            <p>
+              В случае обнаружения некондиционных деталей Продавец гарантирует
+              устранение обнаруженных дефектов в согласованные сроки.
+            </p>
+          </section>
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">
+              5. Доставка и сборка
+            </h3>
+
+            <p>
+              Доставка товара осуществляется способом, указанным в заказе или
+              согласованным с Покупателем: силами Продавца либо самовывозом со
+              склада Продавца.
+            </p>
+
+            <p>
+              Если Покупатель не воспользовался предложенными Продавцом услугами
+              по доставке или сборке, Продавец не несет ответственности за
+              недостатки товара, возникшие в результате перевозки или сборки
+              силами Покупателя.
+            </p>
+
+            <p>
+              Продавец считается надлежащим образом выполнившим обязанность по
+              передаче товара Покупателю по количеству и качеству с момента
+              подписания товарной накладной или иного документа приема-передачи.
+            </p>
+
+            <p>
+              В случае если Покупатель не принимает товар в согласованную дату и
+              время, Продавец вправе вернуть товар на склад, а повторная
+              доставка осуществляется при условии оплаты Покупателем повторной
+              услуги доставки.
+            </p>
+          </section>
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">6. Прочее</h3>
+
+            <p>
+              Мебельные гарнитуры бытового назначения, матрасы, мягкая мебель и
+              иные товары могут входить в перечень товаров надлежащего качества,
+              не подлежащих обмену и возврату, согласно действующему
+              законодательству.
+            </p>
+
+            <p>
+              Продавец освобождается от ответственности за несвоевременное
+              исполнение обязательств, вызванное обстоятельствами непреодолимой
+              силы, включая чрезвычайные, непредвиденные и непредотвратимые
+              обстоятельства.
+            </p>
+
+            <p>
+              Стороны признают юридическую силу переписки с использованием
+              WhatsApp, Telegram, иных мессенджеров, социальных сетей и
+              электронных каналов связи.
+            </p>
+          </section>
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">
+              7. Персональная информация
+            </h3>
+
+            <p>
+              При регистрации и/или оформлении заказа на сайте Продавца
+              Покупатель предоставляет персональные данные: имя, номер
+              контактного телефона, адрес электронной почты, адрес доставки
+              заказа и иные необходимые сведения.
+            </p>
+
+            <p>
+              Персональные данные Покупателя обрабатываются Продавцом способами,
+              включающими сбор, запись, систематизацию, накопление, хранение,
+              уточнение, использование, передачу, обезличивание, блокирование,
+              удаление и уничтожение, в том числе с использованием средств
+              автоматизации или без них.
+            </p>
+
+            <p>
+              Оформляя заказ и указывая информацию о себе, Покупатель
+              подтверждает, что дает согласие на обработку Продавцом переданных
+              персональных данных, включая передачу третьим лицам в целях
+              исполнения обязательств по договору оферты.
+            </p>
+
+            <p>
+              Если Покупатель не желает, чтобы его персональные данные
+              обрабатывались Продавцом, он должен письменно известить об этом
+              Продавца по электронной почте интернет-магазина. В этом случае
+              Покупатель лишается возможности пользоваться услугами
+              интернет-магазина и оформлять заказы.
+            </p>
+
+            <p>
+              Покупатель подтверждает, что ознакомлен с условиями политики
+              конфиденциальности, опубликованной на сайте.
+            </p>
+          </section>
+
+          <section className="mt-8 space-y-4">
+            <h3 className="text-[17px] font-semibold text-black">
+              8. Отказ от договора со стороны Покупателя
+            </h3>
+
+            <p>
+              Покупатель имеет право отказаться от поставленного товара в
+              порядке и сроки, предусмотренные действующим законодательством и
+              условиями настоящего договора.
+            </p>
+
+            <p>
+              В случае расторжения договора или отказа Покупателя от товара
+              возврат денежных средств осуществляется на реквизиты, с которых
+              была произведена оплата, если иное не согласовано сторонами.
+            </p>
+          </section>
+
+          <div className="mt-8 flex flex-col gap-3 border-t border-black/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[12px] leading-5 text-black/45">
+              Полная версия договора доступна для скачивания в формате Word.
+            </p>
+
+            <a
+              href="/docs/offer-agreement.docx"
+              download="offer-agreement.docx"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-black px-5 py-3 text-[13px] font-medium text-white transition hover:opacity-90"
+            >
+              <Download size={16} />
+              Скачать договор
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 export default function CheckoutClient() {
@@ -400,6 +919,9 @@ export default function CheckoutClient() {
 
   const { region } = useRegionLang();
   const shop = useShopState();
+
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offerConsent, setOfferConsent] = useState<OfferConsent>(null);
 
   const goBack = () => {
     if (typeof window === "undefined") return;
@@ -437,6 +959,7 @@ export default function CheckoutClient() {
           if (alive) setProductsMap({});
           return;
         }
+
         const m = await fetchProductsMap(ids);
         if (alive) setProductsMap(m);
       } catch {
@@ -457,6 +980,8 @@ export default function CheckoutClient() {
       const pid = toStringSafe(parsed.productId);
       const vid = toStringSafe(parsed.variantId || "base") || "base";
 
+      const meta = readCartLineMeta(pid, vid);
+
       const qty =
         mode === "oneclick"
           ? Math.max(1, Math.floor(toNumSafe(shop.oneClick?.qty ?? 1)))
@@ -470,13 +995,29 @@ export default function CheckoutClient() {
 
       const variants = flattenVariantsForCheckout(p);
 
-      const variantTitle = resolveVariantTitle(vid, variants);
+      const selectedColor = metaString(meta?.selectedColor);
+
+      const selectedSetItemTitle =
+        metaString(meta?.selectedSetItemTitle) || metaString(meta?.optionTitle);
+
+      const selectedSetItemOptionKey =
+        metaString(meta?.selectedSetItemOptionKey) ||
+        metaString(meta?.optionKey);
+
+      const selectedSetItemColorKey =
+        metaString(meta?.selectedSetItemColorKey) || metaString(meta?.colorKey);
+
+      const variantTitle =
+        [selectedColor, selectedSetItemTitle].filter(Boolean).join(", ") ||
+        metaString(meta?.variantTitle) ||
+        resolveVariantTitle(vid, variants);
 
       const baseFromStrapi = readPriceAny(pStrapi, region);
       const baseFromMocks = readPriceAny(pMockUnknown, region);
       const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-      const pickedForDelta: VariantLite[] = [];
+      const pickedForPrice: VariantLite[] = [];
+
       if (vid && vid !== "base") {
         const parts = vid
           .split("|")
@@ -485,31 +1026,47 @@ export default function CheckoutClient() {
 
         for (const part of parts) {
           const found = findVariantForPart(part, variants);
-          if (found) pickedForDelta.push(found);
+          if (found) pickedForPrice.push(found);
         }
       }
 
-      const delta = pickedForDelta.reduce((acc, v) => {
-        const d =
+      const selectedVariantFinalPrice = pickedForPrice
+        .map((v) =>
           region === "uz"
             ? toNumSafe(v.priceDeltaUZS ?? 0)
-            : toNumSafe(v.priceDeltaRUB ?? 0);
-        return acc + d;
-      }, 0);
+            : toNumSafe(v.priceDeltaRUB ?? 0),
+        )
+        .find((price) => price > 0);
 
-      const unit = baseUnit + delta;
+      const metaUnit = readMetaPrice(meta, region);
+
+      const unit =
+        metaUnit > 0
+          ? metaUnit
+          : typeof selectedVariantFinalPrice === "number" &&
+              selectedVariantFinalPrice > 0
+            ? selectedVariantFinalPrice
+            : baseUnit;
 
       const brandSlug = toStringSafe(getProp(p, "brand")).trim();
       const collectionLabel = labelByBrandSlug(brandSlug);
 
-      const title = toStringSafe(getProp(p, "title")).trim() || "Товар";
+      const title =
+        metaString(meta?.title) ||
+        toStringSafe(getProp(p, "title")).trim() ||
+        "Товар";
+
       const baseArticle =
         readArticleAny(pStrapi) ||
         readArticleAny(pMockUnknown) ||
         readArticleAny(p);
-      const article = getDisplayArticle(baseArticle, variantTitle);
 
-      const imageRaw = resolveProductImage(p, vid, variants);
+      const article =
+        metaString(meta?.sku) ||
+        getDisplayArticle(baseArticle, selectedColor || variantTitle);
+
+      const imageRaw =
+        metaString(meta?.imageUrl) || resolveProductImage(p, vid, variants);
       const imageUrl = toAbsoluteUrlClient(imageRaw);
 
       out.push({
@@ -523,6 +1080,10 @@ export default function CheckoutClient() {
         title,
         collectionLabel,
         variantTitle,
+        selectedColor,
+        selectedSetItemTitle,
+        selectedSetItemOptionKey,
+        selectedSetItemColorKey,
         imageUrl,
       });
     }
@@ -567,7 +1128,9 @@ export default function CheckoutClient() {
     return String(phoneDigits).trim().length >= 7;
   }, [region, phoneDigits]);
 
-  const canSubmit = items.length > 0 && isPhoneValid;
+  const hasAcceptedOffer = offerConsent === "accepted";
+
+  const canSubmit = items.length > 0 && isPhoneValid && hasAcceptedOffer;
 
   const phoneValue = useMemo(() => {
     if (region === "uz") return `+998${phoneDigits}`;
@@ -590,8 +1153,15 @@ export default function CheckoutClient() {
         productId: it.productId,
         collectionLabel: it.collectionLabel,
         imageUrl: it.imageUrl,
+
         variantId: it.variantId,
         variantTitle: it.variantTitle,
+
+        selectedColor: it.selectedColor,
+        selectedSetItemTitle: it.selectedSetItemTitle,
+        selectedSetItemOptionKey: it.selectedSetItemOptionKey,
+        selectedSetItemColorKey: it.selectedSetItemColorKey,
+
         article: it.article,
         qty: it.qty,
         title: it.title,
@@ -599,6 +1169,11 @@ export default function CheckoutClient() {
         sum: it.sum,
       })),
       total,
+      agreements: {
+        offerAccepted: true,
+        personalDataAccepted: true,
+        acceptedAt: new Date().toISOString(),
+      },
     };
 
     try {
@@ -619,6 +1194,9 @@ export default function CheckoutClient() {
 
       if (mode === "oneclick") shop.clearOneClick();
       else shop.clearCart();
+
+      setOfferConsent(null);
+      setOfferOpen(false);
 
       router.replace("/checkout?success=1");
     } catch {
@@ -669,221 +1247,339 @@ export default function CheckoutClient() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-4 py-10">
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={goBack}
-          className={cn(
-            "inline-flex cursor-pointer items-center gap-2 rounded-full",
-            "border border-black/10 bg-white px-4 py-2 text-sm text-black/70",
-            "transition hover:border-black/20 hover:text-black",
-          )}
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Назад
-        </button>
-
-        <div className="mt-4 text-[12px] tracking-[0.28em] text-black/45">
-          LIONETO
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em]">
-          Оформление заказа
-        </h1>
-        <p className="mt-2 text-sm text-black/55">
-          Введите данные, проверьте заказ и подтвердите.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
-        <section className="rounded-3xl border borderblack/10 bg-white p-6">
-          <div className="text-base font-semibold tracking-[-0.01em]">
-            Данные клиента
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-1">
-              <div className="mb-1 text-[12px] font-medium text-black/55">
-                Телефон *
-              </div>
-
-              {region === "uz" ? (
-                <div className="flex items-center overflow-hidden rounded-2xl border border-black/10 bg-white">
-                  <div className="px-4 py-3 text-sm font-semibold text-black/60">
-                    +998
-                  </div>
-                  <input
-                    value={phoneDigits}
-                    onChange={(e) => {
-                      const only = e.target.value
-                        .replace(/\D/g, "")
-                        .slice(0, 9);
-                      setPhoneDigits(only);
-                    }}
-                    inputMode="numeric"
-                    placeholder="9 цифр"
-                    className="w-full px-4 py-3 text-sm outline-none"
-                  />
-                </div>
-              ) : (
-                <input
-                  value={phoneDigits}
-                  onChange={(e) => setPhoneDigits(e.target.value)}
-                  placeholder="+7..."
-                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
-                />
-              )}
-            </div>
-
-            <div className="sm:col-span-1">
-              <div className="mb-1 text-[12px] font-medium text-black/55">
-                Имя
-              </div>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Введите имя"
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <div className="mb-1 text-[12px] font-medium text-black/55">
-                Адрес
-              </div>
-              <input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Город, улица, дом, квартира"
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <div className="mb-1 text-[12px] font-medium text-black/55">
-                Комментарий
-              </div>
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Пожелания по доставке, этаж, время..."
-                className="h-28 w-full resize-none rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
-              />
-            </div>
-          </div>
-        </section>
-
-        <aside className="h-fit rounded-3xl border border-black/10 bg-white p-6">
-          <div className="text-base font-semibold tracking-[-0.01em]">
-            Ваш заказ
-          </div>
-
-          <div className="mt-4">
-            {items.length ? (
-              <>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-black/85">
-                      {items[0].collectionLabel ? (
-                        <span className="text-black/55">
-                          {items[0].collectionLabel} /{" "}
-                        </span>
-                      ) : null}
-                      {items[0].title}
-                    </div>
-
-                    <div className="mt-1 text-xs text-black/45">
-                      Артикул: {items[0].article}
-                    </div>
-
-                    <div className="mt-1 text-xs text-black/45">
-                      {items[0].qty} × {formatMoney(items[0].unit, region)}
-                      {items[0].variantTitle && items[0].variantId !== "base"
-                        ? ` • ${items[0].variantTitle}`
-                        : ""}
-                    </div>
-                  </div>
-
-                  <div className="text-sm font-semibold text-black">
-                    {formatMoney(items[0].sum, region)}
-                  </div>
-                </div>
-
-                {items.length > 1 ? (
-                  <div className="mt-3 space-y-2">
-                    {items.slice(1).map((it) => (
-                      <div
-                        key={it.key}
-                        className="flex items-start justify-between gap-4"
-                      >
-                        <div className="min-w-0 text-xs text-black/60">
-                          <div>
-                            {it.collectionLabel ? (
-                              <span className="text-black/55">
-                                {it.collectionLabel} /{" "}
-                              </span>
-                            ) : null}
-                            {it.title}
-                            {it.variantTitle && it.variantId !== "base"
-                              ? ` • ${it.variantTitle}`
-                              : ""}
-                          </div>
-                          <div className="mt-0.5 text-black/45">
-                            Артикул: {it.article}
-                          </div>
-                          <div className="mt-0.5">
-                            {it.qty} × {formatMoney(it.unit, region)}
-                          </div>
-                        </div>
-
-                        <div className="text-xs font-medium text-black/75">
-                          {formatMoney(it.sum, region)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="text-sm text-black/50">Корзина пустая.</div>
-            )}
-          </div>
-
-          <div className="mt-4 h-px bg-black/10" />
-
-          <div className="mt-4 flex items-center justify-between text-sm text-black/60">
-            <span>Итого</span>
-            <span className="font-semibold text-black">
-              {formatMoney(total, region)}
-            </span>
-          </div>
-
+    <>
+      <main className="mx-auto w-full max-w-[1200px] px-4 py-10">
+        <div className="mb-6">
           <button
             type="button"
-            onClick={submit}
-            disabled={!canSubmit}
+            onClick={goBack}
             className={cn(
-              "mt-5 w-full rounded-full px-5 py-3 text-sm font-semibold transition",
-              canSubmit
-                ? "cursor-pointer bg-black text-white hover:opacity-90"
-                : "cursor-not-allowed bg-black/10 text-black/40",
-            )}
-          >
-            Подтвердить заказ →
-          </button>
-
-          <Link
-            href="/cart"
-            className={cn(
-              "mt-3 inline-flex w-full cursor-pointer items-center justify-center rounded-full",
-              "border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75",
+              "inline-flex cursor-pointer items-center gap-2 rounded-full",
+              "border border-black/10 bg-white px-4 py-2 text-sm text-black/70",
               "transition hover:border-black/20 hover:text-black",
             )}
           >
-            Вернуться в корзину
-          </Link>
-        </aside>
-      </div>
-    </main>
+            <ChevronLeft className="h-4 w-4" />
+            Назад
+          </button>
+
+          <div className="mt-4 text-[12px] tracking-[0.28em] text-black/45">
+            LIONETO
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em]">
+            Оформление заказа
+          </h1>
+          <p className="mt-2 text-sm text-black/55">
+            Введите данные, проверьте заказ и подтвердите.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_420px]">
+          <section className="rounded-3xl border border-black/10 bg-white p-6">
+            <div className="text-base font-semibold tracking-[-0.01em]">
+              Данные клиента
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-1">
+                <div className="mb-1 text-[12px] font-medium text-black/55">
+                  Телефон *
+                </div>
+
+                {region === "uz" ? (
+                  <div className="flex items-center overflow-hidden rounded-2xl border border-black/10 bg-white">
+                    <div className="px-4 py-3 text-sm font-semibold text-black/60">
+                      +998
+                    </div>
+                    <input
+                      value={phoneDigits}
+                      onChange={(e) => {
+                        const only = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 9);
+                        setPhoneDigits(only);
+                      }}
+                      inputMode="numeric"
+                      placeholder="9 цифр"
+                      className="w-full px-4 py-3 text-sm outline-none"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    value={phoneDigits}
+                    onChange={(e) => setPhoneDigits(e.target.value)}
+                    placeholder="+7..."
+                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
+                  />
+                )}
+              </div>
+
+              <div className="sm:col-span-1">
+                <div className="mb-1 text-[12px] font-medium text-black/55">
+                  Имя
+                </div>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Введите имя"
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <div className="mb-1 text-[12px] font-medium text-black/55">
+                  Адрес
+                </div>
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Город, улица, дом, квартира"
+                  className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <div className="mb-1 text-[12px] font-medium text-black/55">
+                  Комментарий
+                </div>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Пожелания по доставке, этаж, время..."
+                  className="h-28 w-full resize-none rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm outline-none focus:border-black/20"
+                />
+              </div>
+            </div>
+          </section>
+
+          <aside className="h-fit rounded-3xl border border-black/10 bg-white p-6">
+            <div className="text-base font-semibold tracking-[-0.01em]">
+              Ваш заказ
+            </div>
+
+            <div className="mt-4">
+              {items.length ? (
+                <>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-black/85">
+                        {items[0].collectionLabel ? (
+                          <span className="text-black/55">
+                            {items[0].collectionLabel} /{" "}
+                          </span>
+                        ) : null}
+                        {items[0].title}
+                      </div>
+
+                      <div className="mt-1 text-xs text-black/45">
+                        Артикул: {items[0].article}
+                      </div>
+
+                      <div className="mt-1 text-xs text-black/45">
+                        {items[0].qty} × {formatMoney(items[0].unit, region)}
+                      </div>
+
+                      {items[0].selectedColor ? (
+                        <div className="mt-1 text-xs text-black/45">
+                          Цвет:{" "}
+                          <span className="font-semibold text-black/70">
+                            {items[0].selectedColor}
+                          </span>
+                        </div>
+                      ) : null}
+
+                      {items[0].selectedSetItemTitle ? (
+                        <div className="mt-1 text-xs text-black/45">
+                          Комплектация:{" "}
+                          <span className="font-semibold text-black/70">
+                            {items[0].selectedSetItemTitle}
+                          </span>
+                        </div>
+                      ) : items[0].variantTitle &&
+                        items[0].variantId !== "base" ? (
+                        <div className="mt-1 text-xs text-black/45">
+                          Вариант:{" "}
+                          <span className="font-semibold text-black/70">
+                            {items[0].variantTitle}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="text-sm font-semibold text-black">
+                      {formatMoney(items[0].sum, region)}
+                    </div>
+                  </div>
+
+                  {items.length > 1 ? (
+                    <div className="mt-3 space-y-2">
+                      {items.slice(1).map((it) => (
+                        <div
+                          key={it.key}
+                          className="flex items-start justify-between gap-4"
+                        >
+                          <div className="min-w-0 text-xs text-black/60">
+                            <div>
+                              {it.collectionLabel ? (
+                                <span className="text-black/55">
+                                  {it.collectionLabel} /{" "}
+                                </span>
+                              ) : null}
+                              {it.title}
+                            </div>
+
+                            <div className="mt-0.5 text-black/45">
+                              Артикул: {it.article}
+                            </div>
+
+                            <div className="mt-0.5">
+                              {it.qty} × {formatMoney(it.unit, region)}
+                            </div>
+
+                            {it.selectedColor ? (
+                              <div className="mt-0.5 text-black/45">
+                                Цвет: {it.selectedColor}
+                              </div>
+                            ) : null}
+
+                            {it.selectedSetItemTitle ? (
+                              <div className="mt-0.5 text-black/45">
+                                Комплектация: {it.selectedSetItemTitle}
+                              </div>
+                            ) : it.variantTitle && it.variantId !== "base" ? (
+                              <div className="mt-0.5 text-black/45">
+                                Вариант: {it.variantTitle}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="text-xs font-medium text-black/75">
+                            {formatMoney(it.sum, region)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="text-sm text-black/50">Корзина пустая.</div>
+              )}
+            </div>
+
+            <div className="mt-4 h-px bg-black/10" />
+
+            <div className="mt-4 flex items-center justify-between text-sm text-black/60">
+              <span>Итого</span>
+              <span className="font-semibold text-black">
+                {formatMoney(total, region)}
+              </span>
+            </div>
+
+            <div className="mt-5 rounded-[20px] border border-black/10 bg-black/[0.02] px-4 py-4">
+              <p className="text-[12px] leading-5 text-black/55">
+                Перед подтверждением заказа необходимо ознакомиться с договором
+                оферты и дать согласие на обработку персональных данных.
+                Подробные условия доступны в{" "}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOfferOpen(true);
+                  }}
+                  className="cursor-pointer font-medium text-black underline underline-offset-4 transition hover:text-black/60"
+                >
+                  договоре оферты
+                </button>
+                .
+              </p>
+
+              <div className="mt-3 space-y-2">
+                <label
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-2xl bg-white px-3 py-3 text-[12px] leading-5 text-black/70 ring-1 transition",
+                    offerConsent === "accepted"
+                      ? "bg-white ring-black"
+                      : "ring-black/10 hover:ring-black/20",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="offerConsent"
+                    checked={offerConsent === "accepted"}
+                    onChange={() => setOfferConsent("accepted")}
+                    className="mt-1 h-4 w-4 accent-black"
+                  />
+
+                  <span>
+                    Я ознакомился с договором оферты, принимаю условия продажи
+                    товаров и даю согласие на обработку персональных данных.
+                  </span>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-2xl bg-white px-3 py-3 text-[12px] leading-5 text-black/70 ring-1 transition",
+                    offerConsent === "declined"
+                      ? "bg-red-50 ring-red-300"
+                      : "ring-black/10 hover:ring-black/20",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="offerConsent"
+                    checked={offerConsent === "declined"}
+                    onChange={() => setOfferConsent("declined")}
+                    className="mt-1 h-4 w-4 accent-black"
+                  />
+
+                  <span>
+                    Я отказываюсь принять договор оферты и понимаю, что
+                    оформление заказа будет недоступно.
+                  </span>
+                </label>
+              </div>
+
+              {offerConsent === "declined" && (
+                <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-[12px] leading-5 text-red-700 ring-1 ring-red-100">
+                  Без принятия договора оферты и согласия на обработку
+                  персональных данных мы не сможем оформить заказ через сайт.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!canSubmit}
+              className={cn(
+                "mt-5 w-full rounded-full px-5 py-3 text-sm font-semibold transition",
+                canSubmit
+                  ? "cursor-pointer bg-black text-white hover:opacity-90"
+                  : "cursor-not-allowed bg-black/10 text-black/40",
+              )}
+            >
+              Подтвердить заказ →
+            </button>
+
+            <Link
+              href="/cart"
+              className={cn(
+                "mt-3 inline-flex w-full cursor-pointer items-center justify-center rounded-full",
+                "border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75",
+                "transition hover:border-black/20 hover:text-black",
+              )}
+            >
+              Вернуться в корзину
+            </Link>
+          </aside>
+        </div>
+      </main>
+
+      <OfferAgreementWindow
+        open={offerOpen}
+        onClose={() => setOfferOpen(false)}
+      />
+    </>
   );
 }

@@ -25,6 +25,9 @@ type SetItemJson = {
   price_rub?: number | string | null;
   quantity?: number | string | null;
   sort_order?: number | string | null;
+  colorKey?: string;
+  optionKey?: string;
+  note?: string;
 };
 
 type StrapiProduct = {
@@ -78,6 +81,9 @@ type SetItemWithResolvedImage = {
   quantity: number;
   sort_order: number;
   slug?: string;
+  colorKey?: string;
+  optionKey?: string;
+  note?: string;
 };
 
 function isSceneProduct(
@@ -267,24 +273,31 @@ function parseSetItemsJson(value: unknown): SetItemWithResolvedImage[] {
     const title = pickText(raw.title) || "Без названия";
     const slug = pickText(raw.slug);
     const article = pickText(raw.article);
+    const colorKey = pickText(raw.colorKey);
+    const optionKey = pickText(raw.optionKey);
+    const note = pickText(raw.note);
+    const rawImage = pickText(raw.image);
 
     const id =
       (typeof raw.id === "string" && raw.id.trim()) ||
       (typeof raw.id === "number" ? String(raw.id) : "") ||
-      slug ||
+      [slug, colorKey, optionKey].filter(Boolean).join("-") ||
       `set-item-${index + 1}`;
 
     items.push({
       id,
       title,
       article: article || undefined,
-      image: pickText(raw.image) || undefined,
+      image: rawImage ? resolveStrapiImage(rawImage) : undefined,
       price_rub: toFiniteNumber(raw.price_rub),
       price_uzs: toFiniteNumber(raw.price_uzs),
       href: slug ? `/product/${slug}` : undefined,
       quantity: toFiniteNumber(raw.quantity) ?? 1,
       sort_order: toFiniteNumber(raw.sort_order) ?? index + 1,
       slug: slug || undefined,
+      colorKey: colorKey || undefined,
+      optionKey: optionKey || undefined,
+      note: note || undefined,
     });
   });
 
@@ -299,20 +312,15 @@ async function fetchStrapiProductBySlug(
     process.env.STRAPI_URL ||
     "http://localhost:1337";
 
-  /**
-   * ВАЖНО:
-   * Тут НЕ добавляем populate image/cover.
-   * Если таких полей нет в Strapi product, Strapi отдаёт 400,
-   * и все товары становятся 404.
-   */
   const url =
     `${String(base).replace(/\/$/, "")}` +
     `/api/products?filters[slug][$eq]=${encodeURIComponent(slug)}` +
-    `&populate[0]=media` +
-    `&populate[1]=gallery` +
-    `&populate[2]=variants` +
-    `&populate[3]=variants.image` +
-    `&populate[4]=assemblyInstructionFile`;
+    `&populate[media]=true` +
+    `&populate[gallery]=true` +
+    `&populate[assemblyInstructionFile]=true` +
+    `&populate[variants][populate][image][fields][0]=url` +
+    `&populate[variants][populate][image][fields][1]=name` +
+    `&populate[variants][populate][image][fields][2]=formats`;
 
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -485,16 +493,8 @@ async function getProductSeoData(slugOrId: string) {
 
   const scene = isSceneProduct(sp);
 
-  /**
-   * Обычные товары скрываем, если isActive=false.
-   * Scene-карточки временно разрешаем даже при isActive=false,
-   * потому что старый Excel import мог оставить их выключенными.
-   */
   if (!scene && sp.isActive === false) return null;
 
-  /**
-   * Если товар снят с публикации в Strapi — скрываем.
-   */
   if (Object.prototype.hasOwnProperty.call(sp, "publishedAt")) {
     if (sp.publishedAt === null) return null;
   }
@@ -645,10 +645,6 @@ export default async function ProductPage({
   const galleryFinal = seo.gallery;
 
   const relatedStrapi = await fetchRelatedStrapiProducts({
-    /**
-     * Для scene collection часто равен bedrooms/living/youth,
-     * поэтому похожие товары берём по brand.
-     */
     brand: sp.brand ?? null,
     collection: isScene ? null : (sp.collection ?? null),
     cat: isScene ? null : (sp.cat ?? null),
@@ -729,9 +725,9 @@ export default async function ProductPage({
             const type = typeof v.type === "string" ? v.type : "";
             const group = typeof v.group === "string" ? v.group : undefined;
 
-            const pdr =
+            const finalRUB =
               typeof v.priceDeltaRUB === "number" ? v.priceDeltaRUB : undefined;
-            const pdu =
+            const finalUZS =
               typeof v.priceDeltaUZS === "number" ? v.priceDeltaUZS : undefined;
 
             return {
@@ -739,8 +735,10 @@ export default async function ProductPage({
               title: String(title || ""),
               kind: type === "color" ? "color" : "option",
               group,
-              priceDeltaRUB: pdr !== undefined ? Number(pdr) : undefined,
-              priceDeltaUZS: pdu !== undefined ? Number(pdu) : undefined,
+              priceDeltaRUB:
+                finalRUB !== undefined ? Number(finalRUB) : undefined,
+              priceDeltaUZS:
+                finalUZS !== undefined ? Number(finalUZS) : undefined,
               image: img,
             };
           })

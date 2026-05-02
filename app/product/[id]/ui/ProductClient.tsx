@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Heart,
   ShoppingCart,
@@ -56,6 +56,20 @@ export type ProductVariant = {
   gallery?: string[];
 };
 
+type ProductSetItem = {
+  id: string;
+  title: string;
+  article?: string;
+  image?: string;
+  price_rub?: number;
+  price_uzs?: number;
+  href?: string;
+  quantity?: number;
+  colorKey?: string;
+  optionKey?: string;
+  note?: string;
+};
+
 export type ProductPageModel = {
   id: string;
   title: string;
@@ -86,16 +100,7 @@ export type ProductPageModel = {
     href: string;
     badge?: string;
   }>;
-  setItems?: Array<{
-    id: string;
-    title: string;
-    article?: string;
-    image?: string;
-    price_rub?: number;
-    price_uzs?: number;
-    href?: string;
-    quantity?: number;
-  }>;
+  setItems?: ProductSetItem[];
   variants?: ProductVariant[];
   brand?: string;
   category?: string;
@@ -119,6 +124,47 @@ function asNonEmptyString(v: unknown): string | null {
   return s ? s : null;
 }
 
+function normalizeKey(v: unknown) {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "e")
+    .replace(/ж/g, "zh")
+    .replace(/ч/g, "ch")
+    .replace(/ш/g, "sh")
+    .replace(/щ/g, "sch")
+    .replace(/ю/g, "yu")
+    .replace(/я/g, "ya")
+    .replace(/а/g, "a")
+    .replace(/б/g, "b")
+    .replace(/в/g, "v")
+    .replace(/г/g, "g")
+    .replace(/д/g, "d")
+    .replace(/е/g, "e")
+    .replace(/з/g, "z")
+    .replace(/и/g, "i")
+    .replace(/й/g, "y")
+    .replace(/к/g, "k")
+    .replace(/л/g, "l")
+    .replace(/м/g, "m")
+    .replace(/н/g, "n")
+    .replace(/о/g, "o")
+    .replace(/п/g, "p")
+    .replace(/р/g, "r")
+    .replace(/с/g, "s")
+    .replace(/т/g, "t")
+    .replace(/у/g, "u")
+    .replace(/ф/g, "f")
+    .replace(/х/g, "h")
+    .replace(/ц/g, "c")
+    .replace(/ы/g, "y")
+    .replace(/ь/g, "")
+    .replace(/ъ/g, "")
+    .replace(/э/g, "e")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function normalizeArticleColor(color?: string | null) {
   const value = String(color ?? "").trim();
   if (!value) return "";
@@ -133,6 +179,60 @@ function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
   if (!normalizedColor || normalizedColor === "—") return article;
 
   return `${article} (${normalizedColor})`;
+}
+
+function getPositiveNumber(v: unknown) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function getFiniteNumber(v: unknown) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getSetItemOptionLabel(item?: ProductSetItem | null) {
+  if (!item) return null;
+
+  const title = String(item.title ?? "").trim();
+  if (title) return title;
+
+  const option = String(item.optionKey ?? "").trim();
+  return option || null;
+}
+
+function parseVariantParam(raw: string) {
+  const value = String(raw || "").trim();
+
+  const result = {
+    colorKey: "",
+    setOptionKey: "",
+  };
+
+  if (!value || value === "base") return result;
+
+  const parts = value
+    .split("|")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  for (const part of parts) {
+    const [rawGroup, ...rest] = part.split(":");
+    const group = String(rawGroup || "").trim();
+    const val = rest.join(":").trim();
+
+    if (!group || !val) continue;
+
+    if (group === "color") {
+      result.colorKey = val;
+    }
+
+    if (group === "set") {
+      result.setOptionKey = val;
+    }
+  }
+
+  return result;
 }
 
 function LeadBeforeCartModal({
@@ -226,7 +326,7 @@ function LeadBeforeCartModal({
               onClick={onClose}
               aria-label="Закрыть"
               className={cn(
-                "cursor-pointer inline-flex h-9 w-9 items-center justify-center rounded-full",
+                "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full",
                 "border border-black/10 bg-white text-black/55 transition",
                 "hover:border-black/20 hover:text-black",
               )}
@@ -332,6 +432,7 @@ function getAccentFromVariant(
   const k = String(variantKey ?? "")
     .trim()
     .toLowerCase();
+
   if (k.includes("white") || k.includes("бел")) return "white";
   if (k.includes("cappuccino") || k.includes("капуч")) return "cappuccino";
 
@@ -409,6 +510,15 @@ export default function ProductClient({
   product: ProductPageModel;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialVariantFromUrl = searchParams?.get("variant") || "";
+
+  const initialVariantSelection = useMemo(
+    () => parseVariantParam(initialVariantFromUrl),
+    [initialVariantFromUrl],
+  );
+
   const { region } = useRegionLang();
   const currency: "RUB" | "UZS" = region === "ru" ? "RUB" : "UZS";
 
@@ -418,24 +528,55 @@ export default function ProductClient({
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [collapsedSetItemIds, setCollapsedSetItemIds] = useState<string[]>([]);
   const [hoveredSetItemId, setHoveredSetItemId] = useState<string | null>(null);
-
-  const visibleSetItems = useMemo(
-    () => product.setItems ?? [],
-    [product.setItems],
+  const [setItemsOpen, setSetItemsOpen] = useState(false);
+  const [selectedSetItemId, setSelectedSetItemId] = useState<string | null>(
+    null,
   );
 
-  useEffect(() => {
-    setCollapsedSetItemIds([]);
-    setHoveredSetItemId(null);
-  }, [product.id, product.setItems]);
+  const allSetItems = useMemo(() => product.setItems ?? [], [product.setItems]);
 
-  const {
-    selectedByGroup,
-    setSelectedByGroup,
-    selectedVariants,
-    variantDelta,
-    groupsForUI,
-  } = useProductVariants(product, currency);
+  const { selectedByGroup, setSelectedByGroup, selectedVariants, groupsForUI } =
+    useProductVariants(product, currency);
+
+  useEffect(() => {
+    if (!initialVariantSelection.colorKey) return;
+
+    const colorKey = initialVariantSelection.colorKey;
+
+    (
+      setSelectedByGroup as React.Dispatch<
+        React.SetStateAction<Record<string, unknown>>
+      >
+    )((prev) => {
+      const prevRecord = isRecord(prev) ? prev : {};
+
+      return {
+        ...prevRecord,
+        color: colorKey,
+      };
+    });
+  }, [initialVariantSelection.colorKey, setSelectedByGroup]);
+
+  const groupsForUIDisplay = useMemo(() => {
+    if (!Array.isArray(groupsForUI)) return groupsForUI;
+
+    return groupsForUI.map((group) => {
+      if (!group || !Array.isArray(group.items)) return group;
+
+      return {
+        ...group,
+        items: group.items.map((variant) => {
+          if (!variant || variant.kind !== "color") return variant;
+
+          return {
+            ...variant,
+            priceDeltaRUB: undefined,
+            priceDeltaUZS: undefined,
+          };
+        }),
+      };
+    });
+  }, [groupsForUI]);
 
   const variantKey = useMemo(() => {
     const entries = Object.entries(selectedByGroup || {})
@@ -464,6 +605,123 @@ export default function ProductClient({
     return entries.map(([g, v]) => `${g}:${v}`).join("|");
   }, [selectedByGroup]);
 
+  const selectedColorVariant = useMemo(() => {
+    return selectedVariants.find((v) => v.kind === "color") ?? null;
+  }, [selectedVariants]);
+
+  const selectedColorKey = useMemo(() => {
+    const rawFromVariant = selectedColorVariant?.id;
+    if (rawFromVariant) return normalizeKey(rawFromVariant);
+
+    const rawColor = selectedByGroup
+      ? (selectedByGroup as Record<string, unknown>)["color"]
+      : undefined;
+
+    if (typeof rawColor === "string") return normalizeKey(rawColor);
+    if (isRecord(rawColor)) return normalizeKey(rawColor.id);
+
+    return "";
+  }, [selectedColorVariant, selectedByGroup]);
+
+  const visibleSetItems = useMemo(() => {
+    if (!allSetItems.length) return [];
+
+    const hasColorBoundItems = allSetItems.some((item) =>
+      String(item.colorKey ?? "").trim(),
+    );
+
+    if (!hasColorBoundItems || !selectedColorKey) {
+      return [...allSetItems].sort(
+        (a, b) =>
+          getFiniteNumber(a.quantity) - getFiniteNumber(b.quantity) ||
+          String(a.title).localeCompare(String(b.title)),
+      );
+    }
+
+    return allSetItems
+      .filter((item) => {
+        const itemColorKey = normalizeKey(item.colorKey);
+        if (!itemColorKey) return true;
+        return itemColorKey === selectedColorKey;
+      })
+      .sort(
+        (a, b) =>
+          getFiniteNumber(a.quantity) - getFiniteNumber(b.quantity) ||
+          String(a.title).localeCompare(String(b.title)),
+      );
+  }, [allSetItems, selectedColorKey]);
+
+  const hasSetItems = visibleSetItems.length > 0;
+
+  const selectedSetItem = useMemo(() => {
+    if (!visibleSetItems.length) return null;
+
+    return (
+      visibleSetItems.find((item) => item.id === selectedSetItemId) ??
+      visibleSetItems[0] ??
+      null
+    );
+  }, [visibleSetItems, selectedSetItemId]);
+
+  const selectedSetItemLabel = useMemo(
+    () => getSetItemOptionLabel(selectedSetItem),
+    [selectedSetItem],
+  );
+
+  useEffect(() => {
+    setCollapsedSetItemIds([]);
+    setHoveredSetItemId(null);
+    setSetItemsOpen(false);
+    setSelectedSetItemId(null);
+  }, [product.id]);
+
+  useEffect(() => {
+    if (!visibleSetItems.length) {
+      setSelectedSetItemId(null);
+      return;
+    }
+
+    const requestedOptionKey = initialVariantSelection.setOptionKey;
+
+    if (requestedOptionKey) {
+      const fromUrl = visibleSetItems.find(
+        (item) =>
+          normalizeKey(item.optionKey) === normalizeKey(requestedOptionKey) ||
+          normalizeKey(item.id) === normalizeKey(requestedOptionKey),
+      );
+
+      if (fromUrl) {
+        if (selectedSetItemId !== fromUrl.id) {
+          setSelectedSetItemId(fromUrl.id);
+        }
+        return;
+      }
+    }
+
+    const stillExists = visibleSetItems.some(
+      (item) => item.id === selectedSetItemId,
+    );
+
+    if (!stillExists) {
+      setSelectedSetItemId(visibleSetItems[0].id);
+    }
+  }, [
+    visibleSetItems,
+    selectedSetItemId,
+    initialVariantSelection.setOptionKey,
+  ]);
+
+  const setItemKey = selectedSetItem
+    ? `set:${selectedSetItem.optionKey || selectedSetItem.id}`
+    : "no-set";
+
+  const colorKeyForCart = selectedColorKey || "base-color";
+
+  const cartVariantKey = useMemo(() => {
+    const base = variantKey ?? `color:${colorKeyForCart}`;
+    return hasSetItems ? `${base}|${setItemKey}` : base;
+  }, [variantKey, colorKeyForCart, setItemKey, hasSetItems]);
+
   const accent: Accent = useMemo(
     () =>
       getAccentFromVariant(
@@ -480,12 +738,12 @@ export default function ProductClient({
         (selectedByGroup as unknown as Record<string, unknown>) ?? null,
       selectedVariants,
       groupsForUI:
-        (groupsForUI as Array<{
+        (groupsForUIDisplay as Array<{
           group: string;
           items: ProductVariant[];
         }>) ?? null,
     });
-  }, [product, selectedByGroup, selectedVariants, groupsForUI]);
+  }, [product, selectedByGroup, selectedVariants, groupsForUIDisplay]);
 
   const displayArticle = useMemo(() => {
     return getDisplayArticle(
@@ -506,6 +764,11 @@ export default function ProductClient({
     return null;
   }, [selectedVariants]);
 
+  const selectedSetItemGallery = useMemo(() => {
+    if (selectedSetItem?.image) return [selectedSetItem.image];
+    return null;
+  }, [selectedSetItem]);
+
   const { gallery, activeIdx, setActiveIdx, onPrev, onNext } =
     useProductGallery(
       {
@@ -514,8 +777,8 @@ export default function ProductClient({
         gallery: product.gallery,
       },
       {
-        variantGallery,
-        cacheKey: `${product.id}:${variantKey ?? "base"}`,
+        variantGallery: selectedSetItemGallery ?? variantGallery,
+        cacheKey: `${product.id}:${variantKey ?? "base"}:${setItemKey}`,
       },
     );
 
@@ -533,14 +796,68 @@ export default function ProductClient({
 
   const [qty, setQty] = useState(1);
 
-  const vk = variantKey ?? undefined;
+  const vk = cartVariantKey || undefined;
 
   const fav = isFav(product.id, vk);
   const inCart = isInCart(product.id, vk);
 
   const baseUnitPrice =
     currency === "RUB" ? product.price_rub : product.price_uzs;
-  const unitPrice = baseUnitPrice + variantDelta;
+
+  const selectedVariantFinalPrice = useMemo(() => {
+    if (!selectedColorVariant) return null;
+
+    const raw =
+      currency === "RUB"
+        ? selectedColorVariant.priceDeltaRUB
+        : selectedColorVariant.priceDeltaUZS;
+
+    const n = Number(raw);
+
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [selectedColorVariant, currency]);
+
+  const selectedSetItemPrice = useMemo(() => {
+    if (!selectedSetItem) return 0;
+
+    return currency === "RUB"
+      ? getPositiveNumber(selectedSetItem.price_rub)
+      : getPositiveNumber(selectedSetItem.price_uzs);
+  }, [selectedSetItem, currency]);
+
+  const unitPrice =
+    selectedSetItemPrice > 0
+      ? selectedSetItemPrice
+      : (selectedVariantFinalPrice ?? baseUnitPrice);
+
+  const finalUZS = useMemo(() => {
+    const variantUZS = getPositiveNumber(selectedColorVariant?.priceDeltaUZS);
+    const setItemUZS = getPositiveNumber(selectedSetItem?.price_uzs);
+
+    if (setItemUZS > 0) return setItemUZS;
+    if (variantUZS > 0) return variantUZS;
+    return product.price_uzs;
+  }, [selectedColorVariant, selectedSetItem, product.price_uzs]);
+
+  const finalRUB = useMemo(() => {
+    const variantRUB = getPositiveNumber(selectedColorVariant?.priceDeltaRUB);
+    const setItemRUB = getPositiveNumber(selectedSetItem?.price_rub);
+
+    if (setItemRUB > 0) return setItemRUB;
+    if (variantRUB > 0) return variantRUB;
+    return product.price_rub;
+  }, [selectedColorVariant, selectedSetItem, product.price_rub]);
+
+  const finalImage = useMemo(() => {
+    const imageFromSetItem = selectedSetItem?.image || "";
+
+    const imageFromVariant =
+      Array.isArray(variantGallery) && variantGallery.length > 0
+        ? variantGallery[0]
+        : "";
+
+    return imageFromSetItem || imageFromVariant || product.image || null;
+  }, [selectedSetItem, variantGallery, product.image]);
 
   const collapsedSet = useMemo(
     () => new Set(collapsedSetItemIds),
@@ -548,6 +865,8 @@ export default function ProductClient({
   );
 
   const excludedOneSetSum = useMemo(() => {
+    if (!product.isCollection) return 0;
+
     return visibleSetItems.reduce((sum, item) => {
       if (!collapsedSet.has(item.id)) return sum;
 
@@ -559,7 +878,7 @@ export default function ProductClient({
       const itemQty = Math.max(1, Number(item.quantity ?? 1));
       return sum + itemPrice * itemQty;
     }, 0);
-  }, [visibleSetItems, collapsedSet, currency]);
+  }, [visibleSetItems, collapsedSet, currency, product.isCollection]);
 
   const displayUnitPrice = Math.max(0, unitPrice - excludedOneSetSum);
   const displayTotalPrice = displayUnitPrice * qty;
@@ -578,27 +897,51 @@ export default function ProductClient({
   };
 
   function saveCartMeta() {
-    const imageFromVariant =
-      Array.isArray(variantGallery) && variantGallery.length > 0
-        ? variantGallery[0]
-        : product.image;
+    const variantTitle =
+      [
+        ...selectedVariants.map((v) => v.title).filter(Boolean),
+        selectedSetItemLabel,
+      ]
+        .filter(Boolean)
+        .join(", ") || null;
 
-    upsertCartLineMeta({
+    const meta = {
       productId: product.id,
       variantId: vk ?? "base",
-      variantTitle:
-        selectedVariants
-          .map((v) => v.title)
-          .filter(Boolean)
-          .join(", ") || null,
+      variantTitle,
       title: product.title,
-      href: `/product/${encodeURIComponent(product.id)}`,
-      imageUrl: imageFromVariant || product.image || null,
+      href: `/product/${encodeURIComponent(product.id)}${
+        vk ? `?variant=${encodeURIComponent(vk)}` : ""
+      }`,
+      imageUrl: finalImage,
       sku: displayArticle,
-      price_uzs: product.price_uzs + (currency === "UZS" ? variantDelta : 0),
-      price_rub: product.price_rub + (currency === "RUB" ? variantDelta : 0),
-    });
+      price_uzs: finalUZS,
+      price_rub: finalRUB,
+
+      selectedColor: displayColor,
+      selectedVariantKey: selectedColorVariant?.id ?? null,
+
+      selectedSetItemId: selectedSetItem?.id ?? null,
+      selectedSetItemTitle: selectedSetItemLabel,
+      selectedSetItemOptionKey: selectedSetItem?.optionKey ?? null,
+      selectedSetItemColorKey: selectedSetItem?.colorKey ?? null,
+      selectedSetItemArticle: selectedSetItem?.article ?? null,
+      selectedSetItemNote: selectedSetItem?.note ?? null,
+
+      optionTitle: selectedSetItemLabel,
+      optionKey: selectedSetItem?.optionKey ?? null,
+      colorKey: selectedSetItem?.colorKey ?? selectedColorKey ?? null,
+
+      quantity: qty,
+    };
+
+    upsertCartLineMeta(meta as Parameters<typeof upsertCartLineMeta>[0]);
   }
+
+  const toggleFavorite = () => {
+    saveCartMeta();
+    toggleFav(product.id, vk);
+  };
 
   const toggleMainCart = () => {
     if (inCart) {
@@ -708,11 +1051,11 @@ export default function ProductClient({
           <button
             onClick={() => router.back()}
             className={cn(
-              "cursor-pointer inline-flex items-center gap-2 rounded-full border",
+              "inline-flex cursor-pointer items-center gap-2 rounded-full border",
               "h-9 px-3 text-[11px] tracking-[0.16em] uppercase",
               "sm:h-11 sm:px-4 sm:py-2 sm:text-[12px]",
               "border-black/10 bg-white text-black/70",
-              "hover:border-black/20 hover:text-black transition",
+              "transition hover:border-black/20 hover:text-black",
             )}
             type="button"
           >
@@ -721,13 +1064,13 @@ export default function ProductClient({
 
           <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
             <button
-              onClick={() => toggleFav(product.id, vk)}
+              onClick={toggleFavorite}
               className={cn(
-                "cursor-pointer inline-flex items-center gap-2 rounded-full border",
+                "inline-flex cursor-pointer items-center gap-2 rounded-full border",
                 "h-9 px-3 text-[11px]",
                 "sm:h-11 sm:px-4 sm:py-2 sm:text-[13px]",
                 "border-black/10 bg-white text-black/75",
-                "hover:border-black/20 hover:text-black transition",
+                "transition hover:border-black/20 hover:text-black",
               )}
               type="button"
             >
@@ -744,7 +1087,7 @@ export default function ProductClient({
               onClick={toggleMainCart}
               style={accentVars}
               className={cn(
-                "cursor-pointer inline-flex items-center gap-2 rounded-full",
+                "inline-flex cursor-pointer items-center gap-2 rounded-full",
                 "h-9 px-3 text-[11px]",
                 "sm:h-11 sm:px-4 sm:py-2 sm:text-[13px]",
                 "transition active:scale-[0.99]",
@@ -762,7 +1105,7 @@ export default function ProductClient({
 
         <div className="grid gap-10 lg:grid-cols-[520px_1fr]">
           <ProductGallery
-            key={`${product.id}-${gallery.length}-${variantKey ?? "base"}`}
+            key={`${product.id}-${gallery.length}-${variantKey ?? "base"}-${setItemKey}`}
             title={product.title}
             gallery={gallery}
             activeIdx={activeIdx}
@@ -800,12 +1143,35 @@ export default function ProductClient({
               )}
             >
               <ProductVariants
-                groups={groupsForUI}
+                groups={groupsForUIDisplay}
                 selectedByGroup={selectedByGroup}
                 setSelectedByGroup={setSelectedByGroup}
                 currency={currency}
               />
             </div>
+
+            {hasSetItems ? (
+              <div className="mt-3 rounded-2xl border border-black/10 bg-white p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] tracking-[0.18em] uppercase text-black/40">
+                      Комплектация
+                    </div>
+                    <div className="mt-1 text-[13px] font-semibold text-black">
+                      {selectedSetItemLabel || "Выберите исполнение"}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSetItemsOpen((v) => !v)}
+                    className="inline-flex h-9 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[12px] font-medium text-black/70 transition hover:border-black/20 hover:text-black"
+                  >
+                    {setItemsOpen ? "Скрыть" : "Изменить"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-3 flex items-start justify-between gap-6">
               <div className="text-[28px] font-semibold text-black">
@@ -816,7 +1182,7 @@ export default function ProductClient({
                 <div className="inline-flex h-10 items-center overflow-hidden border border-black/20 bg-white">
                   <button
                     onClick={() => setQty((v) => Math.max(1, v - 1))}
-                    className="cursor-pointer grid h-10 w-10 place-items-center border-r border-black/20 hover:bg-black/[0.03] transition"
+                    className="grid h-10 w-10 cursor-pointer place-items-center border-r border-black/20 transition hover:bg-black/[0.03]"
                     aria-label="Минус"
                     type="button"
                   >
@@ -829,7 +1195,7 @@ export default function ProductClient({
 
                   <button
                     onClick={() => setQty((v) => v + 1)}
-                    className="cursor-pointer grid h-10 w-10 place-items-center border-l border-black/20 hover:bg-black/[0.03] transition"
+                    className="grid h-10 w-10 cursor-pointer place-items-center border-l border-black/20 transition hover:bg-black/[0.03]"
                     aria-label="Плюс"
                     type="button"
                   >
@@ -844,14 +1210,14 @@ export default function ProductClient({
                 onClick={toggleMainCart}
                 style={accentVars}
                 className={cn(
-                  "cursor-pointer inline-flex items-center justify-center gap-2",
+                  "inline-flex cursor-pointer items-center justify-center gap-2",
                   "h-12 flex-1 rounded-none",
                   "text-[13px] font-semibold transition active:scale-[0.99]",
                   inCart
                     ? "bg-emerald-600 text-white hover:bg-emerald-700"
                     : accent === "cappuccino"
-                      ? "bg-[var(--acc)] text-white hover:brightness-[0.98] shadow-[0_16px_36px_var(--accSoft)]"
-                      : "bg-white text-black border border-black/20 hover:bg-black/[0.02]",
+                      ? "bg-[var(--acc)] text-white shadow-[0_16px_36px_var(--accSoft)] hover:brightness-[0.98]"
+                      : "border border-black/20 bg-white text-black hover:bg-black/[0.02]",
                 )}
                 type="button"
               >
@@ -865,12 +1231,13 @@ export default function ProductClient({
 
               <button
                 onClick={() => {
+                  saveCartMeta();
                   shop.setOneClick(product.id, qty, vk);
                   router.push("/checkout?mode=oneclick");
                 }}
                 style={accentVars}
                 className={cn(
-                  "cursor-pointer h-12 flex-1 rounded-none",
+                  "h-12 flex-1 cursor-pointer rounded-none",
                   "text-[13px] font-semibold",
                   "transition active:scale-[0.99]",
                   "bg-black text-white hover:bg-black/90",
@@ -881,7 +1248,7 @@ export default function ProductClient({
               </button>
             </div>
 
-            {product.isCollection && visibleSetItems.length > 0 ? (
+            {product.isCollection && hasSetItems ? (
               <section className="relative mt-6">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h2 className="text-[16px] font-semibold text-black sm:text-[18px]">
@@ -901,7 +1268,7 @@ export default function ProductClient({
                       <img
                         src={hoveredSetItem.image}
                         alt={hoveredSetItem.title}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                       />
                     </div>
                     <div className="px-3 py-3">
@@ -1043,9 +1410,9 @@ export default function ProductClient({
               <Link
                 href={product.collectionHref!}
                 className={cn(
-                  "mt-6 block rounded-3xl border border-black/10 bg-white p-3",
+                  "mt-6 block cursor-pointer rounded-3xl border border-black/10 bg-white p-3",
                   "shadow-[0_35px_110px_-85px_rgba(0,0,0,0.35)]",
-                  "hover:border-black/20 transition cursor-pointer",
+                  "transition hover:border-black/20",
                 )}
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -1095,6 +1462,122 @@ export default function ProductClient({
               <Row label="Размер" value={product.extra?.size || "—"} />
               <Row label="Цвет" value={displayColor} />
               <Row label="Материал" value={product.extra?.material || "—"} />
+
+              {hasSetItems ? (
+                <div className="flex items-start gap-3">
+                  <div className="w-[120px] shrink-0 text-black/45">
+                    Состав изделия
+                  </div>
+
+                  <div className="flex-1 border-b border-dotted border-black/20 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setSetItemsOpen((v) => !v)}
+                      className="inline-flex cursor-pointer items-center gap-2 text-black hover:text-black/70"
+                    >
+                      <span>
+                        {selectedSetItemLabel || "Выберите комплектацию"}
+                      </span>
+
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-black/20 bg-white">
+                        {setItemsOpen ? (
+                          <Minus className="h-3.5 w-3.5" />
+                        ) : (
+                          <Plus className="h-3.5 w-3.5" />
+                        )}
+                      </span>
+                    </button>
+
+                    <div
+                      className={cn(
+                        "overflow-hidden transition-all duration-300 ease-out",
+                        setItemsOpen
+                          ? "mt-3 max-h-[900px] opacity-100"
+                          : "max-h-0 opacity-0",
+                      )}
+                    >
+                      <div className="space-y-2">
+                        {visibleSetItems.map((item) => {
+                          const active = selectedSetItem?.id === item.id;
+                          const itemQty = Math.max(
+                            1,
+                            Number(item.quantity ?? 1),
+                          );
+
+                          const itemPrice =
+                            currency === "RUB"
+                              ? getPositiveNumber(item.price_rub)
+                              : getPositiveNumber(item.price_uzs);
+
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => setSelectedSetItemId(item.id)}
+                              className={cn(
+                                "flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition",
+                                active
+                                  ? "border-black bg-black/[0.03] shadow-[0_14px_34px_-28px_rgba(0,0,0,0.35)]"
+                                  : "border-black/10 bg-white hover:border-black/20 hover:bg-black/[0.015]",
+                              )}
+                            >
+                              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-black/[0.04]">
+                                {item.image ? (
+                                  <img
+                                    src={item.image}
+                                    alt={item.title}
+                                    className="h-full w-full object-contain"
+                                  />
+                                ) : (
+                                  <div className="grid h-full w-full place-items-center text-[9px] tracking-[0.16em] text-black/30">
+                                    NO IMG
+                                  </div>
+                                )}
+
+                                {active ? (
+                                  <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black text-white">
+                                    <Check className="h-3 w-3" />
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-[13px] font-semibold text-black">
+                                  {item.title}
+                                </div>
+
+                                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-black/45">
+                                  <span>Артикул: {item.article || "—"}</span>
+                                  <span>Кол-во: {itemQty}</span>
+                                  {itemPrice > 0 ? (
+                                    <span className="font-semibold text-black/70">
+                                      {formatPrice(
+                                        itemPrice * itemQty,
+                                        currency,
+                                      )}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div
+                                className={cn(
+                                  "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
+                                  active
+                                    ? "border-black bg-black text-white"
+                                    : "border-black/20 bg-white text-transparent",
+                                )}
+                              >
+                                <Check className="h-3 w-3" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {product.assemblyInstructionFile?.url ? (
                 <Row

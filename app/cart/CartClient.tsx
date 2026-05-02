@@ -1,4 +1,3 @@
-// app/cart/CartClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -49,6 +48,7 @@ function labelByBrandSlug(slug: string | null | undefined) {
     .trim()
     .toLowerCase();
   if (!s) return null;
+
   const found = BRANDS.find((b) => String(b.slug).toLowerCase() === s);
   return found ? found.title : s.toUpperCase();
 }
@@ -87,11 +87,43 @@ type VariantAny = {
   gallery?: string[];
 };
 
+type CartLineMeta = {
+  productId?: string;
+  variantId?: string;
+  variantTitle?: string | null;
+  title?: string;
+  href?: string;
+  imageUrl?: string | null;
+  sku?: string;
+  price_uzs?: number;
+  price_rub?: number;
+
+  selectedColor?: string | null;
+  selectedVariantKey?: string | null;
+
+  selectedSetItemId?: string | null;
+  selectedSetItemTitle?: string | null;
+  selectedSetItemOptionKey?: string | null;
+  selectedSetItemColorKey?: string | null;
+  selectedSetItemArticle?: string | null;
+  selectedSetItemNote?: string | null;
+
+  optionTitle?: string | null;
+  optionKey?: string | null;
+  colorKey?: string | null;
+
+  quantity?: number;
+};
+
 type CartItem = {
   key: string;
   productId: string;
   variantId: string;
   variantTitle: string | null;
+  selectedColor: string | null;
+  selectedSetItemTitle: string | null;
+  selectedSetItemOptionKey: string | null;
+  selectedSetItemColorKey: string | null;
   displayArticle: string;
   product: CatalogProduct | LiteProduct;
   qty: number;
@@ -122,6 +154,145 @@ function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
   return `${article} (${normalizedColor})`;
 }
 
+function metaString(v: unknown): string | null {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s ? s : null;
+}
+
+function asMetaRecord(v: unknown): CartLineMeta | null {
+  if (!isRecord(v)) return null;
+  return v as CartLineMeta;
+}
+
+function metaMatches(
+  meta: CartLineMeta | null,
+  productId: string,
+  variantId: string,
+) {
+  if (!meta) return false;
+
+  const mp = String(meta.productId ?? "").trim();
+  const mv = String(meta.variantId ?? "base").trim() || "base";
+
+  return mp === productId && mv === variantId;
+}
+
+function findMetaInValue(
+  value: unknown,
+  productId: string,
+  variantId: string,
+): CartLineMeta | null {
+  if (!value) return null;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const meta = asMetaRecord(item);
+      if (metaMatches(meta, productId, variantId)) return meta;
+    }
+    return null;
+  }
+
+  if (!isRecord(value)) return null;
+
+  const directKeys = [
+    `${productId}::${variantId}`,
+    `${productId}|${variantId}`,
+    `${productId}:${variantId}`,
+    `${productId}__${variantId}`,
+    `${productId}-${variantId}`,
+  ];
+
+  for (const key of directKeys) {
+    const direct = asMetaRecord(value[key]);
+    if (direct) return direct;
+  }
+
+  const nested = value[productId];
+  if (isRecord(nested)) {
+    const byVariant =
+      asMetaRecord(nested[variantId]) ||
+      asMetaRecord(nested[`variant:${variantId}`]) ||
+      asMetaRecord(nested["base"]);
+
+    if (byVariant) return byVariant;
+  }
+
+  for (const item of Object.values(value)) {
+    const meta = asMetaRecord(item);
+    if (metaMatches(meta, productId, variantId)) return meta;
+
+    const nestedMeta = findMetaInValue(item, productId, variantId);
+    if (nestedMeta) return nestedMeta;
+  }
+
+  return null;
+}
+
+function readCartLineMeta(
+  productId: string,
+  variantId: string,
+): CartLineMeta | null {
+  if (typeof window === "undefined") return null;
+
+  const preferredKeys = [
+    "lioneto:cart:line-meta:v1",
+    "lioneto:cart-line-meta:v1",
+    "lioneto:cart-line-meta",
+    "lioneto:cart:meta",
+    "cart-line-meta",
+  ];
+
+  for (const key of preferredKeys) {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const found = findMetaInValue(parsed, productId, variantId);
+      if (found) return found;
+    } catch {
+      // ignore
+    }
+  }
+
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (!key) continue;
+
+    const lower = key.toLowerCase();
+
+    if (
+      !lower.includes("cart") &&
+      !lower.includes("lead") &&
+      !lower.includes("meta")
+    ) {
+      continue;
+    }
+
+    const raw = window.localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const found = findMetaInValue(parsed, productId, variantId);
+      if (found) return found;
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+function readMetaPrice(meta: CartLineMeta | null, region: Region): number {
+  if (!meta) return 0;
+
+  const raw = region === "uz" ? meta.price_uzs : meta.price_rub;
+  const n = Number(raw);
+
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function flattenVariantsForCart(product: unknown): VariantAny[] {
   if (!isRecord(product)) return [];
   const raw = product.variants;
@@ -133,6 +304,7 @@ function flattenVariantsForCart(product: unknown): VariantAny[] {
 
   if (looksGrouped) {
     const out: VariantAny[] = [];
+
     for (const g of raw) {
       if (!isRecord(g)) continue;
 
@@ -164,6 +336,7 @@ function flattenVariantsForCart(product: unknown): VariantAny[] {
         });
       }
     }
+
     return out;
   }
 
@@ -351,15 +524,23 @@ export default function CartClient() {
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
         const ids = Array.from(new Set(productIds.filter(Boolean)));
+
+        if (ids.length === 0) {
+          if (alive) setProductsMap({});
+          return;
+        }
+
         const m = await fetchProductsMap(ids);
         if (alive) setProductsMap(m);
       } catch {
         if (alive) setProductsMap({});
       }
     })();
+
     return () => {
       alive = false;
     };
@@ -372,9 +553,9 @@ export default function CartClient() {
         const pid = String(parsedKey.productId);
         const vidRaw = String(parsedKey.variantId || "base");
 
-        const pMockUnknown = CATALOG_BY_ID.get(pid) as unknown;
-        const pMock = (pMockUnknown ?? undefined) as unknown;
+        const meta = readCartLineMeta(pid, vidRaw);
 
+        const pMockUnknown = CATALOG_BY_ID.get(pid) as unknown;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
 
         const pDisplay: unknown = (pMockUnknown ?? pStrapi) as unknown;
@@ -387,15 +568,15 @@ export default function CartClient() {
         const qty = Math.max(1, Math.floor(Number(shop.cart[key] ?? 1)));
 
         const variants: VariantAny[] = flattenVariantsForCart(pForCalc);
-
         const parsedVariant = parseCompositeVariantForCart(vidRaw, variants);
 
         const baseFromStrapi = readPriceFromObj(pStrapi, region);
         const baseFromMocks = readPriceFromObj(pMockUnknown, region);
         const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-        const pickedForDelta: VariantAny[] = [];
+        const pickedForPrice: VariantAny[] = [];
         const raw = String(vidRaw).trim();
+
         if (raw && raw !== "base") {
           const parts = raw
             .split("|")
@@ -404,21 +585,32 @@ export default function CartClient() {
 
           for (const part of parts) {
             const found = findVariantForPart(part, variants);
-            if (found) pickedForDelta.push(found);
+            if (found) pickedForPrice.push(found);
           }
         }
 
-        const delta = pickedForDelta.reduce((acc, v) => {
-          const d =
+        const selectedVariantFinalPrice = pickedForPrice
+          .map((v) =>
             region === "uz"
               ? toNum(v.priceDeltaUZS ?? 0)
-              : toNum(v.priceDeltaRUB ?? 0);
-          return acc + d;
-        }, 0);
+              : toNum(v.priceDeltaRUB ?? 0),
+          )
+          .find((price) => price > 0);
 
-        const unit = baseUnit + delta;
+        const metaUnit = readMetaPrice(meta, region);
+
+        const unit =
+          metaUnit > 0
+            ? metaUnit
+            : typeof selectedVariantFinalPrice === "number" &&
+                selectedVariantFinalPrice > 0
+              ? selectedVariantFinalPrice
+              : baseUnit;
+
+        const metaImage = metaString(meta?.imageUrl);
 
         const image =
+          metaImage ||
           (parsedVariant.image ? String(parsedVariant.image) : "") ||
           readFirstImage(pStrapi) ||
           readFirstImage(pDisplay);
@@ -426,13 +618,40 @@ export default function CartClient() {
         const brandSlug = readBrandSlug(pDisplay) || readBrandSlug(pStrapi);
         const collectionLabel = labelByBrandSlug(brandSlug);
 
-        const title = itSafeTitle(pStrapi) || itSafeTitle(pDisplay) || "Товар";
+        const title =
+          metaString(meta?.title) ||
+          itSafeTitle(pStrapi) ||
+          itSafeTitle(pDisplay) ||
+          "Товар";
+
+        const selectedColor = metaString(meta?.selectedColor);
+
+        const selectedSetItemTitle =
+          metaString(meta?.selectedSetItemTitle) ||
+          metaString(meta?.optionTitle);
+
+        const selectedSetItemOptionKey =
+          metaString(meta?.selectedSetItemOptionKey) ||
+          metaString(meta?.optionKey);
+
+        const selectedSetItemColorKey =
+          metaString(meta?.selectedSetItemColorKey) ||
+          metaString(meta?.colorKey);
+
+        const variantTitle =
+          [selectedColor, selectedSetItemTitle].filter(Boolean).join(", ") ||
+          metaString(meta?.variantTitle) ||
+          parsedVariant.title;
+
         const baseArticle =
-          readArticle(pStrapi) || readArticle(pMock) || readArticle(pDisplay);
-        const displayArticle = getDisplayArticle(
-          baseArticle,
-          parsedVariant.title,
-        );
+          metaString(meta?.sku) ||
+          readArticle(pStrapi) ||
+          readArticle(pMockUnknown) ||
+          readArticle(pDisplay);
+
+        const displayArticle =
+          metaString(meta?.sku) ||
+          getDisplayArticle(baseArticle, selectedColor || parsedVariant.title);
 
         const productForUI: CatalogProduct | LiteProduct = isRecord(pDisplay)
           ? ({
@@ -445,7 +664,11 @@ export default function CartClient() {
           key,
           productId: pid,
           variantId: vidRaw,
-          variantTitle: parsedVariant.title,
+          variantTitle,
+          selectedColor,
+          selectedSetItemTitle,
+          selectedSetItemOptionKey,
+          selectedSetItemColorKey,
           displayArticle,
           product: productForUI,
           qty,
@@ -483,9 +706,9 @@ export default function CartClient() {
             type="button"
             onClick={goBack}
             className={cn(
-              "cursor-pointer inline-flex items-center gap-2 rounded-full",
+              "inline-flex cursor-pointer items-center gap-2 rounded-full",
               "border border-black/10 bg-white px-4 py-2 text-sm text-black/70",
-              "hover:text-black hover:border-black/20 transition",
+              "transition hover:border-black/20 hover:text-black",
             )}
             aria-label="Назад"
             title="Назад"
@@ -510,7 +733,7 @@ export default function CartClient() {
         {items.length > 0 && (
           <button
             onClick={clear}
-            className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-black/75 hover:text-black hover:border-black/20 transition"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-black/75 transition hover:border-black/20 hover:text-black"
           >
             <Trash2 className="h-4 w-4" />
             Очистить
@@ -537,7 +760,7 @@ export default function CartClient() {
               <div className="mt-6">
                 <Link
                   href="/catalog"
-                  className="cursor-pointer inline-flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-medium text-white hover:opacity-90 transition"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
                 >
                   В каталог <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -552,7 +775,7 @@ export default function CartClient() {
                 <div className="flex gap-4">
                   <Link
                     href={`/product/${it.productId}`}
-                    className="cursor-pointer relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-black/5"
+                    className="relative h-24 w-24 shrink-0 cursor-pointer overflow-hidden rounded-2xl bg-black/5"
                   >
                     <SafeImg
                       src={it.image}
@@ -565,7 +788,7 @@ export default function CartClient() {
                       <div className="min-w-0">
                         <Link
                           href={`/product/${it.productId}`}
-                          className="cursor-pointer block truncate text-base font-medium tracking-[-0.01em] hover:underline"
+                          className="block cursor-pointer truncate text-base font-medium tracking-[-0.01em] hover:underline"
                         >
                           {it.collectionLabel ? (
                             <span className="text-black/55">
@@ -579,7 +802,23 @@ export default function CartClient() {
                           Артикул: {it.displayArticle}
                         </div>
 
-                        {it.variantTitle && it.variantId !== "base" ? (
+                        {it.selectedColor ? (
+                          <div className="mt-1 text-[12px] text-black/55">
+                            Цвет:{" "}
+                            <span className="font-semibold text-black/75">
+                              {it.selectedColor}
+                            </span>
+                          </div>
+                        ) : null}
+
+                        {it.selectedSetItemTitle ? (
+                          <div className="mt-1 text-[12px] text-black/55">
+                            Комплектация:{" "}
+                            <span className="font-semibold text-black/75">
+                              {it.selectedSetItemTitle}
+                            </span>
+                          </div>
+                        ) : it.variantTitle && it.variantId !== "base" ? (
                           <div className="mt-1 text-[12px] text-black/55">
                             Вариант:{" "}
                             <span className="font-semibold text-black/75">
@@ -595,7 +834,7 @@ export default function CartClient() {
 
                       <button
                         onClick={() => remove(it.productId, it.variantId)}
-                        className="cursor-pointer inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-black/65 hover:text-black hover:border-black/20 transition"
+                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/65 transition hover:border-black/20 hover:text-black"
                         aria-label="Удалить"
                         title="Удалить"
                       >
@@ -606,7 +845,7 @@ export default function CartClient() {
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                       <div className="inline-flex items-center rounded-full border border-black/10 bg-white p-1">
                         <button
-                          className="cursor-pointer h-9 w-9 rounded-full text-black/70 hover:text-black transition"
+                          className="h-9 w-9 cursor-pointer rounded-full text-black/70 transition hover:text-black"
                           onClick={() =>
                             changeQty(it.productId, it.variantId, it.qty - 1)
                           }
@@ -619,7 +858,7 @@ export default function CartClient() {
                           {it.qty}
                         </div>
                         <button
-                          className="cursor-pointer h-9 w-9 rounded-full text-black/70 hover:text-black transition"
+                          className="h-9 w-9 cursor-pointer rounded-full text-black/70 transition hover:text-black"
                           onClick={() =>
                             changeQty(it.productId, it.variantId, it.qty + 1)
                           }
@@ -663,10 +902,10 @@ export default function CartClient() {
             <Link
               href="/checkout"
               className={cn(
-                "cursor-pointer inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition",
+                "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition",
                 items.length
                   ? "bg-black text-white hover:opacity-90"
-                  : "bg-black/10 text-black/40 pointer-events-none",
+                  : "pointer-events-none bg-black/10 text-black/40",
               )}
             >
               Оформить заказ <ArrowRight className="h-4 w-4" />
@@ -674,7 +913,7 @@ export default function CartClient() {
 
             <Link
               href="/catalog"
-              className="cursor-pointer inline-flex w-full items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75 hover:text-black hover:border-black/20 transition"
+              className="inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-medium text-black/75 transition hover:border-black/20 hover:text-black"
             >
               Продолжить покупки
             </Link>

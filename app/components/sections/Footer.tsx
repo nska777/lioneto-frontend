@@ -22,6 +22,12 @@ gsap.registerPlugin(ScrollTrigger);
 type FooterLink = { label: string; href: string };
 type FooterColumn = { title: string; links: FooterLink[] };
 
+type LegalDownloadLink = {
+  label: string;
+  href: string;
+  fileName: string;
+};
+
 type FooterData = {
   brand: {
     title: string;
@@ -43,7 +49,7 @@ type FooterData = {
     href: string;
     icon: "instagram" | "telegram" | "youtube" | "facebook";
   }[];
-  legalLinks: FooterLink[];
+  legalLinks: LegalDownloadLink[];
 };
 
 const cn = (...s: Array<string | false | null | undefined>) =>
@@ -86,88 +92,94 @@ const seoCollectionLinks: FooterLink[] = [
 
 /* ================= COMPONENT ================= */
 
-export default function Footer({ data }: { data?: FooterData }) {
+export default function Footer({ data }: { data?: Partial<FooterData> }) {
   const rootRef = useRef<HTMLElement | null>(null);
 
   const footerData = useMemo<FooterData>(() => {
-    return (
-      data ?? {
-        brand: {
-          title: "LIONETO",
-          tagline: "Premium interior",
-          description:
-            "Премиальная мебель для современных интерьеров и коммерческих пространств.",
-        },
-        columns: [
-          {
-            title: "Навигация",
-            links: [
-              { label: "Каталог", href: "/catalog" },
-              { label: "О компании", href: "/about" },
-              { label: "Новости", href: "/news" },
-              { label: "Контакты", href: "/contacts" },
-            ],
-          },
-          {
-            title: "Коллекции",
-            links: seoCollectionLinks,
-          },
-          {
-            title: "Покупателям",
-            links: [
-              { label: "Доставка и оплата", href: "/delivery" },
-              { label: "Возврат", href: "/return" },
-              { label: "Гарантия", href: "/warranty" },
-              { label: "Уход за мебелью", href: "/care" },
-            ],
-          },
-        ],
-        contacts: {
-          phones: [
-            {
-              label: "Телефон",
-              value: "+998 (90) 003-80-08",
-              href: "tel:+998900038008",
-            },
-            {
-              label: "",
-              value: "+998 (90) 925-60-06",
-              href: "tel:+998909256006",
-            },
-          ],
-          email: {
-            label: "Email",
-            value: "info@lioneto.uz",
-            href: "mailto:info@lioneto.uz",
-          },
-          addresses: [
-            {
-              label: "Ташкент",
-              value:
-                "Rich House: г. Ташкент, Мирзо-Улугбекский район, проспект Мирзо Улугбека, 18",
-              mapUrl:
-                "https://yandex.ru/maps/?text=ул.%20Мирзо-Улугбек,%2018,%20Ташкент",
-            },
+    return {
+      brand: data?.brand ?? {
+        title: "LIONETO",
+        tagline: "Premium interior",
+        description:
+          "Премиальная мебель для современных интерьеров и коммерческих пространств.",
+      },
+      columns: data?.columns ?? [
+        {
+          title: "Навигация",
+          links: [
+            { label: "Каталог", href: "/catalog" },
+            { label: "О компании", href: "/about" },
+            { label: "Новости", href: "/news" },
+            { label: "Контакты", href: "/contacts" },
           ],
         },
-        socials: [
+        {
+          title: "Коллекции",
+          links: seoCollectionLinks,
+        },
+        {
+          title: "Покупателям",
+          links: [
+            { label: "Доставка и оплата", href: "/delivery" },
+            { label: "Возврат", href: "/return" },
+            { label: "Гарантия", href: "/warranty" },
+            { label: "Уход за мебелью", href: "/care" },
+          ],
+        },
+      ],
+      contacts: data?.contacts ?? {
+        phones: [
           {
-            label: "Instagram",
-            href: "https://www.instagram.com/lioneto.uz?igsh=MWZoaHRzcjUxenF1bw%3D%3D&utm_source=qr",
-            icon: "instagram",
+            label: "Телефон",
+            value: "+998 (90) 003-80-08",
+            href: "tel:+998900038008",
           },
           {
-            label: "Telegram",
-            href: "https://t.me/lianetouz",
-            icon: "telegram",
+            label: "",
+            value: "+998 (90) 925-60-06",
+            href: "tel:+998909256006",
           },
         ],
-        legalLinks: [
-          { label: "Политика конфиденциальности", href: "#" },
-          { label: "Публичная оферта", href: "/#" },
+        email: {
+          label: "Email",
+          value: "info@lioneto.uz",
+          href: "mailto:info@lioneto.uz",
+        },
+        addresses: [
+          {
+            label: "Ташкент",
+            value:
+              "Rich House: г. Ташкент, Мирзо-Улугбекский район, проспект Мирзо Улугбека, 18",
+            mapUrl:
+              "https://yandex.ru/maps/?text=ул.%20Мирзо-Улугбек,%2018,%20Ташкент",
+          },
         ],
-      }
-    );
+      },
+      socials: data?.socials ?? [
+        {
+          label: "Instagram",
+          href: "https://www.instagram.com/lioneto.uz?igsh=MWZoaHRzcjUxenF1bw%3D%3D&utm_source=qr",
+          icon: "instagram",
+        },
+        {
+          label: "Telegram",
+          href: "https://t.me/lianetouz",
+          icon: "telegram",
+        },
+      ],
+      legalLinks: data?.legalLinks ?? [
+        {
+          label: "Политика конфиденциальности",
+          href: "/docs/privacy-policy.docx",
+          fileName: "privacy-policy.docx",
+        },
+        {
+          label: "Публичная оферта",
+          href: "/docs/offer-agreement.docx",
+          fileName: "offer-agreement.docx",
+        },
+      ],
+    };
   }, [data]);
 
   /* ================= GSAP (FIXED) ================= */
@@ -360,7 +372,7 @@ export default function Footer({ data }: { data?: FooterData }) {
                 <a
                   key={p.value}
                   href={p.href}
-                  className="flex items-center gap-2 text-[13px] text-white/60 transition hover:text-white hover:-translate-y-[1px] cursor-pointer"
+                  className="flex cursor-pointer items-center gap-2 text-[13px] text-white/60 transition hover:-translate-y-[1px] hover:text-white"
                 >
                   <Phone className="h-4 w-4 text-white/40" />
                   <span>{p.value}</span>
@@ -369,7 +381,7 @@ export default function Footer({ data }: { data?: FooterData }) {
 
               <a
                 href={footerData.contacts.email.href}
-                className="flex items-center gap-2 text-[13px] text-white/60 transition hover:text-white hover:-translate-y-[1px] cursor-pointer"
+                className="flex cursor-pointer items-center gap-2 text-[13px] text-white/60 transition hover:-translate-y-[1px] hover:text-white"
               >
                 <Mail className="h-4 w-4 text-white/40" />
                 <span>{footerData.contacts.email.value}</span>
@@ -381,7 +393,7 @@ export default function Footer({ data }: { data?: FooterData }) {
                   href={a.mapUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="group flex items-start gap-2 text-[13px] text-white/60 transition hover:text-white hover:-translate-y-[1px] cursor-pointer"
+                  className="group flex cursor-pointer items-start gap-2 text-[13px] text-white/60 transition hover:-translate-y-[1px] hover:text-white"
                 >
                   <MapPin className="mt-[2px] h-4 w-4 text-white/40 transition group-hover:text-white" />
                   <div>
@@ -402,7 +414,7 @@ export default function Footer({ data }: { data?: FooterData }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={s.label}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/15 bg-white/5 transition hover:scale-[1.06] hover:bg-white/10 cursor-pointer"
+                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-white/15 bg-white/5 transition hover:scale-[1.06] hover:bg-white/10"
                 >
                   <SocialIcon name={s.icon} />
                 </a>
@@ -419,13 +431,14 @@ export default function Footer({ data }: { data?: FooterData }) {
 
           <div className="flex flex-wrap gap-4">
             {footerData.legalLinks.map((l) => (
-              <Link
+              <a
                 key={l.href}
                 href={l.href}
-                className="text-[12px] text-white/45 transition hover:text-white hover:-translate-y-[1px] cursor-pointer"
+                download={l.fileName}
+                className="cursor-pointer text-[12px] text-white/45 transition hover:-translate-y-[1px] hover:text-white"
               >
                 {l.label}
-              </Link>
+              </a>
             ))}
           </div>
         </div>
