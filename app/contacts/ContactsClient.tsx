@@ -66,18 +66,22 @@ function RegionToggle({
   );
 }
 
-function ContactLinksInline() {
+function ContactLinksInline({ region }: { region: RegionKey }) {
+  const isRu = region === "ru";
+
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
-      <a
-        href="https://www.instagram.com/lioneto.uz?igsh=MWZoaHRzcjUxenF1bw%3D%3D&utm_source=qr"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-[12px] font-medium tracking-[0.14em] text-black/65 transition hover:border-black/20 hover:text-black"
-      >
-        <Instagram className="h-4 w-4" />
-        INSTAGRAM
-      </a>
+      {!isRu ? (
+        <a
+          href="https://www.instagram.com/lioneto.uz?igsh=MWZoaHRzcjUxenF1bw%3D%3D&utm_source=qr"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-[12px] font-medium tracking-[0.14em] text-black/65 transition hover:border-black/20 hover:text-black"
+        >
+          <Instagram className="h-4 w-4" />
+          INSTAGRAM
+        </a>
+      ) : null}
 
       <a
         href="https://t.me/lianetouz"
@@ -374,7 +378,7 @@ export default function ContactsClient() {
         </div>
 
         <div className="min-w-0">
-          <ContactLinksInline />
+          <ContactLinksInline region={region} />
         </div>
 
         <div className="text-[12px] tracking-[0.18em] text-black/45 md:text-right">
