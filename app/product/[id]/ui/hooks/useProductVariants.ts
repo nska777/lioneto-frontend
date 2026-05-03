@@ -1,3 +1,4 @@
+// app/product/[id]/ui/hooks/useProductVariants.ts
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
@@ -13,51 +14,48 @@ function groupKey(v: ProductVariant) {
   return (v.group || v.kind || "option").toString();
 }
 
+function getPositiveNumber(v: unknown) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function getVariantPrice(v: ProductVariantWithRegion, currency: "RUB" | "UZS") {
-  const raw = currency === "RUB" ? v.priceDeltaRUB : v.priceDeltaUZS;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
+  return currency === "RUB"
+    ? getPositiveNumber(v.priceDeltaRUB)
+    : getPositiveNumber(v.priceDeltaUZS);
+}
+
+function variantHasAnyPrice(v: ProductVariantWithRegion) {
+  return (
+    v.priceDeltaUZS !== undefined ||
+    v.priceDeltaRUB !== undefined ||
+    v.priceDeltaUZS !== null ||
+    v.priceDeltaRUB !== null
+  );
 }
 
 function isVariantAvailableForRegion(
   variant: ProductVariantWithRegion,
   currency: "RUB" | "UZS",
 ) {
+  if (variant.disabled) return false;
   if (variant.isActive === false) return false;
 
-  /**
-   * UZ — мягкая логика:
-   * старые варианты без isActiveUZ не скрываем,
-   * но если явно false — скрываем.
-   */
+  const hasPrice = variantHasAnyPrice(variant);
+
   if (currency === "UZS") {
     if (variant.isActiveUZ === false) return false;
 
-    /**
-     * Если у варианта вообще нет цены, не режем его.
-     * Это важно для обычных option-вариантов без цены.
-     */
-    const hasAnyRegionPrice =
-      variant.priceDeltaUZS !== undefined ||
-      variant.priceDeltaRUB !== undefined;
-
-    if (hasAnyRegionPrice && getVariantPrice(variant, "UZS") <= 0) {
+    if (hasPrice && getVariantPrice(variant, "UZS") <= 0) {
       return false;
     }
 
     return true;
   }
 
-  /**
-   * RU — строгая логика:
-   * вариант должен быть явно включен для России.
-   */
-  if (variant.isActiveRU !== true) return false;
+  if (variant.isActiveRU === false) return false;
 
-  const hasAnyRegionPrice =
-    variant.priceDeltaUZS !== undefined || variant.priceDeltaRUB !== undefined;
-
-  if (hasAnyRegionPrice && getVariantPrice(variant, "RUB") <= 0) {
+  if (hasPrice && getVariantPrice(variant, "RUB") <= 0) {
     return false;
   }
 
@@ -68,9 +66,15 @@ export function buildVariantKey(selected: Record<string, string>) {
   const keys = Object.keys(selected).sort();
 
   if (!keys.length) return "base";
-  if (keys.length === 1) return selected[keys[0]];
 
-  return keys.map((k) => `${k}:${selected[k]}`).join("__");
+  return keys.map((k) => `${k}:${selected[k]}`).join("|");
+}
+
+function makeSelectedSignature(selected: Record<string, string>) {
+  return Object.keys(selected)
+    .sort()
+    .map((key) => `${key}:${selected[key]}`)
+    .join("|");
 }
 
 export function useProductVariants(
@@ -112,13 +116,18 @@ export function useProductVariants(
     return obj;
   }, [groups]);
 
+  const defaultSelectedSignature = useMemo(
+    () => makeSelectedSignature(defaultSelectedByGroup),
+    [defaultSelectedByGroup],
+  );
+
   const [selectedByGroup, setSelectedByGroup] = useState<Record<string, string>>(
     defaultSelectedByGroup,
   );
 
   useEffect(() => {
     setSelectedByGroup(defaultSelectedByGroup);
-  }, [product.id, defaultSelectedByGroup]);
+  }, [product.id, currency, defaultSelectedSignature]);
 
   useEffect(() => {
     setSelectedByGroup((current) => {
@@ -173,8 +182,8 @@ export function useProductVariants(
     for (const v of selectedVariants) {
       sum +=
         currency === "RUB"
-          ? Number(v.priceDeltaRUB ?? 0) || 0
-          : Number(v.priceDeltaUZS ?? 0) || 0;
+          ? getPositiveNumber(v.priceDeltaRUB)
+          : getPositiveNumber(v.priceDeltaUZS);
     }
 
     return sum;
@@ -186,9 +195,6 @@ export function useProductVariants(
       items: items as ProductVariant[],
     }));
 
-    /**
-     * MIN-base: скрываем механизм полностью.
-     */
     const isMinBase = product.id.includes("min-base");
 
     if (isMinBase) {
