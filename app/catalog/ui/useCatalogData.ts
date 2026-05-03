@@ -184,12 +184,49 @@ function getRoomSlugSafe(p: UnknownRecord) {
   }
 }
 
-function isActiveProduct(p: UnknownRecord) {
-  if (p.isActive === false) return false;
+function getRegionPrice(p: UnknownRecord, region: string) {
+  const r = String(region || "uz").trim().toLowerCase();
+
+  const raw =
+    r === "ru"
+      ? getNum(p, "priceRUB") ?? getNum(p, "priceRub") ?? getNum(p, "price_rub")
+      : getNum(p, "priceUZS") ??
+        getNum(p, "priceUzs") ??
+        getNum(p, "price_uzs");
+
+  return toNum(raw);
+}
+
+function isActiveProduct(p: UnknownRecord, region: string) {
+  const scene = isSceneProduct(p);
+  const r = String(region || "uz").trim().toLowerCase();
+
+  /**
+   * isActive — общий главный выключатель товара.
+   * Для scene-карточек оставляем мягкую защиту, чтобы не пропали старые сцены.
+   */
+  if (!scene && p.isActive === false) return false;
 
   if (Object.prototype.hasOwnProperty.call(p, "publishedAt")) {
     if (p.publishedAt === null) return false;
   }
+
+  /**
+   * Россия — строгий режим.
+   * Товар должен быть явно включен для RU и иметь цену RUB.
+   */
+  if (r === "ru") {
+    if (p.isActiveRU !== true) return false;
+    if (!scene && getRegionPrice(p, "ru") <= 0) return false;
+    return true;
+  }
+
+  /**
+   * Узбекистан — мягкий режим.
+   * Старые товары без isActiveUZ не скрываем, но если явно false — скрываем.
+   */
+  if (p.isActiveUZ === false) return false;
+  if (!scene && getRegionPrice(p, "uz") <= 0) return false;
 
   return true;
 }
@@ -312,7 +349,7 @@ export function useCatalogData({
        * 1. Сначала scene-карточки выбранной коллекции.
        */
       const scenesTop = DATA.filter((p) => {
-        if (!isActiveProduct(p)) return false;
+        if (!isActiveProduct(p, region)) return false;
         if (!isSceneProduct(p)) return false;
 
         const sceneRoom = getRoomSlugSafe(p);
@@ -345,7 +382,7 @@ export function useCatalogData({
        * 2. Потом обычные товары/модули.
        */
       const rest = DATA.filter((p) => {
-        if (!isActiveProduct(p)) return false;
+        if (!isActiveProduct(p, region)) return false;
 
         const id = idToString(p.id);
         if (sceneIds.has(id)) return false;

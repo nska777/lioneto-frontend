@@ -4,13 +4,16 @@ import { resolveStrapiImage } from "@/app/lib/strapi/resolveImage";
 type AnyObj = Record<string, any>;
 
 export type StrapiVariant = {
-  id: string; // "white" (а не "color:white")
+  id: string; // "white" или "cappuccino"
   title?: string;
   group?: string; // "color"
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
   image?: string;
   gallery?: string[];
+  isActive?: boolean;
+  isActiveUZ?: boolean;
+  isActiveRU?: boolean;
 };
 
 export type StrapiProductLite = {
@@ -18,12 +21,15 @@ export type StrapiProductLite = {
   slug: string;
   title: string;
 
+  isActive?: boolean | null;
+  isActiveUZ?: boolean | null;
+  isActiveRU?: boolean | null;
+
   brand?: string | null;
   cat?: string | null;
   module?: string | null;
   collection?: string | null;
 
-  // ✅ БАЗОВЫЕ ЦЕНЫ (ключевое!)
   priceUZS?: number | null;
   priceRUB?: number | null;
 
@@ -43,19 +49,33 @@ function toNum(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function toBool(v: any): boolean | null {
+  if (typeof v === "boolean") return v;
+
+  const s = String(v ?? "").trim().toLowerCase();
+
+  if (["true", "1", "yes", "да"].includes(s)) return true;
+  if (["false", "0", "no", "нет"].includes(s)) return false;
+
+  return null;
+}
+
 function pickMediaUrl(m: any): string | undefined {
   if (!m) return undefined;
+
   const a = m?.data?.attributes ?? m?.attributes ?? m;
   const url =
     a?.formats?.large?.url ||
     a?.formats?.medium?.url ||
     a?.formats?.small?.url ||
     a?.url;
+
   return url ? resolveStrapiImage(String(url)) : undefined;
 }
 
 function pickGalleryUrls(g: any): string[] {
   if (!g) return [];
+
   const arr = Array.isArray(g?.data) ? g.data : Array.isArray(g) ? g : [];
   const out: string[] = [];
 
@@ -66,7 +86,11 @@ function pickGalleryUrls(g: any): string[] {
       a?.formats?.medium?.url ||
       a?.formats?.small?.url ||
       a?.url;
-    if (url) out.push(resolveStrapiImage(String(url))!);
+
+    if (url) {
+      const resolved = resolveStrapiImage(String(url));
+      if (resolved) out.push(resolved);
+    }
   }
 
   return out.filter(Boolean);
@@ -75,6 +99,7 @@ function pickGalleryUrls(g: any): string[] {
 function pickVariantImageUrl(v: any): string | undefined {
   const a =
     v?.image?.data?.attributes ?? v?.image?.attributes ?? v?.image ?? null;
+
   if (!a) return undefined;
 
   const url =
@@ -92,11 +117,20 @@ function pickVariantImageUrl(v: any): string | undefined {
  */
 function normalizeVariantKey(raw: any) {
   const s = String(raw ?? "").trim();
-  if (!s) return { id: "", groupFromKey: undefined as string | undefined };
+
+  if (!s) {
+    return { id: "", groupFromKey: undefined as string | undefined };
+  }
+
   if (s.includes(":")) {
     const [g, id] = s.split(":");
-    return { id: String(id ?? "").trim(), groupFromKey: String(g ?? "").trim() };
+
+    return {
+      id: String(id ?? "").trim(),
+      groupFromKey: String(g ?? "").trim(),
+    };
   }
+
   return { id: s, groupFromKey: undefined };
 }
 
@@ -108,10 +142,10 @@ function getStrapiBase() {
   ).replace(/\/$/, "");
 }
 
-// ----------- ✅ общий маппер одного item -> LiteProduct (чтобы reuse) -----------
 function mapStrapiItemToLite(item: any): StrapiProductLite | null {
   const src = unwrapItem(item);
   const slug = String(src?.slug ?? "").trim();
+
   if (!slug) return null;
 
   const image = pickMediaUrl(src?.media);
@@ -120,7 +154,7 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
 
   const variantsRaw: any[] = Array.isArray(src?.variants) ? src.variants : [];
 
-    const variants: StrapiVariant[] = variantsRaw
+  const variants: StrapiVariant[] = variantsRaw
     .map((v) => {
       const { id, groupFromKey } = normalizeVariantKey(v?.variantKey || v?.id);
       const group = String(v?.group ?? groupFromKey ?? "").trim() || undefined;
@@ -129,30 +163,41 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
 
       return {
         id: String(id || "").trim(),
-        // ✅ title может быть пустым — НЕ выкидываем вариант
-        title: v?.title !== undefined && v?.title !== null && String(v.title).trim()
-          ? String(v.title).trim()
-          : undefined,
+
+        title:
+          v?.title !== undefined && v?.title !== null && String(v.title).trim()
+            ? String(v.title).trim()
+            : undefined,
+
         group,
+
         priceDeltaRUB: toNum(v?.priceDeltaRUB) ?? undefined,
         priceDeltaUZS: toNum(v?.priceDeltaUZS) ?? undefined,
+
         image: img,
         gallery: img ? [img] : undefined,
+
+        isActive: toBool(v?.isActive) ?? undefined,
+        isActiveUZ: toBool(v?.isActiveUZ) ?? undefined,
+        isActiveRU: toBool(v?.isActiveRU) ?? undefined,
       };
     })
-    // ✅ оставляем всё, где есть id (title не обязателен)
     .filter((x) => x.id);
 
   return {
     id: slug,
     slug,
     title: String(src?.title ?? "—"),
+
+    isActive: toBool(src?.isActive),
+    isActiveUZ: toBool(src?.isActiveUZ),
+    isActiveRU: toBool(src?.isActiveRU),
+
     brand: src?.brand ?? null,
     cat: src?.cat ?? null,
     module: src?.module ?? null,
     collection: src?.collection ?? null,
 
-    // ✅ БАЗОВАЯ ЦЕНА ИЗ Strapi Product
     priceUZS: toNum(src?.priceUZS ?? src?.priceUzs ?? src?.price_uzs),
     priceRUB: toNum(src?.priceRUB ?? src?.priceRub ?? src?.price_rub),
 
@@ -162,7 +207,6 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
   };
 }
 
-// ----------- ✅ NEW: fetch ALL products with pagination loop (catalog) ----------
 type StrapiPagination = {
   page: number;
   pageSize: number;
@@ -176,15 +220,11 @@ type StrapiListResponse = {
 };
 
 /**
- * ✅ Каталог: загрузить ВСЕ товары из Strapi v5 с учетом pagination
- * - Без price-entry
- * - cache: "no-store"
- * - page loop до pageCount
+ * Каталог: загрузить ВСЕ товары из Strapi v5 с pagination.
  */
 export async function fetchAllProductsLite(opts?: {
-  pageSize?: number; // рекомендуем 250
-  sort?: string; // например "sortOrder:asc" или "title:asc"
-  // если у тебя есть "isActive", можешь включить фильтр, но по умолчанию НЕ фильтруем
+  pageSize?: number;
+  sort?: string;
   filters?: Record<string, string | number | boolean>;
 }) {
   const base = getStrapiBase();
@@ -192,7 +232,6 @@ export async function fetchAllProductsLite(opts?: {
 
   const baseParams = new URLSearchParams();
 
-  // populate — оставляем как у тебя (media/gallery/variants/image)
   baseParams.set("populate[0]", "media");
   baseParams.set("populate[1]", "gallery");
   baseParams.set("populate[2]", "variants");
@@ -203,23 +242,23 @@ export async function fetchAllProductsLite(opts?: {
   if (opts?.sort) baseParams.set("sort", opts.sort);
 
   if (opts?.filters) {
-    // ожидаем, что ключи будут уже в формате Strapi filters[...]...
-    // например: { "filters[isActive][$eq]": "true" }
     for (const [k, v] of Object.entries(opts.filters)) {
       if (v === undefined || v === null || v === "") continue;
       baseParams.set(k, String(v));
     }
   }
 
-  // page 1 — чтобы узнать pageCount/total
   const p1 = new URLSearchParams(baseParams);
   p1.set("pagination[page]", "1");
 
   const url1 = `${base}/api/products?${p1.toString()}`;
   const res1 = await fetch(url1, { cache: "no-store" });
+
   if (!res1.ok) {
     const text = await res1.text().catch(() => "");
-    throw new Error(`fetchAllProductsLite failed ${res1.status}: ${text || url1}`);
+    throw new Error(
+      `fetchAllProductsLite failed ${res1.status}: ${text || url1}`,
+    );
   }
 
   const json1 = (await res1.json()) as StrapiListResponse;
@@ -227,6 +266,7 @@ export async function fetchAllProductsLite(opts?: {
   const pag = json1?.meta?.pagination;
 
   const allItems: StrapiProductLite[] = [];
+
   for (const it of data1) {
     const mapped = mapStrapiItemToLite(it);
     if (mapped) allItems.push(mapped);
@@ -234,13 +274,13 @@ export async function fetchAllProductsLite(opts?: {
 
   const pageCount = pag?.pageCount ?? 1;
 
-  // остальные страницы
   for (let page = 2; page <= pageCount; page++) {
     const p = new URLSearchParams(baseParams);
     p.set("pagination[page]", String(page));
 
     const url = `${base}/api/products?${p.toString()}`;
     const res = await fetch(url, { cache: "no-store" });
+
     if (!res.ok) continue;
 
     const json = (await res.json()) as StrapiListResponse;
@@ -261,7 +301,8 @@ export async function fetchAllProductsLite(opts?: {
 }
 
 /**
- * Fetch many products by slugs (ids in your cart/favorites)
+ * Fetch many products by slugs.
+ * Используется в cart/favorites/checkout.
  */
 export async function fetchStrapiProductsMapBySlugs(
   slugs: string[],
@@ -269,6 +310,7 @@ export async function fetchStrapiProductsMapBySlugs(
   const ids = Array.from(
     new Set(slugs.map((s) => String(s || "").trim()).filter(Boolean)),
   );
+
   if (!ids.length) return {};
 
   const base = getStrapiBase();
@@ -276,7 +318,6 @@ export async function fetchStrapiProductsMapBySlugs(
 
   ids.forEach((id, i) => params.set(`filters[slug][$in][${i}]`, id));
 
-  // populate
   params.set("populate[0]", "media");
   params.set("populate[1]", "gallery");
   params.set("populate[2]", "variants");
@@ -296,6 +337,7 @@ export async function fetchStrapiProductsMapBySlugs(
   for (const item of data) {
     const mapped = mapStrapiItemToLite(item);
     if (!mapped) continue;
+
     out[mapped.slug] = mapped;
   }
 
@@ -303,7 +345,7 @@ export async function fetchStrapiProductsMapBySlugs(
 }
 
 /**
- * ✅ Совместимость с твоими импортами в CartClient:
+ * Совместимость с импортами:
  * import { fetchProductsMap, type LiteProduct } from "@/app/lib/strapi/products";
  */
 export async function fetchProductsMap(slugs: string[]) {

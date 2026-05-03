@@ -28,6 +28,9 @@ type SetItemJson = {
   colorKey?: string;
   optionKey?: string;
   note?: string;
+  isActive?: boolean | string | null;
+  isActiveUZ?: boolean | string | null;
+  isActiveRU?: boolean | string | null;
 };
 
 type StrapiProduct = {
@@ -36,6 +39,8 @@ type StrapiProduct = {
   title?: string;
   slug?: string;
   isActive?: boolean;
+  isActiveUZ?: boolean;
+  isActiveRU?: boolean;
   publishedAt?: string | null;
 
   brand?: string;
@@ -84,6 +89,9 @@ type SetItemWithResolvedImage = {
   colorKey?: string;
   optionKey?: string;
   note?: string;
+  isActive?: boolean;
+  isActiveUZ?: boolean;
+  isActiveRU?: boolean;
 };
 
 function isSceneProduct(
@@ -111,12 +119,26 @@ function pickText(...values: Array<unknown>): string | undefined {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
+
   return undefined;
 }
 
 function toFiniteNumber(v: unknown): number | undefined {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
+}
+
+function toBool(v: unknown): boolean | undefined {
+  if (typeof v === "boolean") return v;
+
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (["true", "1", "yes", "да"].includes(s)) return true;
+  if (["false", "0", "no", "нет"].includes(s)) return false;
+
+  return undefined;
 }
 
 function pickStrapiMediaUrl(m: unknown): string | undefined {
@@ -270,6 +292,9 @@ function parseSetItemsJson(value: unknown): SetItemWithResolvedImage[] {
     const raw = item as SetItemJson;
     if (!isRecord(raw)) return;
 
+    const active = toBool(raw.isActive);
+    if (active === false) return;
+
     const title = pickText(raw.title) || "Без названия";
     const slug = pickText(raw.slug);
     const article = pickText(raw.article);
@@ -298,6 +323,9 @@ function parseSetItemsJson(value: unknown): SetItemWithResolvedImage[] {
       colorKey: colorKey || undefined,
       optionKey: optionKey || undefined,
       note: note || undefined,
+      isActive: active,
+      isActiveUZ: toBool(raw.isActiveUZ),
+      isActiveRU: toBool(raw.isActiveRU),
     });
   });
 
@@ -359,7 +387,13 @@ async function fetchStrapiProductBySlug(
 
       title: typeof src.title === "string" ? src.title : "",
       slug: typeof src.slug === "string" ? src.slug : "",
+
       isActive: typeof src.isActive === "boolean" ? src.isActive : true,
+      isActiveUZ:
+        typeof src.isActiveUZ === "boolean" ? src.isActiveUZ : undefined,
+      isActiveRU:
+        typeof src.isActiveRU === "boolean" ? src.isActiveRU : undefined,
+
       publishedAt:
         typeof src.publishedAt === "string" || src.publishedAt === null
           ? (src.publishedAt as string | null)
@@ -451,6 +485,14 @@ async function fetchRelatedStrapiProducts(seed: {
           title: src && typeof src.title === "string" ? src.title : "",
           slug: src && typeof src.slug === "string" ? src.slug : "",
           brand: src && typeof src.brand === "string" ? src.brand : null,
+          isActiveUZ:
+            src && typeof src.isActiveUZ === "boolean"
+              ? src.isActiveUZ
+              : undefined,
+          isActiveRU:
+            src && typeof src.isActiveRU === "boolean"
+              ? src.isActiveRU
+              : undefined,
           media: src ? (src.media as unknown) : null,
           priceUZS:
             src && typeof src.priceUZS === "number" ? src.priceUZS : null,
@@ -675,6 +717,10 @@ export default async function ProductPage({
     hasDiscount: false,
     href: `/product/${slug}`,
 
+    isActive: sp.isActive,
+    isActiveUZ: sp.isActiveUZ,
+    isActiveRU: sp.isActiveRU,
+
     sku: skuVal,
     description,
 
@@ -713,6 +759,9 @@ export default async function ProductPage({
           .map((v) => {
             if (!isRecord(v)) return null;
 
+            const active = toBool(v.isActive);
+            if (active === false) return null;
+
             const variantKey =
               typeof v.variantKey === "string"
                 ? v.variantKey
@@ -740,6 +789,9 @@ export default async function ProductPage({
               priceDeltaUZS:
                 finalUZS !== undefined ? Number(finalUZS) : undefined,
               image: img,
+              isActive: active,
+              isActiveUZ: toBool(v.isActiveUZ),
+              isActiveRU: toBool(v.isActiveRU),
             };
           })
           .filter((x): x is NonNullable<typeof x> => !!x && !!x.id)
@@ -772,6 +824,8 @@ export default async function ProductPage({
         gallery: [rImage],
         price_rub: Number(rp.priceRUB ?? 0),
         price_uzs: Number(rp.priceUZS ?? 0),
+        isActiveUZ: rp.isActiveUZ,
+        isActiveRU: rp.isActiveRU,
         variants: [],
         brand: norm(rp.brand),
         collectionLabel: String(rp.brand ?? "").toUpperCase(),
@@ -781,6 +835,7 @@ export default async function ProductPage({
 
   const variantsFixed = (product.variants ?? []).map((v) => {
     const rawKind = String((v as { kind?: unknown })?.kind ?? "").toLowerCase();
+
     return {
       ...v,
       kind: (rawKind === "color" ? "color" : "option") as "color" | "option",

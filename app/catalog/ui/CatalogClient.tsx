@@ -103,6 +103,8 @@ type CatalogStrapiItem = ProductAnyLocal & {
   collectionBadge?: string;
 
   isActive: boolean;
+  isActiveUZ?: boolean;
+  isActiveRU?: boolean;
   publishedAt?: string | null;
   sortOrder?: number;
 
@@ -170,19 +172,54 @@ function getCatalogSortOrder(p: Record<string, unknown>) {
   return Number.isFinite(n) ? n : 999999;
 }
 
-function isVisibleFromStrapi(p: Record<string, unknown>) {
+function getRegionPriceFromCatalogItem(
+  p: Record<string, unknown>,
+  region: string,
+) {
+  const regionKey = String(region || "uz")
+    .trim()
+    .toLowerCase();
+  const raw = regionKey === "ru" ? p.priceRUB : p.priceUZS;
+  const n = typeof raw === "number" ? raw : Number(raw);
+
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isVisibleFromStrapi(p: Record<string, unknown>, region = "uz") {
   const scene = isCatalogSceneItem(p);
+  const regionKey = String(region || "uz")
+    .trim()
+    .toLowerCase();
 
   /**
-   * Временная защита:
-   * scene-карточки показываем даже если isActive:false,
-   * потому что старый импорт мог оставить их выключенными.
+   * isActive — главный общий выключатель карточки.
+   * Scene пока оставляем с мягкой защитой, чтобы сборные карточки не пропали
+   * из-за старых импортов.
    */
   if (!scene && p.isActive === false) return false;
 
   if (Object.prototype.hasOwnProperty.call(p, "publishedAt")) {
     if (p.publishedAt === null) return false;
   }
+
+  /**
+   * RU — строгая логика:
+   * показываем только если товар явно включен для России
+   * и есть нормальная цена RUB.
+   */
+  if (regionKey === "ru") {
+    if (p.isActiveRU !== true) return false;
+    if (!scene && getRegionPriceFromCatalogItem(p, "ru") <= 0) return false;
+    return true;
+  }
+
+  /**
+   * UZ — мягкая логика:
+   * если isActiveUZ пустой/старый товар — не скрываем,
+   * но если явно false — скрываем.
+   */
+  if (p.isActiveUZ === false) return false;
+  if (!scene && getRegionPriceFromCatalogItem(p, "uz") <= 0) return false;
 
   return true;
 }
@@ -244,6 +281,12 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
   const collectionBadge = getOptionalString(src, "collectionBadge");
 
   const isActive = getBoolean(src, "isActive", true);
+
+  const isActiveUZRaw = getUnknown(src, "isActiveUZ");
+  const isActiveRURaw = getUnknown(src, "isActiveRU");
+
+  const isActiveUZ = isBoolean(isActiveUZRaw) ? isActiveUZRaw : undefined;
+  const isActiveRU = isBoolean(isActiveRURaw) ? isActiveRURaw : undefined;
 
   const publishedAtRaw = getUnknown(src, "publishedAt");
   const publishedAt =
@@ -313,6 +356,8 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
     collectionBadge,
 
     isActive,
+    isActiveUZ,
+    isActiveRU,
     publishedAt,
     sortOrder,
 
@@ -541,15 +586,17 @@ export default function CatalogClient({
               `fields[4]=brand&` +
               `fields[5]=cat&` +
               `fields[6]=isActive&` +
-              `fields[7]=publishedAt&` +
-              `fields[8]=sortOrder&` +
-              `fields[9]=priceUZS&` +
-              `fields[10]=priceRUB&` +
-              `fields[11]=oldPriceUZS&` +
-              `fields[12]=oldPriceRUB&` +
-              `fields[13]=collectionBadge&` +
-              `fields[14]=sku&` +
-              `fields[15]=articleShort&` +
+              `fields[7]=isActiveUZ&` +
+              `fields[8]=isActiveRU&` +
+              `fields[9]=publishedAt&` +
+              `fields[10]=sortOrder&` +
+              `fields[11]=priceUZS&` +
+              `fields[12]=priceRUB&` +
+              `fields[13]=oldPriceUZS&` +
+              `fields[14]=oldPriceRUB&` +
+              `fields[15]=collectionBadge&` +
+              `fields[16]=sku&` +
+              `fields[17]=articleShort&` +
               `populate[media][fields][0]=url&` +
               `pagination[page]=${page}&pagination[pageSize]=${pageSize}&` +
               `sort=sortOrder:asc,updatedAt:desc`,
@@ -638,7 +685,7 @@ export default function CatalogClient({
   const isCatalogItemActive = (p: unknown): p is CatalogItemRec => {
     if (!isRecord(p)) return false;
 
-    return isVisibleFromStrapi(p);
+    return isVisibleFromStrapi(p, region);
   };
 
   /**
@@ -657,7 +704,7 @@ export default function CatalogClient({
 
     const list = (baseItems as unknown[])
       .filter((x): x is CatalogItemRec => isRecord(x))
-      .filter((p) => isVisibleFromStrapi(p))
+      .filter((p) => isVisibleFromStrapi(p, region))
       .filter((p) => getCatalogItemCollection(p) === currentCollection)
       .sort((a, b) => {
         const sceneA = isCatalogSceneItem(a);
@@ -681,7 +728,7 @@ export default function CatalogClient({
       });
 
     return list;
-  }, [baseItems, activeCollection]);
+  }, [baseItems, activeCollection, region]);
 
   const sortedFromHook = (sorted ?? []).filter(isCatalogItemActive);
 
@@ -721,7 +768,7 @@ export default function CatalogClient({
     const set = new Set<string>();
 
     for (const p of baseItems) {
-      if (!isVisibleFromStrapi(p)) continue;
+      if (!isVisibleFromStrapi(p, region)) continue;
 
       const col = getCatalogItemCollection(p);
 
@@ -745,7 +792,7 @@ export default function CatalogClient({
       .map((v) => ({ label: v, value: v }));
 
     return [...known, ...unknown];
-  }, [activeCollection, baseItems]);
+  }, [activeCollection, baseItems, region]);
 
   const doorItems = useMemo(() => [...DOOR_ITEMS], []);
 

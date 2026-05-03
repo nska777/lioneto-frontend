@@ -54,6 +54,9 @@ export type ProductVariant = {
   priceDeltaUZS?: number;
   image?: string;
   gallery?: string[];
+  isActive?: boolean | null;
+  isActiveUZ?: boolean | null;
+  isActiveRU?: boolean | null;
 };
 
 type ProductSetItem = {
@@ -68,6 +71,9 @@ type ProductSetItem = {
   colorKey?: string;
   optionKey?: string;
   note?: string;
+  isActive?: boolean | null;
+  isActiveUZ?: boolean | null;
+  isActiveRU?: boolean | null;
 };
 
 export type ProductPageModel = {
@@ -79,6 +85,9 @@ export type ProductPageModel = {
   gallery: string[];
   price_rub: number;
   price_uzs: number;
+  isActive?: boolean | null;
+  isActiveUZ?: boolean | null;
+  isActiveRU?: boolean | null;
   description?: string;
   extra?: {
     article?: string;
@@ -99,6 +108,8 @@ export type ProductPageModel = {
     price_uzs: number;
     href: string;
     badge?: string;
+    isActiveUZ?: boolean | null;
+    isActiveRU?: boolean | null;
   }>;
   setItems?: ProductSetItem[];
   variants?: ProductVariant[];
@@ -199,6 +210,32 @@ function getSetItemOptionLabel(item?: ProductSetItem | null) {
 
   const option = String(item.optionKey ?? "").trim();
   return option || null;
+}
+
+function getSetItemPrice(item: ProductSetItem, currency: "RUB" | "UZS") {
+  return currency === "RUB"
+    ? getPositiveNumber(item.price_rub)
+    : getPositiveNumber(item.price_uzs);
+}
+
+function isSetItemAvailableForRegion(
+  item: ProductSetItem,
+  currency: "RUB" | "UZS",
+) {
+  if (item.isActive === false) return false;
+
+  const price = getSetItemPrice(item, currency);
+
+  if (currency === "RUB") {
+    if (item.isActiveRU !== true) return false;
+    if (price <= 0) return false;
+    return true;
+  }
+
+  if (item.isActiveUZ === false) return false;
+  if (price <= 0) return false;
+
+  return true;
 }
 
 function parseVariantParam(raw: string) {
@@ -535,6 +572,12 @@ export default function ProductClient({
 
   const allSetItems = useMemo(() => product.setItems ?? [], [product.setItems]);
 
+  const regionSetItems = useMemo(() => {
+    return allSetItems.filter((item) =>
+      isSetItemAvailableForRegion(item, currency),
+    );
+  }, [allSetItems, currency]);
+
   const { selectedByGroup, setSelectedByGroup, selectedVariants, groupsForUI } =
     useProductVariants(product, currency);
 
@@ -624,32 +667,28 @@ export default function ProductClient({
   }, [selectedColorVariant, selectedByGroup]);
 
   const visibleSetItems = useMemo(() => {
-    if (!allSetItems.length) return [];
+    if (!regionSetItems.length) return [];
 
-    const hasColorBoundItems = allSetItems.some((item) =>
+    const hasColorBoundItems = regionSetItems.some((item) =>
       String(item.colorKey ?? "").trim(),
     );
 
-    if (!hasColorBoundItems || !selectedColorKey) {
-      return [...allSetItems].sort(
-        (a, b) =>
-          getFiniteNumber(a.quantity) - getFiniteNumber(b.quantity) ||
-          String(a.title).localeCompare(String(b.title)),
-      );
-    }
+    const list =
+      !hasColorBoundItems || !selectedColorKey
+        ? regionSetItems
+        : regionSetItems.filter((item) => {
+            const itemColorKey = normalizeKey(item.colorKey);
+            if (!itemColorKey) return true;
+            return itemColorKey === selectedColorKey;
+          });
 
-    return allSetItems
-      .filter((item) => {
-        const itemColorKey = normalizeKey(item.colorKey);
-        if (!itemColorKey) return true;
-        return itemColorKey === selectedColorKey;
-      })
-      .sort(
-        (a, b) =>
-          getFiniteNumber(a.quantity) - getFiniteNumber(b.quantity) ||
-          String(a.title).localeCompare(String(b.title)),
-      );
-  }, [allSetItems, selectedColorKey]);
+    return [...list].sort(
+      (a, b) =>
+        getFiniteNumber(a.quantity) - getFiniteNumber(b.quantity) ||
+        getFiniteNumber(a.price_uzs) - getFiniteNumber(b.price_uzs) ||
+        String(a.title).localeCompare(String(b.title), "ru"),
+    );
+  }, [regionSetItems, selectedColorKey]);
 
   const hasSetItems = visibleSetItems.length > 0;
 
@@ -819,10 +858,7 @@ export default function ProductClient({
 
   const selectedSetItemPrice = useMemo(() => {
     if (!selectedSetItem) return 0;
-
-    return currency === "RUB"
-      ? getPositiveNumber(selectedSetItem.price_rub)
-      : getPositiveNumber(selectedSetItem.price_uzs);
+    return getSetItemPrice(selectedSetItem, currency);
   }, [selectedSetItem, currency]);
 
   const unitPrice =
@@ -870,12 +906,9 @@ export default function ProductClient({
     return visibleSetItems.reduce((sum, item) => {
       if (!collapsedSet.has(item.id)) return sum;
 
-      const itemPrice =
-        currency === "RUB"
-          ? Number(item.price_rub ?? 0)
-          : Number(item.price_uzs ?? 0);
-
+      const itemPrice = getSetItemPrice(item, currency);
       const itemQty = Math.max(1, Number(item.quantity ?? 1));
+
       return sum + itemPrice * itemQty;
     }, 0);
   }, [visibleSetItems, collapsedSet, currency, product.isCollection]);
@@ -1284,11 +1317,7 @@ export default function ProductClient({
 
                 <div className="space-y-2">
                   {visibleSetItems.map((item) => {
-                    const itemPrice =
-                      currency === "RUB"
-                        ? Number(item.price_rub ?? 0)
-                        : Number(item.price_uzs ?? 0);
-
+                    const itemPrice = getSetItemPrice(item, currency);
                     const itemQty = Math.max(1, Number(item.quantity ?? 1));
                     const collapsed = collapsedSet.has(item.id);
 
@@ -1504,10 +1533,7 @@ export default function ProductClient({
                             Number(item.quantity ?? 1),
                           );
 
-                          const itemPrice =
-                            currency === "RUB"
-                              ? getPositiveNumber(item.price_rub)
-                              : getPositiveNumber(item.price_uzs);
+                          const itemPrice = getSetItemPrice(item, currency);
 
                           return (
                             <button
