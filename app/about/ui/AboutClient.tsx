@@ -249,7 +249,7 @@ export default function AboutClient() {
                 </span>
 
                 <span className="block text-[30px] font-semibold leading-[1.1] tracking-[0.015em] md:text-[42px]">
-                  MANNGROUP и MANINIMOBILI
+                  MANNGROUP и MANINI MOBILI
                 </span>
 
                 <span className="block text-[24px] font-semibold leading-[1.12] md:text-[38px]">
