@@ -1,13 +1,17 @@
-// app/product/[id]/ui/hooks/useProductVariants.ts
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import type { ProductVariant, ProductPageModel } from "../ProductClient";
+import { useEffect, useMemo, useState } from "react";
+import type { ProductPageModel, ProductVariant } from "../ProductClient";
+
+type Currency = "RUB" | "UZS";
 
 type ProductVariantWithRegion = ProductVariant & {
   isActive?: boolean | null;
   isActiveUZ?: boolean | null;
   isActiveRU?: boolean | null;
+  isDealerActive?: boolean | null;
+  dealerPriceRUB?: number | null;
+  dealerPriceUZS?: number | null;
 };
 
 function groupKey(v: ProductVariant) {
@@ -19,43 +23,47 @@ function getPositiveNumber(v: unknown) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function getVariantPrice(v: ProductVariantWithRegion, currency: "RUB" | "UZS") {
+function getVariantPublicPrice(
+  v: ProductVariantWithRegion,
+  currency: Currency,
+) {
   return currency === "RUB"
     ? getPositiveNumber(v.priceDeltaRUB)
     : getPositiveNumber(v.priceDeltaUZS);
 }
 
-function variantHasAnyPrice(v: ProductVariantWithRegion) {
-  return (
-    v.priceDeltaUZS !== undefined ||
-    v.priceDeltaRUB !== undefined ||
-    v.priceDeltaUZS !== null ||
-    v.priceDeltaRUB !== null
-  );
+function variantHasAnyPublicPrice(v: ProductVariantWithRegion) {
+  return v.priceDeltaUZS !== undefined || v.priceDeltaRUB !== undefined;
 }
 
 function isVariantAvailableForRegion(
   variant: ProductVariantWithRegion,
-  currency: "RUB" | "UZS",
+  currency: Currency,
 ) {
   if (variant.disabled) return false;
   if (variant.isActive === false) return false;
 
-  const hasPrice = variantHasAnyPrice(variant);
+  const hasPublicPrice = variantHasAnyPublicPrice(variant);
 
   if (currency === "UZS") {
     if (variant.isActiveUZ === false) return false;
 
-    if (hasPrice && getVariantPrice(variant, "UZS") <= 0) {
+    if (hasPublicPrice && getVariantPublicPrice(variant, "UZS") <= 0) {
       return false;
     }
 
     return true;
   }
 
+  /**
+   * RU:
+   * если явно false — скрываем.
+   * если поле пустое/undefined — НЕ скрываем автоматически,
+   * иначе можно случайно убрать кнопки цвета.
+   */
   if (variant.isActiveRU === false) return false;
 
-  if (hasPrice && getVariantPrice(variant, "RUB") <= 0) {
+  if (hasPublicPrice && getVariantPublicPrice(variant, "RUB") <= 0) {
     return false;
   }
 
@@ -67,7 +75,13 @@ export function buildVariantKey(selected: Record<string, string>) {
 
   if (!keys.length) return "base";
 
-  return keys.map((k) => `${k}:${selected[k]}`).join("|");
+  return keys
+    .map((k) => {
+      const value = String(selected[k] ?? "").trim();
+      return value ? `${k}:${value}` : "";
+    })
+    .filter(Boolean)
+    .join("|");
 }
 
 function makeSelectedSignature(selected: Record<string, string>) {
@@ -79,7 +93,7 @@ function makeSelectedSignature(selected: Record<string, string>) {
 
 export function useProductVariants(
   product: ProductPageModel,
-  currency: "RUB" | "UZS",
+  currency: Currency,
 ) {
   const variants = useMemo<ProductVariantWithRegion[]>(() => {
     const raw = Array.isArray(product.variants) ? product.variants : [];
@@ -127,7 +141,7 @@ export function useProductVariants(
 
   useEffect(() => {
     setSelectedByGroup(defaultSelectedByGroup);
-  }, [product.id, currency, defaultSelectedSignature]);
+  }, [product.id, currency, defaultSelectedSignature, defaultSelectedByGroup]);
 
   useEffect(() => {
     setSelectedByGroup((current) => {
@@ -195,6 +209,9 @@ export function useProductVariants(
       items: items as ProductVariant[],
     }));
 
+    /**
+     * MIN-base: скрываем механизм полностью.
+     */
     const isMinBase = product.id.includes("min-base");
 
     if (isMinBase) {

@@ -50,13 +50,24 @@ export type ProductVariant = {
   kind: "color" | "option";
   group?: string;
   disabled?: boolean;
+
+  /**
+   * В проекте эти поля используются как ИТОГОВАЯ цена варианта,
+   * а не как доплата.
+   */
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
+
+  dealerPriceRUB?: number;
+  dealerPriceUZS?: number;
+
   image?: string;
   gallery?: string[];
+
   isActive?: boolean | null;
   isActiveUZ?: boolean | null;
   isActiveRU?: boolean | null;
+  isDealerActive?: boolean | null;
 };
 
 type ProductSetItem = {
@@ -64,16 +75,30 @@ type ProductSetItem = {
   title: string;
   article?: string;
   image?: string;
+
   price_rub?: number;
   price_uzs?: number;
+
+  dealer_price_rub?: number;
+  dealer_price_uzs?: number;
+
   href?: string;
   quantity?: number;
+
+  sort_order?: number;
+
+  groupKey?: string;
+  groupTitle?: string;
+  groupOrder?: number;
+
   colorKey?: string;
   optionKey?: string;
   note?: string;
+
   isActive?: boolean | null;
   isActiveUZ?: boolean | null;
   isActiveRU?: boolean | null;
+  isDealerActive?: boolean | null;
 };
 
 export type ProductPageModel = {
@@ -83,23 +108,35 @@ export type ProductPageModel = {
   sku?: string;
   image: string;
   gallery: string[];
+
   price_rub: number;
   price_uzs: number;
+
+  old_price_rub?: number;
+  old_price_uzs?: number;
+
+  dealer_price_rub?: number;
+  dealer_price_uzs?: number;
+
   isActive?: boolean | null;
   isActiveUZ?: boolean | null;
   isActiveRU?: boolean | null;
+
   description?: string;
+
   extra?: {
     article?: string;
     size?: string;
     color?: string;
     material?: string;
   };
+
   assemblyInstructionTitle?: string;
   assemblyInstructionFile?: {
     url: string;
     name?: string;
   } | null;
+
   related?: Array<{
     id: string;
     title: string;
@@ -111,8 +148,10 @@ export type ProductPageModel = {
     isActiveUZ?: boolean | null;
     isActiveRU?: boolean | null;
   }>;
+
   setItems?: ProductSetItem[];
   variants?: ProductVariant[];
+
   brand?: string;
   category?: string;
   collectionHref?: string;
@@ -192,6 +231,24 @@ function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
   return `${article} (${normalizedColor})`;
 }
 
+function getCompositeArticle(args: {
+  baseArticle?: string | null;
+  selectedColor?: string | null;
+  selectedSetItems: ProductSetItem[];
+}) {
+  const base = String(args.baseArticle ?? "").trim();
+
+  const setArticles = args.selectedSetItems
+    .map((item) => String(item.article ?? "").trim())
+    .filter(Boolean);
+
+  if (setArticles.length) {
+    return [base || "—", ...setArticles].filter(Boolean).join(" + ");
+  }
+
+  return getDisplayArticle(base, args.selectedColor);
+}
+
 function getPositiveNumber(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -227,7 +284,7 @@ function isSetItemAvailableForRegion(
   const price = getSetItemPrice(item, currency);
 
   if (currency === "RUB") {
-    if (item.isActiveRU !== true) return false;
+    if (item.isActiveRU === false) return false;
     if (price <= 0) return false;
     return true;
   }
@@ -243,7 +300,7 @@ function parseVariantParam(raw: string) {
 
   const result = {
     colorKey: "",
-    setOptionKey: "",
+    setParts: [] as string[],
   };
 
   if (!value || value === "base") return result;
@@ -265,7 +322,7 @@ function parseVariantParam(raw: string) {
     }
 
     if (group === "set") {
-      result.setOptionKey = val;
+      result.setParts.push(val);
     }
   }
 
@@ -541,6 +598,58 @@ function getDisplayColor(args: {
   return strapiColor ?? "—";
 }
 
+type SetItemGroup = {
+  groupKey: string;
+  groupTitle: string;
+  groupOrder: number;
+  items: ProductSetItem[];
+};
+
+function buildSetItemGroups(items: ProductSetItem[]) {
+  const map = new Map<string, SetItemGroup>();
+
+  for (const item of items) {
+    const groupKey = String(item.groupKey || "default").trim() || "default";
+    const groupTitle = String(item.groupTitle || groupKey).trim() || groupKey;
+    const groupOrder = getFiniteNumber(item.groupOrder ?? 999);
+
+    const current =
+      map.get(groupKey) ??
+      ({
+        groupKey,
+        groupTitle,
+        groupOrder,
+        items: [],
+      } satisfies SetItemGroup);
+
+    current.items.push(item);
+    current.groupTitle = groupTitle;
+    current.groupOrder = Math.min(current.groupOrder, groupOrder);
+
+    map.set(groupKey, current);
+  }
+
+  return Array.from(map.values())
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort((a, b) => {
+        const sa = getFiniteNumber(a.sort_order ?? 999);
+        const sb = getFiniteNumber(b.sort_order ?? 999);
+        if (sa !== sb) return sa - sb;
+
+        const pa = getFiniteNumber(a.price_uzs);
+        const pb = getFiniteNumber(b.price_uzs);
+        if (pa !== pb) return pa - pb;
+
+        return String(a.title).localeCompare(String(b.title), "ru");
+      }),
+    }))
+    .sort((a, b) => {
+      if (a.groupOrder !== b.groupOrder) return a.groupOrder - b.groupOrder;
+      return a.groupTitle.localeCompare(b.groupTitle, "ru");
+    });
+}
+
 export default function ProductClient({
   product,
 }: {
@@ -566,9 +675,9 @@ export default function ProductClient({
   const [collapsedSetItemIds, setCollapsedSetItemIds] = useState<string[]>([]);
   const [hoveredSetItemId, setHoveredSetItemId] = useState<string | null>(null);
   const [setItemsOpen, setSetItemsOpen] = useState(false);
-  const [selectedSetItemId, setSelectedSetItemId] = useState<string | null>(
-    null,
-  );
+  const [selectedSetItemByGroup, setSelectedSetItemByGroup] = useState<
+    Record<string, string>
+  >({});
 
   const allSetItems = useMemo(() => product.setItems ?? [], [product.setItems]);
 
@@ -682,77 +791,116 @@ export default function ProductClient({
             return itemColorKey === selectedColorKey;
           });
 
-    return [...list].sort(
-      (a, b) =>
-        getFiniteNumber(a.quantity) - getFiniteNumber(b.quantity) ||
-        getFiniteNumber(a.price_uzs) - getFiniteNumber(b.price_uzs) ||
-        String(a.title).localeCompare(String(b.title), "ru"),
-    );
+    return [...list].sort((a, b) => {
+      const ga = getFiniteNumber(a.groupOrder ?? 999);
+      const gb = getFiniteNumber(b.groupOrder ?? 999);
+      if (ga !== gb) return ga - gb;
+
+      const oa = getFiniteNumber(a.sort_order ?? 999);
+      const ob = getFiniteNumber(b.sort_order ?? 999);
+      if (oa !== ob) return oa - ob;
+
+      return String(a.title).localeCompare(String(b.title), "ru");
+    });
   }, [regionSetItems, selectedColorKey]);
 
-  const hasSetItems = visibleSetItems.length > 0;
-
-  const selectedSetItem = useMemo(() => {
-    if (!visibleSetItems.length) return null;
-
-    return (
-      visibleSetItems.find((item) => item.id === selectedSetItemId) ??
-      visibleSetItems[0] ??
-      null
-    );
-  }, [visibleSetItems, selectedSetItemId]);
-
-  const selectedSetItemLabel = useMemo(
-    () => getSetItemOptionLabel(selectedSetItem),
-    [selectedSetItem],
+  const setItemGroups = useMemo(
+    () => buildSetItemGroups(visibleSetItems),
+    [visibleSetItems],
   );
+
+  const hasSetItems = visibleSetItems.length > 0;
 
   useEffect(() => {
     setCollapsedSetItemIds([]);
     setHoveredSetItemId(null);
     setSetItemsOpen(false);
-    setSelectedSetItemId(null);
+    setSelectedSetItemByGroup({});
   }, [product.id]);
 
   useEffect(() => {
-    if (!visibleSetItems.length) {
-      setSelectedSetItemId(null);
+    if (!setItemGroups.length) {
+      setSelectedSetItemByGroup({});
       return;
     }
 
-    const requestedOptionKey = initialVariantSelection.setOptionKey;
+    setSelectedSetItemByGroup((current) => {
+      const next: Record<string, string> = {};
 
-    if (requestedOptionKey) {
-      const fromUrl = visibleSetItems.find(
-        (item) =>
-          normalizeKey(item.optionKey) === normalizeKey(requestedOptionKey) ||
-          normalizeKey(item.id) === normalizeKey(requestedOptionKey),
-      );
+      for (const group of setItemGroups) {
+        const currentId = current[group.groupKey];
+        const stillExists = group.items.some((item) => item.id === currentId);
 
-      if (fromUrl) {
-        if (selectedSetItemId !== fromUrl.id) {
-          setSelectedSetItemId(fromUrl.id);
+        if (currentId && stillExists) {
+          next[group.groupKey] = currentId;
+          continue;
         }
-        return;
+
+        const requestedFromUrl = initialVariantSelection.setParts.find((part) =>
+          group.items.some(
+            (item) =>
+              normalizeKey(item.optionKey) === normalizeKey(part) ||
+              normalizeKey(item.id) === normalizeKey(part),
+          ),
+        );
+
+        if (requestedFromUrl) {
+          const fromUrl = group.items.find(
+            (item) =>
+              normalizeKey(item.optionKey) === normalizeKey(requestedFromUrl) ||
+              normalizeKey(item.id) === normalizeKey(requestedFromUrl),
+          );
+
+          if (fromUrl) {
+            next[group.groupKey] = fromUrl.id;
+            continue;
+          }
+        }
+
+        const first = group.items[0];
+        if (first) {
+          next[group.groupKey] = first.id;
+        }
       }
+
+      return next;
+    });
+  }, [setItemGroups, initialVariantSelection.setParts]);
+
+  const selectedSetItems = useMemo(() => {
+    const out: ProductSetItem[] = [];
+
+    for (const group of setItemGroups) {
+      const selectedId = selectedSetItemByGroup[group.groupKey];
+      const item =
+        group.items.find((x) => x.id === selectedId) ?? group.items[0] ?? null;
+
+      if (item) out.push(item);
     }
 
-    const stillExists = visibleSetItems.some(
-      (item) => item.id === selectedSetItemId,
-    );
+    return out;
+  }, [setItemGroups, selectedSetItemByGroup]);
 
-    if (!stillExists) {
-      setSelectedSetItemId(visibleSetItems[0].id);
-    }
-  }, [
-    visibleSetItems,
-    selectedSetItemId,
-    initialVariantSelection.setOptionKey,
-  ]);
+  const selectedSetItemLabel = useMemo(() => {
+    if (!selectedSetItems.length) return null;
 
-  const setItemKey = selectedSetItem
-    ? `set:${selectedSetItem.optionKey || selectedSetItem.id}`
-    : "no-set";
+    return selectedSetItems
+      .map((item) => getSetItemOptionLabel(item))
+      .filter(Boolean)
+      .join(", ");
+  }, [selectedSetItems]);
+
+  const setItemKey = useMemo(() => {
+    if (!selectedSetItems.length) return "no-set";
+
+    return selectedSetItems
+      .map((item) => {
+        const group = normalizeKey(item.groupKey || "set");
+        const option = normalizeKey(item.optionKey || item.id);
+        return `set:${group}-${option}`;
+      })
+      .join("|");
+  }, [selectedSetItems]);
 
   const colorKeyForCart = selectedColorKey || "base-color";
 
@@ -785,11 +933,12 @@ export default function ProductClient({
   }, [product, selectedByGroup, selectedVariants, groupsForUIDisplay]);
 
   const displayArticle = useMemo(() => {
-    return getDisplayArticle(
-      product.extra?.article || product.sku || "—",
-      displayColor,
-    );
-  }, [product.extra?.article, product.sku, displayColor]);
+    return getCompositeArticle({
+      baseArticle: product.extra?.article || product.sku || "—",
+      selectedColor: displayColor,
+      selectedSetItems,
+    });
+  }, [product.extra?.article, product.sku, displayColor, selectedSetItems]);
 
   const variantGallery = useMemo(() => {
     const withGallery = selectedVariants.find(
@@ -804,9 +953,12 @@ export default function ProductClient({
   }, [selectedVariants]);
 
   const selectedSetItemGallery = useMemo(() => {
-    if (selectedSetItem?.image) return [selectedSetItem.image];
+    const withImage = [...selectedSetItems]
+      .reverse()
+      .find((item) => item.image);
+    if (withImage?.image) return [withImage.image];
     return null;
-  }, [selectedSetItem]);
+  }, [selectedSetItems]);
 
   const { gallery, activeIdx, setActiveIdx, onPrev, onNext } =
     useProductGallery(
@@ -856,36 +1008,46 @@ export default function ProductClient({
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [selectedColorVariant, currency]);
 
-  const selectedSetItemPrice = useMemo(() => {
-    if (!selectedSetItem) return 0;
-    return getSetItemPrice(selectedSetItem, currency);
-  }, [selectedSetItem, currency]);
+  const selectedSetItemsSum = useMemo(() => {
+    return selectedSetItems.reduce((sum, item) => {
+      const itemPrice = getSetItemPrice(item, currency);
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + itemPrice * itemQty;
+    }, 0);
+  }, [selectedSetItems, currency]);
 
-  const unitPrice =
-    selectedSetItemPrice > 0
-      ? selectedSetItemPrice
-      : (selectedVariantFinalPrice ?? baseUnitPrice);
+  const corpusUnitPrice = selectedVariantFinalPrice ?? baseUnitPrice;
+  const unitPrice = corpusUnitPrice + selectedSetItemsSum;
 
   const finalUZS = useMemo(() => {
     const variantUZS = getPositiveNumber(selectedColorVariant?.priceDeltaUZS);
-    const setItemUZS = getPositiveNumber(selectedSetItem?.price_uzs);
+    const corpus = variantUZS > 0 ? variantUZS : product.price_uzs;
 
-    if (setItemUZS > 0) return setItemUZS;
-    if (variantUZS > 0) return variantUZS;
-    return product.price_uzs;
-  }, [selectedColorVariant, selectedSetItem, product.price_uzs]);
+    const setSum = selectedSetItems.reduce((sum, item) => {
+      const price = getPositiveNumber(item.price_uzs);
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + price * itemQty;
+    }, 0);
+
+    return corpus + setSum;
+  }, [selectedColorVariant, selectedSetItems, product.price_uzs]);
 
   const finalRUB = useMemo(() => {
     const variantRUB = getPositiveNumber(selectedColorVariant?.priceDeltaRUB);
-    const setItemRUB = getPositiveNumber(selectedSetItem?.price_rub);
+    const corpus = variantRUB > 0 ? variantRUB : product.price_rub;
 
-    if (setItemRUB > 0) return setItemRUB;
-    if (variantRUB > 0) return variantRUB;
-    return product.price_rub;
-  }, [selectedColorVariant, selectedSetItem, product.price_rub]);
+    const setSum = selectedSetItems.reduce((sum, item) => {
+      const price = getPositiveNumber(item.price_rub);
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + price * itemQty;
+    }, 0);
+
+    return corpus + setSum;
+  }, [selectedColorVariant, selectedSetItems, product.price_rub]);
 
   const finalImage = useMemo(() => {
-    const imageFromSetItem = selectedSetItem?.image || "";
+    const imageFromSetItem =
+      [...selectedSetItems].reverse().find((item) => item.image)?.image || "";
 
     const imageFromVariant =
       Array.isArray(variantGallery) && variantGallery.length > 0
@@ -893,7 +1055,7 @@ export default function ProductClient({
         : "";
 
     return imageFromSetItem || imageFromVariant || product.image || null;
-  }, [selectedSetItem, variantGallery, product.image]);
+  }, [selectedSetItems, variantGallery, product.image]);
 
   const collapsedSet = useMemo(
     () => new Set(collapsedSetItemIds),
@@ -930,10 +1092,20 @@ export default function ProductClient({
   };
 
   function saveCartMeta() {
+    const selectedSetItemsTitle = selectedSetItems
+      .map((item) => item.title)
+      .filter(Boolean)
+      .join(", ");
+
+    const selectedSetItemsArticle = selectedSetItems
+      .map((item) => item.article)
+      .filter(Boolean)
+      .join(" + ");
+
     const variantTitle =
       [
         ...selectedVariants.map((v) => v.title).filter(Boolean),
-        selectedSetItemLabel,
+        selectedSetItemsTitle,
       ]
         .filter(Boolean)
         .join(", ") || null;
@@ -954,18 +1126,48 @@ export default function ProductClient({
       selectedColor: displayColor,
       selectedVariantKey: selectedColorVariant?.id ?? null,
 
-      selectedSetItemId: selectedSetItem?.id ?? null,
-      selectedSetItemTitle: selectedSetItemLabel,
-      selectedSetItemOptionKey: selectedSetItem?.optionKey ?? null,
-      selectedSetItemColorKey: selectedSetItem?.colorKey ?? null,
-      selectedSetItemArticle: selectedSetItem?.article ?? null,
-      selectedSetItemNote: selectedSetItem?.note ?? null,
+      selectedSetItemId: selectedSetItems.map((item) => item.id).join("|"),
+      selectedSetItemTitle: selectedSetItemsTitle || null,
+      selectedSetItemOptionKey: selectedSetItems
+        .map((item) => item.optionKey || item.id)
+        .filter(Boolean)
+        .join("|"),
+      selectedSetItemColorKey:
+        selectedSetItems.find((item) => item.colorKey)?.colorKey ??
+        selectedColorKey ??
+        null,
+      selectedSetItemArticle: selectedSetItemsArticle || null,
+      selectedSetItemNote:
+        selectedSetItems
+          .map((item) => item.note)
+          .filter(Boolean)
+          .join(", ") || null,
 
-      optionTitle: selectedSetItemLabel,
-      optionKey: selectedSetItem?.optionKey ?? null,
-      colorKey: selectedSetItem?.colorKey ?? selectedColorKey ?? null,
+      optionTitle: selectedSetItemsTitle || null,
+      optionKey: selectedSetItems
+        .map((item) => item.optionKey || item.id)
+        .filter(Boolean)
+        .join("|"),
+      colorKey:
+        selectedSetItems.find((item) => item.colorKey)?.colorKey ??
+        selectedColorKey ??
+        null,
 
       quantity: qty,
+
+      selectedSetItems: selectedSetItems.map((item) => ({
+        id: item.id,
+        title: item.title,
+        article: item.article ?? null,
+        groupKey: item.groupKey ?? null,
+        groupTitle: item.groupTitle ?? null,
+        optionKey: item.optionKey ?? null,
+        colorKey: item.colorKey ?? null,
+        quantity: item.quantity ?? 1,
+        price_uzs: item.price_uzs ?? null,
+        price_rub: item.price_rub ?? null,
+        image: item.image ?? null,
+      })),
     };
 
     upsertCartLineMeta(meta as Parameters<typeof upsertCartLineMeta>[0]);
@@ -1186,11 +1388,11 @@ export default function ProductClient({
             {hasSetItems ? (
               <div className="mt-3 rounded-2xl border border-black/10 bg-white p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-[10px] tracking-[0.18em] uppercase text-black/40">
                       Комплектация
                     </div>
-                    <div className="mt-1 text-[13px] font-semibold text-black">
+                    <div className="mt-1 line-clamp-2 text-[13px] font-semibold text-black">
                       {selectedSetItemLabel || "Выберите исполнение"}
                     </div>
                   </div>
@@ -1198,7 +1400,7 @@ export default function ProductClient({
                   <button
                     type="button"
                     onClick={() => setSetItemsOpen((v) => !v)}
-                    className="inline-flex h-9 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[12px] font-medium text-black/70 transition hover:border-black/20 hover:text-black"
+                    className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[12px] font-medium text-black/70 transition hover:border-black/20 hover:text-black"
                   >
                     {setItemsOpen ? "Скрыть" : "Изменить"}
                   </button>
@@ -1207,8 +1409,17 @@ export default function ProductClient({
             ) : null}
 
             <div className="mt-3 flex items-start justify-between gap-6">
-              <div className="text-[28px] font-semibold text-black">
-                {formatPrice(displayTotalPrice, currency)}
+              <div>
+                <div className="text-[28px] font-semibold text-black">
+                  {formatPrice(displayTotalPrice, currency)}
+                </div>
+
+                {selectedSetItemsSum > 0 ? (
+                  <div className="mt-1 text-[12px] text-black/45">
+                    Корпус: {formatPrice(corpusUnitPrice, currency)} + выбранная
+                    комплектация
+                  </div>
+                ) : null}
               </div>
 
               <div className="shrink-0">
@@ -1521,84 +1732,108 @@ export default function ProductClient({
                       className={cn(
                         "overflow-hidden transition-all duration-300 ease-out",
                         setItemsOpen
-                          ? "mt-3 max-h-[900px] opacity-100"
+                          ? "mt-3 max-h-[1400px] opacity-100"
                           : "max-h-0 opacity-0",
                       )}
                     >
-                      <div className="space-y-2">
-                        {visibleSetItems.map((item) => {
-                          const active = selectedSetItem?.id === item.id;
-                          const itemQty = Math.max(
-                            1,
-                            Number(item.quantity ?? 1),
-                          );
+                      <div className="space-y-4">
+                        {setItemGroups.map((group) => (
+                          <div key={group.groupKey}>
+                            <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-black/45">
+                              {group.groupTitle}
+                            </div>
 
-                          const itemPrice = getSetItemPrice(item, currency);
+                            <div className="space-y-2">
+                              {group.items.map((item) => {
+                                const active =
+                                  selectedSetItemByGroup[group.groupKey] ===
+                                  item.id;
 
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => setSelectedSetItemId(item.id)}
-                              className={cn(
-                                "flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition",
-                                active
-                                  ? "border-black bg-black/[0.03] shadow-[0_14px_34px_-28px_rgba(0,0,0,0.35)]"
-                                  : "border-black/10 bg-white hover:border-black/20 hover:bg-black/[0.015]",
-                              )}
-                            >
-                              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-black/[0.04]">
-                                {item.image ? (
-                                  <img
-                                    src={item.image}
-                                    alt={item.title}
-                                    className="h-full w-full object-contain"
-                                  />
-                                ) : (
-                                  <div className="grid h-full w-full place-items-center text-[9px] tracking-[0.16em] text-black/30">
-                                    NO IMG
-                                  </div>
-                                )}
+                                const itemQty = Math.max(
+                                  1,
+                                  Number(item.quantity ?? 1),
+                                );
 
-                                {active ? (
-                                  <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black text-white">
-                                    <Check className="h-3 w-3" />
-                                  </span>
-                                ) : null}
-                              </div>
+                                const itemPrice = getSetItemPrice(
+                                  item,
+                                  currency,
+                                );
 
-                              <div className="min-w-0 flex-1">
-                                <div className="truncate text-[13px] font-semibold text-black">
-                                  {item.title}
-                                </div>
-
-                                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-black/45">
-                                  <span>Артикул: {item.article || "—"}</span>
-                                  <span>Кол-во: {itemQty}</span>
-                                  {itemPrice > 0 ? (
-                                    <span className="font-semibold text-black/70">
-                                      {formatPrice(
-                                        itemPrice * itemQty,
-                                        currency,
+                                return (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedSetItemByGroup((prev) => ({
+                                        ...prev,
+                                        [group.groupKey]: item.id,
+                                      }))
+                                    }
+                                    className={cn(
+                                      "flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition",
+                                      active
+                                        ? "border-black bg-black/[0.03] shadow-[0_14px_34px_-28px_rgba(0,0,0,0.35)]"
+                                        : "border-black/10 bg-white hover:border-black/20 hover:bg-black/[0.015]",
+                                    )}
+                                  >
+                                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-black/[0.04]">
+                                      {item.image ? (
+                                        <img
+                                          src={item.image}
+                                          alt={item.title}
+                                          className="h-full w-full object-contain"
+                                        />
+                                      ) : (
+                                        <div className="grid h-full w-full place-items-center text-[9px] tracking-[0.16em] text-black/30">
+                                          NO IMG
+                                        </div>
                                       )}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
 
-                              <div
-                                className={cn(
-                                  "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
-                                  active
-                                    ? "border-black bg-black text-white"
-                                    : "border-black/20 bg-white text-transparent",
-                                )}
-                              >
-                                <Check className="h-3 w-3" />
-                              </div>
-                            </button>
-                          );
-                        })}
+                                      {active ? (
+                                        <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black text-white">
+                                          <Check className="h-3 w-3" />
+                                        </span>
+                                      ) : null}
+                                    </div>
+
+                                    <div className="min-w-0 flex-1">
+                                      <div className="truncate text-[13px] font-semibold text-black">
+                                        {item.title}
+                                      </div>
+
+                                      <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-black/45">
+                                        <span>
+                                          Артикул: {item.article || "—"}
+                                        </span>
+                                        <span>Кол-во: {itemQty}</span>
+                                        {itemPrice > 0 ? (
+                                          <span className="font-semibold text-black/70">
+                                            +{" "}
+                                            {formatPrice(
+                                              itemPrice * itemQty,
+                                              currency,
+                                            )}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+
+                                    <div
+                                      className={cn(
+                                        "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
+                                        active
+                                          ? "border-black bg-black text-white"
+                                          : "border-black/20 bg-white text-transparent",
+                                      )}
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>

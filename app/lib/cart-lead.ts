@@ -13,6 +13,20 @@ export type CartLeadData = {
   createdAt: number;
 };
 
+export type CartLineConstructorItem = {
+  id: string | null;
+  title: string | null;
+  article: string | null;
+  groupKey: string | null;
+  groupTitle: string | null;
+  optionKey: string | null;
+  colorKey: string | null;
+  quantity: number | null;
+  price_uzs: number | null;
+  price_rub: number | null;
+  image: string | null;
+};
+
 export type CartLineMeta = {
   productId: string;
   variantId: string;
@@ -42,6 +56,8 @@ export type CartLineMeta = {
   colorKey?: string | null;
 
   quantity?: number | null;
+
+  selectedSetItems?: CartLineConstructorItem[] | null;
 };
 
 export type CartLineMetaMap = Record<string, CartLineMeta>;
@@ -64,6 +80,44 @@ function cleanString(v: unknown): string | null {
 function cleanNumber(v: unknown): number | null {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function cleanConstructorItems(v: unknown): CartLineConstructorItem[] | null {
+  if (!Array.isArray(v)) return null;
+
+  const out: CartLineConstructorItem[] = [];
+
+  for (const raw of v) {
+    if (!raw || typeof raw !== "object") continue;
+
+    const item = raw as Record<string, unknown>;
+
+    const normalized: CartLineConstructorItem = {
+      id: cleanString(item.id),
+      title: cleanString(item.title),
+      article: cleanString(item.article),
+      groupKey: cleanString(item.groupKey),
+      groupTitle: cleanString(item.groupTitle),
+      optionKey: cleanString(item.optionKey),
+      colorKey: cleanString(item.colorKey),
+      quantity: cleanNumber(item.quantity),
+      price_uzs: cleanNumber(item.price_uzs),
+      price_rub: cleanNumber(item.price_rub),
+      image: cleanString(item.image),
+    };
+
+    if (
+      normalized.id ||
+      normalized.title ||
+      normalized.article ||
+      normalized.groupKey ||
+      normalized.optionKey
+    ) {
+      out.push(normalized);
+    }
+  }
+
+  return out.length ? out : null;
 }
 
 export function makeItemKey(productId: string, variantId?: string) {
@@ -176,100 +230,74 @@ export function upsertCartLineMeta(meta: CartLineMeta) {
 
   const key = makeItemKey(productId, variantId);
   const prev = readCartLineMetaMap();
+  const prevItem = prev[key];
+
+  const selectedSetItems =
+    cleanConstructorItems(meta.selectedSetItems) ??
+    cleanConstructorItems(prevItem?.selectedSetItems);
 
   const normalized: CartLineMeta = {
-    ...prev[key],
+    ...prevItem,
     ...meta,
 
     productId,
     variantId,
 
-    title: cleanString(meta.title) ?? meta.title ?? prev[key]?.title ?? null,
-    href: cleanString(meta.href) ?? meta.href ?? prev[key]?.href ?? null,
-    imageUrl:
-      cleanString(meta.imageUrl) ??
-      meta.imageUrl ??
-      prev[key]?.imageUrl ??
-      null,
-    sku: cleanString(meta.sku) ?? meta.sku ?? prev[key]?.sku ?? null,
+    title: cleanString(meta.title) ?? cleanString(prevItem?.title),
+    href: cleanString(meta.href) ?? cleanString(prevItem?.href),
+    imageUrl: cleanString(meta.imageUrl) ?? cleanString(prevItem?.imageUrl),
+    sku: cleanString(meta.sku) ?? cleanString(prevItem?.sku),
 
     price_uzs:
-      cleanNumber(meta.price_uzs) ??
-      cleanNumber(prev[key]?.price_uzs) ??
-      null,
+      cleanNumber(meta.price_uzs) ?? cleanNumber(prevItem?.price_uzs) ?? null,
     price_rub:
-      cleanNumber(meta.price_rub) ??
-      cleanNumber(prev[key]?.price_rub) ??
-      null,
+      cleanNumber(meta.price_rub) ?? cleanNumber(prevItem?.price_rub) ?? null,
 
     variantTitle:
-      cleanString(meta.variantTitle) ??
-      meta.variantTitle ??
-      prev[key]?.variantTitle ??
-      null,
+      cleanString(meta.variantTitle) ?? cleanString(prevItem?.variantTitle),
 
     selectedColor:
-      cleanString(meta.selectedColor) ??
-      meta.selectedColor ??
-      prev[key]?.selectedColor ??
-      null,
+      cleanString(meta.selectedColor) ?? cleanString(prevItem?.selectedColor),
 
     selectedVariantKey:
       cleanString(meta.selectedVariantKey) ??
-      meta.selectedVariantKey ??
-      prev[key]?.selectedVariantKey ??
-      null,
+      cleanString(prevItem?.selectedVariantKey),
 
     selectedSetItemId:
       cleanString(meta.selectedSetItemId) ??
-      meta.selectedSetItemId ??
-      prev[key]?.selectedSetItemId ??
-      null,
+      cleanString(prevItem?.selectedSetItemId),
 
     selectedSetItemTitle:
       cleanString(meta.selectedSetItemTitle) ??
-      meta.selectedSetItemTitle ??
-      prev[key]?.selectedSetItemTitle ??
-      null,
+      cleanString(prevItem?.selectedSetItemTitle),
 
     selectedSetItemOptionKey:
       cleanString(meta.selectedSetItemOptionKey) ??
-      meta.selectedSetItemOptionKey ??
-      prev[key]?.selectedSetItemOptionKey ??
-      null,
+      cleanString(prevItem?.selectedSetItemOptionKey),
 
     selectedSetItemColorKey:
       cleanString(meta.selectedSetItemColorKey) ??
-      meta.selectedSetItemColorKey ??
-      prev[key]?.selectedSetItemColorKey ??
-      null,
+      cleanString(prevItem?.selectedSetItemColorKey),
 
     selectedSetItemArticle:
       cleanString(meta.selectedSetItemArticle) ??
-      meta.selectedSetItemArticle ??
-      prev[key]?.selectedSetItemArticle ??
-      null,
+      cleanString(prevItem?.selectedSetItemArticle),
 
     selectedSetItemNote:
       cleanString(meta.selectedSetItemNote) ??
-      meta.selectedSetItemNote ??
-      prev[key]?.selectedSetItemNote ??
-      null,
+      cleanString(prevItem?.selectedSetItemNote),
 
     optionTitle:
-      cleanString(meta.optionTitle) ??
-      meta.optionTitle ??
-      prev[key]?.optionTitle ??
-      null,
+      cleanString(meta.optionTitle) ?? cleanString(prevItem?.optionTitle),
 
-    optionKey:
-      cleanString(meta.optionKey) ?? meta.optionKey ?? prev[key]?.optionKey ?? null,
+    optionKey: cleanString(meta.optionKey) ?? cleanString(prevItem?.optionKey),
 
-    colorKey:
-      cleanString(meta.colorKey) ?? meta.colorKey ?? prev[key]?.colorKey ?? null,
+    colorKey: cleanString(meta.colorKey) ?? cleanString(prevItem?.colorKey),
 
     quantity:
-      cleanNumber(meta.quantity) ?? cleanNumber(prev[key]?.quantity) ?? null,
+      cleanNumber(meta.quantity) ?? cleanNumber(prevItem?.quantity) ?? null,
+
+    selectedSetItems,
   };
 
   prev[key] = normalized;
@@ -342,11 +370,25 @@ export function makeAbandonedSignature(args: {
         selectedSetItemTitle: m?.selectedSetItemTitle ?? "",
         selectedSetItemOptionKey: m?.selectedSetItemOptionKey ?? "",
         selectedSetItemColorKey: m?.selectedSetItemColorKey ?? "",
+        selectedSetItemArticle: m?.selectedSetItemArticle ?? "",
         optionTitle: m?.optionTitle ?? "",
         optionKey: m?.optionKey ?? "",
         colorKey: m?.colorKey ?? "",
         price_uzs: m?.price_uzs ?? 0,
         price_rub: m?.price_rub ?? 0,
+        selectedSetItems:
+          m?.selectedSetItems?.map((item) => ({
+            id: item.id ?? "",
+            title: item.title ?? "",
+            article: item.article ?? "",
+            groupKey: item.groupKey ?? "",
+            groupTitle: item.groupTitle ?? "",
+            optionKey: item.optionKey ?? "",
+            colorKey: item.colorKey ?? "",
+            quantity: item.quantity ?? 0,
+            price_uzs: item.price_uzs ?? 0,
+            price_rub: item.price_rub ?? 0,
+          })) ?? [],
       };
     });
 
@@ -427,6 +469,8 @@ export function buildAbandonedPayload(args: {
           meta?.selectedSetItemColorKey ?? meta?.colorKey ?? null,
         selectedSetItemArticle: meta?.selectedSetItemArticle ?? null,
         selectedSetItemNote: meta?.selectedSetItemNote ?? null,
+
+        selectedSetItems: meta?.selectedSetItems ?? null,
 
         optionTitle: meta?.optionTitle ?? null,
         optionKey: meta?.optionKey ?? null,

@@ -1,3 +1,4 @@
+// app/product/[id]/page.tsx
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProductClient from "./ui/ProductClient";
@@ -23,14 +24,29 @@ type SetItemJson = {
   image?: string;
   price_uzs?: number | string | null;
   price_rub?: number | string | null;
+  dealer_price_uzs?: number | string | null;
+  dealer_price_rub?: number | string | null;
   quantity?: number | string | null;
   sort_order?: number | string | null;
+
+  groupKey?: string;
+  groupTitle?: string;
+  groupOrder?: number | string | null;
+  selectionType?: string;
+  isRequired?: boolean | string | null;
+  itemKind?: string;
+  addsToArticle?: boolean | string | null;
+  articleJoinRule?: string;
+  affectsImage?: boolean | string | null;
+  assembledImage?: string;
+
   colorKey?: string;
   optionKey?: string;
   note?: string;
   isActive?: boolean | string | null;
   isActiveUZ?: boolean | string | null;
   isActiveRU?: boolean | string | null;
+  isDealerActive?: boolean | string | null;
 };
 
 type StrapiProduct = {
@@ -55,12 +71,21 @@ type StrapiProduct = {
 
   priceUZS?: number | null;
   priceRUB?: number | null;
+  priceKZ?: number | null;
+  priceTJ?: number | null;
+
   oldPriceUZS?: number | null;
   oldPriceRUB?: number | null;
+
+  dealerPriceUZS?: number | null;
+  dealerPriceRUB?: number | null;
+  dealerPriceKZ?: number | null;
+  dealerPriceTJ?: number | null;
 
   description?: unknown;
 
   sku?: string | null;
+  articleShort?: string | null;
   size?: string | null;
   color?: string | null;
   material?: string | null;
@@ -80,18 +105,36 @@ type SetItemWithResolvedImage = {
   title: string;
   article?: string;
   image?: string;
+
   price_rub?: number;
   price_uzs?: number;
+  dealer_price_rub?: number;
+  dealer_price_uzs?: number;
+
   href?: string;
   quantity: number;
   sort_order: number;
   slug?: string;
+
+  groupKey?: string;
+  groupTitle?: string;
+  groupOrder?: number;
+  selectionType?: string;
+  isRequired?: boolean;
+  itemKind?: string;
+  addsToArticle?: boolean;
+  articleJoinRule?: string;
+  affectsImage?: boolean;
+  assembledImage?: string;
+
   colorKey?: string;
   optionKey?: string;
   note?: string;
+
   isActive?: boolean;
   isActiveUZ?: boolean;
   isActiveRU?: boolean;
+  isDealerActive?: boolean;
 };
 
 function isSceneProduct(
@@ -135,8 +178,8 @@ function toBool(v: unknown): boolean | undefined {
     .trim()
     .toLowerCase();
 
-  if (["true", "1", "yes", "да"].includes(s)) return true;
-  if (["false", "0", "no", "нет"].includes(s)) return false;
+  if (["true", "1", "yes", "да", "истина"].includes(s)) return true;
+  if (["false", "0", "no", "нет", "ложь"].includes(s)) return false;
 
   return undefined;
 }
@@ -298,38 +341,88 @@ function parseSetItemsJson(value: unknown): SetItemWithResolvedImage[] {
     const title = pickText(raw.title) || "Без названия";
     const slug = pickText(raw.slug);
     const article = pickText(raw.article);
+
     const colorKey = pickText(raw.colorKey);
     const optionKey = pickText(raw.optionKey);
     const note = pickText(raw.note);
+
+    const groupKey = pickText(raw.groupKey) || "default";
+    const groupTitle = pickText(raw.groupTitle) || groupKey;
+    const groupOrder = toFiniteNumber(raw.groupOrder) ?? 999;
+
+    const selectionType = pickText(raw.selectionType) || "single";
+    const isRequired = toBool(raw.isRequired) ?? true;
+    const itemKind = pickText(raw.itemKind) || "option";
+    const addsToArticle = toBool(raw.addsToArticle) ?? true;
+    const articleJoinRule = pickText(raw.articleJoinRule) || "plus";
+    const affectsImage = toBool(raw.affectsImage) ?? true;
+
     const rawImage = pickText(raw.image);
+    const rawAssembledImage = pickText(raw.assembledImage);
 
     const id =
       (typeof raw.id === "string" && raw.id.trim()) ||
       (typeof raw.id === "number" ? String(raw.id) : "") ||
-      [slug, colorKey, optionKey].filter(Boolean).join("-") ||
+      [groupKey, slug, article, colorKey, optionKey]
+        .filter(Boolean)
+        .join("-") ||
       `set-item-${index + 1}`;
 
     items.push({
       id,
       title,
       article: article || undefined,
+
       image: rawImage ? resolveStrapiImage(rawImage) : undefined,
+      assembledImage: rawAssembledImage
+        ? resolveStrapiImage(rawAssembledImage)
+        : undefined,
+
       price_rub: toFiniteNumber(raw.price_rub),
       price_uzs: toFiniteNumber(raw.price_uzs),
+
+      dealer_price_rub: toFiniteNumber(raw.dealer_price_rub),
+      dealer_price_uzs: toFiniteNumber(raw.dealer_price_uzs),
+
       href: slug ? `/product/${slug}` : undefined,
       quantity: toFiniteNumber(raw.quantity) ?? 1,
       sort_order: toFiniteNumber(raw.sort_order) ?? index + 1,
       slug: slug || undefined,
+
+      groupKey,
+      groupTitle,
+      groupOrder,
+      selectionType,
+      isRequired,
+      itemKind,
+      addsToArticle,
+      articleJoinRule,
+      affectsImage,
+
       colorKey: colorKey || undefined,
       optionKey: optionKey || undefined,
       note: note || undefined,
+
       isActive: active,
       isActiveUZ: toBool(raw.isActiveUZ),
       isActiveRU: toBool(raw.isActiveRU),
+      isDealerActive: toBool(raw.isDealerActive),
     });
   });
 
-  return items.sort((a, b) => a.sort_order - b.sort_order);
+  return items.sort((a, b) => {
+    const ga = Number(a.groupOrder ?? 999);
+    const gb = Number(b.groupOrder ?? 999);
+
+    if (ga !== gb) return ga - gb;
+
+    const sa = Number(a.sort_order ?? 999999);
+    const sb = Number(b.sort_order ?? 999999);
+
+    if (sa !== sb) return sa - sb;
+
+    return String(a.title).localeCompare(String(b.title), "ru");
+  });
 }
 
 async function fetchStrapiProductBySlug(
@@ -416,12 +509,26 @@ async function fetchStrapiProductBySlug(
 
       priceUZS: typeof src.priceUZS === "number" ? src.priceUZS : null,
       priceRUB: typeof src.priceRUB === "number" ? src.priceRUB : null,
+      priceKZ: typeof src.priceKZ === "number" ? src.priceKZ : null,
+      priceTJ: typeof src.priceTJ === "number" ? src.priceTJ : null,
+
       oldPriceUZS: typeof src.oldPriceUZS === "number" ? src.oldPriceUZS : null,
       oldPriceRUB: typeof src.oldPriceRUB === "number" ? src.oldPriceRUB : null,
+
+      dealerPriceUZS:
+        typeof src.dealerPriceUZS === "number" ? src.dealerPriceUZS : null,
+      dealerPriceRUB:
+        typeof src.dealerPriceRUB === "number" ? src.dealerPriceRUB : null,
+      dealerPriceKZ:
+        typeof src.dealerPriceKZ === "number" ? src.dealerPriceKZ : null,
+      dealerPriceTJ:
+        typeof src.dealerPriceTJ === "number" ? src.dealerPriceTJ : null,
 
       description: src.description ?? null,
 
       sku: typeof src.sku === "string" ? src.sku : null,
+      articleShort:
+        typeof src.articleShort === "string" ? src.articleShort : null,
       size: typeof src.size === "string" ? src.size : null,
       color: typeof src.color === "string" ? src.color : null,
       material: typeof src.material === "string" ? src.material : null,
@@ -511,7 +618,9 @@ async function resolveSetItemsImages(
 ): Promise<SetItemWithResolvedImage[]> {
   const resolved = await Promise.all(
     items.map(async (item) => {
-      if (item.image || !item.slug) return item;
+      const imageAlready = item.image || item.assembledImage;
+
+      if (imageAlready || !item.slug) return item;
 
       const linked = await fetchStrapiProductBySlug(item.slug);
       const image =
@@ -548,12 +657,17 @@ async function getProductSeoData(slugOrId: string) {
     ? (sp.variants.map(pickVariantImageUrl).filter(Boolean) as string[])
     : [];
 
+  const setItemsRaw = parseSetItemsJson(sp.set_items_json);
+  const setItemImages = setItemsRaw
+    .flatMap((item) => [item.image, item.assembledImage])
+    .filter(Boolean) as string[];
+
   const galleryFinal = (
     galleryBase.length
       ? galleryBase
       : image
-        ? [image, ...variantImgs]
-        : variantImgs
+        ? [image, ...variantImgs, ...setItemImages]
+        : [...variantImgs, ...setItemImages]
   ).filter(Boolean);
 
   const desc = extractTextFromRich(sp.description);
@@ -694,6 +808,8 @@ export default async function ProductPage({
   });
 
   const skuVal = String(sp.sku ?? slug).trim();
+  const articleVal = String(sp.articleShort ?? sp.sku ?? slug).trim();
+
   const sizeVal = String(sp.size ?? sp.sizeText ?? "").trim();
   const colorVal = String(sp.color ?? sp.colorText ?? "").trim();
   const materialVal = String(sp.material ?? sp.materialText ?? "").trim();
@@ -724,7 +840,7 @@ export default async function ProductPage({
     sku: skuVal,
     description,
 
-    article: skuVal,
+    article: articleVal,
     size: sizeVal || "—",
     color: colorVal || "—",
     material: materialVal || "—",
@@ -754,6 +870,11 @@ export default async function ProductPage({
     old_price_uzs:
       typeof sp.oldPriceUZS === "number" ? sp.oldPriceUZS : undefined,
 
+    dealer_price_rub:
+      typeof sp.dealerPriceRUB === "number" ? sp.dealerPriceRUB : undefined,
+    dealer_price_uzs:
+      typeof sp.dealerPriceUZS === "number" ? sp.dealerPriceUZS : undefined,
+
     variants: Array.isArray(sp.variants)
       ? sp.variants
           .map((v) => {
@@ -779,6 +900,15 @@ export default async function ProductPage({
             const finalUZS =
               typeof v.priceDeltaUZS === "number" ? v.priceDeltaUZS : undefined;
 
+            const dealerRUB =
+              typeof v.dealerPriceRUB === "number"
+                ? v.dealerPriceRUB
+                : undefined;
+            const dealerUZS =
+              typeof v.dealerPriceUZS === "number"
+                ? v.dealerPriceUZS
+                : undefined;
+
             return {
               id: String(variantKey || ""),
               title: String(title || ""),
@@ -788,20 +918,27 @@ export default async function ProductPage({
                 finalRUB !== undefined ? Number(finalRUB) : undefined,
               priceDeltaUZS:
                 finalUZS !== undefined ? Number(finalUZS) : undefined,
+              dealerPriceRUB:
+                dealerRUB !== undefined ? Number(dealerRUB) : undefined,
+              dealerPriceUZS:
+                dealerUZS !== undefined ? Number(dealerUZS) : undefined,
               image: img,
+              gallery: img ? [img] : undefined,
               isActive: active,
               isActiveUZ: toBool(v.isActiveUZ),
               isActiveRU: toBool(v.isActiveRU),
+              isDealerActive: toBool(v.isDealerActive),
             };
           })
           .filter((x): x is NonNullable<typeof x> => !!x && !!x.id)
       : [],
 
     brand: norm(sp.brand),
+    category: norm(sp.cat),
     collectionLabel: String(sp.brand ?? "").toUpperCase(),
 
     extra: {
-      article: skuVal,
+      article: articleVal,
       size: sizeVal || "—",
       color: colorVal || "—",
       material: materialVal || "—",

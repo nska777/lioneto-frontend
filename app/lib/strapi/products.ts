@@ -1,37 +1,45 @@
-// app/lib/strapi/products.ts
 import { resolveStrapiImage } from "@/app/lib/strapi/resolveImage";
 
 type AnyObj = Record<string, any>;
 
 export type StrapiVariant = {
-  id: string; // "white" или "cappuccino"
+  id: string;
   title?: string;
-  group?: string; // "color"
+  group?: string;
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
+  dealerPriceRUB?: number;
+  dealerPriceUZS?: number;
   image?: string;
   gallery?: string[];
   isActive?: boolean;
   isActiveUZ?: boolean;
   isActiveRU?: boolean;
+  isDealerActive?: boolean;
 };
 
 export type StrapiProductLite = {
-  id: string; // slug
+  id: string;
   slug: string;
   title: string;
 
   isActive?: boolean | null;
   isActiveUZ?: boolean | null;
   isActiveRU?: boolean | null;
+  isDealerActive?: boolean | null;
 
   brand?: string | null;
   cat?: string | null;
   module?: string | null;
   collection?: string | null;
 
+  sku?: string | null;
+  articleShort?: string | null;
+
   priceUZS?: number | null;
   priceRUB?: number | null;
+  dealerPriceUZS?: number | null;
+  dealerPriceRUB?: number | null;
 
   image?: string;
   gallery?: string[];
@@ -54,8 +62,8 @@ function toBool(v: any): boolean | null {
 
   const s = String(v ?? "").trim().toLowerCase();
 
-  if (["true", "1", "yes", "да"].includes(s)) return true;
-  if (["false", "0", "no", "нет"].includes(s)) return false;
+  if (["true", "1", "yes", "да", "истина"].includes(s)) return true;
+  if (["false", "0", "no", "нет", "ложь"].includes(s)) return false;
 
   return null;
 }
@@ -111,10 +119,6 @@ function pickVariantImageUrl(v: any): string | undefined {
   return url ? resolveStrapiImage(String(url)) : undefined;
 }
 
-/**
- * variantKey может быть "white" или "color:white".
- * Нам нужен id="white", group="color".
- */
 function normalizeVariantKey(raw: any) {
   const s = String(raw ?? "").trim();
 
@@ -174,12 +178,16 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
         priceDeltaRUB: toNum(v?.priceDeltaRUB) ?? undefined,
         priceDeltaUZS: toNum(v?.priceDeltaUZS) ?? undefined,
 
+        dealerPriceRUB: toNum(v?.dealerPriceRUB) ?? undefined,
+        dealerPriceUZS: toNum(v?.dealerPriceUZS) ?? undefined,
+
         image: img,
         gallery: img ? [img] : undefined,
 
         isActive: toBool(v?.isActive) ?? undefined,
         isActiveUZ: toBool(v?.isActiveUZ) ?? undefined,
         isActiveRU: toBool(v?.isActiveRU) ?? undefined,
+        isDealerActive: toBool(v?.isDealerActive) ?? undefined,
       };
     })
     .filter((x) => x.id);
@@ -192,14 +200,25 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
     isActive: toBool(src?.isActive),
     isActiveUZ: toBool(src?.isActiveUZ),
     isActiveRU: toBool(src?.isActiveRU),
+    isDealerActive: toBool(src?.isDealerActive),
 
     brand: src?.brand ?? null,
     cat: src?.cat ?? null,
     module: src?.module ?? null,
     collection: src?.collection ?? null,
 
+    sku: src?.sku ?? null,
+    articleShort: src?.articleShort ?? null,
+
     priceUZS: toNum(src?.priceUZS ?? src?.priceUzs ?? src?.price_uzs),
     priceRUB: toNum(src?.priceRUB ?? src?.priceRub ?? src?.price_rub),
+
+    dealerPriceUZS: toNum(
+      src?.dealerPriceUZS ?? src?.dealerPriceUzs ?? src?.dealer_price_uzs,
+    ),
+    dealerPriceRUB: toNum(
+      src?.dealerPriceRUB ?? src?.dealerPriceRub ?? src?.dealer_price_rub,
+    ),
 
     image: image || undefined,
     gallery: galleryFinal.length ? galleryFinal : undefined,
@@ -219,9 +238,6 @@ type StrapiListResponse = {
   meta?: { pagination?: StrapiPagination };
 };
 
-/**
- * Каталог: загрузить ВСЕ товары из Strapi v5 с pagination.
- */
 export async function fetchAllProductsLite(opts?: {
   pageSize?: number;
   sort?: string;
@@ -300,10 +316,6 @@ export async function fetchAllProductsLite(opts?: {
   };
 }
 
-/**
- * Fetch many products by slugs.
- * Используется в cart/favorites/checkout.
- */
 export async function fetchStrapiProductsMapBySlugs(
   slugs: string[],
 ): Promise<Record<string, StrapiProductLite>> {
@@ -344,10 +356,6 @@ export async function fetchStrapiProductsMapBySlugs(
   return out;
 }
 
-/**
- * Совместимость с импортами:
- * import { fetchProductsMap, type LiteProduct } from "@/app/lib/strapi/products";
- */
 export async function fetchProductsMap(slugs: string[]) {
   return fetchStrapiProductsMapBySlugs(slugs);
 }

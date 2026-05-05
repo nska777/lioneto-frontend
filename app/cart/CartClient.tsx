@@ -39,17 +39,21 @@ function getStr(p: unknown, key: string): string {
 }
 
 function formatMoney(n: number, region: Region) {
-  if (region === "uz") return new Intl.NumberFormat("ru-RU").format(n) + " сум";
-  return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
+  const v = Number.isFinite(Number(n)) ? Number(n) : 0;
+
+  if (region === "uz") return new Intl.NumberFormat("ru-RU").format(v) + " сум";
+  return new Intl.NumberFormat("ru-RU").format(v) + " ₽";
 }
 
 function labelByBrandSlug(slug: string | null | undefined) {
   const s = String(slug ?? "")
     .trim()
     .toLowerCase();
+
   if (!s) return null;
 
   const found = BRANDS.find((b) => String(b.slug).toLowerCase() === s);
+
   return found ? found.title : s.toUpperCase();
 }
 
@@ -140,27 +144,63 @@ function toNum(v: unknown): number {
 
 function normalizeArticleColor(color?: string | null) {
   const value = String(color ?? "").trim();
+
   if (!value) return "";
   return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
-function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
-  const article = String(baseArticle ?? "").trim();
-  const normalizedColor = normalizeArticleColor(color);
+function joinArticles(
+  baseArticle?: string | null,
+  childArticle?: string | null,
+) {
+  const base = String(baseArticle ?? "").trim();
+  const child = String(childArticle ?? "").trim();
 
-  if (!article) return "—";
-  if (!normalizedColor) return article;
+  if (base && child) return `${base} + ${child}`;
+  if (base) return base;
+  if (child) return child;
 
-  return `${article} (${normalizedColor})`;
+  return "—";
+}
+
+function getDisplayArticle(args: {
+  baseArticle?: string | null;
+  color?: string | null;
+  selectedSetItemArticle?: string | null;
+  metaSku?: string | null;
+}) {
+  const metaSku = String(args.metaSku ?? "").trim();
+
+  /**
+   * Если ProductClient уже сохранил полный артикул в meta.sku,
+   * используем его как главный источник.
+   */
+  if (metaSku) return metaSku;
+
+  const baseArticle = String(args.baseArticle ?? "").trim();
+  const setArticle = String(args.selectedSetItemArticle ?? "").trim();
+
+  if (setArticle) {
+    return joinArticles(baseArticle, setArticle);
+  }
+
+  const normalizedColor = normalizeArticleColor(args.color);
+
+  if (!baseArticle) return "—";
+  if (!normalizedColor) return baseArticle;
+
+  return `${baseArticle} (${normalizedColor})`;
 }
 
 function metaString(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
+
   return s ? s : null;
 }
 
 function asMetaRecord(v: unknown): CartLineMeta | null {
   if (!isRecord(v)) return null;
+
   return v as CartLineMeta;
 }
 
@@ -187,8 +227,10 @@ function findMetaInValue(
   if (Array.isArray(value)) {
     for (const item of value) {
       const meta = asMetaRecord(item);
+
       if (metaMatches(meta, productId, variantId)) return meta;
     }
+
     return null;
   }
 
@@ -208,6 +250,7 @@ function findMetaInValue(
   }
 
   const nested = value[productId];
+
   if (isRecord(nested)) {
     const byVariant =
       asMetaRecord(nested[variantId]) ||
@@ -219,6 +262,7 @@ function findMetaInValue(
 
   for (const item of Object.values(value)) {
     const meta = asMetaRecord(item);
+
     if (metaMatches(meta, productId, variantId)) return meta;
 
     const nestedMeta = findMetaInValue(item, productId, variantId);
@@ -235,8 +279,8 @@ function readCartLineMeta(
   if (typeof window === "undefined") return null;
 
   const preferredKeys = [
-    "lioneto:cart:line-meta:v1",
     "lioneto:cart-line-meta:v1",
+    "lioneto:cart:line-meta:v1",
     "lioneto:cart-line-meta",
     "lioneto:cart:meta",
     "cart-line-meta",
@@ -249,6 +293,7 @@ function readCartLineMeta(
     try {
       const parsed: unknown = JSON.parse(raw);
       const found = findMetaInValue(parsed, productId, variantId);
+
       if (found) return found;
     } catch {
       // ignore
@@ -275,6 +320,7 @@ function readCartLineMeta(
     try {
       const parsed: unknown = JSON.parse(raw);
       const found = findMetaInValue(parsed, productId, variantId);
+
       if (found) return found;
     } catch {
       // ignore
@@ -295,10 +341,12 @@ function readMetaPrice(meta: CartLineMeta | null, region: Region): number {
 
 function flattenVariantsForCart(product: unknown): VariantAny[] {
   if (!isRecord(product)) return [];
+
   const raw = product.variants;
   if (!Array.isArray(raw)) return [];
 
   const first = raw[0];
+
   const looksGrouped =
     isRecord(first) && Array.isArray((first as Record<string, unknown>).items);
 
@@ -394,27 +442,87 @@ function findVariantForPart(
       (v) =>
         String(v.group ?? "").trim() === group && String(v.id).trim() === val,
     );
+
     if (found) return found;
   }
 
   if (group) {
     found = variants.find((v) => {
       const vid = String(v.id ?? "").trim();
+
       if (!vid.includes(":")) return false;
+
       const [vg, vv] = vid.split(":");
+
       return String(vg).trim() === group && String(vv).trim() === val;
     });
+
     if (found) return found;
   }
 
   found = variants.find((v) => {
     const vid = String(v.id ?? "").trim();
+
     if (!vid.includes(":")) return false;
+
     const tail = vid.split(":").pop();
+
     return String(tail ?? "").trim() === val;
   });
 
   return found;
+}
+
+function prettyVariantToken(token: string) {
+  const t = String(token || "")
+    .trim()
+    .toLowerCase();
+
+  const map: Record<string, string> = {
+    white: "Белый",
+    black: "Чёрный",
+    beige: "Бежевый",
+    gray: "Серый",
+    grey: "Серый",
+    cappuccino: "Капучино",
+    capuccino: "Капучино",
+    "beige-pink": "Бежевая роза",
+    rose: "Роза",
+    pink: "Розовый",
+    walnut: "Орех",
+    oak: "Дуб",
+    "gluhie-fasady": "Глухие фасады",
+    "zerkalnye-fasady": "Зеркальные фасады",
+    "bez-paspartu": "Без паспарту",
+    "s-paspartu": "С паспарту",
+    "bez-ramki": "Без рамки паспарту",
+    "s-ramkoy": "С рамкой паспарту",
+  };
+
+  return map[t] ?? token;
+}
+
+function fallbackVariantTitleFromId(variantId: string) {
+  const raw = String(variantId ?? "").trim();
+
+  if (!raw || raw === "base") return null;
+
+  const parts = raw
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const labels = parts
+    .map((p) => {
+      const val = p.includes(":") ? p.split(":").slice(1).join(":") : p;
+
+      return prettyVariantToken(String(val || "").trim());
+    })
+    .filter(Boolean);
+
+  const title = labels.join(", ");
+
+  return title || null;
 }
 
 function parseCompositeVariantForCart(
@@ -422,8 +530,14 @@ function parseCompositeVariantForCart(
   variants: VariantAny[],
 ) {
   const raw = String(variantId ?? "").trim();
+
   if (!raw || raw === "base") {
-    return { title: null as string | null, image: null as string | null };
+    return {
+      title: null as string | null,
+      image: null as string | null,
+      finalPriceUZS: 0,
+      finalPriceRUB: 0,
+    };
   }
 
   const parts = raw
@@ -432,15 +546,18 @@ function parseCompositeVariantForCart(
     .filter(Boolean);
 
   const picked: VariantAny[] = [];
+
   for (const part of parts) {
     const found = findVariantForPart(part, variants);
+
     if (found) picked.push(found);
   }
 
-  const title = picked
-    .map((v) => (v.title ? String(v.title).trim() : ""))
-    .filter(Boolean)
-    .join(", ");
+  const title =
+    picked
+      .map((v) => (v.title ? String(v.title).trim() : ""))
+      .filter(Boolean)
+      .join(", ") || fallbackVariantTitleFromId(raw);
 
   const image =
     picked.find((v) => Array.isArray(v.gallery) && v.gallery.length)
@@ -448,11 +565,23 @@ function parseCompositeVariantForCart(
     picked.find((v) => !!v.image)?.image ??
     null;
 
-  return { title: title || null, image };
+  const finalPriceUZS =
+    picked.map((v) => toNum(v.priceDeltaUZS)).find((price) => price > 0) || 0;
+
+  const finalPriceRUB =
+    picked.map((v) => toNum(v.priceDeltaRUB)).find((price) => price > 0) || 0;
+
+  return {
+    title: title || null,
+    image,
+    finalPriceUZS,
+    finalPriceRUB,
+  };
 }
 
-function itSafeTitle(p: unknown) {
+function itemSafeTitle(p: unknown) {
   const t = isRecord(p) ? p.title : undefined;
+
   return typeof t === "string" ? t : "";
 }
 
@@ -464,24 +593,29 @@ function readPriceFromObj(obj: unknown, region: Region) {
 
   const raw = region === "uz" ? uz : ru;
   const n = typeof raw === "number" ? raw : Number(raw);
+
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 function readBrandSlug(p: unknown): string {
   if (!isRecord(p)) return "";
+
   return asString(p.brand);
 }
 
 function readFirstImage(p: unknown): string {
   if (!isRecord(p)) return "";
+
   const img = p.image;
   if (typeof img === "string") return img;
 
   const g = p.gallery;
+
   if (Array.isArray(g)) {
     const first = g.find(
       (x): x is string => typeof x === "string" && !!x.trim(),
     );
+
     return first ? first : "";
   }
 
@@ -490,6 +624,7 @@ function readFirstImage(p: unknown): string {
 
 function readArticle(p: unknown): string {
   if (!isRecord(p)) return "";
+
   return (
     asString(p.sku).trim() ||
     asString(p.article).trim() ||
@@ -504,6 +639,7 @@ export default function CartClient() {
 
   const goBack = () => {
     if (typeof window === "undefined") return;
+
     if (window.history.length > 1) router.back();
     else router.push("/catalog");
   };
@@ -535,6 +671,7 @@ export default function CartClient() {
         }
 
         const m = await fetchProductsMap(ids);
+
         if (alive) setProductsMap(m);
       } catch {
         if (alive) setProductsMap({});
@@ -551,14 +688,14 @@ export default function CartClient() {
       .map((key) => {
         const parsedKey = shop.parseKey(key);
         const pid = String(parsedKey.productId);
-        const vidRaw = String(parsedKey.variantId || "base");
+        const vidRaw = String(parsedKey.variantId || "base") || "base";
 
         const meta = readCartLineMeta(pid, vidRaw);
 
         const pMockUnknown = CATALOG_BY_ID.get(pid) as unknown;
         const pStrapi = productsMap[pid] as LiteProduct | undefined;
 
-        const pDisplay: unknown = (pMockUnknown ?? pStrapi) as unknown;
+        const pDisplay: unknown = (pStrapi ?? pMockUnknown) as unknown;
         if (!pDisplay) return null;
 
         const pForCalc: unknown = (pStrapi ??
@@ -574,36 +711,17 @@ export default function CartClient() {
         const baseFromMocks = readPriceFromObj(pMockUnknown, region);
         const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-        const pickedForPrice: VariantAny[] = [];
-        const raw = String(vidRaw).trim();
-
-        if (raw && raw !== "base") {
-          const parts = raw
-            .split("|")
-            .map((s) => s.trim())
-            .filter(Boolean);
-
-          for (const part of parts) {
-            const found = findVariantForPart(part, variants);
-            if (found) pickedForPrice.push(found);
-          }
-        }
-
-        const selectedVariantFinalPrice = pickedForPrice
-          .map((v) =>
-            region === "uz"
-              ? toNum(v.priceDeltaUZS ?? 0)
-              : toNum(v.priceDeltaRUB ?? 0),
-          )
-          .find((price) => price > 0);
+        const selectedVariantFinalPrice =
+          region === "uz"
+            ? parsedVariant.finalPriceUZS
+            : parsedVariant.finalPriceRUB;
 
         const metaUnit = readMetaPrice(meta, region);
 
         const unit =
           metaUnit > 0
             ? metaUnit
-            : typeof selectedVariantFinalPrice === "number" &&
-                selectedVariantFinalPrice > 0
+            : selectedVariantFinalPrice > 0
               ? selectedVariantFinalPrice
               : baseUnit;
 
@@ -620,8 +738,8 @@ export default function CartClient() {
 
         const title =
           metaString(meta?.title) ||
-          itSafeTitle(pStrapi) ||
-          itSafeTitle(pDisplay) ||
+          itemSafeTitle(pStrapi) ||
+          itemSafeTitle(pDisplay) ||
           "Товар";
 
         const selectedColor = metaString(meta?.selectedColor);
@@ -644,14 +762,16 @@ export default function CartClient() {
           parsedVariant.title;
 
         const baseArticle =
-          metaString(meta?.sku) ||
           readArticle(pStrapi) ||
           readArticle(pMockUnknown) ||
           readArticle(pDisplay);
 
-        const displayArticle =
-          metaString(meta?.sku) ||
-          getDisplayArticle(baseArticle, selectedColor || parsedVariant.title);
+        const displayArticle = getDisplayArticle({
+          baseArticle,
+          color: selectedColor || parsedVariant.title,
+          selectedSetItemArticle: metaString(meta?.selectedSetItemArticle),
+          metaSku: metaString(meta?.sku),
+        });
 
         const productForUI: CatalogProduct | LiteProduct = isRecord(pDisplay)
           ? ({
@@ -720,9 +840,11 @@ export default function CartClient() {
           <div className="mt-4 text-[12px] tracking-[0.28em] text-black/45">
             LIONETO
           </div>
+
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em]">
             Корзина
           </h1>
+
           <p className="mt-2 text-sm text-black/55">
             {items.length
               ? `Товаров: ${items.length}`
@@ -730,15 +852,16 @@ export default function CartClient() {
           </p>
         </div>
 
-        {items.length > 0 && (
+        {items.length > 0 ? (
           <button
             onClick={clear}
             className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-black/75 transition hover:border-black/20 hover:text-black"
+            type="button"
           >
             <Trash2 className="h-4 w-4" />
             Очистить
           </button>
-        )}
+        ) : null}
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
@@ -749,6 +872,7 @@ export default function CartClient() {
                 <div className="grid h-12 w-12 place-items-center rounded-2xl bg-black/5">
                   <ShoppingBag className="h-6 w-6 text-black/60" />
                 </div>
+
                 <div>
                   <div className="text-base font-medium">Корзина пустая</div>
                   <div className="text-sm text-black/55">
@@ -767,121 +891,142 @@ export default function CartClient() {
               </div>
             </div>
           ) : (
-            items.map((it) => (
-              <div
-                key={it.key}
-                className="rounded-3xl border border-black/10 bg-white p-4 md:p-5"
-              >
-                <div className="flex gap-4">
-                  <Link
-                    href={`/product/${it.productId}`}
-                    className="relative h-24 w-24 shrink-0 cursor-pointer overflow-hidden rounded-2xl bg-black/5"
-                  >
-                    <SafeImg
-                      src={it.image}
-                      alt={getStr(it.product, "title") || "Товар"}
-                    />
-                  </Link>
+            items.map((it) => {
+              const productHref =
+                it.variantId && it.variantId !== "base"
+                  ? `/product/${encodeURIComponent(
+                      it.productId,
+                    )}?variant=${encodeURIComponent(it.variantId)}`
+                  : `/product/${encodeURIComponent(it.productId)}`;
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <Link
-                          href={`/product/${it.productId}`}
-                          className="block cursor-pointer truncate text-base font-medium tracking-[-0.01em] hover:underline"
-                        >
-                          {it.collectionLabel ? (
-                            <span className="text-black/55">
-                              {it.collectionLabel} /{" "}
-                            </span>
+              return (
+                <div
+                  key={it.key}
+                  className="rounded-3xl border border-black/10 bg-white p-4 md:p-5"
+                >
+                  <div className="flex gap-4">
+                    <Link
+                      href={productHref}
+                      className="relative h-24 w-24 shrink-0 cursor-pointer overflow-hidden rounded-2xl bg-black/5"
+                    >
+                      <SafeImg
+                        src={it.image}
+                        alt={getStr(it.product, "title") || "Товар"}
+                      />
+                    </Link>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link
+                            href={productHref}
+                            className="block cursor-pointer truncate text-base font-medium tracking-[-0.01em] hover:underline"
+                          >
+                            {it.collectionLabel ? (
+                              <span className="text-black/55">
+                                {it.collectionLabel} /{" "}
+                              </span>
+                            ) : null}
+                            {getStr(it.product, "title") || "Товар"}
+                          </Link>
+
+                          <div className="mt-1 text-[12px] text-black/45">
+                            Артикул: {it.displayArticle}
+                          </div>
+
+                          {it.selectedColor ? (
+                            <div className="mt-1 text-[12px] text-black/55">
+                              Цвет:{" "}
+                              <span className="font-semibold text-black/75">
+                                {it.selectedColor}
+                              </span>
+                            </div>
                           ) : null}
-                          {getStr(it.product, "title") || "Товар"}
-                        </Link>
 
-                        <div className="mt-1 text-[12px] text-black/45">
-                          Артикул: {it.displayArticle}
+                          {it.selectedSetItemTitle ? (
+                            <div className="mt-1 text-[12px] text-black/55">
+                              Комплектация:{" "}
+                              <span className="font-semibold text-black/75">
+                                {it.selectedSetItemTitle}
+                              </span>
+                            </div>
+                          ) : it.variantTitle && it.variantId !== "base" ? (
+                            <div className="mt-1 text-[12px] text-black/55">
+                              Вариант:{" "}
+                              <span className="font-semibold text-black/75">
+                                {it.variantTitle}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {it.selectedSetItemOptionKey ? (
+                            <div className="mt-1 text-[11px] text-black/35">
+                              optionKey: {it.selectedSetItemOptionKey}
+                            </div>
+                          ) : null}
+
+                          <div className="mt-1 text-xs text-black/35">
+                            ID: {it.productId}
+                          </div>
                         </div>
 
-                        {it.selectedColor ? (
-                          <div className="mt-1 text-[12px] text-black/55">
-                            Цвет:{" "}
-                            <span className="font-semibold text-black/75">
-                              {it.selectedColor}
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {it.selectedSetItemTitle ? (
-                          <div className="mt-1 text-[12px] text-black/55">
-                            Комплектация:{" "}
-                            <span className="font-semibold text-black/75">
-                              {it.selectedSetItemTitle}
-                            </span>
-                          </div>
-                        ) : it.variantTitle && it.variantId !== "base" ? (
-                          <div className="mt-1 text-[12px] text-black/55">
-                            Вариант:{" "}
-                            <span className="font-semibold text-black/75">
-                              {it.variantTitle}
-                            </span>
-                          </div>
-                        ) : null}
-
-                        <div className="mt-1 text-xs text-black/45">
-                          ID: {it.productId}
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => remove(it.productId, it.variantId)}
-                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/65 transition hover:border-black/20 hover:text-black"
-                        aria-label="Удалить"
-                        title="Удалить"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <div className="inline-flex items-center rounded-full border border-black/10 bg-white p-1">
                         <button
-                          className="h-9 w-9 cursor-pointer rounded-full text-black/70 transition hover:text-black"
-                          onClick={() =>
-                            changeQty(it.productId, it.variantId, it.qty - 1)
-                          }
-                          aria-label="Уменьшить количество"
-                          title="Уменьшить"
+                          onClick={() => remove(it.productId, it.variantId)}
+                          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black/65 transition hover:border-black/20 hover:text-black"
+                          aria-label="Удалить"
+                          title="Удалить"
+                          type="button"
                         >
-                          −
-                        </button>
-                        <div className="min-w-[44px] text-center text-sm font-medium">
-                          {it.qty}
-                        </div>
-                        <button
-                          className="h-9 w-9 cursor-pointer rounded-full text-black/70 transition hover:text-black"
-                          onClick={() =>
-                            changeQty(it.productId, it.variantId, it.qty + 1)
-                          }
-                          aria-label="Увеличить количество"
-                          title="Увеличить"
-                        >
-                          +
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
 
-                      <div className="text-right">
-                        <div className="text-sm text-black/55">
-                          {formatMoney(it.unit, region)} × {it.qty}
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="inline-flex items-center rounded-full border border-black/10 bg-white p-1">
+                          <button
+                            className="h-9 w-9 cursor-pointer rounded-full text-black/70 transition hover:text-black"
+                            onClick={() =>
+                              changeQty(it.productId, it.variantId, it.qty - 1)
+                            }
+                            aria-label="Уменьшить количество"
+                            title="Уменьшить"
+                            type="button"
+                          >
+                            −
+                          </button>
+
+                          <div className="min-w-[44px] text-center text-sm font-medium">
+                            {it.qty}
+                          </div>
+
+                          <button
+                            className="h-9 w-9 cursor-pointer rounded-full text-black/70 transition hover:text-black"
+                            onClick={() =>
+                              changeQty(it.productId, it.variantId, it.qty + 1)
+                            }
+                            aria-label="Увеличить количество"
+                            title="Увеличить"
+                            type="button"
+                          >
+                            +
+                          </button>
                         </div>
-                        <div className="text-lg font-semibold tracking-[-0.02em]">
-                          {formatMoney(it.sum, region)}
+
+                        <div className="text-right">
+                          <div className="text-sm text-black/55">
+                            {formatMoney(it.unit, region)} × {it.qty}
+                          </div>
+
+                          <div className="text-lg font-semibold tracking-[-0.02em]">
+                            {formatMoney(it.sum, region)}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -889,6 +1034,7 @@ export default function CartClient() {
           <div className="text-base font-semibold tracking-[-0.01em]">
             Итого
           </div>
+
           <div className="mt-3 flex items-center justify-between text-sm text-black/60">
             <span>Сумма</span>
             <span className="font-medium text-black/80">

@@ -23,8 +23,10 @@ type Region = "uz" | "ru";
 type OfferConsent = "accepted" | "declined" | null;
 
 function formatMoney(n: number, region: Region) {
-  if (region === "uz") return new Intl.NumberFormat("ru-RU").format(n) + " сум";
-  return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
+  const v = Number.isFinite(Number(n)) ? Number(n) : 0;
+
+  if (region === "uz") return new Intl.NumberFormat("ru-RU").format(v) + " сум";
+  return new Intl.NumberFormat("ru-RU").format(v) + " ₽";
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -49,37 +51,15 @@ function getProp(obj: unknown, key: string): unknown {
   return obj[key];
 }
 
-function normalizeArticleColor(color?: string | null) {
-  const value = String(color ?? "").trim();
-  if (!value) return "";
-  return value.charAt(0).toLowerCase() + value.slice(1);
-}
-
-function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
-  const article = String(baseArticle ?? "").trim();
-  const normalizedColor = normalizeArticleColor(color);
-
-  if (!article) return "—";
-  if (!normalizedColor) return article;
-
-  return `${article} (${normalizedColor})`;
-}
-
-function readArticleAny(obj: unknown): string {
-  return (
-    toStringSafe(getProp(obj, "sku")).trim() ||
-    toStringSafe(getProp(obj, "article")).trim() ||
-    toStringSafe(getProp(obj, "id")).trim()
-  );
-}
-
 function labelByBrandSlug(slug: string | null | undefined) {
   const s = String(slug ?? "")
     .trim()
     .toLowerCase();
+
   if (!s) return null;
 
   const found = BRANDS.find((b) => String(b.slug).toLowerCase() === s);
+
   return found ? found.title : s.toUpperCase();
 }
 
@@ -141,11 +121,13 @@ type CheckoutItem = {
 
 function metaString(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
+
   return s ? s : null;
 }
 
 function asMetaRecord(v: unknown): CartLineMeta | null {
   if (!isRecord(v)) return null;
+
   return v as CartLineMeta;
 }
 
@@ -172,8 +154,10 @@ function findMetaInValue(
   if (Array.isArray(value)) {
     for (const item of value) {
       const meta = asMetaRecord(item);
+
       if (metaMatches(meta, productId, variantId)) return meta;
     }
+
     return null;
   }
 
@@ -193,6 +177,7 @@ function findMetaInValue(
   }
 
   const nested = value[productId];
+
   if (isRecord(nested)) {
     const byVariant =
       asMetaRecord(nested[variantId]) ||
@@ -204,6 +189,7 @@ function findMetaInValue(
 
   for (const item of Object.values(value)) {
     const meta = asMetaRecord(item);
+
     if (metaMatches(meta, productId, variantId)) return meta;
 
     const nestedMeta = findMetaInValue(item, productId, variantId);
@@ -220,8 +206,8 @@ function readCartLineMeta(
   if (typeof window === "undefined") return null;
 
   const preferredKeys = [
-    "lioneto:cart:line-meta:v1",
     "lioneto:cart-line-meta:v1",
+    "lioneto:cart:line-meta:v1",
     "lioneto:cart-line-meta",
     "lioneto:cart:meta",
     "cart-line-meta",
@@ -234,6 +220,7 @@ function readCartLineMeta(
     try {
       const parsed: unknown = JSON.parse(raw);
       const found = findMetaInValue(parsed, productId, variantId);
+
       if (found) return found;
     } catch {
       // ignore
@@ -260,6 +247,7 @@ function readCartLineMeta(
     try {
       const parsed: unknown = JSON.parse(raw);
       const found = findMetaInValue(parsed, productId, variantId);
+
       if (found) return found;
     } catch {
       // ignore
@@ -305,7 +293,6 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
 
         const itGroup = toStringSafe(getProp(it, "group")).trim();
         const mergedGroup = (itGroup || group || "").trim() || undefined;
-
         const title = toStringSafe(getProp(it, "title")).trim();
 
         const imageRaw = getProp(it, "image");
@@ -316,17 +303,14 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
           ? galleryRaw.map((x) => toStringSafe(x)).filter(Boolean)
           : undefined;
 
-        const priceDeltaRUB = toNumSafe(getProp(it, "priceDeltaRUB"));
-        const priceDeltaUZS = toNumSafe(getProp(it, "priceDeltaUZS"));
-
         out.push({
           id,
           title: title || undefined,
           group: mergedGroup,
           image,
           gallery,
-          priceDeltaRUB,
-          priceDeltaUZS,
+          priceDeltaRUB: toNumSafe(getProp(it, "priceDeltaRUB")),
+          priceDeltaUZS: toNumSafe(getProp(it, "priceDeltaUZS")),
         });
       }
     }
@@ -353,17 +337,14 @@ function flattenVariantsForCheckout(product: unknown): VariantLite[] {
       ? galleryRaw.map((x) => toStringSafe(x)).filter(Boolean)
       : undefined;
 
-    const priceDeltaRUB = toNumSafe(getProp(v, "priceDeltaRUB"));
-    const priceDeltaUZS = toNumSafe(getProp(v, "priceDeltaUZS"));
-
     out.push({
       id,
       title: title || undefined,
       group: group || undefined,
       image,
       gallery,
-      priceDeltaRUB,
-      priceDeltaUZS,
+      priceDeltaRUB: toNumSafe(getProp(v, "priceDeltaRUB")),
+      priceDeltaUZS: toNumSafe(getProp(v, "priceDeltaUZS")),
     });
   }
 
@@ -392,70 +373,35 @@ function findVariantForPart(
       (v) =>
         String(v.group ?? "").trim() === group && String(v.id).trim() === val,
     );
+
     if (found) return found;
   }
 
   if (group) {
     found = variants.find((v) => {
       const vid = String(v.id ?? "").trim();
+
       if (!vid.includes(":")) return false;
+
       const [vg, vv] = vid.split(":");
+
       return String(vg).trim() === group && String(vv).trim() === val;
     });
+
     if (found) return found;
   }
 
   found = variants.find((v) => {
     const vid = String(v.id ?? "").trim();
+
     if (!vid.includes(":")) return false;
+
     const tail = vid.split(":").pop();
+
     return String(tail ?? "").trim() === val;
   });
 
   return found;
-}
-
-function parseCompositeVariantForCart(
-  variantId: string,
-  variants: VariantLite[],
-) {
-  const raw = String(variantId ?? "").trim();
-  if (!raw || raw === "base") {
-    return { title: null as string | null, image: null as string | null };
-  }
-
-  const parts = raw
-    .split("|")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const picked: VariantLite[] = [];
-  for (const part of parts) {
-    const found = findVariantForPart(part, variants);
-    if (found) picked.push(found);
-  }
-
-  const title = picked
-    .map((v) => {
-      const t = v.title ? String(v.title).trim() : "";
-      if (t) return t;
-
-      const id = String(v.id ?? "").trim();
-      if (id === "white") return "Белый";
-      if (id === "cappuccino") return "Капучино";
-
-      return id;
-    })
-    .filter(Boolean)
-    .join(", ");
-
-  const image =
-    picked.find((v) => Array.isArray(v.gallery) && v.gallery.length)
-      ?.gallery?.[0] ??
-    picked.find((v) => !!v.image)?.image ??
-    null;
-
-  return { title: title || null, image };
 }
 
 function prettyVariantToken(token: string) {
@@ -476,6 +422,10 @@ function prettyVariantToken(token: string) {
     pink: "Розовый",
     walnut: "Орех",
     oak: "Дуб",
+    "gluhie-fasady": "Глухие фасады",
+    "zerkalnye-fasady": "Зеркальные фасады",
+    "bez-paspartu": "Без паспарту",
+    "s-paspartu": "С паспарту",
     "bez-ramki": "Без рамки паспарту",
     "s-ramkoy": "С рамкой паспарту",
   };
@@ -485,6 +435,7 @@ function prettyVariantToken(token: string) {
 
 function fallbackVariantTitleFromId(variantId: string) {
   const raw = String(variantId ?? "").trim();
+
   if (!raw || raw === "base") return null;
 
   const parts = raw
@@ -495,21 +446,86 @@ function fallbackVariantTitleFromId(variantId: string) {
   const labels = parts
     .map((p) => {
       const val = p.includes(":") ? p.split(":").slice(1).join(":") : p;
+
       return prettyVariantToken(String(val || "").trim());
     })
     .filter(Boolean);
 
   const title = labels.join(", ");
+
   return title || null;
 }
 
+function parseCompositeVariantForCheckout(
+  variantId: string,
+  variants: VariantLite[],
+) {
+  const raw = String(variantId ?? "").trim();
+
+  if (!raw || raw === "base") {
+    return {
+      title: null as string | null,
+      image: null as string | null,
+      finalPriceUZS: 0,
+      finalPriceRUB: 0,
+    };
+  }
+
+  const parts = raw
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const picked: VariantLite[] = [];
+
+  for (const part of parts) {
+    const found = findVariantForPart(part, variants);
+
+    if (found) picked.push(found);
+  }
+
+  const title =
+    picked
+      .map((v) => {
+        const t = v.title ? String(v.title).trim() : "";
+        if (t) return t;
+
+        return prettyVariantToken(String(v.id ?? "").trim());
+      })
+      .filter(Boolean)
+      .join(", ") || fallbackVariantTitleFromId(raw);
+
+  const image =
+    picked.find((v) => Array.isArray(v.gallery) && v.gallery.length)
+      ?.gallery?.[0] ??
+    picked.find((v) => !!v.image)?.image ??
+    null;
+
+  const finalPriceUZS =
+    picked.map((v) => toNumSafe(v.priceDeltaUZS)).find((price) => price > 0) ||
+    0;
+
+  const finalPriceRUB =
+    picked.map((v) => toNumSafe(v.priceDeltaRUB)).find((price) => price > 0) ||
+    0;
+
+  return {
+    title: title || null,
+    image,
+    finalPriceUZS,
+    finalPriceRUB,
+  };
+}
+
 function resolveVariantTitle(variantId: string, variants: VariantLite[]) {
-  const parsed = parseCompositeVariantForCart(variantId, variants);
+  const parsed = parseCompositeVariantForCheckout(variantId, variants);
+
   return parsed.title || fallbackVariantTitleFromId(variantId);
 }
 
 function resolveVariantImage(variantId: string, variants: VariantLite[]) {
-  const parsed = parseCompositeVariantForCart(variantId, variants);
+  const parsed = parseCompositeVariantForCheckout(variantId, variants);
+
   return parsed.image || null;
 }
 
@@ -522,6 +538,7 @@ function resolveProductImage(
   if (fromVariant) return String(fromVariant);
 
   const galleryRaw = getProp(p, "gallery");
+
   if (Array.isArray(galleryRaw)) {
     const first = galleryRaw.map((x) => toStringSafe(x)).find(Boolean);
     if (first) return first;
@@ -529,10 +546,12 @@ function resolveProductImage(
 
   const imgRaw = getProp(p, "image");
   const img = toStringSafe(imgRaw).trim();
+
   if (img) return img;
 
   const mediaRaw = getProp(p, "media");
   const media = toStringSafe(mediaRaw).trim();
+
   if (media) return media;
 
   return null;
@@ -540,6 +559,7 @@ function resolveProductImage(
 
 function toAbsoluteUrlClient(urlLike: string | null) {
   const raw = String(urlLike ?? "").trim();
+
   if (!raw) return null;
   if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
 
@@ -547,6 +567,7 @@ function toAbsoluteUrlClient(urlLike: string | null) {
     if (typeof window !== "undefined" && window.location?.origin) {
       return `${window.location.origin}${raw}`;
     }
+
     return raw;
   }
 
@@ -557,8 +578,10 @@ const LS_CUSTOMER = "lioneto:checkout:customer:v2";
 
 function safeParseRecord(raw: string | null): Record<string, unknown> {
   if (!raw) return {};
+
   try {
     const parsed: unknown = JSON.parse(raw);
+
     return isRecord(parsed) ? parsed : {};
   } catch {
     return {};
@@ -582,6 +605,40 @@ function readPriceAny(obj: unknown, region: Region): number {
   const n = toNumSafe(raw);
 
   return n > 0 ? n : 0;
+}
+
+function readArticleAny(obj: unknown): string {
+  return (
+    toStringSafe(getProp(obj, "sku")).trim() ||
+    toStringSafe(getProp(obj, "article")).trim() ||
+    toStringSafe(getProp(obj, "id")).trim()
+  );
+}
+
+function joinArticles(
+  baseArticle?: string | null,
+  childArticle?: string | null,
+) {
+  const base = String(baseArticle ?? "").trim();
+  const child = String(childArticle ?? "").trim();
+
+  if (base && child) return `${base} + ${child}`;
+  if (base) return base;
+  if (child) return child;
+
+  return "—";
+}
+
+function buildArticle(args: {
+  metaSku?: string | null;
+  baseArticle?: string | null;
+  selectedSetItemArticle?: string | null;
+}) {
+  const metaSku = String(args.metaSku ?? "").trim();
+
+  if (metaSku) return metaSku;
+
+  return joinArticles(args.baseArticle, args.selectedSetItemArticle);
 }
 
 function OfferAgreementWindow({
@@ -667,19 +724,15 @@ function OfferAgreementWindow({
             </h3>
 
             <p>
-              Данный документ является публичной офертой Продавца в соответствии
-              с п. 1 ст. 435 и п. 2 ст. 437 ГК РФ и содержит все существенные
-              условия продажи, оплаты, доставки, возврата и обмена товаров,
-              представленных на сайте Продавца по адресу https://lioneto.com/.
+              Данный документ является публичной офертой Продавца и содержит все
+              существенные условия продажи, оплаты, доставки, возврата и обмена
+              товаров, представленных на сайте Продавца.
             </p>
 
             <p>
-              В случае принятия изложенных условий и оформления заказа
-              юридическое или физическое лицо, производящее акцепт оферты,
-              становится Покупателем, а Продавец и Покупатель совместно —
-              сторонами договора. Акцепт оферты осуществляется Покупателем при
-              оформлении заказа на сайте интернет-магазина путем нажатия кнопки
-              «Оформить заказ» или «Подтвердить заказ».
+              В случае принятия изложенных условий и оформления заказа лицо,
+              производящее акцепт оферты, становится Покупателем, а Продавец и
+              Покупатель совместно — сторонами договора.
             </p>
           </section>
 
@@ -690,32 +743,17 @@ function OfferAgreementWindow({
 
             <p>
               Покупатель — физическое или юридическое лицо, оформляющее заказы
-              на сайте https://lioneto.com/. Соглашаясь с условиями оферты,
-              Покупатель подтверждает, что является дееспособным гражданином,
-              достигшим 18 лет, либо представителем действующей компании.
+              на сайте https://lioneto.com/.
             </p>
 
             <p>
-              Продавец — Общество с ограниченной ответственностью «Комфорт
-              плюс», ИНН 9721264165. Юридический адрес: 109443, г. Москва,
-              вн.тер.г. муниципальный округ Кузьминки, пр-кт Волгоградский, д.
-              135 к. 3, помещ. 7М.
-            </p>
-
-            <p>
-              Интернет-магазин — сайт, расположенный по адресу
-              https://lioneto.com/, где представлены товары, предлагаемые
-              Продавцом, а также условия доставки, оплаты, возврата и обмена.
+              Интернет-магазин — сайт, где представлены товары, условия
+              доставки, оплаты, возврата и обмена.
             </p>
 
             <p>
               Заказ — запрос Покупателя на покупку товаров, размещенный
               Покупателем самостоятельно на сайте или по телефону.
-            </p>
-
-            <p>
-              Товар — продукция, представленная к продаже и доступная для
-              резервирования в интернет-магазине Продавца.
             </p>
           </section>
 
@@ -727,19 +765,6 @@ function OfferAgreementWindow({
               и услуг, представленных на сайте Продавца, согласно оформленному
               заказу Покупателя.
             </p>
-
-            <p>
-              Покупатель имеет право оплатить сумму по договору полностью в
-              момент заключения договора либо в любые удобные сроки в пределах
-              графика платежей, согласованного с Продавцом.
-            </p>
-
-            <p>
-              При оплате части стоимости договора по графику, согласованному с
-              Покупателем, Продавец гарантирует, что товар будет доставлен и
-              собран в согласованные с Покупателем даты при условии соблюдения
-              графика платежей.
-            </p>
           </section>
 
           <section className="mt-8 space-y-4">
@@ -749,25 +774,13 @@ function OfferAgreementWindow({
 
             <p>
               Товары представлены на сайте через фото-образцы, рендеры и
-              описания. Все информационные материалы, представленные на сайте,
-              носят справочный характер.
+              описания. Все информационные материалы носят справочный характер.
             </p>
 
             <p>
               В изделиях могут применяться натуральные материалы природного
-              происхождения. Различия тонов мебели, сучки, глазки и природные
-              особенности материалов не являются дефектами.
-            </p>
-
-            <p>
-              При продаже уцененного товара, имеющего определенные внешние
-              недостатки на момент заключения договора, Покупатель не вправе
-              предъявлять претензии по заранее оговоренным недостаткам.
-            </p>
-
-            <p>
-              В случае обнаружения некондиционных деталей Продавец гарантирует
-              устранение обнаруженных дефектов в согласованные сроки.
+              происхождения. Различия тонов, сучки и природные особенности
+              материалов не являются дефектами.
             </p>
           </section>
 
@@ -778,111 +791,29 @@ function OfferAgreementWindow({
 
             <p>
               Доставка товара осуществляется способом, указанным в заказе или
-              согласованным с Покупателем: силами Продавца либо самовывозом со
-              склада Продавца.
-            </p>
-
-            <p>
-              Если Покупатель не воспользовался предложенными Продавцом услугами
-              по доставке или сборке, Продавец не несет ответственности за
-              недостатки товара, возникшие в результате перевозки или сборки
-              силами Покупателя.
+              согласованным с Покупателем.
             </p>
 
             <p>
               Продавец считается надлежащим образом выполнившим обязанность по
-              передаче товара Покупателю по количеству и качеству с момента
-              подписания товарной накладной или иного документа приема-передачи.
-            </p>
-
-            <p>
-              В случае если Покупатель не принимает товар в согласованную дату и
-              время, Продавец вправе вернуть товар на склад, а повторная
-              доставка осуществляется при условии оплаты Покупателем повторной
-              услуги доставки.
-            </p>
-          </section>
-
-          <section className="mt-8 space-y-4">
-            <h3 className="text-[17px] font-semibold text-black">6. Прочее</h3>
-
-            <p>
-              Мебельные гарнитуры бытового назначения, матрасы, мягкая мебель и
-              иные товары могут входить в перечень товаров надлежащего качества,
-              не подлежащих обмену и возврату, согласно действующему
-              законодательству.
-            </p>
-
-            <p>
-              Продавец освобождается от ответственности за несвоевременное
-              исполнение обязательств, вызванное обстоятельствами непреодолимой
-              силы, включая чрезвычайные, непредвиденные и непредотвратимые
-              обстоятельства.
-            </p>
-
-            <p>
-              Стороны признают юридическую силу переписки с использованием
-              WhatsApp, Telegram, иных мессенджеров, социальных сетей и
-              электронных каналов связи.
+              передаче товара с момента подписания документа приема-передачи.
             </p>
           </section>
 
           <section className="mt-8 space-y-4">
             <h3 className="text-[17px] font-semibold text-black">
-              7. Персональная информация
+              6. Персональная информация
             </h3>
 
             <p>
-              При регистрации и/или оформлении заказа на сайте Продавца
-              Покупатель предоставляет персональные данные: имя, номер
-              контактного телефона, адрес электронной почты, адрес доставки
-              заказа и иные необходимые сведения.
+              При оформлении заказа Покупатель предоставляет персональные
+              данные: имя, номер телефона, адрес доставки и иные необходимые
+              сведения.
             </p>
 
             <p>
-              Персональные данные Покупателя обрабатываются Продавцом способами,
-              включающими сбор, запись, систематизацию, накопление, хранение,
-              уточнение, использование, передачу, обезличивание, блокирование,
-              удаление и уничтожение, в том числе с использованием средств
-              автоматизации или без них.
-            </p>
-
-            <p>
-              Оформляя заказ и указывая информацию о себе, Покупатель
-              подтверждает, что дает согласие на обработку Продавцом переданных
-              персональных данных, включая передачу третьим лицам в целях
-              исполнения обязательств по договору оферты.
-            </p>
-
-            <p>
-              Если Покупатель не желает, чтобы его персональные данные
-              обрабатывались Продавцом, он должен письменно известить об этом
-              Продавца по электронной почте интернет-магазина. В этом случае
-              Покупатель лишается возможности пользоваться услугами
-              интернет-магазина и оформлять заказы.
-            </p>
-
-            <p>
-              Покупатель подтверждает, что ознакомлен с условиями политики
-              конфиденциальности, опубликованной на сайте.
-            </p>
-          </section>
-
-          <section className="mt-8 space-y-4">
-            <h3 className="text-[17px] font-semibold text-black">
-              8. Отказ от договора со стороны Покупателя
-            </h3>
-
-            <p>
-              Покупатель имеет право отказаться от поставленного товара в
-              порядке и сроки, предусмотренные действующим законодательством и
-              условиями настоящего договора.
-            </p>
-
-            <p>
-              В случае расторжения договора или отказа Покупателя от товара
-              возврат денежных средств осуществляется на реквизиты, с которых
-              была произведена оплата, если иное не согласовано сторонами.
+              Оформляя заказ, Покупатель подтверждает согласие на обработку
+              переданных персональных данных в целях исполнения заказа.
             </p>
           </section>
 
@@ -913,8 +844,8 @@ function OfferAgreementWindow({
 export default function CheckoutClient() {
   const router = useRouter();
   const sp = useSearchParams();
-  const isSuccess = String(sp?.get("success") ?? "") === "1";
 
+  const isSuccess = String(sp?.get("success") ?? "") === "1";
   const mode = String(sp?.get("mode") ?? "").toLowerCase();
 
   const { region } = useRegionLang();
@@ -925,12 +856,14 @@ export default function CheckoutClient() {
 
   const goBack = () => {
     if (typeof window === "undefined") return;
+
     if (window.history.length > 1) router.back();
     else router.push("/cart");
   };
 
   const keys = useMemo(() => {
     if (mode === "oneclick" && shop.oneClick?.id) return [shop.oneClick.id];
+
     return Object.keys(shop.cart).filter((k) => (shop.cart[k] ?? 0) > 0);
   }, [mode, shop.cart, shop.oneClick]);
 
@@ -942,6 +875,7 @@ export default function CheckoutClient() {
 
   const idsKey = useMemo(() => {
     const ids = Array.from(new Set(productIds.filter(Boolean)));
+
     return ids.join("|");
   }, [productIds]);
 
@@ -955,12 +889,14 @@ export default function CheckoutClient() {
     (async () => {
       try {
         const ids = idsKey ? idsKey.split("|").filter(Boolean) : [];
+
         if (ids.length === 0) {
           if (alive) setProductsMap({});
           return;
         }
 
         const m = await fetchProductsMap(ids);
+
         if (alive) setProductsMap(m);
       } catch {
         if (alive) setProductsMap({});
@@ -994,6 +930,7 @@ export default function CheckoutClient() {
       if (!p) continue;
 
       const variants = flattenVariantsForCheckout(p);
+      const parsedVariant = parseCompositeVariantForCheckout(vid, variants);
 
       const selectedColor = metaString(meta?.selectedColor);
 
@@ -1016,35 +953,17 @@ export default function CheckoutClient() {
       const baseFromMocks = readPriceAny(pMockUnknown, region);
       const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
-      const pickedForPrice: VariantLite[] = [];
-
-      if (vid && vid !== "base") {
-        const parts = vid
-          .split("|")
-          .map((s) => s.trim())
-          .filter(Boolean);
-
-        for (const part of parts) {
-          const found = findVariantForPart(part, variants);
-          if (found) pickedForPrice.push(found);
-        }
-      }
-
-      const selectedVariantFinalPrice = pickedForPrice
-        .map((v) =>
-          region === "uz"
-            ? toNumSafe(v.priceDeltaUZS ?? 0)
-            : toNumSafe(v.priceDeltaRUB ?? 0),
-        )
-        .find((price) => price > 0);
+      const selectedVariantFinalPrice =
+        region === "uz"
+          ? parsedVariant.finalPriceUZS
+          : parsedVariant.finalPriceRUB;
 
       const metaUnit = readMetaPrice(meta, region);
 
       const unit =
         metaUnit > 0
           ? metaUnit
-          : typeof selectedVariantFinalPrice === "number" &&
-              selectedVariantFinalPrice > 0
+          : selectedVariantFinalPrice > 0
             ? selectedVariantFinalPrice
             : baseUnit;
 
@@ -1061,12 +980,15 @@ export default function CheckoutClient() {
         readArticleAny(pMockUnknown) ||
         readArticleAny(p);
 
-      const article =
-        metaString(meta?.sku) ||
-        getDisplayArticle(baseArticle, selectedColor || variantTitle);
+      const article = buildArticle({
+        metaSku: metaString(meta?.sku),
+        baseArticle,
+        selectedSetItemArticle: metaString(meta?.selectedSetItemArticle),
+      });
 
       const imageRaw =
         metaString(meta?.imageUrl) || resolveProductImage(p, vid, variants);
+
       const imageUrl = toAbsoluteUrlClient(imageRaw);
 
       out.push({
@@ -1098,6 +1020,7 @@ export default function CheckoutClient() {
 
   const cachedCustomer = useMemo<Record<string, unknown>>(() => {
     if (typeof window === "undefined") return {};
+
     return safeParseRecord(window.localStorage.getItem(LS_CUSTOMER)) ?? {};
   }, []);
 
@@ -1125,6 +1048,7 @@ export default function CheckoutClient() {
 
   const isPhoneValid = useMemo(() => {
     if (region === "uz") return /^\d{9}$/.test(phoneDigits);
+
     return String(phoneDigits).trim().length >= 7;
   }, [region, phoneDigits]);
 
@@ -1134,6 +1058,7 @@ export default function CheckoutClient() {
 
   const phoneValue = useMemo(() => {
     if (region === "uz") return `+998${phoneDigits}`;
+
     return phoneDigits;
   }, [region, phoneDigits]);
 
@@ -1185,10 +1110,12 @@ export default function CheckoutClient() {
 
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
+
         alert(
           "Не удалось отправить заказ. Попробуйте ещё раз.\n\n" +
             (txt ? txt.slice(0, 500) : ""),
         );
+
         return;
       }
 
@@ -1266,9 +1193,11 @@ export default function CheckoutClient() {
           <div className="mt-4 text-[12px] tracking-[0.28em] text-black/45">
             LIONETO
           </div>
+
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em]">
             Оформление заказа
           </h1>
+
           <p className="mt-2 text-sm text-black/55">
             Введите данные, проверьте заказ и подтвердите.
           </p>
@@ -1291,6 +1220,7 @@ export default function CheckoutClient() {
                     <div className="px-4 py-3 text-sm font-semibold text-black/60">
                       +998
                     </div>
+
                     <input
                       value={phoneDigits}
                       onChange={(e) => {
@@ -1318,6 +1248,7 @@ export default function CheckoutClient() {
                 <div className="mb-1 text-[12px] font-medium text-black/55">
                   Имя
                 </div>
+
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -1330,6 +1261,7 @@ export default function CheckoutClient() {
                 <div className="mb-1 text-[12px] font-medium text-black/55">
                   Адрес
                 </div>
+
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
@@ -1342,6 +1274,7 @@ export default function CheckoutClient() {
                 <div className="mb-1 text-[12px] font-medium text-black/55">
                   Комментарий
                 </div>
+
                 <textarea
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
@@ -1540,12 +1473,12 @@ export default function CheckoutClient() {
                 </label>
               </div>
 
-              {offerConsent === "declined" && (
+              {offerConsent === "declined" ? (
                 <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-[12px] leading-5 text-red-700 ring-1 ring-red-100">
                   Без принятия договора оферты и согласия на обработку
                   персональных данных мы не сможем оформить заказ через сайт.
                 </p>
-              )}
+              ) : null}
             </div>
 
             <button

@@ -19,24 +19,9 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function formatMoney(n: number, region: Region) {
   const v = Number.isFinite(Number(n)) ? Number(n) : 0;
+
   if (region === "uz") return new Intl.NumberFormat("ru-RU").format(v) + " сум";
   return new Intl.NumberFormat("ru-RU").format(v) + " ₽";
-}
-
-function normalizeArticleColor(color?: string | null) {
-  const value = String(color ?? "").trim();
-  if (!value) return "";
-  return value.charAt(0).toLowerCase() + value.slice(1);
-}
-
-function getDisplayArticle(baseArticle?: string | null, color?: string | null) {
-  const article = String(baseArticle ?? "").trim();
-  const normalizedColor = normalizeArticleColor(color);
-
-  if (!article) return "—";
-  if (!normalizedColor) return article;
-
-  return `${article} (${normalizedColor})`;
 }
 
 function productHrefWithVariant(productId: string, variantId: string) {
@@ -115,18 +100,54 @@ type CartLineMeta = {
   quantity?: number;
 };
 
+type VariantLite = {
+  id: string;
+  title?: string;
+  group?: string;
+  priceDeltaRUB?: number;
+  priceDeltaUZS?: number;
+  image?: string;
+  gallery?: string[];
+};
+
+type LiteRelated = {
+  slug: string;
+  title: string;
+  image: string;
+  priceUZS?: number | null;
+  priceRUB?: number | null;
+};
+
+type FavoriteItem = {
+  key: string;
+  productId: string;
+  variantId: string;
+  title: string;
+  variantTitle: string | null;
+  selectedColor: string | null;
+  selectedSetItemTitle: string | null;
+  selectedSetItemOptionKey: string | null;
+  selectedSetItemColorKey: string | null;
+  article: string;
+  price: number;
+  image: string;
+};
+
 const toNum = (v: unknown) => {
   const n = Number(v);
+
   return Number.isFinite(n) ? n : null;
 };
 
 function metaString(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
+
   return s ? s : null;
 }
 
 function asMetaRecord(v: unknown): CartLineMeta | null {
   if (!isRecord(v)) return null;
+
   return v as CartLineMeta;
 }
 
@@ -153,8 +174,10 @@ function findMetaInValue(
   if (Array.isArray(value)) {
     for (const item of value) {
       const meta = asMetaRecord(item);
+
       if (metaMatches(meta, productId, variantId)) return meta;
     }
+
     return null;
   }
 
@@ -170,6 +193,7 @@ function findMetaInValue(
 
   for (const key of directKeys) {
     const direct = asMetaRecord(value[key]);
+
     if (direct) return direct;
   }
 
@@ -186,6 +210,7 @@ function findMetaInValue(
 
   for (const item of Object.values(value)) {
     const meta = asMetaRecord(item);
+
     if (metaMatches(meta, productId, variantId)) return meta;
 
     const nestedMeta = findMetaInValue(item, productId, variantId);
@@ -202,8 +227,8 @@ function readCartLineMeta(
   if (typeof window === "undefined") return null;
 
   const preferredKeys = [
-    "lioneto:cart:line-meta:v1",
     "lioneto:cart-line-meta:v1",
+    "lioneto:cart:line-meta:v1",
     "lioneto:cart-line-meta",
     "lioneto:cart:meta",
     "cart-line-meta",
@@ -216,6 +241,7 @@ function readCartLineMeta(
     try {
       const parsed: unknown = JSON.parse(raw);
       const found = findMetaInValue(parsed, productId, variantId);
+
       if (found) return found;
     } catch {
       // ignore
@@ -242,6 +268,7 @@ function readCartLineMeta(
     try {
       const parsed: unknown = JSON.parse(raw);
       const found = findMetaInValue(parsed, productId, variantId);
+
       if (found) return found;
     } catch {
       // ignore
@@ -258,6 +285,442 @@ function readMetaPrice(meta: CartLineMeta | null, region: Region): number {
   const n = Number(raw);
 
   return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function readArticle(p: unknown): string {
+  if (!isRecord(p)) return "";
+
+  return String(p.sku ?? p.article ?? p.id ?? "").trim();
+}
+
+function readProductBasePrice(p: unknown, region: Region): number {
+  if (!isRecord(p)) return 0;
+
+  const raw =
+    region === "uz" ? (p.priceUZS ?? p.price_uzs) : (p.priceRUB ?? p.price_rub);
+
+  const n = Number(raw);
+
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function prettyVariantToken(token: string) {
+  const t = String(token || "")
+    .trim()
+    .toLowerCase();
+
+  const map: Record<string, string> = {
+    white: "Белый",
+    black: "Чёрный",
+    beige: "Бежевый",
+    gray: "Серый",
+    grey: "Серый",
+    cappuccino: "Капучино",
+    capuccino: "Капучино",
+    "beige-pink": "Бежевая роза",
+    rose: "Роза",
+    pink: "Розовый",
+    walnut: "Орех",
+    oak: "Дуб",
+
+    "gluhie-fasady": "Глухие фасады",
+    "zerkalnye-fasady": "Зеркальные фасады",
+    "bez-paspartu": "Без паспарту",
+    "s-paspartu": "С паспарту",
+    "bez-ramki": "Без рамки паспарту",
+    "s-ramkoy": "С рамкой паспарту",
+  };
+
+  return map[t] ?? token;
+}
+
+function flattenVariants(product: unknown): VariantLite[] {
+  if (!isRecord(product)) return [];
+
+  const raw = product.variants;
+  if (!Array.isArray(raw)) return [];
+
+  const looksGrouped =
+    raw.length > 0 && isRecord(raw[0]) && Array.isArray(raw[0].items);
+
+  if (looksGrouped) {
+    const out: VariantLite[] = [];
+
+    for (const groupBlock of raw) {
+      if (!isRecord(groupBlock)) continue;
+
+      const group = String(groupBlock.group ?? "").trim();
+      const items = Array.isArray(groupBlock.items) ? groupBlock.items : [];
+
+      for (const item of items) {
+        if (!isRecord(item)) continue;
+
+        const id = String(item.id ?? "").trim();
+        if (!id) continue;
+
+        out.push({
+          id,
+          title:
+            typeof item.title === "string" && item.title.trim()
+              ? item.title.trim()
+              : undefined,
+          group:
+            typeof item.group === "string" && item.group.trim()
+              ? item.group.trim()
+              : group || undefined,
+          priceDeltaUZS:
+            toNum(item.priceDeltaUZS) !== null
+              ? Number(item.priceDeltaUZS)
+              : undefined,
+          priceDeltaRUB:
+            toNum(item.priceDeltaRUB) !== null
+              ? Number(item.priceDeltaRUB)
+              : undefined,
+          image:
+            typeof item.image === "string" && item.image.trim()
+              ? item.image.trim()
+              : undefined,
+          gallery: Array.isArray(item.gallery)
+            ? item.gallery.filter(
+                (x): x is string => typeof x === "string" && !!x.trim(),
+              )
+            : undefined,
+        });
+      }
+    }
+
+    return out;
+  }
+
+  return raw
+    .map((v): VariantLite | null => {
+      if (!isRecord(v)) return null;
+
+      const id = String(v.id ?? "").trim();
+      if (!id) return null;
+
+      return {
+        id,
+        title:
+          typeof v.title === "string" && v.title.trim()
+            ? v.title.trim()
+            : undefined,
+        group:
+          typeof v.group === "string" && v.group.trim()
+            ? v.group.trim()
+            : undefined,
+        priceDeltaUZS:
+          toNum(v.priceDeltaUZS) !== null ? Number(v.priceDeltaUZS) : undefined,
+        priceDeltaRUB:
+          toNum(v.priceDeltaRUB) !== null ? Number(v.priceDeltaRUB) : undefined,
+        image:
+          typeof v.image === "string" && v.image.trim()
+            ? v.image.trim()
+            : undefined,
+        gallery: Array.isArray(v.gallery)
+          ? v.gallery.filter(
+              (x): x is string => typeof x === "string" && !!x.trim(),
+            )
+          : undefined,
+      };
+    })
+    .filter((x): x is VariantLite => !!x);
+}
+
+function findVariantForPart(
+  part: string,
+  variants: VariantLite[],
+): VariantLite | undefined {
+  const p = String(part ?? "").trim();
+  if (!p) return undefined;
+
+  const hasColon = p.includes(":");
+  const group = hasColon ? String(p.split(":")[0] ?? "").trim() : "";
+  const val = hasColon ? String(p.split(":")[1] ?? "").trim() : p;
+
+  let found =
+    variants.find((v) => String(v.id) === p) ||
+    variants.find((v) => String(v.id) === val);
+
+  if (found) return found;
+
+  if (group) {
+    found = variants.find(
+      (v) =>
+        String(v.group ?? "").trim() === group && String(v.id).trim() === val,
+    );
+
+    if (found) return found;
+  }
+
+  if (group) {
+    found = variants.find((v) => {
+      const vid = String(v.id ?? "").trim();
+
+      if (!vid.includes(":")) return false;
+
+      const [vg, vv] = vid.split(":");
+
+      return String(vg).trim() === group && String(vv).trim() === val;
+    });
+
+    if (found) return found;
+  }
+
+  found = variants.find((v) => {
+    const vid = String(v.id ?? "").trim();
+
+    if (!vid.includes(":")) return false;
+
+    const tail = vid.split(":").pop();
+
+    return String(tail ?? "").trim() === val;
+  });
+
+  return found;
+}
+
+function fallbackVariantTitleFromId(variantId: string) {
+  const raw = String(variantId ?? "").trim();
+
+  if (!raw || raw === "base") return null;
+
+  const parts = raw
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const labels = parts
+    .map((p) => {
+      const val = p.includes(":") ? p.split(":").slice(1).join(":") : p;
+
+      return prettyVariantToken(String(val || "").trim());
+    })
+    .filter(Boolean);
+
+  const title = labels.join(", ");
+
+  return title || null;
+}
+
+function resolveCompositeVariant(
+  variantId: string,
+  variants: VariantLite[],
+  region: Region,
+) {
+  const raw = String(variantId ?? "").trim();
+
+  if (!raw || raw === "base") {
+    return {
+      title: null as string | null,
+      finalPrice: 0,
+      image: null as string | null,
+    };
+  }
+
+  const parts = raw
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const picked: VariantLite[] = [];
+
+  for (const part of parts) {
+    const found = findVariantForPart(part, variants);
+
+    if (found) picked.push(found);
+  }
+
+  const title =
+    picked
+      .map((v) => {
+        const title = String(v.title ?? "").trim();
+        if (title) return title;
+
+        return prettyVariantToken(String(v.id ?? "").trim());
+      })
+      .filter(Boolean)
+      .join(", ") || fallbackVariantTitleFromId(raw);
+
+  const finalPrice =
+    picked
+      .map((v) =>
+        region === "uz"
+          ? Number(v.priceDeltaUZS ?? 0)
+          : Number(v.priceDeltaRUB ?? 0),
+      )
+      .find((price) => Number.isFinite(price) && price > 0) || 0;
+
+  const image =
+    picked.find((v) => Array.isArray(v.gallery) && v.gallery.length)
+      ?.gallery?.[0] ??
+    picked.find((v) => !!v.image)?.image ??
+    null;
+
+  return { title: title || null, finalPrice, image };
+}
+
+function joinArticles(
+  baseArticle?: string | null,
+  childArticle?: string | null,
+) {
+  const base = String(baseArticle ?? "").trim();
+  const child = String(childArticle ?? "").trim();
+
+  if (base && child) return `${base} + ${child}`;
+  if (base) return base;
+  if (child) return child;
+
+  return "—";
+}
+
+function buildArticle(args: {
+  metaSku?: string | null;
+  baseArticle?: string | null;
+  selectedSetItemArticle?: string | null;
+}) {
+  const metaSku = String(args.metaSku ?? "").trim();
+
+  if (metaSku) return metaSku;
+
+  return joinArticles(args.baseArticle, args.selectedSetItemArticle);
+}
+
+function mulberry32(seed: number) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function stableSessionSeed(key: string) {
+  try {
+    const k = `lioneto:seed:${key}`;
+    const got = sessionStorage.getItem(k);
+
+    if (got) return Number(got) || 1;
+
+    const s = Math.floor(Math.random() * 1e9) + 1;
+    sessionStorage.setItem(k, String(s));
+
+    return s;
+  } catch {
+    return 1;
+  }
+}
+
+function resolveStrapiUrlMaybe(base: string, url: string) {
+  const u = String(url || "").trim();
+
+  if (!u) return "";
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (!u.startsWith("/")) return `${base.replace(/\/$/, "")}/${u}`;
+
+  return `${base.replace(/\/$/, "")}${u}`;
+}
+
+function pickStrapiImage(a: unknown, base: string) {
+  if (!isRecord(a)) return "";
+
+  const media = isRecord(a.media) ? a.media : {};
+  const mediaData = isRecord(media.data) ? media.data : {};
+  const mediaAttributes = isRecord(mediaData.attributes)
+    ? mediaData.attributes
+    : isRecord(media.attributes)
+      ? media.attributes
+      : media;
+
+  const mediaFormats = isRecord(mediaAttributes.formats)
+    ? mediaAttributes.formats
+    : {};
+  const mediaSmall = isRecord(mediaFormats.small) ? mediaFormats.small : {};
+  const mediaThumb = isRecord(mediaFormats.thumbnail)
+    ? mediaFormats.thumbnail
+    : {};
+
+  const gallery = a.gallery;
+  let galleryFirst: unknown = "";
+
+  if (Array.isArray(gallery)) {
+    galleryFirst = gallery[0];
+  } else if (isRecord(gallery)) {
+    const gData = gallery.data;
+    if (Array.isArray(gData)) galleryFirst = gData[0];
+  }
+
+  const galleryFirstRec = isRecord(galleryFirst) ? galleryFirst : {};
+  const galleryFirstAttr = isRecord(galleryFirstRec.attributes)
+    ? galleryFirstRec.attributes
+    : galleryFirstRec;
+  const galleryFormats = isRecord(galleryFirstAttr.formats)
+    ? galleryFirstAttr.formats
+    : {};
+  const gallerySmall = isRecord(galleryFormats.small)
+    ? galleryFormats.small
+    : {};
+  const galleryThumb = isRecord(galleryFormats.thumbnail)
+    ? galleryFormats.thumbnail
+    : {};
+
+  const raw =
+    mediaAttributes.url ??
+    mediaSmall.url ??
+    mediaThumb.url ??
+    galleryFirstRec.url ??
+    galleryFirstAttr.url ??
+    gallerySmall.url ??
+    galleryThumb.url ??
+    a.image ??
+    a.cover ??
+    "";
+
+  return resolveStrapiUrlMaybe(base, String(raw || ""));
+}
+
+async function fetchLiteRelatedProducts(limit = 24) {
+  const base = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
+
+  const params = new URLSearchParams();
+  params.set("pagination[pageSize]", String(limit));
+  params.set("fields[0]", "slug");
+  params.set("fields[1]", "title");
+  params.set("fields[2]", "priceUZS");
+  params.set("fields[3]", "priceRUB");
+  params.set("populate[0]", "media");
+  params.set("populate[1]", "gallery");
+  params.set("filters[isActive][$eq]", "true");
+
+  const url = `${base.replace(/\/$/, "")}/api/products?${params.toString()}`;
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) return [] as LiteRelated[];
+
+  const json = await res.json();
+  const data: unknown[] = Array.isArray(json?.data) ? json.data : [];
+
+  const out: LiteRelated[] = [];
+
+  for (const item of data) {
+    const rec = isRecord(item) ? item : {};
+    const a = isRecord(rec.attributes) ? rec.attributes : rec;
+
+    const slug = String(a.slug ?? "").trim();
+    if (!slug) continue;
+
+    out.push({
+      slug,
+      title: String(a.title ?? slug),
+      image: pickStrapiImage(a, base),
+      priceUZS: toNum(a.priceUZS),
+      priceRUB: toNum(a.priceRUB),
+    });
+  }
+
+  return out;
 }
 
 async function fetchPriceMapByKeys(keys: string[]) {
@@ -306,242 +769,6 @@ async function fetchPriceMapByKeys(keys: string[]) {
 
   return map;
 }
-
-function resolveCompositeVariant(
-  variantId: string,
-  variants: Array<{
-    id: string;
-    title?: string;
-    group?: string;
-    priceDeltaRUB?: number;
-    priceDeltaUZS?: number;
-    image?: string;
-    gallery?: string[];
-  }>,
-  region: Region,
-) {
-  const raw = String(variantId ?? "").trim();
-
-  if (!raw || raw === "base") {
-    return {
-      title: null as string | null,
-      finalPrice: 0,
-      image: null as string | null,
-    };
-  }
-
-  const parts = raw
-    .split("|")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const picked: typeof variants = [];
-
-  for (const part of parts) {
-    if (part.includes(":")) {
-      const [g, id] = part.split(":");
-      const group = String(g ?? "").trim();
-      const vid = String(id ?? "").trim();
-
-      if (!vid) continue;
-
-      const found =
-        variants.find(
-          (v) =>
-            String(v.id) === vid &&
-            (group ? String(v.group ?? "") === group : true),
-        ) ?? variants.find((v) => String(v.id) === vid);
-
-      if (found) picked.push(found);
-      continue;
-    }
-
-    const found = variants.find((v) => String(v.id) === part);
-    if (found) picked.push(found);
-  }
-
-  const title = picked
-    .map((v) => (v.title ? String(v.title).trim() : ""))
-    .filter(Boolean)
-    .join(", ");
-
-  const finalPrice =
-    picked
-      .map((v) =>
-        region === "uz"
-          ? Number(v?.priceDeltaUZS ?? 0)
-          : Number(v?.priceDeltaRUB ?? 0),
-      )
-      .find((price) => Number.isFinite(price) && price > 0) || 0;
-
-  const image =
-    picked.find((v) => Array.isArray(v.gallery) && v.gallery.length)
-      ?.gallery?.[0] ??
-    picked.find((v) => !!v.image)?.image ??
-    null;
-
-  return { title: title || null, finalPrice, image };
-}
-
-type LiteRelated = {
-  slug: string;
-  title: string;
-  image: string;
-  priceUZS?: number | null;
-  priceRUB?: number | null;
-};
-
-function mulberry32(seed: number) {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function stableSessionSeed(key: string) {
-  try {
-    const k = `lioneto:seed:${key}`;
-    const got = sessionStorage.getItem(k);
-    if (got) return Number(got) || 1;
-
-    const s = Math.floor(Math.random() * 1e9) + 1;
-    sessionStorage.setItem(k, String(s));
-
-    return s;
-  } catch {
-    return 1;
-  }
-}
-
-function resolveStrapiUrlMaybe(base: string, url: string) {
-  const u = String(url || "").trim();
-
-  if (!u) return "";
-  if (u.startsWith("http://") || u.startsWith("https://")) return u;
-  if (!u.startsWith("/")) return `${base.replace(/\/$/, "")}/${u}`;
-
-  return `${base.replace(/\/$/, "")}${u}`;
-}
-
-function pickStrapiImage(a: unknown, base: string) {
-  if (!isRecord(a)) return "";
-
-  const image = isRecord(a.image) ? a.image : {};
-  const imageData = isRecord(image.data) ? image.data : {};
-  const imageAttributes = isRecord(imageData.attributes)
-    ? imageData.attributes
-    : {};
-  const imageFormats = isRecord(image.formats) ? image.formats : {};
-  const imageSmall = isRecord(imageFormats.small) ? imageFormats.small : {};
-  const imageThumb = isRecord(imageFormats.thumbnail)
-    ? imageFormats.thumbnail
-    : {};
-
-  const gallery = a.gallery;
-  let galleryFirst: unknown = "";
-
-  if (Array.isArray(gallery)) {
-    galleryFirst = gallery[0];
-  } else if (isRecord(gallery)) {
-    const gData = gallery.data;
-    if (Array.isArray(gData)) galleryFirst = gData[0];
-  }
-
-  const galleryFirstRec = isRecord(galleryFirst) ? galleryFirst : {};
-  const galleryFirstAttr = isRecord(galleryFirstRec.attributes)
-    ? galleryFirstRec.attributes
-    : {};
-  const galleryFormats = isRecord(galleryFirstAttr.formats)
-    ? galleryFirstAttr.formats
-    : {};
-  const gallerySmall = isRecord(galleryFormats.small)
-    ? galleryFormats.small
-    : {};
-  const galleryThumb = isRecord(galleryFormats.thumbnail)
-    ? galleryFormats.thumbnail
-    : {};
-
-  const raw =
-    image.url ??
-    imageAttributes.url ??
-    imageSmall.url ??
-    imageThumb.url ??
-    galleryFirstRec.url ??
-    galleryFirstAttr.url ??
-    gallerySmall.url ??
-    galleryThumb.url ??
-    a.image ??
-    a.cover ??
-    "";
-
-  return resolveStrapiUrlMaybe(base, String(raw || ""));
-}
-
-async function fetchLiteRelatedProducts(limit = 24) {
-  const base = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
-  const url = `${base.replace(/\/$/, "")}/api/products?pagination[pageSize]=${encodeURIComponent(
-    String(limit),
-  )}&fields[0]=slug&fields[1]=title&fields[2]=priceUZS&fields[3]=priceRUB&populate[0]=image&populate[1]=gallery`;
-
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return [] as LiteRelated[];
-
-  const json = await res.json();
-  const data: unknown[] = Array.isArray(json?.data) ? json.data : [];
-
-  const out: LiteRelated[] = [];
-
-  for (const item of data) {
-    const rec = isRecord(item) ? item : {};
-    const a = isRecord(rec.attributes) ? rec.attributes : rec;
-
-    const slug = String(a.slug ?? "").trim();
-    if (!slug) continue;
-
-    out.push({
-      slug,
-      title: String(a.title ?? slug),
-      image: pickStrapiImage(a, base),
-      priceUZS: toNum(a.priceUZS),
-      priceRUB: toNum(a.priceRUB),
-    });
-  }
-
-  return out;
-}
-
-function readArticle(p: unknown): string {
-  if (!isRecord(p)) return "";
-  return String(p.sku ?? p.article ?? p.id ?? "").trim();
-}
-
-function readProductBasePrice(p: unknown, region: Region): number {
-  if (!isRecord(p)) return 0;
-
-  const raw =
-    region === "uz" ? (p.priceUZS ?? p.price_uzs) : (p.priceRUB ?? p.price_rub);
-
-  const n = Number(raw);
-
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-type FavoriteItem = {
-  key: string;
-  productId: string;
-  variantId: string;
-  title: string;
-  variantTitle: string | null;
-  selectedColor: string | null;
-  selectedSetItemTitle: string | null;
-  selectedSetItemOptionKey: string | null;
-  selectedSetItemColorKey: string | null;
-  article: string;
-  price: number;
-  image: string;
-};
 
 export default function FavoritesClient() {
   const { region } = useRegionLang();
@@ -622,8 +849,7 @@ export default function FavoritesClient() {
         if (!pid || !p) return null;
 
         const meta = readCartLineMeta(pid, vid);
-
-        const variants = Array.isArray(p?.variants) ? p.variants : [];
+        const variants = flattenVariants(p);
         const resolved = resolveCompositeVariant(vid, variants, region);
 
         const peVariant = priceMap[`${pid}::${vid}`];
@@ -635,6 +861,7 @@ export default function FavoritesClient() {
             region === "uz"
               ? Number(pe?.priceUZS ?? 0)
               : Number(pe?.priceRUB ?? 0);
+
           return Number.isFinite(n) ? n : 0;
         };
 
@@ -702,9 +929,11 @@ export default function FavoritesClient() {
             ? String(p.gallery[0])
             : "");
 
-        const article =
-          metaString(meta?.sku) ||
-          getDisplayArticle(readArticle(p), selectedColor || resolved.title);
+        const article = buildArticle({
+          metaSku: metaString(meta?.sku),
+          baseArticle: readArticle(p),
+          selectedSetItemArticle: metaString(meta?.selectedSetItemArticle),
+        });
 
         return {
           key: k,
@@ -750,6 +979,7 @@ export default function FavoritesClient() {
 
         for (const r of pick) {
           const s = String(r.slug).trim();
+
           if (!s) continue;
 
           relKeys.push(`${s}::base`);
@@ -776,6 +1006,7 @@ export default function FavoritesClient() {
   const clearFavorites = () => {
     favKeys.forEach((key) => {
       const { productId, variantId } = shop.parseKey(String(key));
+
       shop.toggleFav(productId, variantId);
     });
   };
@@ -799,7 +1030,7 @@ export default function FavoritesClient() {
           </p>
         </div>
 
-        {items.length > 0 && (
+        {items.length > 0 ? (
           <button
             type="button"
             onClick={clearFavorites}
@@ -809,7 +1040,7 @@ export default function FavoritesClient() {
             <Trash2 className="h-4 w-4" />
             Очистить
           </button>
-        )}
+        ) : null}
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
