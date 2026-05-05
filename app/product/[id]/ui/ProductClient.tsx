@@ -49,14 +49,15 @@ export type ProductVariant = {
   title: string;
   kind: "color" | "option";
   group?: string;
+  disabled?: boolean;
 
   /**
    * Артикул конкретного варианта цвета.
-   * Например: 10.210 (Б), 10.210 (К)
+   * Например:
+   * white -> 10.210 (Б)
+   * cappuccino -> 10.210 (К)
    */
   variantSku?: string;
-
-  disabled?: boolean;
 
   /**
    * В проекте эти поля используются как ИТОГОВАЯ цена варианта,
@@ -96,6 +97,28 @@ type ProductSetItem = {
   groupTitle?: string;
   groupOrder?: number;
   sort_order?: number;
+
+  selectionType?: string;
+  isRequired?: boolean | null;
+  itemKind?: string;
+
+  /**
+   * Если false — этот элемент не добавляется в общий артикул.
+   * Например, можно не добавлять служебные/визуальные элементы.
+   */
+  addsToArticle?: boolean | null;
+
+  articleJoinRule?: string;
+
+  /**
+   * Если false — этот элемент не меняет фото товара.
+   */
+  affectsImage?: boolean | null;
+
+  /**
+   * Готовое собранное фото комплектации.
+   */
+  assembledImage?: string;
 
   colorKey?: string;
   optionKey?: string;
@@ -245,6 +268,7 @@ function getCompositeArticle(args: {
   const base = String(args.baseArticle ?? "").trim();
 
   const setArticles = args.selectedSetItems
+    .filter((item) => item.addsToArticle !== false)
     .map((item) => String(item.article ?? "").trim())
     .filter(Boolean);
 
@@ -953,31 +977,30 @@ export default function ProductClient({
     });
   }, [product, selectedByGroup, selectedVariants, groupsForUIDisplay]);
 
-  const selectedVariantArticle = useMemo(() => {
+  /**
+   * ВАЖНО:
+   * Если выбран цвет и у него есть variantSku,
+   * артикул берём именно из варианта.
+   * Так при переключении:
+   * white -> 10.210 (Б)
+   * cappuccino -> 10.210 (К)
+   */
+  const baseArticleForDisplay = useMemo(() => {
     const variantSku = String(selectedColorVariant?.variantSku ?? "").trim();
-
     if (variantSku) return variantSku;
 
-    return "";
-  }, [selectedColorVariant]);
+    return product.extra?.article || product.sku || "—";
+  }, [selectedColorVariant?.variantSku, product.extra?.article, product.sku]);
 
   const displayArticle = useMemo(() => {
     return getCompositeArticle({
-      baseArticle:
-        selectedVariantArticle || product.extra?.article || product.sku || "—",
-
-      /**
-       * Если у варианта уже есть свой точный артикул, например 10.210 (К),
-       * НЕ добавляем сверху ещё "(Капучино)".
-       */
-      selectedColor: selectedVariantArticle ? null : displayColor,
-
+      baseArticle: baseArticleForDisplay,
+      selectedColor: selectedColorVariant?.variantSku ? null : displayColor,
       selectedSetItems,
     });
   }, [
-    selectedVariantArticle,
-    product.extra?.article,
-    product.sku,
+    baseArticleForDisplay,
+    selectedColorVariant?.variantSku,
     displayColor,
     selectedSetItems,
   ]);
@@ -1091,7 +1114,14 @@ export default function ProductClient({
 
   const finalImage = useMemo(() => {
     const imageFromSetItem =
-      [...selectedSetItems].reverse().find((item) => item.image)?.image || "";
+      [...selectedSetItems]
+        .reverse()
+        .find((item) => item.affectsImage !== false && item.assembledImage)
+        ?.assembledImage ||
+      [...selectedSetItems]
+        .reverse()
+        .find((item) => item.affectsImage !== false && item.image)?.image ||
+      "";
 
     const imageFromVariant =
       Array.isArray(variantGallery) && variantGallery.length > 0
@@ -1142,6 +1172,7 @@ export default function ProductClient({
       .join(", ");
 
     const selectedSetItemsArticle = selectedSetItems
+      .filter((item) => item.addsToArticle !== false)
       .map((item) => item.article)
       .filter(Boolean)
       .join(" + ");
@@ -1211,6 +1242,9 @@ export default function ProductClient({
         price_uzs: item.price_uzs ?? null,
         price_rub: item.price_rub ?? null,
         image: item.image ?? null,
+        assembledImage: item.assembledImage ?? null,
+        addsToArticle: item.addsToArticle ?? true,
+        affectsImage: item.affectsImage ?? true,
       })),
     };
 

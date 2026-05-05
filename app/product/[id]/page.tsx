@@ -895,6 +895,18 @@ export default async function ProductPage({
             const type = typeof v.type === "string" ? v.type : "";
             const group = typeof v.group === "string" ? v.group : undefined;
 
+            /**
+             * ВАЖНО:
+             * variantSku приходит из Strapi компонента variants.
+             * Это нужно, чтобы при переключении цвета артикул менялся:
+             * Белый -> 10.210 (Б)
+             * Капучино -> 10.210 (К)
+             */
+            const variantSku =
+              typeof v.variantSku === "string" && v.variantSku.trim()
+                ? v.variantSku.trim()
+                : undefined;
+
             const finalRUB =
               typeof v.priceDeltaRUB === "number" ? v.priceDeltaRUB : undefined;
             const finalUZS =
@@ -914,6 +926,9 @@ export default async function ProductPage({
               title: String(title || ""),
               kind: type === "color" ? "color" : "option",
               group,
+
+              variantSku,
+
               priceDeltaRUB:
                 finalRUB !== undefined ? Number(finalRUB) : undefined,
               priceDeltaUZS:
