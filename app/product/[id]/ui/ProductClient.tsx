@@ -49,6 +49,13 @@ export type ProductVariant = {
   title: string;
   kind: "color" | "option";
   group?: string;
+
+  /**
+   * Артикул конкретного варианта цвета.
+   * Например: 10.210 (Б), 10.210 (К)
+   */
+  variantSku?: string;
+
   disabled?: boolean;
 
   /**
@@ -85,11 +92,10 @@ type ProductSetItem = {
   href?: string;
   quantity?: number;
 
-  sort_order?: number;
-
   groupKey?: string;
   groupTitle?: string;
   groupOrder?: number;
+  sort_order?: number;
 
   colorKey?: string;
   optionKey?: string;
@@ -269,28 +275,35 @@ function getSetItemOptionLabel(item?: ProductSetItem | null) {
   return option || null;
 }
 
+/**
+ * ВАЖНО:
+ * Цена комплектации может быть 0.
+ * Например "Без рамки паспарту" — это нормальный вариант, его нельзя скрывать.
+ */
 function getSetItemPrice(item: ProductSetItem, currency: "RUB" | "UZS") {
-  return currency === "RUB"
-    ? getPositiveNumber(item.price_rub)
-    : getPositiveNumber(item.price_uzs);
+  const raw = currency === "RUB" ? item.price_rub : item.price_uzs;
+  const n = Number(raw);
+
+  return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * ВАЖНО:
+ * Не фильтруем комплектацию по цене.
+ * Если priceUZS = 0, вариант всё равно должен отображаться.
+ */
 function isSetItemAvailableForRegion(
   item: ProductSetItem,
   currency: "RUB" | "UZS",
 ) {
   if (item.isActive === false) return false;
 
-  const price = getSetItemPrice(item, currency);
-
   if (currency === "RUB") {
     if (item.isActiveRU === false) return false;
-    if (price <= 0) return false;
     return true;
   }
 
   if (item.isActiveUZ === false) return false;
-  if (price <= 0) return false;
 
   return true;
 }
@@ -637,6 +650,10 @@ function buildSetItemGroups(items: ProductSetItem[]) {
         const sb = getFiniteNumber(b.sort_order ?? 999);
         if (sa !== sb) return sa - sb;
 
+        const qa = getFiniteNumber(a.quantity);
+        const qb = getFiniteNumber(b.quantity);
+        if (qa !== qb) return qa - qb;
+
         const pa = getFiniteNumber(a.price_uzs);
         const pb = getFiniteNumber(b.price_uzs);
         if (pa !== pb) return pa - pb;
@@ -796,9 +813,13 @@ export default function ProductClient({
       const gb = getFiniteNumber(b.groupOrder ?? 999);
       if (ga !== gb) return ga - gb;
 
-      const oa = getFiniteNumber(a.sort_order ?? 999);
-      const ob = getFiniteNumber(b.sort_order ?? 999);
-      if (oa !== ob) return oa - ob;
+      const sa = getFiniteNumber(a.sort_order ?? 999);
+      const sb = getFiniteNumber(b.sort_order ?? 999);
+      if (sa !== sb) return sa - sb;
+
+      const qa = getFiniteNumber(a.quantity);
+      const qb = getFiniteNumber(b.quantity);
+      if (qa !== qb) return qa - qb;
 
       return String(a.title).localeCompare(String(b.title), "ru");
     });
@@ -932,13 +953,34 @@ export default function ProductClient({
     });
   }, [product, selectedByGroup, selectedVariants, groupsForUIDisplay]);
 
+  const selectedVariantArticle = useMemo(() => {
+    const variantSku = String(selectedColorVariant?.variantSku ?? "").trim();
+
+    if (variantSku) return variantSku;
+
+    return "";
+  }, [selectedColorVariant]);
+
   const displayArticle = useMemo(() => {
     return getCompositeArticle({
-      baseArticle: product.extra?.article || product.sku || "—",
-      selectedColor: displayColor,
+      baseArticle:
+        selectedVariantArticle || product.extra?.article || product.sku || "—",
+
+      /**
+       * Если у варианта уже есть свой точный артикул, например 10.210 (К),
+       * НЕ добавляем сверху ещё "(Капучино)".
+       */
+      selectedColor: selectedVariantArticle ? null : displayColor,
+
       selectedSetItems,
     });
-  }, [product.extra?.article, product.sku, displayColor, selectedSetItems]);
+  }, [
+    selectedVariantArticle,
+    product.extra?.article,
+    product.sku,
+    displayColor,
+    selectedSetItems,
+  ]);
 
   const variantGallery = useMemo(() => {
     const withGallery = selectedVariants.find(
@@ -956,7 +998,9 @@ export default function ProductClient({
     const withImage = [...selectedSetItems]
       .reverse()
       .find((item) => item.image);
+
     if (withImage?.image) return [withImage.image];
+
     return null;
   }, [selectedSetItems]);
 
@@ -1024,7 +1068,7 @@ export default function ProductClient({
     const corpus = variantUZS > 0 ? variantUZS : product.price_uzs;
 
     const setSum = selectedSetItems.reduce((sum, item) => {
-      const price = getPositiveNumber(item.price_uzs);
+      const price = getSetItemPrice(item, "UZS");
       const itemQty = Math.max(1, Number(item.quantity ?? 1));
       return sum + price * itemQty;
     }, 0);
@@ -1037,7 +1081,7 @@ export default function ProductClient({
     const corpus = variantRUB > 0 ? variantRUB : product.price_rub;
 
     const setSum = selectedSetItems.reduce((sum, item) => {
-      const price = getPositiveNumber(item.price_rub);
+      const price = getSetItemPrice(item, "RUB");
       const itemQty = Math.max(1, Number(item.quantity ?? 1));
       return sum + price * itemQty;
     }, 0);
@@ -1414,7 +1458,7 @@ export default function ProductClient({
                   {formatPrice(displayTotalPrice, currency)}
                 </div>
 
-                {selectedSetItemsSum > 0 ? (
+                {hasSetItems ? (
                   <div className="mt-1 text-[12px] text-black/45">
                     Корпус: {formatPrice(corpusUnitPrice, currency)} + выбранная
                     комплектация
@@ -1633,9 +1677,9 @@ export default function ProductClient({
                             )}
                           >
                             <div className="whitespace-nowrap rounded-full bg-black px-3 py-1.5 text-[13px] font-semibold text-white">
-                              {itemPrice > 0
+                              {itemPrice !== 0
                                 ? formatPrice(itemPrice * itemQty, currency)
-                                : "—"}
+                                : "Без доплаты"}
                             </div>
                           </div>
                         </div>
@@ -1806,15 +1850,14 @@ export default function ProductClient({
                                           Артикул: {item.article || "—"}
                                         </span>
                                         <span>Кол-во: {itemQty}</span>
-                                        {itemPrice > 0 ? (
-                                          <span className="font-semibold text-black/70">
-                                            +{" "}
-                                            {formatPrice(
-                                              itemPrice * itemQty,
-                                              currency,
-                                            )}
-                                          </span>
-                                        ) : null}
+                                        <span className="font-semibold text-black/70">
+                                          {itemPrice !== 0
+                                            ? `+ ${formatPrice(
+                                                itemPrice * itemQty,
+                                                currency,
+                                              )}`
+                                            : "Без доплаты"}
+                                        </span>
                                       </div>
                                     </div>
 

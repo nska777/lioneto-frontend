@@ -6,6 +6,15 @@ export type StrapiVariant = {
   id: string;
   title?: string;
   group?: string;
+
+  /**
+   * Артикул конкретного варианта цвета.
+   * Например:
+   * white      -> 10.210 (Б)
+   * cappuccino -> 10.210 (К)
+   */
+  variantSku?: string;
+
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
   dealerPriceRUB?: number;
@@ -66,6 +75,11 @@ function toBool(v: any): boolean | null {
   if (["false", "0", "no", "нет", "ложь"].includes(s)) return false;
 
   return null;
+}
+
+function toCleanString(v: any): string | undefined {
+  const s = String(v ?? "").trim();
+  return s ? s : undefined;
 }
 
 function pickMediaUrl(m: any): string | undefined {
@@ -172,6 +186,8 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
           v?.title !== undefined && v?.title !== null && String(v.title).trim()
             ? String(v.title).trim()
             : undefined,
+
+        variantSku: toCleanString(v?.variantSku),
 
         group,
 
