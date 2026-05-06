@@ -1,3 +1,4 @@
+// app/catalog/ui/CatalogCard.tsx
 "use client";
 
 import Image from "next/image";
@@ -31,12 +32,6 @@ function getStr(obj: unknown, key: string): string {
   return isString(v) ? v : "";
 }
 
-function getNum(obj: unknown, key: string): number {
-  const v = getVal(obj, key);
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
 function getFirstStringFromArray(v: unknown): string {
   if (!Array.isArray(v)) return "";
   const found = v.find((x) => typeof x === "string" && x.trim().length > 0);
@@ -58,52 +53,32 @@ function clamp(n: number, min: number, max: number) {
 
 function GreenPremiumBadge({ text }: { text: string }) {
   return (
-    <span className="relative inline-flex h-7 items-center overflow-hidden rounded-[12px] px-3">
+    <span className="relative inline-flex h-6 items-center overflow-hidden rounded-[5px] px-2">
       <span
-        className="absolute inset-0 rounded-[12px]"
+        className="absolute inset-0 rounded-[5px]"
         style={{
           background:
-            "radial-gradient(120% 140% at 30% 20%, #E8FFF2 0%, #BFF7D6 28%, #57E39A 55%, #17B868 78%, #0C7F45 100%)",
+            "linear-gradient(180deg, #DDFBEA 0%, #9DF0BF 52%, #68D992 100%)",
         }}
       />
       <span
-        className="absolute inset-[1px] rounded-[11px]"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.62), rgba(255,255,255,0.10))",
-        }}
-      />
-      <span
-        className="absolute inset-0 rounded-[12px]"
+        className="absolute inset-0 rounded-[5px]"
         style={{
           boxShadow:
-            "0 0 0 1px rgba(120,255,190,0.85), 0 10px 28px rgba(12,127,69,0.22)",
+            "inset 0 0 0 1px rgba(19,151,80,0.18), 0 6px 14px rgba(19,151,80,0.10)",
         }}
       />
-      <span
-        className="pointer-events-none absolute -left-[60%] top-0 h-full w-[60%] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{
-          background:
-            "linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.70) 50%, transparent 100%)",
-          transform: "skewX(-20deg)",
-        }}
-      />
-      <span className="relative z-10 text-[12px] font-semibold tracking-[0.04em] text-[#064B2A]">
+      <span className="relative z-10 whitespace-nowrap text-[12px] font-semibold leading-none text-[#137A43]">
         {text}
       </span>
     </span>
   );
 }
 
-function GoldDiscountBadge({ percent }: { percent: number }) {
+function DiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full border-[3px] border-[#ff2b2b] bg-[#c4001a] text-center leading-none shadow-[0_8px_20px_rgba(196,0,26,0.2)]">
-      <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-white">
-        скидка
-      </span>
-      <span className="mt-1 text-[14px] font-extrabold text-white">
-        -{percent} %
-      </span>
+    <span className="inline-flex h-6 items-center rounded-[5px] bg-[#ffd7d7] px-2 text-[13px] font-medium leading-none text-[#ff4a4a]">
+      -{percent}%
     </span>
   );
 }
@@ -113,8 +88,8 @@ function RatingStars({
   count,
   className,
 }: {
-  value: number; // 0..5
-  count?: number; // reviews count
+  value: number;
+  count?: number;
   className?: string;
 }) {
   const v = clamp(Number.isFinite(value) ? value : 0, 0, 5);
@@ -136,6 +111,7 @@ function RatingStars({
       >
         {Array.from({ length: 5 }).map((_, i) => {
           const fill = fillForIndex(i);
+
           return (
             <span
               key={i}
@@ -182,6 +158,7 @@ function RatingStars({
         <span className="text-[12px] leading-none text-black/70">
           {v.toFixed(1)}
         </span>
+
         {typeof count === "number" ? (
           <span className="text-[12px] leading-none text-black/40">
             ({count})
@@ -217,6 +194,7 @@ export default function CatalogCard({
 
   const pathname = usePathname();
   const sp = useSearchParams();
+
   const catalogPath = useMemo(() => {
     const qs = sp?.toString();
     return `${pathname}${qs ? `?${qs}` : ""}`;
@@ -236,7 +214,6 @@ export default function CatalogCard({
 
   const curRub = num(getVal(p, "priceRUB") ?? getVal(p, "price_rub") ?? 0);
   const curUzs = num(getVal(p, "priceUZS") ?? getVal(p, "price_uzs") ?? 0);
-  const hasAnyPrice = currency === "RUB" ? curRub > 0 : curUzs > 0;
 
   const oldRub = num(
     getVal(p, "oldPriceRUB") ?? getVal(p, "old_price_rub") ?? 0,
@@ -248,6 +225,7 @@ export default function CatalogCard({
   const cur = currency === "RUB" ? curRub : curUzs;
   const old = currency === "RUB" ? oldRub : oldUzs;
 
+  const hasAnyPrice = cur > 0;
   const hasDiscount = old > 0 && cur > 0 && old > cur;
 
   const computedPct = hasDiscount
@@ -256,7 +234,6 @@ export default function CatalogCard({
 
   const badgeMain = String(getVal(p, "badge") ?? "").trim();
   const collectionBadge = String(getVal(p, "collectionBadge") ?? "").trim();
-
   const featureBadge = (collectionBadge || badgeMain || "").trim();
 
   const ratingValueRaw =
@@ -318,10 +295,12 @@ export default function CatalogCard({
     "/placeholder.png";
 
   const source = getStr(p, "__source");
+
   if (imgSrcFallback.startsWith("/") && (source === "strapi" || !!strapiSrc)) {
     const looksLikeStrapi =
       imgSrcFallback.startsWith("/uploads/") ||
       imgSrcFallback.startsWith("/sections/");
+
     if (looksLikeStrapi) imgSrcFallback = `${STRAPI}${imgSrcFallback}`;
   }
 
@@ -369,17 +348,7 @@ export default function CatalogCard({
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
 
-          {hasDiscount || featureBadge ? (
-            <div className="absolute left-0 top-0 z-10">
-              {hasDiscount ? (
-                <GoldDiscountBadge percent={computedPct} />
-              ) : (
-                <GreenPremiumBadge text={featureBadge} />
-              )}
-            </div>
-          ) : null}
-
-          <div className="absolute right-3 top-3 z-10 flex flex-col gap-2 translate-y-[-4px] opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+          <div className="absolute right-3 top-3 z-10 flex translate-y-[-4px] flex-col gap-2 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
             <div
               onClick={(e) => {
                 e.preventDefault();
@@ -398,6 +367,14 @@ export default function CatalogCard({
         </div>
 
         <div className="flex flex-1 flex-col px-4 pb-3 pt-3">
+          {hasDiscount || featureBadge ? (
+            <div className="mb-3 flex min-h-6 flex-wrap items-center gap-2">
+              {hasDiscount ? <DiscountBadge percent={computedPct} /> : null}
+
+              {featureBadge ? <GreenPremiumBadge text={featureBadge} /> : null}
+            </div>
+          ) : null}
+
           <div
             className="overflow-hidden text-[14px] font-medium leading-[20px] text-black/90"
             style={titleClampStyle}

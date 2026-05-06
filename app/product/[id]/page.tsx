@@ -184,6 +184,22 @@ function toBool(v: unknown): boolean | undefined {
   return undefined;
 }
 
+function hasAnyDiscount(sp: StrapiProduct) {
+  const priceUZS = Number(sp.priceUZS ?? 0);
+  const oldPriceUZS = Number(sp.oldPriceUZS ?? 0);
+
+  const priceRUB = Number(sp.priceRUB ?? 0);
+  const oldPriceRUB = Number(sp.oldPriceRUB ?? 0);
+
+  const hasUzsDiscount =
+    oldPriceUZS > 0 && priceUZS > 0 && oldPriceUZS > priceUZS;
+
+  const hasRubDiscount =
+    oldPriceRUB > 0 && priceRUB > 0 && oldPriceRUB > priceRUB;
+
+  return hasUzsDiscount || hasRubDiscount;
+}
+
 function pickStrapiMediaUrl(m: unknown): string | undefined {
   if (!m) return undefined;
 
@@ -830,7 +846,7 @@ export default async function ProductPage({
     title: sp.title || "—",
     badge: "",
     collectionBadge: sp.collectionBadge ?? null,
-    hasDiscount: false,
+    hasDiscount: hasAnyDiscount(sp),
     href: `/product/${slug}`,
 
     isActive: sp.isActive,
@@ -895,13 +911,6 @@ export default async function ProductPage({
             const type = typeof v.type === "string" ? v.type : "";
             const group = typeof v.group === "string" ? v.group : undefined;
 
-            /**
-             * ВАЖНО:
-             * variantSku приходит из Strapi компонента variants.
-             * Это нужно, чтобы при переключении цвета артикул менялся:
-             * Белый -> 10.210 (Б)
-             * Капучино -> 10.210 (К)
-             */
             const variantSku =
               typeof v.variantSku === "string" && v.variantSku.trim()
                 ? v.variantSku.trim()

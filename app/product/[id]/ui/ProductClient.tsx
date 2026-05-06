@@ -1,3 +1,4 @@
+// app/product/[id]/ui/ProductClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -188,6 +189,8 @@ export type ProductPageModel = {
   collectionLabel?: string;
   collectionPreview?: MegaPreview;
   isCollection?: boolean;
+  hasDiscount?: boolean;
+  collectionBadge?: string | null;
 };
 
 type Accent = "white" | "cappuccino" | "default";
@@ -287,6 +290,14 @@ function getPositiveNumber(v: unknown) {
 function getFiniteNumber(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function DiscountBadge({ percent }: { percent: number }) {
+  return (
+    <span className="inline-flex h-6 items-center rounded-[5px] bg-[#ffd7d7] px-2 text-[13px] font-medium leading-none text-[#ff4a4a]">
+      -{percent}%
+    </span>
+  );
 }
 
 function getSetItemOptionLabel(item?: ProductSetItem | null) {
@@ -1152,6 +1163,31 @@ export default function ProductClient({
   const displayUnitPrice = Math.max(0, unitPrice - excludedOneSetSum);
   const displayTotalPrice = displayUnitPrice * qty;
 
+  const oldCorpusUnitPrice =
+    currency === "RUB"
+      ? getPositiveNumber(product.old_price_rub)
+      : getPositiveNumber(product.old_price_uzs);
+
+  const hasProductDiscount =
+    oldCorpusUnitPrice > 0 && oldCorpusUnitPrice > corpusUnitPrice;
+
+  const displayOldUnitPrice = hasProductDiscount
+    ? Math.max(0, oldCorpusUnitPrice + selectedSetItemsSum - excludedOneSetSum)
+    : 0;
+
+  const displayOldTotalPrice = displayOldUnitPrice * qty;
+
+  const discountPercent =
+    hasProductDiscount && displayOldUnitPrice > displayUnitPrice
+      ? Math.max(
+          1,
+          Math.min(
+            99,
+            Math.round((1 - displayUnitPrice / displayOldUnitPrice) * 100),
+          ),
+        )
+      : 0;
+
   const hoveredSetItem = useMemo(
     () => visibleSetItems.find((item) => item.id === hoveredSetItemId) ?? null,
     [visibleSetItems, hoveredSetItemId],
@@ -1488,8 +1524,20 @@ export default function ProductClient({
 
             <div className="mt-3 flex items-start justify-between gap-6">
               <div>
-                <div className="text-[28px] font-semibold text-black">
-                  {formatPrice(displayTotalPrice, currency)}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <div className="text-[28px] font-semibold text-black">
+                    {formatPrice(displayTotalPrice, currency)}
+                  </div>
+
+                  {discountPercent > 0 ? (
+                    <DiscountBadge percent={discountPercent} />
+                  ) : null}
+
+                  {displayOldTotalPrice > displayTotalPrice ? (
+                    <div className="text-[18px] font-medium text-black/30 line-through">
+                      {formatPrice(displayOldTotalPrice, currency)}
+                    </div>
+                  ) : null}
                 </div>
 
                 {hasSetItems ? (
