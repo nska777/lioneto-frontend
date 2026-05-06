@@ -233,13 +233,10 @@ export default function BestPrice({
             title: String(p.title ?? "").trim(),
             href: p.href || `/product/${p.slug}`,
             image: String(p.image ?? ""),
-
             price_rub,
             price_uzs,
-
             old_price_rub,
             old_price_uzs,
-
             discountPercent,
             badge: p.collectionBadge || "Лучшая цена",
             skuLabel: p.slug ? String(p.slug) : null,
@@ -290,13 +287,10 @@ export default function BestPrice({
           title: displayTitle,
           href: `/product/${product.id}`,
           image: String(product.image ?? ""),
-
           price_rub,
           price_uzs,
-
           old_price_rub,
           old_price_uzs,
-
           discountPercent,
           badge: entry.collectionBadge || "Лучшая цена",
           skuLabel: product.sku ? String(product.sku) : `ID: ${product.id}`,
@@ -320,9 +314,7 @@ export default function BestPrice({
     };
 
     calc();
-
     window.addEventListener("resize", calc);
-
     return () => window.removeEventListener("resize", calc);
   }, []);
 
@@ -337,9 +329,7 @@ export default function BestPrice({
     };
 
     calcPages();
-
     window.addEventListener("resize", calcPages);
-
     return () => window.removeEventListener("resize", calcPages);
   }, [list.length]);
 
@@ -701,7 +691,7 @@ export default function BestPrice({
 
                       <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
-                          className="text-[20px] font-semibold tracking-[-0.01em] text-black md:text-[22px]"
+                          className="text-[21px] font-bold tracking-[-0.015em] text-black md:text-[23px]"
                           suppressHydrationWarning
                         >
                           {formatPrice(price, currency)}
@@ -709,7 +699,7 @@ export default function BestPrice({
 
                         {old && old > price ? (
                           <div
-                            className="text-[14px] font-medium text-black/40 line-through sm:text-[15px]"
+                            className="text-[15px] font-semibold text-black/55 line-through decoration-black/45 decoration-[1.5px] sm:text-[16px]"
                             suppressHydrationWarning
                           >
                             {formatPrice(old, currency)}

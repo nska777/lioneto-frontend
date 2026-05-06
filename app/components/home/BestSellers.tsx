@@ -105,7 +105,7 @@ function toCapsLabel(v?: string | null) {
 }
 
 /**
- * Верхнюю диагональную ленточку Хит продаж НЕ трогаем.
+ * Верхнюю диагональную ленточку Хит продаж не трогаем.
  */
 function HitBadge({ text }: { text: string }) {
   return (
@@ -716,7 +716,7 @@ export default function BestSellers({
 
                       <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
-                          className="text-[20px] font-semibold tracking-[-0.01em] text-black md:text-[22px]"
+                          className="text-[21px] font-bold tracking-[-0.015em] text-black md:text-[23px]"
                           suppressHydrationWarning
                         >
                           {formatPrice(price, currency)}
@@ -724,7 +724,7 @@ export default function BestSellers({
 
                         {old && old > price ? (
                           <div
-                            className="text-[14px] font-medium text-black/40 line-through sm:text-[15px]"
+                            className="text-[15px] font-semibold text-black/55 line-through decoration-black/45 decoration-[1.5px] sm:text-[16px]"
                             suppressHydrationWarning
                           >
                             {formatPrice(old, currency)}

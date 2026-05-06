@@ -379,12 +379,12 @@ export default function CatalogCard({
           <div className="mt-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
             {hasAnyPrice ? (
               <>
-                <div className="text-[15px] font-semibold text-black">
+                <div className="text-[16px] font-bold tracking-[-0.01em] text-black">
                   {fmtPrice(curRub, curUzs)}
                 </div>
 
                 {hasDiscount ? (
-                  <div className="text-[14px] font-medium text-black/40 line-through sm:text-[15px]">
+                  <div className="text-[15px] font-semibold text-black/55 line-through decoration-black/45 decoration-[1.5px] sm:text-[16px]">
                     {fmtPrice(oldRub, oldUzs)}
                   </div>
                 ) : null}
