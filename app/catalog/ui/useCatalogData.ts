@@ -30,25 +30,48 @@ function getStr(obj: UnknownRecord, key: string): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
-function getNum(obj: UnknownRecord, key: string): number | undefined {
-  const v = obj[key];
-
+function parseSmartNumber(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v)) return v;
 
-  if (typeof v === "string") {
-    const n = Number(
-      v
-        .replace(/\u00A0/g, " ")
-        .replace(/\u202F/g, " ")
-        .replace(/\s+/g, "")
-        .replace(/,/g, ".")
-        .trim(),
-    );
+  if (typeof v !== "string") return undefined;
 
+  const raw = v
+    .replace(/\u00A0/g, " ")
+    .replace(/\u202F/g, " ")
+    .trim();
+
+  if (!raw) return undefined;
+
+  /**
+   * В Excel часто бывает:
+   * 17,425,000
+   * 17 425 000
+   * 17.425.000
+   * 17425000
+   *
+   * Для цен нам важнее прочитать тысячные разделители,
+   * чем десятичные дроби.
+   */
+  const compact = raw.replace(/\s+/g, "");
+
+  if (/^\d{1,3}(,\d{3})+$/.test(compact)) {
+    const n = Number(compact.replace(/,/g, ""));
     return Number.isFinite(n) ? n : undefined;
   }
 
-  return undefined;
+  if (/^\d{1,3}(\.\d{3})+$/.test(compact)) {
+    const n = Number(compact.replace(/\./g, ""));
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  const normalized = compact.replace(/,/g, ".");
+  const n = Number(normalized);
+
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function getNum(obj: UnknownRecord, key: string): number | undefined {
+  return parseSmartNumber(obj[key]);
 }
 
 function getNestedRecord(obj: UnknownRecord, key: string): UnknownRecord | null {
@@ -65,6 +88,15 @@ function idToString(v: unknown): string {
   if (typeof v === "string") return v;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return "";
+}
+
+function itemKey(p: UnknownRecord): string {
+  return (
+    idToString(p.id) ||
+    String(getStr(p, "documentId") || "") ||
+    String(getStr(p, "slug") || "") ||
+    String(getStr(p, "sku") || "")
+  );
 }
 
 function cleanSlug(v: unknown) {
@@ -202,18 +234,22 @@ function isActiveProduct(p: UnknownRecord, region: string) {
   const r = String(region || "uz").trim().toLowerCase();
 
   /**
-   * isActive — общий главный выключатель товара.
-   * Для scene-карточек оставляем мягкую защиту, чтобы не пропали старые сцены.
+   * isActive — общий главный выключатель.
+   * Если Excel поставил false, товар/scene скрываем.
    */
-  if (!scene && p.isActive === false) return false;
+  if (p.isActive === false) return false;
 
+  /**
+   * Если Strapi вернул publishedAt:null — это draft/unpublished.
+   */
   if (Object.prototype.hasOwnProperty.call(p, "publishedAt")) {
     if (p.publishedAt === null) return false;
   }
 
   /**
-   * Россия — строгий режим.
-   * Товар должен быть явно включен для RU и иметь цену RUB.
+   * Россия:
+   * обычному товару нужна цена RUB,
+   * scene можно показывать без цены.
    */
   if (r === "ru") {
     if (p.isActiveRU !== true) return false;
@@ -222,13 +258,27 @@ function isActiveProduct(p: UnknownRecord, region: string) {
   }
 
   /**
-   * Узбекистан — мягкий режим.
-   * Старые товары без isActiveUZ не скрываем, но если явно false — скрываем.
+   * Узбекистан:
+   * если явно isActiveUZ=false — скрываем.
+   * Обычному товару нужна цена UZS,
+   * scene можно показывать без цены.
    */
   if (p.isActiveUZ === false) return false;
   if (!scene && getRegionPrice(p, "uz") <= 0) return false;
 
   return true;
+}
+
+function sortCatalogItems(a: UnknownRecord, b: UnknownRecord) {
+  const sa = toNum(a.sortOrder);
+  const sb = toNum(b.sortOrder);
+
+  if (sa !== sb) return sa - sb;
+
+  const ta = getStr(a, "title") ?? "";
+  const tb = getStr(b, "title") ?? "";
+
+  return ta.localeCompare(tb, "ru");
 }
 
 export function useCatalogData({
@@ -316,8 +366,8 @@ export function useCatalogData({
         const price = safePriceOf(p);
 
         /**
-         * Scene-карточку не режем ценовым фильтром, потому что у неё часто цена 0.
-         * Обычные товары режем по цене как раньше.
+         * Scene-карточку не режем ценовым фильтром,
+         * потому что у неё часто цена 0 или "Цена по запросу".
          */
         if (!isSceneProduct(p)) {
           if (price < minBound) return false;
@@ -327,11 +377,13 @@ export function useCatalogData({
         if (needle) {
           const title = getStr(p, "title") ?? "";
           const badge = getStr(p, "badge") ?? "";
+          const collectionBadge = getStr(p, "collectionBadge") ?? "";
           const sku = getStr(p, "sku") ?? "";
           const articleShort = getStr(p, "articleShort") ?? "";
           const slug = getStr(p, "slug") ?? "";
+
           const hay =
-            `${title} ${badge} ${sku} ${articleShort} ${slug}`.toLowerCase();
+            `${title} ${badge} ${collectionBadge} ${sku} ${articleShort} ${slug}`.toLowerCase();
 
           if (!hay.includes(needle)) return false;
         }
@@ -340,43 +392,40 @@ export function useCatalogData({
       };
 
       /**
-       * Если выбрана комната — scene ищем по ней.
-       * Если комната не выбрана — по умолчанию спальни.
+       * Если выбрана комната — сначала пытаемся найти scene именно этой комнаты.
+       * Если scene этой комнаты нет, показываем любые scene выбранной коллекции.
+       * Это убирает ситуацию, когда RU через fallback показывает scene,
+       * а UZ показывает только обычные товары.
        */
       const priorityRoom = hasRoom ? activeRoom : "bedrooms";
 
-      /**
-       * 1. Сначала scene-карточки выбранной коллекции.
-       */
-      const scenesTop = DATA.filter((p) => {
+      const allScenesForCollection = DATA.filter((p) => {
         if (!isActiveProduct(p, region)) return false;
         if (!isSceneProduct(p)) return false;
 
-        const sceneRoom = getRoomSlugSafe(p);
         const sceneCollection = getCollectionSlugSafe(p);
-
-        if (priorityRoom && sceneRoom && sceneRoom !== priorityRoom) {
-          return false;
-        }
 
         if (activeCollection && sceneCollection !== activeCollection) {
           return false;
         }
 
         return passesTextAndPrice(p);
-      }).sort((a, b) => {
-        const sa = toNum(a.sortOrder);
-        const sb = toNum(b.sortOrder);
-
-        if (sa !== sb) return sa - sb;
-
-        const ta = getStr(a, "title") ?? "";
-        const tb = getStr(b, "title") ?? "";
-
-        return ta.localeCompare(tb, "ru");
       });
 
-      const sceneIds = new Set(scenesTop.map((p) => idToString(p.id)));
+      const exactRoomScenes = allScenesForCollection.filter((p) => {
+        const sceneRoom = getRoomSlugSafe(p);
+
+        if (!priorityRoom) return true;
+        if (!sceneRoom) return true;
+
+        return sceneRoom === priorityRoom;
+      });
+
+      const scenesTop = [...(exactRoomScenes.length ? exactRoomScenes : allScenesForCollection)].sort(
+        sortCatalogItems,
+      );
+
+      const sceneKeys = new Set(scenesTop.map(itemKey));
 
       /**
        * 2. Потом обычные товары/модули.
@@ -384,8 +433,8 @@ export function useCatalogData({
       const rest = DATA.filter((p) => {
         if (!isActiveProduct(p, region)) return false;
 
-        const id = idToString(p.id);
-        if (sceneIds.has(id)) return false;
+        const key = itemKey(p);
+        if (key && sceneKeys.has(key)) return false;
 
         /**
          * Scene-карточки не должны попадать в обычную сетку второй раз.
@@ -397,7 +446,7 @@ export function useCatalogData({
         const mod = getModuleSlugSafe(p);
 
         /**
-         * Если выбрана коллекция, НЕ режем обычные товары по bedrooms,
+         * Если выбрана коллекция, НЕ режем обычные товары по bedrooms/living/youth,
          * потому что у товаров cat=krovati/shkafy/tumby и т.д.
          */
         if (!hasCollection && hasRoom) {
@@ -449,17 +498,7 @@ export function useCatalogData({
           break;
 
         default:
-          restSorted.sort((a, b) => {
-            const sa = toNum(a.sortOrder);
-            const sb = toNum(b.sortOrder);
-
-            if (sa !== sb) return sa - sb;
-
-            const ta = getStr(a, "title") ?? "";
-            const tb = getStr(b, "title") ?? "";
-
-            return ta.localeCompare(tb, "ru");
-          });
+          restSorted.sort(sortCatalogItems);
           break;
       }
 
