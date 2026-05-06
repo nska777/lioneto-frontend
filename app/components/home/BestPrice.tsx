@@ -106,7 +106,7 @@ function toCapsLabel(v?: string | null) {
 
 function DiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="inline-flex h-6 items-center rounded-[5px] bg-[#ffd7d7] px-2 text-[13px] font-medium leading-none text-[#ff4a4a]">
+    <span className="inline-flex h-7 items-center rounded-[6px] bg-[#ffd1d1] px-2.5 text-[15px] font-semibold leading-none text-[#ff3f3f] shadow-[0_6px_14px_rgba(255,63,63,0.10)]">
       -{percent}%
     </span>
   );
@@ -114,7 +114,7 @@ function DiscountBadge({ percent }: { percent: number }) {
 
 function FeatureBadge({ text }: { text: string }) {
   return (
-    <span className="inline-flex h-6 items-center rounded-[5px] border border-[#c7e3ea] bg-[#eaf6f8] px-2 text-[12px] font-semibold leading-none text-[#5d8f9b]">
+    <span className="inline-flex h-7 items-center rounded-[6px] border border-[#bddde6] bg-[#e8f6f9] px-2.5 text-[13px] font-semibold leading-none text-[#4f8795] shadow-[0_6px_14px_rgba(79,135,149,0.08)]">
       {text}
     </span>
   );
@@ -135,6 +135,7 @@ function resolveProduct(productId: string | number) {
     const b = String(p.slug ?? "").trim();
     const c = String(p.handle ?? "").trim();
     const d = String(p.id ?? "").trim();
+
     return a === s || b === s || c === s || d === s;
   });
 }
@@ -254,6 +255,7 @@ export default function BestPrice({
     const best = priceEntries.filter(
       (e) => e.isActive && e.collectionBadge === "Лучшая цена",
     );
+
     if (!best.length) return [];
 
     const items = best
@@ -313,11 +315,14 @@ export default function BestPrice({
         w < 768 ||
         window.matchMedia?.("(pointer: coarse)")?.matches ||
         window.matchMedia?.("(hover: none)")?.matches;
+
       setIsTouchMode(!!touch);
     };
 
     calc();
+
     window.addEventListener("resize", calc);
+
     return () => window.removeEventListener("resize", calc);
   }, []);
 
@@ -326,12 +331,15 @@ export default function BestPrice({
       const w = window.innerWidth;
       const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
       const newPages = Math.max(1, Math.ceil(list.length / perView));
+
       setPages(newPages);
       setPage((p) => Math.min(p, newPages - 1));
     };
 
     calcPages();
+
     window.addEventListener("resize", calcPages);
+
     return () => window.removeEventListener("resize", calcPages);
   }, [list.length]);
 
@@ -342,6 +350,7 @@ export default function BestPrice({
     const card = trackRef.current.querySelector(
       "[data-card]",
     ) as HTMLElement | null;
+
     if (!card) return;
 
     const gap = 24;
@@ -356,11 +365,16 @@ export default function BestPrice({
       return;
     }
 
-    gsap.to(trackRef.current, { x: -shift, duration: 0.9, ease: "expo.out" });
+    gsap.to(trackRef.current, {
+      x: -shift,
+      duration: 0.9,
+      ease: "expo.out",
+    });
   }, [page, reducedMotion, list.length, isTouchMode]);
 
   useLayoutEffect(() => {
     if (!isTouchMode) return;
+
     const vp = viewportRef.current;
     if (!vp) return;
 
@@ -377,6 +391,7 @@ export default function BestPrice({
       const pageStep = perView * step;
 
       const p = Math.round(vp.scrollLeft / pageStep);
+
       setPage((prev) =>
         prev === p ? prev : Math.min(Math.max(p, 0), pages - 1),
       );
@@ -384,11 +399,15 @@ export default function BestPrice({
 
     vp.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
+
     return () => vp.removeEventListener("scroll", onScroll);
   }, [isTouchMode, pages]);
 
   const prev = () => {
-    if (!isTouchMode) return setPage((p) => Math.max(0, p - 1));
+    if (!isTouchMode) {
+      setPage((p) => Math.max(0, p - 1));
+      return;
+    }
 
     const vp = viewportRef.current;
     if (!vp) return;
@@ -407,7 +426,10 @@ export default function BestPrice({
   };
 
   const next = () => {
-    if (!isTouchMode) return setPage((p) => Math.min(pages - 1, p + 1));
+    if (!isTouchMode) {
+      setPage((p) => Math.min(pages - 1, p + 1));
+      return;
+    }
 
     const vp = viewportRef.current;
     if (!vp) return;
@@ -423,11 +445,15 @@ export default function BestPrice({
 
     const max = vp.scrollWidth - vp.clientWidth;
     const target = Math.min(max, vp.scrollLeft + perView * step);
+
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
 
   const goToPage = (i: number) => {
-    if (!isTouchMode) return setPage(i);
+    if (!isTouchMode) {
+      setPage(i);
+      return;
+    }
 
     const vp = viewportRef.current;
     if (!vp) return;
@@ -450,6 +476,7 @@ export default function BestPrice({
     if (isTouchMode) return;
 
     const root = rootRef.current;
+
     const cards = Array.from(
       root.querySelectorAll("[data-card]"),
     ) as HTMLElement[];
@@ -460,6 +487,7 @@ export default function BestPrice({
       const actions = card.querySelector(
         "[data-actions]",
       ) as HTMLElement | null;
+
       if (!actions) return;
 
       gsap.set(actions, {
@@ -471,10 +499,15 @@ export default function BestPrice({
 
       const enter = () => {
         if (reducedMotion) {
-          gsap.set(actions, { autoAlpha: 1, y: 0, filter: "blur(0px)" });
+          gsap.set(actions, {
+            autoAlpha: 1,
+            y: 0,
+            filter: "blur(0px)",
+          });
           actions.style.pointerEvents = "auto";
           return;
         }
+
         gsap.to(actions, {
           autoAlpha: 1,
           y: 0,
@@ -489,10 +522,15 @@ export default function BestPrice({
 
       const leave = () => {
         if (reducedMotion) {
-          gsap.set(actions, { autoAlpha: 0, y: 10, filter: "blur(8px)" });
+          gsap.set(actions, {
+            autoAlpha: 0,
+            y: 10,
+            filter: "blur(8px)",
+          });
           actions.style.pointerEvents = "none";
           return;
         }
+
         gsap.to(actions, {
           autoAlpha: 0,
           y: 10,
@@ -574,7 +612,10 @@ export default function BestPrice({
             isTouchMode ? "snap-x snap-mandatory" : "",
             "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
-          style={{ WebkitOverflowScrolling: "touch", scrollBehavior: "smooth" }}
+          style={{
+            WebkitOverflowScrolling: "touch",
+            scrollBehavior: "smooth",
+          }}
         >
           <div
             ref={trackRef}
@@ -646,10 +687,10 @@ export default function BestPrice({
                       </div>
                     </div>
 
-                    <div className="min-h-[140px] px-5 pb-3 pt-3">
+                    <div className="min-h-[145px] px-5 pb-3 pt-3">
                       {(p.discountPercent && p.discountPercent > 0) ||
                       p.badge ? (
-                        <div className="mb-3 flex min-h-6 flex-wrap items-center gap-2">
+                        <div className="mb-3.5 flex min-h-7 flex-wrap items-center gap-2.5">
                           {p.discountPercent && p.discountPercent > 0 ? (
                             <DiscountBadge percent={p.discountPercent} />
                           ) : null}
@@ -658,7 +699,7 @@ export default function BestPrice({
                         </div>
                       ) : null}
 
-                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
+                      <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
                           className="text-[20px] font-semibold tracking-[-0.01em] text-black md:text-[22px]"
                           suppressHydrationWarning
@@ -668,7 +709,7 @@ export default function BestPrice({
 
                         {old && old > price ? (
                           <div
-                            className="text-[12px] text-black/35 line-through sm:text-[13px] sm:text-black/40"
+                            className="text-[14px] font-medium text-black/40 line-through sm:text-[15px]"
                             suppressHydrationWarning
                           >
                             {formatPrice(old, currency)}

@@ -44,12 +44,16 @@ export type FeaturedProduct = {
   title: string;
   href: string;
   image: string;
+
   priceUZS: number;
   priceRUB: number;
+
   oldPriceUZS?: number;
   oldPriceRUB?: number;
+
   collectionBadge?: string;
   isActive?: boolean;
+
   brand?: string | null;
   collection?: string | null;
 };
@@ -57,10 +61,13 @@ export type FeaturedProduct = {
 type PriceEntry = {
   productId: string | number;
   title?: string;
+
   priceUZS: number;
   priceRUB: number;
+
   oldPriceUZS?: number;
   oldPriceRUB?: number;
+
   hasDiscount?: boolean;
   collectionBadge?: string;
   isActive?: boolean;
@@ -71,13 +78,18 @@ type UIItem = {
   title: string;
   href: string;
   image: string;
+
   price_rub: number;
   price_uzs: number;
+
   old_price_rub?: number | null;
   old_price_uzs?: number | null;
+
   discountPercent?: number | null;
+
   badge: string;
   skuLabel?: string | null;
+
   brandLine?: string | null;
 };
 
@@ -93,7 +105,7 @@ function toCapsLabel(v?: string | null) {
 }
 
 /**
- * Верхняя ленточка Хит продаж — оставляем как было.
+ * Верхнюю диагональную ленточку Хит продаж НЕ трогаем.
  */
 function HitBadge({ text }: { text: string }) {
   return (
@@ -107,7 +119,7 @@ function HitBadge({ text }: { text: string }) {
 
 function DiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="inline-flex h-6 items-center rounded-[5px] bg-[#ffd7d7] px-2 text-[13px] font-medium leading-none text-[#ff4a4a]">
+    <span className="inline-flex h-7 items-center rounded-[6px] bg-[#ffd1d1] px-2.5 text-[15px] font-semibold leading-none text-[#ff3f3f] shadow-[0_6px_14px_rgba(255,63,63,0.10)]">
       -{percent}%
     </span>
   );
@@ -115,7 +127,7 @@ function DiscountBadge({ percent }: { percent: number }) {
 
 function FeatureBadge({ text }: { text: string }) {
   return (
-    <span className="inline-flex h-6 items-center rounded-[5px] border border-[#c7e3ea] bg-[#eaf6f8] px-2 text-[12px] font-semibold leading-none text-[#5d8f9b]">
+    <span className="inline-flex h-7 items-center rounded-[6px] border border-[#bddde6] bg-[#e8f6f9] px-2.5 text-[13px] font-semibold leading-none text-[#4f8795] shadow-[0_6px_14px_rgba(79,135,149,0.08)]">
       {text}
     </span>
   );
@@ -399,7 +411,6 @@ export default function BestSellers({
     };
 
     vp.addEventListener("scroll", onScroll, { passive: true });
-
     onScroll();
 
     return () => vp.removeEventListener("scroll", onScroll);
@@ -424,7 +435,6 @@ export default function BestSellers({
     const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
 
     const target = Math.max(0, vp.scrollLeft - perView * step);
-
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
 
@@ -692,10 +702,10 @@ export default function BestSellers({
                       </div>
                     </div>
 
-                    <div className="min-h-[140px] px-5 pb-3 pt-3">
+                    <div className="min-h-[145px] px-5 pb-3 pt-3">
                       {(p.discountPercent && p.discountPercent > 0) ||
                       p.badge ? (
-                        <div className="mb-3 flex min-h-6 flex-wrap items-center gap-2">
+                        <div className="mb-3.5 flex min-h-7 flex-wrap items-center gap-2.5">
                           {p.discountPercent && p.discountPercent > 0 ? (
                             <DiscountBadge percent={p.discountPercent} />
                           ) : null}
@@ -704,7 +714,7 @@ export default function BestSellers({
                         </div>
                       ) : null}
 
-                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
+                      <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
                           className="text-[20px] font-semibold tracking-[-0.01em] text-black md:text-[22px]"
                           suppressHydrationWarning
@@ -714,7 +724,7 @@ export default function BestSellers({
 
                         {old && old > price ? (
                           <div
-                            className="text-[12px] text-black/35 line-through sm:text-[13px] sm:text-black/40"
+                            className="text-[14px] font-medium text-black/40 line-through sm:text-[15px]"
                             suppressHydrationWarning
                           >
                             {formatPrice(old, currency)}

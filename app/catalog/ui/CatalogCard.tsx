@@ -40,10 +40,12 @@ function getFirstStringFromArray(v: unknown): string {
 
 function getPath(obj: unknown, path: string[]): unknown {
   let cur: unknown = obj;
+
   for (const k of path) {
     if (!isRecord(cur)) return undefined;
     cur = cur[k];
   }
+
   return cur;
 }
 
@@ -51,18 +53,18 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function FeatureBadge({ text }: { text: string }) {
+function DiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="inline-flex h-6 items-center rounded-[5px] border border-[#c7e3ea] bg-[#eaf6f8] px-2 text-[12px] font-semibold leading-none text-[#5d8f9b]">
-      {text}
+    <span className="inline-flex h-7 items-center rounded-[6px] bg-[#ffd1d1] px-2.5 text-[15px] font-semibold leading-none text-[#ff3f3f] shadow-[0_6px_14px_rgba(255,63,63,0.10)]">
+      -{percent}%
     </span>
   );
 }
 
-function DiscountBadge({ percent }: { percent: number }) {
+function FeatureBadge({ text }: { text: string }) {
   return (
-    <span className="inline-flex h-6 items-center rounded-[5px] bg-[#ffd7d7] px-2 text-[13px] font-medium leading-none text-[#ff4a4a]">
-      -{percent}%
+    <span className="inline-flex h-7 items-center rounded-[6px] border border-[#bddde6] bg-[#e8f6f9] px-2.5 text-[13px] font-semibold leading-none text-[#4f8795] shadow-[0_6px_14px_rgba(79,135,149,0.08)]">
+      {text}
     </span>
   );
 }
@@ -352,7 +354,7 @@ export default function CatalogCard({
 
         <div className="flex flex-1 flex-col px-4 pb-3 pt-3">
           {hasDiscount || featureBadge ? (
-            <div className="mb-3 flex min-h-6 flex-wrap items-center gap-2">
+            <div className="mb-3.5 flex min-h-7 flex-wrap items-center gap-2.5">
               {hasDiscount ? <DiscountBadge percent={computedPct} /> : null}
 
               {featureBadge ? <FeatureBadge text={featureBadge} /> : null}
@@ -374,7 +376,7 @@ export default function CatalogCard({
             />
           ) : null}
 
-          <div className="mt-2 flex items-baseline gap-2">
+          <div className="mt-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
             {hasAnyPrice ? (
               <>
                 <div className="text-[15px] font-semibold text-black">
@@ -382,7 +384,7 @@ export default function CatalogCard({
                 </div>
 
                 {hasDiscount ? (
-                  <div className="text-[13px] text-black/35 line-through">
+                  <div className="text-[14px] font-medium text-black/40 line-through sm:text-[15px]">
                     {fmtPrice(oldRub, oldUzs)}
                   </div>
                 ) : null}
