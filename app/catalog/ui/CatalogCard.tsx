@@ -51,26 +51,10 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function GreenPremiumBadge({ text }: { text: string }) {
+function FeatureBadge({ text }: { text: string }) {
   return (
-    <span className="relative inline-flex h-6 items-center overflow-hidden rounded-[5px] px-2">
-      <span
-        className="absolute inset-0 rounded-[5px]"
-        style={{
-          background:
-            "linear-gradient(180deg, #DDFBEA 0%, #9DF0BF 52%, #68D992 100%)",
-        }}
-      />
-      <span
-        className="absolute inset-0 rounded-[5px]"
-        style={{
-          boxShadow:
-            "inset 0 0 0 1px rgba(19,151,80,0.18), 0 6px 14px rgba(19,151,80,0.10)",
-        }}
-      />
-      <span className="relative z-10 whitespace-nowrap text-[12px] font-semibold leading-none text-[#137A43]">
-        {text}
-      </span>
+    <span className="inline-flex h-6 items-center rounded-[5px] border border-[#c7e3ea] bg-[#eaf6f8] px-2 text-[12px] font-semibold leading-none text-[#5d8f9b]">
+      {text}
     </span>
   );
 }
@@ -371,7 +355,7 @@ export default function CatalogCard({
             <div className="mb-3 flex min-h-6 flex-wrap items-center gap-2">
               {hasDiscount ? <DiscountBadge percent={computedPct} /> : null}
 
-              {featureBadge ? <GreenPremiumBadge text={featureBadge} /> : null}
+              {featureBadge ? <FeatureBadge text={featureBadge} /> : null}
             </div>
           ) : null}
 

@@ -52,18 +52,8 @@ export type ProductVariant = {
   group?: string;
   disabled?: boolean;
 
-  /**
-   * Артикул конкретного варианта цвета.
-   * Например:
-   * white -> 10.210 (Б)
-   * cappuccino -> 10.210 (К)
-   */
   variantSku?: string;
 
-  /**
-   * В проекте эти поля используются как ИТОГОВАЯ цена варианта,
-   * а не как доплата.
-   */
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
 
@@ -103,22 +93,10 @@ type ProductSetItem = {
   isRequired?: boolean | null;
   itemKind?: string;
 
-  /**
-   * Если false — этот элемент не добавляется в общий артикул.
-   * Например, можно не добавлять служебные/визуальные элементы.
-   */
   addsToArticle?: boolean | null;
-
   articleJoinRule?: string;
 
-  /**
-   * Если false — этот элемент не меняет фото товара.
-   */
   affectsImage?: boolean | null;
-
-  /**
-   * Готовое собранное фото комплектации.
-   */
   assembledImage?: string;
 
   colorKey?: string;
@@ -300,6 +278,14 @@ function DiscountBadge({ percent }: { percent: number }) {
   );
 }
 
+function FeatureBadge({ text }: { text: string }) {
+  return (
+    <span className="inline-flex h-6 items-center rounded-[5px] border border-[#c7e3ea] bg-[#eaf6f8] px-2 text-[12px] font-semibold leading-none text-[#5d8f9b]">
+      {text}
+    </span>
+  );
+}
+
 function getSetItemOptionLabel(item?: ProductSetItem | null) {
   if (!item) return null;
 
@@ -310,11 +296,6 @@ function getSetItemOptionLabel(item?: ProductSetItem | null) {
   return option || null;
 }
 
-/**
- * ВАЖНО:
- * Цена комплектации может быть 0.
- * Например "Без рамки паспарту" — это нормальный вариант, его нельзя скрывать.
- */
 function getSetItemPrice(item: ProductSetItem, currency: "RUB" | "UZS") {
   const raw = currency === "RUB" ? item.price_rub : item.price_uzs;
   const n = Number(raw);
@@ -322,11 +303,6 @@ function getSetItemPrice(item: ProductSetItem, currency: "RUB" | "UZS") {
   return Number.isFinite(n) ? n : 0;
 }
 
-/**
- * ВАЖНО:
- * Не фильтруем комплектацию по цене.
- * Если priceUZS = 0, вариант всё равно должен отображаться.
- */
 function isSetItemAvailableForRegion(
   item: ProductSetItem,
   currency: "RUB" | "UZS",
@@ -988,14 +964,6 @@ export default function ProductClient({
     });
   }, [product, selectedByGroup, selectedVariants, groupsForUIDisplay]);
 
-  /**
-   * ВАЖНО:
-   * Если выбран цвет и у него есть variantSku,
-   * артикул берём именно из варианта.
-   * Так при переключении:
-   * white -> 10.210 (Б)
-   * cappuccino -> 10.210 (К)
-   */
   const baseArticleForDisplay = useMemo(() => {
     const variantSku = String(selectedColorVariant?.variantSku ?? "").trim();
     if (variantSku) return variantSku;
@@ -1322,9 +1290,11 @@ export default function ProductClient({
 
   const showCollectionCard = hasCollection && !product.isCollection;
 
-  const collectionBadge = String(product.brand || product.collectionLabel || "")
+  const collectionName = String(product.brand || product.collectionLabel || "")
     .trim()
     .toUpperCase();
+
+  const collectionBadge = String(product.collectionBadge || "").trim();
 
   const accentVars = useMemo(() => {
     const acc =
@@ -1473,11 +1443,15 @@ export default function ProductClient({
                 : "rounded-3xl p-5 -m-5",
             )}
           >
-            {collectionBadge ? (
-              <div className="mb-2 inline-flex rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] tracking-[0.18em] uppercase text-black/55">
-                Коллекция: {collectionBadge}
-              </div>
-            ) : null}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {collectionName ? (
+                <div className="inline-flex h-6 items-center rounded-[5px] border border-black/10 bg-white px-2 text-[11px] font-medium tracking-[0.14em] uppercase text-black/55">
+                  Коллекция: {collectionName}
+                </div>
+              ) : null}
+
+              {collectionBadge ? <FeatureBadge text={collectionBadge} /> : null}
+            </div>
 
             <h1 className="text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] text-black">
               {product.title}
