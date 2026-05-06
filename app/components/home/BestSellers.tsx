@@ -21,12 +21,9 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
 
   try {
     if (currency === "UZS") {
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "UZS",
-        currencyDisplay: "code",
+      return `${new Intl.NumberFormat("en-US", {
         maximumFractionDigits: 0,
-      }).format(v);
+      }).format(v)} сум`;
     }
 
     return new Intl.NumberFormat("ru-RU", {
@@ -37,7 +34,7 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
   } catch {
     return currency === "RUB"
       ? `${Math.round(v).toLocaleString("ru-RU")} ₽`
-      : `UZS ${Math.round(v).toLocaleString("en-US")}`;
+      : `${Math.round(v).toLocaleString("en-US")} сум`;
   }
 }
 
@@ -95,6 +92,9 @@ function toCapsLabel(v?: string | null) {
   return s.toUpperCase();
 }
 
+/**
+ * Верхняя ленточка Хит продаж — оставляем как было.
+ */
 function HitBadge({ text }: { text: string }) {
   return (
     <span className="pointer-events-none absolute left-[-22px] top-[14px] z-20 block w-[118px] -rotate-[38deg] bg-[#efe3bf] py-[5px] text-center shadow-[0_3px_8px_rgba(120,90,20,0.08)]">
@@ -105,11 +105,28 @@ function HitBadge({ text }: { text: string }) {
   );
 }
 
+function DiscountBadge({ percent }: { percent: number }) {
+  return (
+    <span className="inline-flex h-6 items-center rounded-[5px] bg-[#ffd7d7] px-2 text-[13px] font-medium leading-none text-[#ff4a4a]">
+      -{percent}%
+    </span>
+  );
+}
+
+function FeatureBadge({ text }: { text: string }) {
+  return (
+    <span className="inline-flex h-6 items-center rounded-[5px] border border-[#c7e3ea] bg-[#eaf6f8] px-2 text-[12px] font-semibold leading-none text-[#5d8f9b]">
+      {text}
+    </span>
+  );
+}
+
 function calcDiscountPercent(price: number, old?: number | null) {
   if (!old || old <= 0) return null;
   if (!price || price <= 0) return null;
   if (old <= price) return null;
-  return Math.round((1 - price / old) * 100);
+
+  return Math.max(1, Math.min(99, Math.round((1 - price / old) * 100)));
 }
 
 function SmartCover({
@@ -161,6 +178,7 @@ function resolveProduct(productId: string | number) {
     const b = String(p.slug ?? "").trim();
     const c = String(p.handle ?? "").trim();
     const d = String(p.id ?? "").trim();
+
     return a === s || b === s || c === s || d === s;
   });
 }
@@ -216,12 +234,15 @@ export default function BestSellers({
             title: String(p.title ?? "").trim(),
             href: p.href || `/product/${p.slug}`,
             image: String(p.image ?? ""),
+
             price_rub,
             price_uzs,
+
             old_price_rub,
             old_price_uzs,
+
             discountPercent,
-            badge: "Хит продаж",
+            badge: p.collectionBadge || "Хит продаж",
             skuLabel: p.slug ? String(p.slug) : null,
             brandLine: line ?? null,
           };
@@ -235,6 +256,7 @@ export default function BestSellers({
     const hit = priceEntries.filter(
       (e) => e.isActive && e.collectionBadge === "Хит продаж",
     );
+
     if (!hit.length) return [];
 
     const items = hit
@@ -269,12 +291,15 @@ export default function BestSellers({
           title: displayTitle,
           href: `/product/${product.id}`,
           image: String(product.image ?? ""),
+
           price_rub,
           price_uzs,
+
           old_price_rub,
           old_price_uzs,
+
           discountPercent,
-          badge: "Хит продаж",
+          badge: entry.collectionBadge || "Хит продаж",
           skuLabel: product.sku ? String(product.sku) : `ID: ${product.id}`,
           brandLine: line,
         };
@@ -291,11 +316,14 @@ export default function BestSellers({
         w < 768 ||
         window.matchMedia?.("(pointer: coarse)")?.matches ||
         window.matchMedia?.("(hover: none)")?.matches;
+
       setIsTouchMode(!!touch);
     };
 
     calc();
+
     window.addEventListener("resize", calc);
+
     return () => window.removeEventListener("resize", calc);
   }, []);
 
@@ -304,12 +332,15 @@ export default function BestSellers({
       const w = window.innerWidth;
       const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
       const newPages = Math.max(1, Math.ceil(list.length / perView));
+
       setPages(newPages);
       setPage((p) => Math.min(p, newPages - 1));
     };
 
     calcPages();
+
     window.addEventListener("resize", calcPages);
+
     return () => window.removeEventListener("resize", calcPages);
   }, [list.length]);
 
@@ -320,6 +351,7 @@ export default function BestSellers({
     const card = trackRef.current.querySelector(
       "[data-card]",
     ) as HTMLElement | null;
+
     if (!card) return;
 
     const gap = 24;
@@ -334,11 +366,16 @@ export default function BestSellers({
       return;
     }
 
-    gsap.to(trackRef.current, { x: -shift, duration: 0.9, ease: "expo.out" });
+    gsap.to(trackRef.current, {
+      x: -shift,
+      duration: 0.9,
+      ease: "expo.out",
+    });
   }, [page, reducedMotion, list.length, isTouchMode]);
 
   useLayoutEffect(() => {
     if (!isTouchMode) return;
+
     const vp = viewportRef.current;
     if (!vp) return;
 
@@ -355,13 +392,16 @@ export default function BestSellers({
       const pageStep = perView * step;
 
       const p = Math.round(vp.scrollLeft / pageStep);
+
       setPage((prev) =>
         prev === p ? prev : Math.min(Math.max(p, 0), pages - 1),
       );
     };
 
     vp.addEventListener("scroll", onScroll, { passive: true });
+
     onScroll();
+
     return () => vp.removeEventListener("scroll", onScroll);
   }, [isTouchMode, pages]);
 
@@ -384,6 +424,7 @@ export default function BestSellers({
     const perView = w >= 1024 ? 3 : w >= 768 ? 2 : 1;
 
     const target = Math.max(0, vp.scrollLeft - perView * step);
+
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
 
@@ -407,6 +448,7 @@ export default function BestSellers({
 
     const max = vp.scrollWidth - vp.clientWidth;
     const target = Math.min(max, vp.scrollLeft + perView * step);
+
     vp.scrollTo({ left: target, behavior: "smooth" });
   };
 
@@ -437,6 +479,7 @@ export default function BestSellers({
     if (isTouchMode) return;
 
     const root = rootRef.current;
+
     const cards = Array.from(
       root.querySelectorAll("[data-card]"),
     ) as HTMLElement[];
@@ -447,6 +490,7 @@ export default function BestSellers({
       const actions = card.querySelector(
         "[data-actions]",
       ) as HTMLElement | null;
+
       if (!actions) return;
 
       gsap.set(actions, {
@@ -458,7 +502,11 @@ export default function BestSellers({
 
       const enter = () => {
         if (reducedMotion) {
-          gsap.set(actions, { autoAlpha: 1, y: 0, filter: "blur(0px)" });
+          gsap.set(actions, {
+            autoAlpha: 1,
+            y: 0,
+            filter: "blur(0px)",
+          });
           actions.style.pointerEvents = "auto";
           return;
         }
@@ -477,7 +525,11 @@ export default function BestSellers({
 
       const leave = () => {
         if (reducedMotion) {
-          gsap.set(actions, { autoAlpha: 0, y: 10, filter: "blur(8px)" });
+          gsap.set(actions, {
+            autoAlpha: 0,
+            y: 10,
+            filter: "blur(8px)",
+          });
           actions.style.pointerEvents = "none";
           return;
         }
@@ -563,7 +615,10 @@ export default function BestSellers({
             isTouchMode ? "snap-x snap-mandatory" : "",
             "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
-          style={{ WebkitOverflowScrolling: "touch", scrollBehavior: "smooth" }}
+          style={{
+            WebkitOverflowScrolling: "touch",
+            scrollBehavior: "smooth",
+          }}
         >
           <div
             ref={trackRef}
@@ -609,7 +664,7 @@ export default function BestSellers({
                     )}
                   >
                     <div className="relative overflow-hidden rounded-t-[18px] bg-white">
-                      <HitBadge text={p.badge} />
+                      <HitBadge text="Хит продаж" />
 
                       <div
                         data-actions
@@ -637,7 +692,18 @@ export default function BestSellers({
                       </div>
                     </div>
 
-                    <div className="min-h-[112px] px-5 pb-3 pt-3">
+                    <div className="min-h-[140px] px-5 pb-3 pt-3">
+                      {(p.discountPercent && p.discountPercent > 0) ||
+                      p.badge ? (
+                        <div className="mb-3 flex min-h-6 flex-wrap items-center gap-2">
+                          {p.discountPercent && p.discountPercent > 0 ? (
+                            <DiscountBadge percent={p.discountPercent} />
+                          ) : null}
+
+                          {p.badge ? <FeatureBadge text={p.badge} /> : null}
+                        </div>
+                      ) : null}
+
                       <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
                           className="text-[20px] font-semibold tracking-[-0.01em] text-black md:text-[22px]"

@@ -21,16 +21,11 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
 
   try {
     if (currency === "UZS") {
-      // ✅ всегда "UZS 34,176,000" и на SSR и на client
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "UZS",
-        currencyDisplay: "code",
+      return `${new Intl.NumberFormat("en-US", {
         maximumFractionDigits: 0,
-      }).format(v);
+      }).format(v)} сум`;
     }
 
-    // RUB — как было, но стабильно
     return new Intl.NumberFormat("ru-RU", {
       style: "currency",
       currency: "RUB",
@@ -39,12 +34,12 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
   } catch {
     return currency === "RUB"
       ? `${Math.round(v).toLocaleString("ru-RU")} ₽`
-      : `UZS ${Math.round(v).toLocaleString("en-US")}`;
+      : `${Math.round(v).toLocaleString("en-US")} сум`;
   }
 }
 
 export type FeaturedProduct = {
-  id: string; // slug
+  id: string;
   slug: string;
   title: string;
   href: string;
@@ -109,54 +104,18 @@ function toCapsLabel(v?: string | null) {
   return s.toUpperCase();
 }
 
-function BestPriceBadge({
-  text,
-  discountPercent,
-}: {
-  text: string;
-  discountPercent?: number | null;
-}) {
-  const isDiscount = typeof discountPercent === "number" && discountPercent > 0;
-
-  if (isDiscount) {
-    return (
-      <span className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full border-[3px] border-[#ff2b2b] bg-[#c4001a] text-center leading-none shadow-[0_8px_20px_rgba(196,0,26,0.2)]">
-        <span className="text-[9px] font-extrabold uppercase tracking-[0.08em] text-white">
-          скидка
-        </span>
-        <span className="mt-1 text-[14px] font-extrabold text-white">
-          -{discountPercent} %
-        </span>
-      </span>
-    );
-  }
-
+function DiscountBadge({ percent }: { percent: number }) {
   return (
-    <span className="relative inline-flex h-6 items-center overflow-hidden rounded-[10px] px-2">
-      <span
-        className="absolute inset-0 rounded-[10px]"
-        style={{
-          background:
-            "radial-gradient(120% 140% at 30% 20%, #E8FFF2 0%, #BFF7D6 28%, #57E39A 55%, #17B868 78%, #0C7F45 100%)",
-        }}
-      />
-      <span
-        className="absolute inset-[1px] rounded-[9px]"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(255,255,255,0.70), rgba(255,255,255,0.12))",
-        }}
-      />
-      <span
-        className="absolute inset-0 rounded-[10px]"
-        style={{
-          boxShadow:
-            "0 0 0 1px rgba(120,255,190,0.75), 0 10px 26px rgba(12,127,69,0.20)",
-        }}
-      />
-      <span className="relative z-10 inline-flex items-center whitespace-nowrap text-[10px] font-semibold tracking-[0.02em] text-[#064B2A]">
-        {text}
-      </span>
+    <span className="inline-flex h-6 items-center rounded-[5px] bg-[#ffd7d7] px-2 text-[13px] font-medium leading-none text-[#ff4a4a]">
+      -{percent}%
+    </span>
+  );
+}
+
+function FeatureBadge({ text }: { text: string }) {
+  return (
+    <span className="inline-flex h-6 items-center rounded-[5px] border border-[#c7e3ea] bg-[#eaf6f8] px-2 text-[12px] font-semibold leading-none text-[#5d8f9b]">
+      {text}
     </span>
   );
 }
@@ -184,7 +143,8 @@ function calcDiscountPercent(price: number, old?: number | null) {
   if (!old || old <= 0) return null;
   if (!price || price <= 0) return null;
   if (old <= price) return null;
-  return Math.round((1 - price / old) * 100);
+
+  return Math.max(1, Math.min(99, Math.round((1 - price / old) * 100)));
 }
 
 function SmartCover({
@@ -280,7 +240,7 @@ export default function BestPrice({
             old_price_uzs,
 
             discountPercent,
-            badge: "Лучшая цена",
+            badge: p.collectionBadge || "Лучшая цена",
             skuLabel: p.slug ? String(p.slug) : null,
             brandLine: line ?? null,
           };
@@ -336,7 +296,7 @@ export default function BestPrice({
           old_price_uzs,
 
           discountPercent,
-          badge: "Лучшая цена",
+          badge: entry.collectionBadge || "Лучшая цена",
           skuLabel: product.sku ? String(product.sku) : `ID: ${product.id}`,
           brandLine: line,
         };
@@ -355,6 +315,7 @@ export default function BestPrice({
         window.matchMedia?.("(hover: none)")?.matches;
       setIsTouchMode(!!touch);
     };
+
     calc();
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
@@ -559,12 +520,12 @@ export default function BestPrice({
   return (
     <section
       ref={rootRef}
-      className="w-full relative overflow-hidden"
+      className="relative w-full overflow-hidden"
       style={{ backgroundColor: "#f3f3f3" }}
     >
       <div className="mx-auto w-full max-w-[1200px] px-4 py-12">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.02em] text-black">
+          <h2 className="text-[30px] font-semibold tracking-[-0.02em] text-black md:text-[36px]">
             {title}
           </h2>
 
@@ -573,12 +534,12 @@ export default function BestPrice({
               onClick={prev}
               disabled={page === 0}
               className={cn(
-                "h-10 w-10 rounded-full grid place-items-center",
+                "grid h-10 w-10 place-items-center rounded-full",
                 "border border-black/10 bg-white",
                 "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                 "transition cursor-pointer",
                 page === 0
-                  ? "opacity-40 cursor-default"
+                  ? "cursor-default opacity-40"
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Назад"
@@ -590,12 +551,12 @@ export default function BestPrice({
               onClick={next}
               disabled={page >= pages - 1}
               className={cn(
-                "h-10 w-10 rounded-full grid place-items-center",
+                "grid h-10 w-10 place-items-center rounded-full",
                 "border border-black/10 bg-white",
                 "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                 "transition cursor-pointer",
                 page >= pages - 1
-                  ? "opacity-40 cursor-default"
+                  ? "cursor-default opacity-40"
                   : "hover:bg-black/[0.03]",
               )}
               aria-label="Вперёд"
@@ -650,23 +611,15 @@ export default function BestPrice({
                 >
                   <div
                     className={cn(
-                      "flex flex-col h-full",
-                      "border border-black/10 bg-white",
-                      "rounded-[18px]",
+                      "flex h-full flex-col",
+                      "rounded-[18px] border border-black/10 bg-white",
                       "shadow-[0_10px_30px_rgba(0,0,0,0.08)]",
                       "transition",
                       "group-hover:-translate-y-[2px]",
                       "group-hover:shadow-[0_18px_50px_rgba(0,0,0,0.10)]",
                     )}
                   >
-                    <div className="relative overflow-visible rounded-t-[18px] bg-white">
-                      <div className="absolute left-0 top-0 z-20">
-                        <BestPriceBadge
-                          text={p.badge}
-                          discountPercent={p.discountPercent}
-                        />
-                      </div>
-
+                    <div className="relative overflow-hidden rounded-t-[18px] bg-white">
                       <div
                         data-actions
                         className="absolute right-2 top-2 z-20"
@@ -684,22 +637,30 @@ export default function BestPrice({
                         />
                       </div>
 
-                      <div className="relative overflow-hidden rounded-t-[18px]">
-                        <div className="relative aspect-[4/3] bg-white">
-                          <SmartCover
-                            src={p.image}
-                            alt={p.title}
-                            priority={idx < 6}
-                          />
-                        </div>
+                      <div className="relative aspect-[4/3] bg-white">
+                        <SmartCover
+                          src={p.image}
+                          alt={p.title}
+                          priority={idx < 6}
+                        />
                       </div>
                     </div>
 
-                    <div className="px-5 pt-3 pb-3 min-h-[112px]">
-                      {/* ✅ FIX: mobile stack old price under new */}
+                    <div className="min-h-[140px] px-5 pb-3 pt-3">
+                      {(p.discountPercent && p.discountPercent > 0) ||
+                      p.badge ? (
+                        <div className="mb-3 flex min-h-6 flex-wrap items-center gap-2">
+                          {p.discountPercent && p.discountPercent > 0 ? (
+                            <DiscountBadge percent={p.discountPercent} />
+                          ) : null}
+
+                          {p.badge ? <FeatureBadge text={p.badge} /> : null}
+                        </div>
+                      ) : null}
+
                       <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
-                          className="text-[20px] md:text-[22px] font-semibold tracking-[-0.01em] text-black"
+                          className="text-[20px] font-semibold tracking-[-0.01em] text-black md:text-[22px]"
                           suppressHydrationWarning
                         >
                           {formatPrice(price, currency)}
@@ -707,7 +668,7 @@ export default function BestPrice({
 
                         {old && old > price ? (
                           <div
-                            className="text-[12px] sm:text-[13px] text-black/35 sm:text-black/40 line-through"
+                            className="text-[12px] text-black/35 line-through sm:text-[13px] sm:text-black/40"
                             suppressHydrationWarning
                           >
                             {formatPrice(old, currency)}
@@ -717,17 +678,15 @@ export default function BestPrice({
 
                       <div
                         className={cn(
-                          "mt-2 text-[15px] md:text-[16px] leading-snug text-black/80",
-                          "whitespace-normal break-words",
-                          "line-clamp-2",
-                          "min-h-[36px]",
+                          "mt-2 min-h-[36px] text-[15px] leading-snug text-black/80 md:text-[16px]",
+                          "whitespace-normal break-words line-clamp-2",
                         )}
                         title={p.title}
                       >
                         {p.title}
                       </div>
 
-                      <div className="mt-3 text-[11px] tracking-[0.18em] uppercase text-black/45">
+                      <div className="mt-3 text-[11px] uppercase tracking-[0.18em] text-black/45">
                         {p.brandLine ?? "—"}
                       </div>
                     </div>
