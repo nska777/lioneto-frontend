@@ -27,9 +27,15 @@
 
 /* ===== BASE ===== */
 html {
-  scroll-behavior: smooth;
   overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Smooth scroll только для desktop / мышки */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -162,9 +168,15 @@ button,
 }
 
 .dealer-module-scroll {
-  scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+}
+
+/* Smooth scroll для дилерских горизонтальных блоков только на desktop */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  .dealer-module-scroll {
+    scroll-behavior: smooth;
+  }
 }
 
 .dealer-module-scroll::-webkit-scrollbar {
@@ -184,7 +196,29 @@ button,
   background: rgba(0, 0, 0, 0.3);
 }
 
+/* ===== iOS / Safari FIX ===== */
+/* На iPhone/iPad полностью запрещаем smooth-scroll */
+@supports (-webkit-touch-callout: none) {
+  html {
+    scroll-behavior: auto !important;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  html *,
+  html *::before,
+  html *::after {
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
 /* ===== iOS SCROLL GUARD ===== */
+/* Работает вместе с app/components/system/IOSScrollGuard.tsx */
 html.ios-device {
   overflow-x: hidden;
   scroll-behavior: auto !important;
@@ -194,6 +228,14 @@ html.ios-device {
 html.ios-device body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+}
+
+/* На iOS полностью запрещаем smooth behavior */
+html.ios-device,
+html.ios-device *,
+html.ios-device *::before,
+html.ios-device *::after {
+  scroll-behavior: auto !important;
 }
 
 /* Во время touch-scroll и momentum-scroll максимально облегчаем Safari */
