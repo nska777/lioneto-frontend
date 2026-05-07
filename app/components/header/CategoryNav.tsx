@@ -59,18 +59,18 @@ export default function CategoryNav({
     if (!nav) return;
 
     const rect = nav.getBoundingClientRect();
-    setMenuTop(Math.round(rect.bottom));
+    const nextTop = Math.round(rect.bottom);
+
+    setMenuTop((prev) => (prev === nextTop ? prev : nextTop));
   };
 
   useEffect(() => {
     updateMenuTop();
 
     window.addEventListener("resize", updateMenuTop);
-    window.addEventListener("scroll", updateMenuTop, { passive: true });
 
     return () => {
       window.removeEventListener("resize", updateMenuTop);
-      window.removeEventListener("scroll", updateMenuTop);
     };
   }, []);
 
@@ -126,6 +126,7 @@ export default function CategoryNav({
     updateMenuTop();
 
     hoverTimer.current = window.setTimeout(() => {
+      updateMenuTop();
       setActive(key);
       moveIndicatorTo(el, false);
     }, 90);
