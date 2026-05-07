@@ -11,7 +11,6 @@ import {
 import Link from "next/link";
 import gsap from "gsap";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 type Slide = {
   id: string;
@@ -104,16 +103,10 @@ export default function GSAPHeroSlider({
   slides?: Slide[];
   autoMs?: number;
 }) {
-  const router = useRouter();
-
   const rootRef = useRef<HTMLDivElement | null>(null);
   const tlRef = useRef<gsap.core.Timeline | null>(null);
   const autoRef = useRef<number | null>(null);
   const busyRef = useRef(false);
-
-  const touchStartXRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
-  const suppressClickUntilRef = useRef(0);
 
   const [active, setActive] = useState(0);
   const activeRef = useRef(0);
@@ -249,25 +242,35 @@ export default function GSAPHeroSlider({
         });
 
         gsap.set(nextTitle, {
-          y: 0,
-          opacity: 1,
-          clearProps: "transform",
+          y: 10,
+          opacity: 0,
         });
 
         gsap.set(nextBtnWrap, {
-          y: 0,
-          opacity: 1,
-          clearProps: "transform",
-        });
-
-        gsap.set(prev, {
+          y: 10,
           opacity: 0,
-          pointerEvents: "none",
         });
 
-        activeRef.current = clamped;
-        setActive(clamped);
-        busyRef.current = false;
+        const tl = gsap.timeline({
+          defaults: { ease: "power2.out" },
+          onComplete: () => {
+            gsap.set(prev, {
+              opacity: 0,
+              pointerEvents: "none",
+            });
+
+            activeRef.current = clamped;
+            setActive(clamped);
+            busyRef.current = false;
+          },
+        });
+
+        tl.to(prev, { opacity: 0, duration: 0.28 }, 0)
+          .to(next, { opacity: 1, duration: 0.28 }, 0)
+          .to(nextTitle, { y: 0, opacity: 1, duration: 0.28 }, 0.08)
+          .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.28 }, 0.12);
+
+        tlRef.current = tl;
 
         return;
       }
@@ -330,7 +333,6 @@ export default function GSAPHeroSlider({
     stopAuto();
 
     if (reducedMotion) return;
-    if (isMobile) return;
     if (slides.length <= 1) return;
 
     autoRef.current = window.setInterval(() => {
@@ -338,7 +340,7 @@ export default function GSAPHeroSlider({
         go(activeRef.current + 1);
       }
     }, autoMs);
-  }, [autoMs, go, isMobile, reducedMotion, slides.length, stopAuto]);
+  }, [autoMs, go, reducedMotion, slides.length, stopAuto]);
 
   const next = useCallback(() => {
     go(activeRef.current + 1);
@@ -347,52 +349,6 @@ export default function GSAPHeroSlider({
   const prev = useCallback(() => {
     go(activeRef.current - 1);
   }, [go]);
-
-  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    const touch = e.changedTouches[0];
-
-    touchStartXRef.current = touch?.clientX ?? null;
-    touchStartYRef.current = touch?.clientY ?? null;
-
-    stopAuto();
-  };
-
-  const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    const touch = e.changedTouches[0];
-
-    const startX = touchStartXRef.current;
-    const startY = touchStartYRef.current;
-    const endX = touch?.clientX ?? null;
-    const endY = touch?.clientY ?? null;
-
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
-
-    if (startX == null || startY == null || endX == null || endY == null) {
-      startAuto();
-      return;
-    }
-
-    const diffX = startX - endX;
-    const diffY = startY - endY;
-
-    const absX = Math.abs(diffX);
-    const absY = Math.abs(diffY);
-
-    const isHorizontalSwipe = absX >= 46 && absX > absY * 1.35;
-
-    if (isHorizontalSwipe) {
-      suppressClickUntilRef.current = Date.now() + 450;
-
-      if (diffX > 0) {
-        next();
-      } else {
-        prev();
-      }
-    }
-
-    startAuto();
-  };
 
   useLayoutEffect(() => {
     if (!rootRef.current) return;
@@ -444,14 +400,14 @@ export default function GSAPHeroSlider({
       gsap.set(title, {
         y: 0,
         opacity: 1,
-        clearProps: "transform",
       });
 
       gsap.set(btnWrap, {
         y: 0,
         opacity: 1,
-        clearProps: "transform",
       });
+
+      startAuto();
 
       return () => {
         stopAuto();
@@ -517,26 +473,17 @@ export default function GSAPHeroSlider({
           ref={rootRef}
           onMouseEnter={stopAuto}
           onMouseLeave={startAuto}
-          onClick={() => {
-            if (Date.now() < suppressClickUntilRef.current) return;
-            router.push(activeSlide?.href ?? "/catalog");
-          }}
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
           className={cn(
             "relative isolate overflow-hidden rounded-none",
             "bg-transparent",
             "border-0 ring-0 outline-none",
             "h-[335px] sm:h-[420px] md:h-[520px]",
-            "cursor-pointer select-none touch-pan-y",
+            "select-none",
           )}
           style={{
             border: "none",
             outline: "none",
             boxShadow: "none",
-            touchAction: "pan-y",
-            WebkitBackfaceVisibility: "hidden",
-            backfaceVisibility: "hidden",
           }}
         >
           {slides.map((s, i) => {
@@ -608,8 +555,7 @@ export default function GSAPHeroSlider({
 
                       <Link
                         data-btn
-                        href={s.href}
-                        onClick={(e) => e.stopPropagation()}
+                        href={activeSlide?.href ?? s.href}
                         className={cn(
                           "inline-flex items-center justify-center",
                           "min-w-[160px] sm:min-w-[180px] md:min-w-[190px]",
