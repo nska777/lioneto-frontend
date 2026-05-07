@@ -149,6 +149,7 @@ function CatalogDropdown({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  const closeTimerRef = useRef<number | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -173,6 +174,25 @@ function CatalogDropdown({
       })
       .filter((c) => c.title || c.items.length);
   }, [categories]);
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const openMenu = () => {
+    clearCloseTimer();
+    setOpen(true);
+  };
+
+  const closeMenu = () => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false);
+    }, 160);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -200,6 +220,12 @@ function CatalogDropdown({
     };
   }, [open]);
 
+  useEffect(() => {
+    return () => {
+      clearCloseTimer();
+    };
+  }, []);
+
   const GOLD = "#B9893B";
 
   return (
@@ -207,6 +233,9 @@ function CatalogDropdown({
       <button
         ref={triggerRef}
         type="button"
+        onMouseEnter={openMenu}
+        onMouseLeave={closeMenu}
+        onFocus={openMenu}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -223,14 +252,12 @@ function CatalogDropdown({
         )}
       >
         <span>{label}</span>
-
         <ChevronDown
           className={cn(
             "h-3.5 w-3.5 transition-transform duration-200",
             open ? "rotate-180" : "rotate-0",
           )}
         />
-
         <span
           aria-hidden
           className={cn(
@@ -245,8 +272,10 @@ function CatalogDropdown({
 
       <div
         ref={panelRef}
+        onMouseEnter={openMenu}
+        onMouseLeave={closeMenu}
         className={cn(
-          "fixed inset-x-0 top-[48px] z-[999] max-w-full overflow-x-hidden bg-[#f3f3f3]",
+          "fixed inset-x-0 top-[48px] z-[999] bg-[#f3f3f3]",
           open
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0",
@@ -255,7 +284,7 @@ function CatalogDropdown({
       >
         <div className="h-[3px] w-full" style={{ backgroundColor: GOLD }} />
 
-        <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
+        <div className="mx-auto w-full max-w-[1200px] px-4">
           <div className="relative py-10">
             <button
               type="button"
@@ -351,11 +380,11 @@ export default function TopBar({
       : (MEGA_FALLBACK as unknown[]);
 
   return (
-    <div className="w-full max-w-full overflow-x-clip border-black/10">
-      <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
-        <div className="flex h-12 min-w-0 max-w-full items-center justify-between gap-2 overflow-hidden text-[13px] text-black/80">
+    <div className="border-black/10">
+      <div className="mx-auto w-full max-w-[1200px] px-4">
+        <div className="flex h-12 items-center justify-between text-[13px] text-black/80">
           <nav className="hidden min-w-0 flex-1 items-center overflow-visible md:flex">
-            <div className="flex min-w-0 items-center gap-5 overflow-visible lg:gap-7 xl:gap-8">
+            <div className="flex items-center gap-5 lg:gap-7 xl:gap-8 overflow-visible">
               {topLinks.map((l) => {
                 const hrefNorm = String(l.href || "").trim();
                 const isCatalog =
@@ -393,7 +422,7 @@ export default function TopBar({
             </div>
           </nav>
 
-          <div className="flex shrink-0 items-center gap-2 md:hidden">
+          <div className="flex items-center gap-2 md:hidden">
             <button
               className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition hover:bg-black/5"
               onClick={onOpenMobileMenu}
@@ -404,19 +433,16 @@ export default function TopBar({
             </button>
           </div>
 
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden md:flex-none md:gap-4 md:overflow-visible lg:gap-5">
-            <div className="min-w-0 max-w-[52vw] overflow-hidden md:max-w-none md:overflow-visible">
-              <StoresDropdown
-                label={storesLabel}
-                regionTitle={resolvedRegionTitle}
-                addresses={addresses}
-                onPickAddress={onPickAddress}
-              />
-            </div>
+          <div className="flex min-w-0 items-center gap-3 md:gap-4 lg:gap-5">
+            <StoresDropdown
+              label={storesLabel}
+              regionTitle={resolvedRegionTitle}
+              addresses={addresses}
+              onPickAddress={onPickAddress}
+            />
 
-            <div className="hidden items-center gap-2 whitespace-nowrap xl:inline-flex">
+            <div className="hidden items-center gap-2 xl:inline-flex whitespace-nowrap">
               <Phone className="h-4 w-4 opacity-60" />
-
               <a
                 href={`tel:${phone.replace(/\s|\(|\)|-/g, "")}`}
                 className={cn(
@@ -426,7 +452,6 @@ export default function TopBar({
                 )}
               >
                 {phone}
-
                 <span
                   className={cn(
                     "pointer-events-none absolute left-0 -bottom-[0.75px]",
@@ -438,9 +463,7 @@ export default function TopBar({
               </a>
             </div>
 
-            <div className="shrink-0 origin-right scale-[0.9] sm:scale-100 md:scale-100">
-              <CallButton label={callCtaLabel} onClick={onOpenCall} />
-            </div>
+            <CallButton label={callCtaLabel} onClick={onOpenCall} />
           </div>
         </div>
       </div>
