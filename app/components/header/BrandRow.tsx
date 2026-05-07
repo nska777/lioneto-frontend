@@ -21,7 +21,7 @@ function IconBtn({
   children: React.ReactNode;
 }) {
   const base =
-    "relative inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-black/60 hover:bg-black/5 hover:text-black transition";
+    "relative inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-black/60 hover:bg-black/5 hover:text-black transition";
 
   if (href) {
     return (
@@ -48,7 +48,11 @@ type LangUiConfig = {
 
 function uniqLangs(list: LangKey[]) {
   const s = new Set<LangKey>();
-  for (const v of list) s.add(v);
+
+  for (const v of list) {
+    s.add(v);
+  }
+
   return Array.from(s);
 }
 
@@ -58,7 +62,7 @@ function DealerLink() {
   return (
     <Link
       href="/dealer/login"
-      className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
+      className="inline-flex min-w-0 shrink-0 items-center gap-1.5 whitespace-nowrap text-[12px] tracking-[0.18em] text-black font-medium transition-colors cursor-pointer"
       onMouseEnter={(e) => {
         e.currentTarget.style.color = GOLD;
       }}
@@ -66,8 +70,8 @@ function DealerLink() {
         e.currentTarget.style.color = "";
       }}
     >
-      <Briefcase className="h-4 w-4 opacity-70" />
-      ДИЛЕРАМ
+      <Briefcase className="h-4 w-4 shrink-0 opacity-70" />
+      <span>ДИЛЕРАМ</span>
     </Link>
   );
 }
@@ -115,22 +119,24 @@ export default function BrandRow({
     const enabled = uniqLangs(
       langUi?.enabledLanguages?.length ? langUi.enabledLanguages : ["ru", "uz"],
     );
+
     const labels: Record<LangKey, string> = {
       ru: (langUi?.labels?.ru ?? "RU").toString(),
       uz: (langUi?.labels?.uz ?? "UZ").toString(),
     };
+
     return { show, enabled, labels };
   }, [langUi]);
 
   const canShowLang = langUiResolved.show && langUiResolved.enabled.length > 0;
 
   return (
-    <div className="py-1.5 md:py-2.5">
-      <div className="mx-auto w-full max-w-[1200px] px-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
+    <div className="w-full max-w-full overflow-x-clip py-1.5 md:py-2.5">
+      <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
+        <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden md:flex-row md:items-center md:justify-between md:gap-0 md:overflow-visible">
           {/* LEFT */}
-          <div className="flex items-center justify-between md:w-[360px] md:justify-start md:gap-4">
-            <div className="text-[11px] md:text-[12px] tracking-[0.20em] text-black/45 whitespace-nowrap">
+          <div className="flex min-w-0 max-w-full items-center justify-between gap-3 md:w-[360px] md:justify-start md:gap-4">
+            <div className="min-w-0 truncate text-[11px] tracking-[0.20em] text-black/45 md:text-[12px]">
               {tt("header.pickRegion", "Выберите регион")}
             </div>
 
@@ -173,10 +179,10 @@ export default function BrandRow({
           </div>
 
           {/* CENTER */}
-          <div className="text-center md:flex-1">
+          <div className="min-w-0 text-center md:flex-1">
             <Link
               href="/"
-              className="inline-flex items-center justify-center cursor-pointer"
+              className="inline-flex max-w-full items-center justify-center cursor-pointer"
             >
               <Image
                 src="/logo-lioneto.png"
@@ -184,15 +190,15 @@ export default function BrandRow({
                 width={265}
                 height={45}
                 priority
-                className="transition-transform duration-300 hover:scale-[1.03]"
+                className="h-auto max-w-[78vw] transition-transform duration-300 hover:scale-[1.03] md:max-w-[265px]"
               />
             </Link>
 
             {/* MOBILE DEALER LINK */}
-            <div className="mt-4 flex items-center justify-between md:hidden">
+            <div className="mt-4 flex min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden md:hidden">
               <DealerLink />
 
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 <IconBtn
                   label={tt("header.ariaAccount", "Кабинет")}
                   href={accountHref}
@@ -200,7 +206,7 @@ export default function BrandRow({
                   <User className="h-5 w-5" />
                 </IconBtn>
 
-                <div className="relative">
+                <div className="relative shrink-0">
                   <IconBtn
                     label={tt("header.ariaFavorites", "Избранное")}
                     href="/favorites"
@@ -215,7 +221,7 @@ export default function BrandRow({
                   )}
                 </div>
 
-                <div className="relative">
+                <div className="relative shrink-0">
                   <IconBtn
                     label={tt("header.ariaCart", "Корзина")}
                     href="/cart"
@@ -280,7 +286,7 @@ export default function BrandRow({
               <User className="h-5 w-5" />
             </IconBtn>
 
-            <div className="relative">
+            <div className="relative shrink-0">
               <IconBtn
                 label={tt("header.ariaFavorites", "Избранное")}
                 href="/favorites"
@@ -295,7 +301,7 @@ export default function BrandRow({
               )}
             </div>
 
-            <div className="relative">
+            <div className="relative shrink-0">
               <IconBtn label={tt("header.ariaCart", "Корзина")} href="/cart">
                 <ShoppingCart className="h-5 w-5" />
               </IconBtn>

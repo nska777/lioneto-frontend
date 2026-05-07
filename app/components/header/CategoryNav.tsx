@@ -14,6 +14,7 @@ function cn(...s: Array<string | false | null | undefined>) {
 
 function chunkColumns(items: MegaItem[], cols: number) {
   const perCol = Math.ceil(items.length / cols);
+
   return Array.from({ length: cols }, (_, i) =>
     items.slice(i * perCol, (i + 1) * perCol),
   ).filter((c) => c.length);
@@ -25,7 +26,6 @@ function safeStr(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
-// ✅ FIX: accept MegaItem[] | undefined | null (so activeCat?.items is valid)
 function safeItems(items: MegaItem[] | undefined | null): MegaItem[] {
   return Array.isArray(items) ? items : [];
 }
@@ -35,7 +35,7 @@ export default function CategoryNav({
   dict,
 }: {
   categories: MegaCategory[];
-  dict: Dict; // i18n словарь (ru/uz)
+  dict: Dict;
 }) {
   const [active, setActive] = useState<MegaKey | null>(null);
   const open = active !== null;
@@ -46,7 +46,6 @@ export default function CategoryNav({
   const menuOuterRef = useRef<HTMLDivElement | null>(null);
   const menuPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // hover-intent
   const hoverTimer = useRef<number | null>(null);
 
   const activeCat = useMemo(
@@ -56,8 +55,10 @@ export default function CategoryNav({
 
   const colsCount = useMemo(() => {
     const n = safeItems(activeCat?.items ?? undefined).length;
+
     if (n <= 6) return 3;
     if (n <= 10) return 4;
+
     return 5;
   }, [activeCat]);
 
@@ -69,6 +70,7 @@ export default function CategoryNav({
   const moveIndicatorTo = (el: HTMLElement | null, immediate = false) => {
     const ind = indicatorRef.current;
     const nav = navRef.current;
+
     if (!ind || !nav) return;
 
     if (!el) {
@@ -77,6 +79,7 @@ export default function CategoryNav({
         duration: immediate ? 0 : 0.2,
         ease: "power2.out",
       });
+
       return;
     }
 
@@ -101,6 +104,7 @@ export default function CategoryNav({
 
   const openWithDelay = (key: MegaKey, el: HTMLElement) => {
     cancelHoverOpen();
+
     hoverTimer.current = window.setTimeout(() => {
       setActive(key);
       moveIndicatorTo(el, false);
@@ -110,29 +114,30 @@ export default function CategoryNav({
   useLayoutEffect(() => {
     const panel = menuPanelRef.current;
     const outer = menuOuterRef.current;
+
     if (!panel || !outer) return;
 
     const ctx = gsap.context(() => {
       if (open) {
         gsap.set(outer, { pointerEvents: "auto" });
+
         gsap.fromTo(
           panel,
-          { autoAlpha: 0, y: 10, filter: "blur(10px)" },
+          { autoAlpha: 0, y: 10 },
           {
             autoAlpha: 1,
             y: 0,
-            filter: "blur(0px)",
-            duration: 0.28,
-            ease: "power3.out",
+            duration: 0.22,
+            ease: "power2.out",
           },
         );
       } else {
         gsap.set(outer, { pointerEvents: "none" });
+
         gsap.to(panel, {
           autoAlpha: 0,
           y: 8,
-          filter: "blur(10px)",
-          duration: 0.2,
+          duration: 0.16,
           ease: "power2.out",
         });
       }
@@ -162,12 +167,16 @@ export default function CategoryNav({
   const activeItems = safeItems(activeCat?.items ?? undefined);
 
   return (
-    <div className="w-full bg-[#f3f3f3]  border-black/10">
-      <div className="mx-auto w-full max-w-[1200px] px-4">
-        <div ref={navWrapRef} className="relative" onMouseLeave={onNavLeave}>
+    <div className="w-full max-w-full overflow-x-clip bg-[#f3f3f3] border-black/10">
+      <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
+        <div
+          ref={navWrapRef}
+          className="relative min-w-0 max-w-full"
+          onMouseLeave={onNavLeave}
+        >
           {/* DESKTOP */}
           <div ref={navRef} className="relative hidden md:block">
-            <div className="flex h-16 items-center justify-between text-[15px] tracking-[0.12em] text-black/70">
+            <div className="flex h-16 min-w-0 items-center justify-between gap-4 overflow-hidden text-[15px] tracking-[0.12em] text-black/70">
               {categories.map((c) => {
                 const isActive = c.key === active;
                 const label = catLabel(c);
@@ -180,7 +189,7 @@ export default function CategoryNav({
                     onMouseLeave={cancelHoverOpen}
                     onFocus={(e) => openWithDelay(c.key, e.currentTarget)}
                     className={cn(
-                      "py-2 transition select-none cursor-pointer",
+                      "min-w-0 truncate py-2 transition select-none cursor-pointer",
                       isActive ? "text-black" : "hover:text-black",
                     )}
                     aria-label={label}
@@ -198,38 +207,52 @@ export default function CategoryNav({
           </div>
 
           {/* MOBILE */}
-          <div className="md:hidden">
-            <div className="flex h-14 items-center gap-6 overflow-x-auto whitespace-nowrap text-[13px] tracking-[0.16em] text-black/70">
-              {categories.map((c) => {
-                const label = catLabel(c);
-                return (
-                  <button
-                    key={c.key}
-                    type="button"
-                    onClick={() =>
-                      setActive((prev) => (prev === c.key ? null : c.key))
-                    }
-                    className={cn(
-                      "cursor-pointer py-2 transition",
-                      active === c.key ? "text-black" : "hover:text-black",
-                    )}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+          <div className="min-w-0 max-w-full md:hidden">
+            <div className="-mx-4 max-w-[100vw] overflow-hidden">
+              <div
+                className={cn(
+                  "flex h-14 max-w-full items-center gap-6 overflow-x-auto overflow-y-hidden whitespace-nowrap px-4",
+                  "text-[13px] tracking-[0.16em] text-black/70",
+                  "no-scrollbar overscroll-x-contain",
+                )}
+                style={{
+                  WebkitOverflowScrolling: "touch",
+                  touchAction: "pan-x pan-y",
+                }}
+              >
+                {categories.map((c) => {
+                  const label = catLabel(c);
+
+                  return (
+                    <button
+                      key={c.key}
+                      type="button"
+                      onClick={() =>
+                        setActive((prev) => (prev === c.key ? null : c.key))
+                      }
+                      className={cn(
+                        "shrink-0 cursor-pointer py-2 transition",
+                        active === c.key ? "text-black" : "hover:text-black",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {open && activeCat && (
-              <div className="pb-4">
+              <div className="max-w-full overflow-hidden pb-4">
                 <div className="rounded-none bg-[#f3f3f3] shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-                  <div className="pl-2 mb-3 flex items-center justify-between">
-                    <div className="text-[12px] tracking-[0.18em] text-black/50">
+                  <div className="mb-3 flex items-center justify-between pl-2">
+                    <div className="min-w-0 truncate text-[12px] tracking-[0.18em] text-black/50">
                       {activeCatTitle}
                     </div>
+
                     <button
                       type="button"
-                      className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full hover:bg-black/5 transition"
+                      className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-black/5 transition"
                       onClick={() => setActive(null)}
                       aria-label="Close"
                     >
@@ -237,15 +260,15 @@ export default function CategoryNav({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid max-w-full grid-cols-2 gap-2 overflow-hidden">
                     {activeItems.map((it) => (
                       <Link
                         key={it.href}
                         href={it.href}
                         onClick={() => setActive(null)}
-                        className="cursor-pointer rounded-xl px-3 py-2 text-[13px] text-black/75 hover:bg-black/5 transition"
+                        className="min-w-0 cursor-pointer rounded-xl px-3 py-2 text-[13px] text-black/75 hover:bg-black/5 transition"
                       >
-                        {itemLabel(it)}
+                        <span className="block truncate">{itemLabel(it)}</span>
                       </Link>
                     ))}
                   </div>
@@ -254,15 +277,15 @@ export default function CategoryNav({
             )}
           </div>
 
-          {/* DESKTOP MEGA (ТОЛЬКО СПИСКИ, БЕЗ ПРАВОГО БЛОКА) */}
+          {/* DESKTOP MEGA */}
           <div
             ref={menuOuterRef}
-            className="absolute left-0 top-[64px] z-50 hidden w-full pointer-events-none md:block"
+            className="absolute left-0 top-[64px] z-50 hidden w-full max-w-full pointer-events-none md:block"
           >
             <div
               ref={menuPanelRef}
               className={cn(
-                "bg-[#f3f3f3]",
+                "max-w-full overflow-hidden bg-[#f3f3f3]",
                 "border-0 ring-0 outline-none",
                 "shadow-[0_40px_120px_-30px_rgba(0,0,0,0.32),0_12px_30px_10px_rgba(0,0,0,0.15)]",
                 "opacity-0",
@@ -274,9 +297,8 @@ export default function CategoryNav({
               }}
               onMouseEnter={cancelHoverOpen}
             >
-              <div className="px-8 pt-7 pb-8">
+              <div className="px-8 pb-8 pt-7">
                 <div className="grid grid-cols-12 gap-10">
-                  {/* LEFT: списки на всю ширину */}
                   <div className="col-span-12">
                     <div
                       className={cn(
@@ -286,7 +308,7 @@ export default function CategoryNav({
                       )}
                     >
                       {columns.map((col, idx) => (
-                        <div key={`col-${idx}`} className="space-y-3">
+                        <div key={`col-${idx}`} className="min-w-0 space-y-3">
                           {col.map((it) => {
                             const label = itemLabel(it);
 
@@ -296,13 +318,13 @@ export default function CategoryNav({
                                 href={it.href}
                                 onClick={() => setActive(null)}
                                 className={cn(
-                                  "block w-full text-left cursor-pointer",
+                                  "block w-full min-w-0 text-left cursor-pointer",
                                   "text-[14px] tracking-[0.06em]",
                                   "text-black/70 transition-colors duration-200",
                                   "hover:text-[#B9893B]",
                                 )}
                               >
-                                {label}
+                                <span className="block truncate">{label}</span>
                               </Link>
                             );
                           })}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Phone, Menu, X, ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { tF } from "@/i18n";
@@ -25,32 +25,41 @@ function isActive(pathname: string, href: string) {
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
+
 function isString(v: unknown): v is string {
   return typeof v === "string";
 }
+
 function normalizeStr(v: unknown) {
   return String(v ?? "").trim();
 }
+
 function getFirstString(obj: unknown, keys: readonly string[]): string {
   if (!isRecord(obj)) return "";
+
   for (const k of keys) {
     const v = obj[k];
     if (isString(v)) return v;
   }
+
   return "";
 }
+
 function getFirstArray(obj: unknown, keys: readonly string[]): unknown[] {
   if (!isRecord(obj)) return [];
+
   for (const k of keys) {
     const v = obj[k];
     if (Array.isArray(v)) return v;
   }
+
   return [];
 }
 
 function MegaTitle(cat: unknown) {
   return getFirstString(cat, ["title", "label", "name", "fallback", "slug"]);
 }
+
 function MegaItems(cat: unknown): unknown[] {
   return getFirstArray(cat, [
     "items",
@@ -60,6 +69,7 @@ function MegaItems(cat: unknown): unknown[] {
     "collections",
   ]);
 }
+
 function ItemTitle(it: unknown) {
   return getFirstString(it, [
     "title",
@@ -70,6 +80,7 @@ function ItemTitle(it: unknown) {
     "value",
   ]);
 }
+
 function ItemHref(it: unknown) {
   return getFirstString(it, ["href", "url", "to", "link", "path", "valueHref"]);
 }
@@ -145,6 +156,7 @@ function CatalogDropdown({
 
   const cols: MegaCol[] = useMemo(() => {
     const arr = Array.isArray(categories) ? categories : [];
+
     return arr
       .filter(Boolean)
       .slice(0, 6)
@@ -211,12 +223,14 @@ function CatalogDropdown({
         )}
       >
         <span>{label}</span>
+
         <ChevronDown
           className={cn(
             "h-3.5 w-3.5 transition-transform duration-200",
             open ? "rotate-180" : "rotate-0",
           )}
         />
+
         <span
           aria-hidden
           className={cn(
@@ -232,7 +246,7 @@ function CatalogDropdown({
       <div
         ref={panelRef}
         className={cn(
-          "fixed inset-x-0 top-[48px] z-[999] bg-[#f3f3f3]",
+          "fixed inset-x-0 top-[48px] z-[999] max-w-full overflow-x-hidden bg-[#f3f3f3]",
           open
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0",
@@ -241,7 +255,7 @@ function CatalogDropdown({
       >
         <div className="h-[3px] w-full" style={{ backgroundColor: GOLD }} />
 
-        <div className="mx-auto w-full max-w-[1200px] px-4">
+        <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
           <div className="relative py-10">
             <button
               type="button"
@@ -337,11 +351,11 @@ export default function TopBar({
       : (MEGA_FALLBACK as unknown[]);
 
   return (
-    <div className="border-black/10">
-      <div className="mx-auto w-full max-w-[1200px] px-4">
-        <div className="flex h-12 items-center justify-between text-[13px] text-black/80">
+    <div className="w-full max-w-full overflow-x-clip border-black/10">
+      <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
+        <div className="flex h-12 min-w-0 max-w-full items-center justify-between gap-2 overflow-hidden text-[13px] text-black/80">
           <nav className="hidden min-w-0 flex-1 items-center overflow-visible md:flex">
-            <div className="flex items-center gap-5 lg:gap-7 xl:gap-8 overflow-visible">
+            <div className="flex min-w-0 items-center gap-5 overflow-visible lg:gap-7 xl:gap-8">
               {topLinks.map((l) => {
                 const hrefNorm = String(l.href || "").trim();
                 const isCatalog =
@@ -379,7 +393,7 @@ export default function TopBar({
             </div>
           </nav>
 
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex shrink-0 items-center gap-2 md:hidden">
             <button
               className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition hover:bg-black/5"
               onClick={onOpenMobileMenu}
@@ -390,16 +404,19 @@ export default function TopBar({
             </button>
           </div>
 
-          <div className="flex min-w-0 items-center gap-3 md:gap-4 lg:gap-5">
-            <StoresDropdown
-              label={storesLabel}
-              regionTitle={resolvedRegionTitle}
-              addresses={addresses}
-              onPickAddress={onPickAddress}
-            />
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden md:flex-none md:gap-4 md:overflow-visible lg:gap-5">
+            <div className="min-w-0 max-w-[52vw] overflow-hidden md:max-w-none md:overflow-visible">
+              <StoresDropdown
+                label={storesLabel}
+                regionTitle={resolvedRegionTitle}
+                addresses={addresses}
+                onPickAddress={onPickAddress}
+              />
+            </div>
 
-            <div className="hidden items-center gap-2 xl:inline-flex whitespace-nowrap">
+            <div className="hidden items-center gap-2 whitespace-nowrap xl:inline-flex">
               <Phone className="h-4 w-4 opacity-60" />
+
               <a
                 href={`tel:${phone.replace(/\s|\(|\)|-/g, "")}`}
                 className={cn(
@@ -409,6 +426,7 @@ export default function TopBar({
                 )}
               >
                 {phone}
+
                 <span
                   className={cn(
                     "pointer-events-none absolute left-0 -bottom-[0.75px]",
@@ -420,7 +438,9 @@ export default function TopBar({
               </a>
             </div>
 
-            <CallButton label={callCtaLabel} onClick={onOpenCall} />
+            <div className="shrink-0 origin-right scale-[0.9] sm:scale-100 md:scale-100">
+              <CallButton label={callCtaLabel} onClick={onOpenCall} />
+            </div>
           </div>
         </div>
       </div>
