@@ -239,9 +239,7 @@ export default async function RootLayout({
 
             <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
 
-            <IOSOnlyHide>
-              <Footer />
-            </IOSOnlyHide>
+            <Footer />
 
             <IOSOnlyHide>
               <CallWidget />
