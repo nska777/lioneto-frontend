@@ -9,6 +9,7 @@ import { ShopStateProvider } from "./context/shop-state";
 import Header from "./components/Header";
 import Footer from "./components/sections/Footer";
 import CallWidget from "./components/modals/CallWidget";
+import IOSOnlyHide from "./components/system/IOSOnlyHide";
 
 import { getGlobal } from "./lib/strapi";
 
@@ -217,12 +218,14 @@ export default async function RootLayout({
             __html: JSON.stringify(organizationJsonLd),
           }}
         />
+
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(websiteJsonLd),
           }}
         />
+
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -232,10 +235,17 @@ export default async function RootLayout({
 
         <RegionLangProvider>
           <ShopStateProvider>
-            <Header global={global} />
+            <IOSOnlyHide>
+              <Header global={global} />
+            </IOSOnlyHide>
+
             <main className="flex-1">{children}</main>
+
             <Footer />
-            <CallWidget />
+
+            <IOSOnlyHide>
+              <CallWidget />
+            </IOSOnlyHide>
           </ShopStateProvider>
         </RegionLangProvider>
 
