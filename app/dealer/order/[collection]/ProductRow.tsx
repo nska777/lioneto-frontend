@@ -10,7 +10,7 @@ import type {
   DealerProductVariant,
 } from "@/app/lib/dealer/shop";
 import type { ProductDraft } from "./types";
-import { formatMoney, cn } from "./utils";
+import { cn, formatMoney } from "./utils";
 
 type Props = {
   product: DealerProduct;
@@ -36,6 +36,12 @@ type ProductVariantWithMeta = DealerProductVariant & {
 type ProductWithBadgeAndOldPrice = DealerProduct & {
   collectionBadge?: string;
   oldPrice?: Partial<DealerProductPriceMap>;
+  oldPriceUZS?: number;
+  oldPriceRUB?: number;
+  oldPriceKZ?: number;
+  oldPriceTJ?: number;
+  oldPriceKZT?: number;
+  oldPriceTJS?: number;
 };
 
 function formatDealerMoney(value: number, country: DealerCountryCode) {
@@ -76,6 +82,7 @@ function getDisplayArticle(product: DealerProduct, draft: ProductDraft) {
   return (
     variant?.variantSku ||
     variant?.article ||
+    variant?.articleShort ||
     product.articleShort ||
     product.article ||
     "—"
@@ -104,9 +111,39 @@ function getUnitPrice(
 }
 
 function getOldUnitPrice(product: DealerProduct, country: DealerCountryCode) {
-  const oldPrice = (product as ProductWithBadgeAndOldPrice).oldPrice?.[country];
+  const item = product as ProductWithBadgeAndOldPrice;
 
-  return typeof oldPrice === "number" && oldPrice > 0 ? oldPrice : 0;
+  const fromMap = item.oldPrice?.[country];
+
+  if (typeof fromMap === "number" && fromMap > 0) {
+    return fromMap;
+  }
+
+  if (country === "UZ") {
+    return typeof item.oldPriceUZS === "number" && item.oldPriceUZS > 0
+      ? item.oldPriceUZS
+      : 0;
+  }
+
+  if (country === "RU") {
+    return typeof item.oldPriceRUB === "number" && item.oldPriceRUB > 0
+      ? item.oldPriceRUB
+      : 0;
+  }
+
+  if (country === "KZ") {
+    return typeof item.oldPriceKZ === "number" && item.oldPriceKZ > 0
+      ? item.oldPriceKZ
+      : typeof item.oldPriceKZT === "number" && item.oldPriceKZT > 0
+        ? item.oldPriceKZT
+        : 0;
+  }
+
+  return typeof item.oldPriceTJ === "number" && item.oldPriceTJ > 0
+    ? item.oldPriceTJ
+    : typeof item.oldPriceTJS === "number" && item.oldPriceTJS > 0
+      ? item.oldPriceTJS
+      : 0;
 }
 
 function getDiscountPercent(currentPrice: number, oldPrice: number) {
@@ -182,14 +219,14 @@ export default function ProductRow({
           : "border-black/10",
       )}
     >
-      <div className="relative h-[210px] w-full overflow-hidden bg-[#f5f3ef]">
+      <div className="relative h-[210px] w-full overflow-hidden bg-white">
         <button
           type="button"
           onClick={() => {
             if (image) onOpenImagePreview(product);
           }}
           className={cn(
-            "relative block h-full w-full",
+            "relative block h-full w-full bg-white",
             image ? "cursor-zoom-in" : "cursor-default",
           )}
         >
@@ -202,7 +239,7 @@ export default function ProductRow({
               sizes="(max-width: 1024px) 100vw, 360px"
             />
           ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-black/30">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white text-black/30">
               <ImageIcon className="h-7 w-7" />
               <span className="text-[12px] font-medium">Нет фото</span>
             </div>
@@ -221,7 +258,7 @@ export default function ProductRow({
           {badge ? (
             <span
               className={cn(
-                "inline-flex max-w-full truncate rounded-[8px] border px-2.5 py-1 text-[11px] font-semibold leading-none",
+                "inline-flex rounded-[8px] border px-2.5 py-1 text-[11px] font-medium leading-none",
                 getBadgeClasses(badge),
               )}
             >
@@ -229,79 +266,87 @@ export default function ProductRow({
             </span>
           ) : null}
 
-          {hasKit ? (
-            <span className="inline-flex rounded-[8px] border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold leading-none text-amber-700">
-              Комплект
-            </span>
-          ) : null}
-
           {isInCart ? (
-            <span className="inline-flex items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold leading-none text-emerald-700">
+            <span className="inline-flex items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium leading-none text-emerald-700">
               <Check className="h-3 w-3" />В корзине
             </span>
           ) : null}
+
+          {myReservedQty > 0 ? (
+            <span className="inline-flex rounded-[8px] border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium leading-none text-red-700">
+              Бронь: {myReservedQty}
+            </span>
+          ) : null}
         </div>
 
-        <h3 className="line-clamp-2 min-h-[38px] text-[15px] font-semibold leading-[1.25] tracking-[-0.02em] text-black">
+        <h3 className="line-clamp-2 min-h-[44px] text-[15px] font-bold leading-[1.45] tracking-[0.04em] text-black sm:text-[16px]">
           {product.title}
         </h3>
 
-        <div className="mt-2 truncate text-[12px] font-medium text-black/50">
-          Артикул:{" "}
-          <span className="font-semibold text-black/70">{article}</span>
-        </div>
+        <div className="mt-3 space-y-1.5 text-[12px] leading-5 text-black/55">
+          <div>
+            Артикул:{" "}
+            <span className="font-semibold text-black/70">{article}</span>
+          </div>
 
-        <div className="mt-3">
-          <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-            <div className="text-[21px] font-semibold leading-none tracking-[-0.04em] text-black">
-              {formatDealerMoney(totalPrice, country)}
+          {product.size ? (
+            <div>
+              Размер:{" "}
+              <span className="font-medium text-black/65">{product.size}</span>
             </div>
+          ) : null}
 
-            {discountPercent > 0 ? (
-              <div className="pb-[1px] text-[14px] font-semibold leading-none text-black/45 line-through decoration-black/45 decoration-2">
-                {formatDealerMoney(oldTotalPrice, country)}
-              </div>
-            ) : null}
-          </div>
+          {product.color ? (
+            <div>
+              Цвет:{" "}
+              <span className="font-medium text-black/65">{product.color}</span>
+            </div>
+          ) : null}
         </div>
 
-        {myReservedQty > 0 ? (
-          <div className="mt-2 inline-flex rounded-[8px] border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold leading-none text-red-700">
-            Моя бронь: {myReservedQty}
+        <div className="mt-3 flex min-h-[34px] flex-wrap items-end gap-2">
+          <div className="text-[22px] font-bold leading-none text-black">
+            {formatDealerMoney(totalPrice, country)}
           </div>
-        ) : null}
 
-        <div className="mt-4 grid grid-cols-[104px_minmax(0,1fr)] gap-2">
-          <div className="flex h-10 items-center justify-between rounded-full border border-black/10 bg-white px-1.5">
+          {oldTotalPrice > totalPrice ? (
+            <div className="text-[13px] font-semibold leading-none text-black/35 line-through decoration-black/35">
+              {formatDealerMoney(oldTotalPrice, country)}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-4 grid grid-cols-[104px_1fr] gap-2">
+          <div className="inline-flex h-10 items-center justify-between rounded-full border border-black/10 bg-white px-3">
             <button
               type="button"
               onClick={() => onDecreaseQty(product.id)}
-              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-black transition hover:bg-black/5"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-black/65 transition hover:bg-black/[0.04] hover:text-black"
               aria-label="Уменьшить количество"
             >
-              <Minus className="h-3.5 w-3.5" />
+              <Minus className="h-4 w-4" />
             </button>
 
-            <span className="min-w-[24px] text-center text-[13px] font-semibold text-black">
+            <span className="min-w-6 text-center text-[14px] font-semibold text-black">
               {quantity}
             </span>
 
             <button
               type="button"
               onClick={() => onIncreaseQty(product.id)}
-              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-black transition hover:bg-black/5"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-black/65 transition hover:bg-black/[0.04] hover:text-black"
               aria-label="Увеличить количество"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
             </button>
           </div>
 
           <button
             type="button"
             onClick={() => onOpenModal(product)}
-            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[12px] font-semibold tracking-[0.04em] text-black transition hover:border-black/25 hover:bg-black/[0.03]"
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-4 text-[13px] font-semibold text-black transition hover:border-black/20 hover:bg-black/[0.03]"
           >
-            Открыть товар
+            {hasKit ? "Открыть товар" : "Открыть товар"}
           </button>
         </div>
 
@@ -309,13 +354,13 @@ export default function ProductRow({
           type="button"
           onClick={() => onToggleCart(product.id)}
           className={cn(
-            "mt-2 inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-full px-3 text-[12px] font-semibold tracking-[0.04em] transition",
+            "mt-3 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full px-4 text-[13px] font-semibold transition",
             isInCart
-              ? "border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
-              : "border border-black bg-black text-white hover:opacity-90",
+              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+              : "bg-black text-white hover:bg-black/90",
           )}
         >
-          <ShoppingCart className="h-3.5 w-3.5" />
+          <ShoppingCart className="h-4 w-4" />
           {isInCart ? "Убрать из корзины" : "Добавить в корзину"}
         </button>
       </div>
