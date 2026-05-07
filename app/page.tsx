@@ -14,9 +14,6 @@ import SupplyNewsSection from "./components/home/SupplyNewsSection";
 import { supplyNewsMock } from "./mocks/supplyNews";
 import NewsletterCta from "./components/home/NewsletterCta";
 
-import IOSHeavySectionGate from "./components/system/IOSHeavySectionGate";
-import IOSHomeDebugOnly from "./components/system/IOSHomeDebugOnly";
-
 import { COLLECTIONS_SLIDER_MOCK } from "./lib/mock/collections-slider";
 import { fetchNews } from "./lib/strapi/news";
 
@@ -261,148 +258,147 @@ export default async function Page() {
       : (supplyNewsMock as any);
 
   return (
-    <IOSHomeDebugOnly>
-      <>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(homePageJsonLd),
-          }}
-        />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(homePageJsonLd),
+        }}
+      />
 
-        <main className="min-w-0 overflow-x-hidden">
-          <GSAPHeroSlider />
+      <main className="min-w-0 overflow-x-hidden">
+        <GSAPHeroSlider />
 
-          <IOSHeavySectionGate>
-            <BestSellers products={hitProducts} />
-            <BestPrice products={bestProducts} />
-            <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
-            <SupplyNewsSection items={newsItems} />
-          </IOSHeavySectionGate>
+        <BestSellers products={hitProducts} />
 
-          <AboutCompany />
+        <BestPrice products={bestProducts} />
 
-          <NewsletterCta backgroundUrl="/images/home/newsletter-bg.jpg" />
+        <AboutCompany />
 
-          <section className="border-t border-black/10 bg-white text-black">
-            <div className="mx-auto w-full max-w-[1200px] px-4 py-12 md:py-16">
-              <div className="max-w-4xl">
-                <h2 className="text-[28px] font-semibold tracking-[-0.02em] md:text-[40px]">
-                  Популярные коллекции Lioneto в Ташкенте
-                </h2>
+        <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
 
-                <p className="mt-4 text-[15px] leading-7 text-black/70 md:text-[17px]">
-                  Откройте популярные коллекции мебели Lioneto и перейдите к
-                  актуальным подборкам внутри каталога. Эти страницы помогают
-                  быстрее найти нужный стиль, коллекцию и мебель для спальни или
-                  интерьера.
+        <SupplyNewsSection items={newsItems} />
+
+        <NewsletterCta backgroundUrl="/images/home/newsletter-bg.jpg" />
+
+        <section className="border-t border-black/10 bg-white text-black">
+          <div className="mx-auto w-full max-w-[1200px] px-4 py-12 md:py-16">
+            <div className="max-w-4xl">
+              <h2 className="text-[28px] font-semibold tracking-[-0.02em] md:text-[40px]">
+                Популярные коллекции Lioneto в Ташкенте
+              </h2>
+
+              <p className="mt-4 text-[15px] leading-7 text-black/70 md:text-[17px]">
+                Откройте популярные коллекции мебели Lioneto и перейдите к
+                актуальным подборкам внутри каталога. Эти страницы помогают
+                быстрее найти нужный стиль, коллекцию и мебель для спальни или
+                интерьера.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {seoCollectionLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-3xl border border-black/10 bg-white p-5 transition hover:border-black/20"
+                >
+                  <div className="text-[12px] tracking-[0.18em] text-black/45">
+                    КОЛЛЕКЦИЯ
+                  </div>
+
+                  <div className="mt-2 text-[20px] font-semibold tracking-[-0.02em]">
+                    {item.label}
+                  </div>
+
+                  <div className="mt-2 text-[14px] leading-6 text-black/70">
+                    {item.text}
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-12 grid gap-4 md:grid-cols-3 md:gap-6">
+              <Link
+                href="/catalog"
+                className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
+              >
+                <div className="text-[12px] tracking-[0.18em] text-black/45">
+                  КАТАЛОГ
+                </div>
+
+                <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+                  Каталог мебели
+                </h3>
+
+                <p className="mt-3 text-[15px] leading-7 text-black/70">
+                  Откройте каталог Lioneto и посмотрите мебель для спальни,
+                  гостиной и других интерьерных зон.
+                </p>
+              </Link>
+
+              <Link
+                href="/contacts"
+                className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
+              >
+                <div className="text-[12px] tracking-[0.18em] text-black/45">
+                  КОНТАКТЫ
+                </div>
+
+                <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+                  Салоны в Ташкенте
+                </h3>
+
+                <p className="mt-3 text-[15px] leading-7 text-black/70">
+                  Адреса магазинов, телефоны, режим работы и карта салонов
+                  Lioneto.
+                </p>
+              </Link>
+
+              <Link
+                href="/news"
+                className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
+              >
+                <div className="text-[12px] tracking-[0.18em] text-black/45">
+                  НОВОСТИ
+                </div>
+
+                <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
+                  Новости и материалы
+                </h3>
+
+                <p className="mt-3 text-[15px] leading-7 text-black/70">
+                  Следите за новостями Lioneto, новыми коллекциями и полезными
+                  материалами по интерьеру.
+                </p>
+              </Link>
+            </div>
+
+            <div className="mt-12 max-w-4xl">
+              <h2 className="text-[28px] font-semibold tracking-[-0.02em] md:text-[40px]">
+                Мебель в Ташкенте
+              </h2>
+
+              <div className="mt-4 space-y-4 text-[15px] leading-7 text-black/70 md:text-[17px]">
+                <p>
+                  Lioneto — премиальная мебель в Ташкенте для современных
+                  интерьеров. На сайте представлены коллекции для спальни,
+                  кровати, шкафы и другие интерьерные решения, которые помогают
+                  собрать цельное и визуально сильное пространство.
+                </p>
+
+                <p>
+                  Если вы ищете мебель в Ташкенте, каталог Lioneto позволяет
+                  быстро перейти к нужным коллекциям, посмотреть фото,
+                  характеристики и открыть карточки товаров. Для удобства выбора
+                  мы также вынесли ссылки на популярные коллекции и страницу
+                  контактов салонов.
                 </p>
               </div>
-
-              <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {seoCollectionLinks.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="rounded-3xl border border-black/10 bg-white p-5 transition hover:border-black/20"
-                  >
-                    <div className="text-[12px] tracking-[0.18em] text-black/45">
-                      КОЛЛЕКЦИЯ
-                    </div>
-
-                    <div className="mt-2 text-[20px] font-semibold tracking-[-0.02em]">
-                      {item.label}
-                    </div>
-
-                    <div className="mt-2 text-[14px] leading-6 text-black/70">
-                      {item.text}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-
-              <div className="mt-12 grid gap-4 md:grid-cols-3 md:gap-6">
-                <Link
-                  href="/catalog"
-                  className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
-                >
-                  <div className="text-[12px] tracking-[0.18em] text-black/45">
-                    КАТАЛОГ
-                  </div>
-
-                  <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
-                    Каталог мебели
-                  </h3>
-
-                  <p className="mt-3 text-[15px] leading-7 text-black/70">
-                    Откройте каталог Lioneto и посмотрите мебель для спальни,
-                    гостиной и других интерьерных зон.
-                  </p>
-                </Link>
-
-                <Link
-                  href="/contacts"
-                  className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
-                >
-                  <div className="text-[12px] tracking-[0.18em] text-black/45">
-                    КОНТАКТЫ
-                  </div>
-
-                  <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
-                    Салоны в Ташкенте
-                  </h3>
-
-                  <p className="mt-3 text-[15px] leading-7 text-black/70">
-                    Адреса магазинов, телефоны, режим работы и карта салонов
-                    Lioneto.
-                  </p>
-                </Link>
-
-                <Link
-                  href="/news"
-                  className="rounded-3xl border border-black/10 p-6 transition hover:border-black/20"
-                >
-                  <div className="text-[12px] tracking-[0.18em] text-black/45">
-                    НОВОСТИ
-                  </div>
-
-                  <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
-                    Новости и материалы
-                  </h3>
-
-                  <p className="mt-3 text-[15px] leading-7 text-black/70">
-                    Следите за новостями Lioneto, новыми коллекциями и полезными
-                    материалами по интерьеру.
-                  </p>
-                </Link>
-              </div>
-
-              <div className="mt-12 max-w-4xl">
-                <h2 className="text-[28px] font-semibold tracking-[-0.02em] md:text-[40px]">
-                  Мебель в Ташкенте
-                </h2>
-
-                <div className="mt-4 space-y-4 text-[15px] leading-7 text-black/70 md:text-[17px]">
-                  <p>
-                    Lioneto — премиальная мебель в Ташкенте для современных
-                    интерьеров. На сайте представлены коллекции для спальни,
-                    кровати, шкафы и другие интерьерные решения, которые
-                    помогают собрать цельное и визуально сильное пространство.
-                  </p>
-
-                  <p>
-                    Если вы ищете мебель в Ташкенте, каталог Lioneto позволяет
-                    быстро перейти к нужным коллекциям, посмотреть фото,
-                    характеристики и открыть карточки товаров. Для удобства
-                    выбора мы также вынесли ссылки на популярные коллекции и
-                    страницу контактов салонов.
-                  </p>
-                </div>
-              </div>
             </div>
-          </section>
-        </main>
-      </>
-    </IOSHomeDebugOnly>
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
