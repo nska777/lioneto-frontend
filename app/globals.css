@@ -185,9 +185,9 @@ button,
 }
 
 /* ===== iOS SCROLL GUARD ===== */
-/* Работает только на iPhone/iPad, когда IOSScrollGuard добавляет классы */
 html.ios-device {
   overflow-x: hidden;
+  scroll-behavior: auto !important;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -196,24 +196,42 @@ html.ios-device body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Во время движения пальцем временно гасим тяжелые эффекты.
-   Это не ломает верстку и не выключает слайдер навсегда. */
-html.ios-device.ios-is-scrolling * {
+/* Во время touch-scroll и momentum-scroll максимально облегчаем Safari */
+html.ios-device.ios-is-scrolling *,
+html.ios-device.ios-is-scrolling *::before,
+html.ios-device.ios-is-scrolling *::after {
   transition-duration: 0s !important;
   transition-delay: 0s !important;
   animation-play-state: paused !important;
+  scroll-behavior: auto !important;
 }
 
-/* Самые тяжелые штуки для Safari — blur/backdrop-filter.
-   Отключаются только во время touch-scroll. */
+/* Самые тяжелые эффекты для iOS Safari */
 html.ios-device.ios-is-scrolling [class*="backdrop-blur"],
+html.ios-device.ios-is-scrolling [class*="blur"],
 html.ios-device.ios-is-scrolling [style*="backdrop-filter"],
-html.ios-device.ios-is-scrolling [style*="-webkit-backdrop-filter"] {
+html.ios-device.ios-is-scrolling [style*="-webkit-backdrop-filter"],
+html.ios-device.ios-is-scrolling [style*="filter"] {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+  filter: none !important;
 }
 
-/* Убираем smooth-scroll на iOS, чтобы Safari не дергал прокрутку */
-html.ios-device {
-  scroll-behavior: auto !important;
+/* На iOS во время скролла тени тоже часто дают микродребезг */
+html.ios-device.ios-is-scrolling [class*="shadow"],
+html.ios-device.ios-is-scrolling [style*="box-shadow"] {
+  box-shadow: none !important;
+}
+
+/* Уменьшаем нагрузку от will-change/transform слоев во время движения */
+html.ios-device.ios-is-scrolling [class*="will-change"],
+html.ios-device.ios-is-scrolling [style*="will-change"] {
+  will-change: auto !important;
+}
+
+/* Плавающие элементы не должны пересчитывать тяжелые эффекты при скролле */
+html.ios-device.ios-is-scrolling .fixed,
+html.ios-device.ios-is-scrolling [class*="fixed"] {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }

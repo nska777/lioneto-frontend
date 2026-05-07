@@ -24,8 +24,9 @@ export default function IOSScrollGuard() {
     root.classList.add("ios-device");
 
     let timer: number | null = null;
+    let lastScrollY = window.scrollY;
 
-    const start = () => {
+    const keepActive = () => {
       root.classList.add("ios-is-scrolling");
 
       if (timer !== null) {
@@ -35,24 +36,40 @@ export default function IOSScrollGuard() {
       timer = window.setTimeout(() => {
         root.classList.remove("ios-is-scrolling");
         timer = null;
-      }, 180);
+      }, 520);
     };
 
-    const stop = () => {
-      if (timer !== null) {
-        window.clearTimeout(timer);
+    const onTouchStart = () => {
+      keepActive();
+    };
+
+    const onTouchMove = () => {
+      keepActive();
+    };
+
+    const onTouchEnd = () => {
+      keepActive();
+    };
+
+    const onScroll = () => {
+      const currentY = window.scrollY;
+
+      if (currentY !== lastScrollY) {
+        lastScrollY = currentY;
+        keepActive();
       }
-
-      timer = window.setTimeout(() => {
-        root.classList.remove("ios-is-scrolling");
-        timer = null;
-      }, 220);
     };
 
-    window.addEventListener("touchstart", start, { passive: true });
-    window.addEventListener("touchmove", start, { passive: true });
-    window.addEventListener("touchend", stop, { passive: true });
-    window.addEventListener("touchcancel", stop, { passive: true });
+    const onPageShow = () => {
+      root.classList.remove("ios-is-scrolling");
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pageshow", onPageShow);
 
     return () => {
       if (timer !== null) {
@@ -62,10 +79,12 @@ export default function IOSScrollGuard() {
       root.classList.remove("ios-device");
       root.classList.remove("ios-is-scrolling");
 
-      window.removeEventListener("touchstart", start);
-      window.removeEventListener("touchmove", start);
-      window.removeEventListener("touchend", stop);
-      window.removeEventListener("touchcancel", stop);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pageshow", onPageShow);
     };
   }, []);
 
