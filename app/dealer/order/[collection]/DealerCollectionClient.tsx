@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
+import { ArrowLeft, Search, ShoppingCart, X } from "lucide-react";
 
 import type {
   DealerCollection,
@@ -55,6 +61,25 @@ type Props = {
   initialCollections: DealerCollection[];
   initialProducts: DealerProduct[];
 };
+
+type LooseModalProps = Record<string, unknown>;
+
+const ProductDetailsModalLoose =
+  ProductDetailsModal as ComponentType<LooseModalProps>;
+const OrderConfirmModalLoose =
+  OrderConfirmModal as ComponentType<LooseModalProps>;
+const OrderSuccessModalLoose =
+  OrderSuccessModal as ComponentType<LooseModalProps>;
+const ReserveOrderModalLoose =
+  ReserveOrderModal as ComponentType<LooseModalProps>;
+const MyReservationsModalLoose =
+  MyReservationsModal as ComponentType<LooseModalProps>;
+const ExtendReservationModalLoose =
+  ExtendReservationModal as ComponentType<LooseModalProps>;
+const ReservationExtendedSuccessModalLoose =
+  ReservationExtendedSuccessModal as ComponentType<LooseModalProps>;
+const ReservationExtendLimitModalLoose =
+  ReservationExtendLimitModal as ComponentType<LooseModalProps>;
 
 type DealerMe = {
   dealerId?: number | null;
@@ -109,6 +134,104 @@ type ReservationExtendMeta = {
   maxExtendHours: number;
 };
 
+type DealerProductVariantWithMeta = {
+  variantSku?: string;
+  article?: string;
+  articleShort?: string;
+  size?: string;
+  material?: string;
+};
+
+type DealerProductWithCatalogMeta = DealerProduct & {
+  moduleSlug?: string;
+  moduleTitle?: string;
+  categorySlug?: string;
+  cat?: string;
+  module?: string;
+};
+
+const MODULE_LABELS: Record<string, string> = {
+  krovat: "Кровати",
+  krovati: "Кровати",
+  shkaf: "Шкафы",
+  shkafy: "Шкафы",
+  tumba: "Тумбы",
+  tumby: "Тумбы",
+  komod: "Комоды",
+  komody: "Комоды",
+  zerkalo: "Зеркала",
+  zerkala: "Зеркала",
+  stol: "Столы",
+  stoli: "Столы",
+  stellaj: "Стеллажи",
+  stellaji: "Стеллажи",
+  puf: "Пуфы",
+  pufi: "Пуфы",
+  vitrina: "Витрины",
+  vitrini: "Витрины",
+  polka: "Полки",
+  polki: "Полки",
+  fasadi: "Фасады",
+  decor: "Декор",
+  dekor: "Декор",
+  other: "Другое",
+};
+
+const MODULE_ORDER = [
+  "krovati",
+  "shkafy",
+  "tumby",
+  "komody",
+  "zerkala",
+  "stoli",
+  "stellaji",
+  "vitrini",
+  "pufi",
+  "polki",
+  "fasadi",
+  "decor",
+  "other",
+];
+
+const MODULE_ICONS: Record<string, string> = {
+  krovati: "▱",
+  shkafy: "▥",
+  tumby: "▣",
+  komody: "▤",
+  zerkala: "◯",
+  stoli: "━",
+  stellaji: "▦",
+  vitrini: "▥",
+  pufi: "●",
+  polki: "▭",
+  fasadi: "▧",
+  decor: "✦",
+  other: "▧",
+};
+
+function normalizeCatalogSlug(value?: string | null) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-");
+
+  if (normalized === "scandy") return "scandi";
+  if (normalized === "tumbi" || normalized === "tumba") return "tumby";
+  if (normalized === "shkaf") return "shkafy";
+  if (normalized === "zerkalo") return "zerkala";
+  if (normalized === "komod") return "komody";
+  if (normalized === "stol") return "stoli";
+  if (normalized === "vitrina") return "vitrini";
+  if (normalized === "puf") return "pufi";
+  if (normalized === "polka") return "polki";
+  if (normalized === "stellaj") return "stellaji";
+  if (normalized === "dekor") return "decor";
+
+  return normalized;
+}
+
 function getProductOptions(product: DealerProduct) {
   const required = product.requiredItems ?? [];
   const recommended = product.recommendedItems ?? [];
@@ -119,6 +242,77 @@ function getProductOptions(product: DealerProduct) {
   }
 
   return legacy;
+}
+
+function getProductModuleSlug(product: DealerProduct) {
+  const item = product as DealerProductWithCatalogMeta;
+
+  const direct = normalizeCatalogSlug(
+    item.moduleSlug || item.categorySlug || item.module || item.cat || "",
+  );
+
+  if (direct && direct !== "other") return direct;
+
+  const haystack =
+    `${product.title} ${product.article} ${product.articleShort ?? ""}`.toLowerCase();
+
+  if (haystack.includes("кровать") || haystack.includes("krovat")) {
+    return "krovati";
+  }
+
+  if (haystack.includes("шкаф") || haystack.includes("shkaf")) {
+    return "shkafy";
+  }
+
+  if (haystack.includes("тумб") || haystack.includes("tumb")) {
+    return "tumby";
+  }
+
+  if (haystack.includes("комод") || haystack.includes("komod")) {
+    return "komody";
+  }
+
+  if (haystack.includes("зеркал") || haystack.includes("zerkal")) {
+    return "zerkala";
+  }
+
+  if (haystack.includes("стеллаж") || haystack.includes("stell")) {
+    return "stellaji";
+  }
+
+  if (haystack.includes("стол") || haystack.includes("stol")) {
+    return "stoli";
+  }
+
+  if (haystack.includes("пуф") || haystack.includes("puf")) {
+    return "pufi";
+  }
+
+  if (haystack.includes("витрин") || haystack.includes("vitr")) {
+    return "vitrini";
+  }
+
+  return "other";
+}
+
+function getProductModuleLabel(product: DealerProduct) {
+  const item = product as DealerProductWithCatalogMeta;
+  const moduleSlug = getProductModuleSlug(product);
+  const explicitTitle = String(item.moduleTitle ?? "").trim();
+
+  return explicitTitle || MODULE_LABELS[moduleSlug] || "Другое";
+}
+
+function getSearchableProductText(product: DealerProduct) {
+  const addons = getProductOptions(product)
+    .map(
+      (addon) => `${addon.title} ${addon.article} ${addon.articleShort ?? ""}`,
+    )
+    .join(" ");
+
+  return `${product.title} ${product.article} ${product.articleShort ?? ""} ${
+    product.color ?? ""
+  } ${product.size ?? ""} ${product.material ?? ""} ${addons}`.toLowerCase();
 }
 
 function normalizeDealerCountryCode(
@@ -162,16 +356,92 @@ function getAddonDraftKey(parentProductId: string, addonId: string) {
   return `${parentProductId}::${addonId}`;
 }
 
+function getVariantMeta(
+  variant:
+    | {
+        variantSku?: string;
+        article?: string;
+        articleShort?: string;
+        size?: string;
+        material?: string;
+      }
+    | null
+    | undefined,
+): DealerProductVariantWithMeta | null {
+  return variant ? (variant as DealerProductVariantWithMeta) : null;
+}
+
+function getVariantArticle(
+  variant:
+    | {
+        variantSku?: string;
+        article?: string;
+      }
+    | null
+    | undefined,
+  fallback: string,
+) {
+  const meta = getVariantMeta(variant);
+  return String(meta?.variantSku || meta?.article || fallback || "").trim();
+}
+
+function getVariantArticleShort(
+  variant:
+    | {
+        variantSku?: string;
+        article?: string;
+        articleShort?: string;
+      }
+    | null
+    | undefined,
+  fallback: string,
+) {
+  const meta = getVariantMeta(variant);
+  return String(
+    meta?.articleShort || meta?.variantSku || meta?.article || fallback || "",
+  ).trim();
+}
+
+function getVariantSize(
+  variant:
+    | {
+        size?: string;
+      }
+    | null
+    | undefined,
+  fallback?: string,
+) {
+  const meta = getVariantMeta(variant);
+  return String(meta?.size || fallback || "").trim() || undefined;
+}
+
+function getVariantColor(
+  variant:
+    | {
+        color?: string;
+        label?: string;
+      }
+    | null
+    | undefined,
+  fallback?: string,
+) {
+  return String(variant?.color || variant?.label || fallback || "").trim();
+}
+
 function getSelectedProductVariant(
   product: DealerProduct,
   draft: ProductDraft | null | undefined,
 ) {
+  const variants = product.variants ?? [];
   const variantKey = draft?.selectedVariantKey ?? "";
 
-  if (!variantKey) return null;
+  if (!variants.length) return null;
+
+  if (!variantKey) return variants[0] ?? null;
 
   return (
-    (product.variants ?? []).find((variant) => variant.key === variantKey) ??
+    variants.find((variant) => variant.key === variantKey) ??
+    variants[0] ??
     null
   );
 }
@@ -202,17 +472,14 @@ function parseReservationNotes(row: ReservationRecord) {
 }
 
 function formatDateTime(value?: string) {
-  if (!value) return "—";
+  if (!value) return "";
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return value;
 
   return new Intl.DateTimeFormat("ru-RU", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+    dateStyle: "short",
+    timeStyle: "short",
   }).format(date);
 }
 
@@ -220,26 +487,42 @@ function buildReservationExtendMeta(rows: ReservationRecord[]) {
   const map = new Map<string, ReservationExtendMeta>();
 
   rows.forEach((row) => {
-    if (row.reservationStatus !== "active") return;
-
-    const reservationNumber = String(
-      row.orderNumber ?? row.documentId ?? row.id,
-    ).trim();
-
-    if (!reservationNumber || map.has(reservationNumber)) return;
+    if (!row.orderNumber) return;
 
     const notes = parseReservationNotes(row);
 
     const initialHours = Math.max(1, Number(notes.initialHours ?? 24));
     const extendedHours = Math.max(0, Number(notes.extendedHours ?? 0));
-    const maxExtendHours = Math.max(0, Number(notes.maxExtendHours ?? 24));
-
-    map.set(reservationNumber, {
-      reservationNumber,
-      reservedUntil: row.reservedUntil,
+    const maxExtendHours = Math.max(
       initialHours,
-      extendedHours,
-      maxExtendHours,
+      Number(notes.maxExtendHours ?? initialHours),
+    );
+
+    const current = map.get(row.orderNumber);
+
+    if (!current) {
+      map.set(row.orderNumber, {
+        reservationNumber: row.orderNumber,
+        reservedUntil: row.reservedUntil,
+        initialHours,
+        extendedHours,
+        maxExtendHours,
+      });
+      return;
+    }
+
+    const currentTime = new Date(current.reservedUntil).getTime();
+    const rowTime = new Date(row.reservedUntil).getTime();
+
+    map.set(row.orderNumber, {
+      reservationNumber: row.orderNumber,
+      reservedUntil:
+        Number.isFinite(rowTime) && rowTime > currentTime
+          ? row.reservedUntil
+          : current.reservedUntil,
+      initialHours: Math.max(current.initialHours, initialHours),
+      extendedHours: Math.max(current.extendedHours, extendedHours),
+      maxExtendHours: Math.max(current.maxExtendHours, maxExtendHours),
     });
   });
 
@@ -247,117 +530,68 @@ function buildReservationExtendMeta(rows: ReservationRecord[]) {
 }
 
 function groupReservationOrders(rows: ReservationRecord[]): ReservationOrder[] {
-  const activeRows = rows.filter((item) => item.reservationStatus === "active");
-  const groups = new Map<string, ReservationRecord[]>();
+  const grouped = new Map<string, ReservationOrder>();
 
-  activeRows.forEach((row) => {
-    const key = String(row.orderNumber ?? row.documentId ?? row.id).trim();
-    if (!key) return;
+  rows
+    .filter((row) => row.reservationStatus === "active")
+    .forEach((row) => {
+      const reservationNumber =
+        row.orderNumber || row.documentId || row.id || "reservation";
 
-    const list = groups.get(key) ?? [];
-    list.push(row);
-    groups.set(key, list);
-  });
+      const current = grouped.get(reservationNumber);
 
-  return Array.from(groups.entries())
-    .map(([reservationNumber, items]) => {
-      const normalizedItems: CartEntry[] = items.map((row) => {
-        const meta = parseReservationNotes(row);
-
-        if (meta.kind === "addon") {
-          return {
-            kind: "addon",
-            id: String(row.documentId ?? row.id),
-            parentProductId: meta.parentProductId ?? "",
-            addonId: row.productId,
-            addonKind: meta.addonKind,
-            addonSelectionType: meta.addonSelectionType,
-            parentProductTitle: meta.parentProductTitle,
-            collectionSlug: row.collectionTitle ?? "",
-            title: row.productTitle,
-            article: row.productArticle ?? "",
-            articleShort: meta.articleShort ?? "",
-            color: meta.color ?? "",
-            size: meta.size ?? "",
-            quantity: Math.max(1, Number(row.quantity ?? 1)),
-            markupPercent: 0,
-            unitBasePrice: Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0),
-            unitFinalPrice: Number(
-              meta.unitFinalPrice ?? row.snapshotPrice ?? 0,
-            ),
-            totalBasePrice: Number(meta.totalBasePrice ?? 0),
-            totalFinalPrice: Number(meta.totalFinalPrice ?? 0),
-            isReserved: true,
-            reservedUntil: row.reservedUntil,
-            reservationId: row.documentId ?? row.id,
-          };
-        }
-
-        return {
-          kind: "product",
-          id: row.productId,
-          productId: row.productId,
-          collectionSlug: row.collectionTitle ?? "",
-          title: row.productTitle,
-          article: row.productArticle ?? "",
-          articleShort: meta.articleShort ?? "",
-          color: meta.color ?? "",
-          size: meta.size ?? "",
-          quantity: Math.max(1, Number(row.quantity ?? 1)),
-          markupPercent: 0,
-          unitBasePrice: Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0),
-          unitFinalPrice: Number(meta.unitFinalPrice ?? row.snapshotPrice ?? 0),
-          totalBasePrice:
-            Number(meta.totalBasePrice ?? 0) ||
-            Number(meta.unitBasePrice ?? row.snapshotPrice ?? 0) *
-              Math.max(1, Number(row.quantity ?? 1)),
-          totalFinalPrice:
-            Number(meta.totalFinalPrice ?? 0) ||
-            Number(meta.unitFinalPrice ?? row.snapshotPrice ?? 0) *
-              Math.max(1, Number(row.quantity ?? 1)),
-          isReserved: true,
-          reservedUntil: row.reservedUntil,
-          reservationId: row.documentId ?? row.id,
-        };
-      });
-
-      const productItems = normalizedItems.filter(
-        (item): item is Extract<CartEntry, { kind: "product" }> =>
-          item.kind === "product",
-      );
-
-      const totalQty = productItems.reduce(
-        (sum, item) => sum + item.quantity,
-        0,
-      );
-
-      const subtotal = productItems.reduce(
-        (sum, item) => sum + item.totalBasePrice,
-        0,
-      );
-
-      const reservedUntil = items.reduce((max, row) => {
-        if (!max) return row.reservedUntil;
-
-        return new Date(row.reservedUntil).getTime() > new Date(max).getTime()
-          ? row.reservedUntil
-          : max;
-      }, "");
-
-      return {
-        reservationNumber,
-        createdAt: items[0]?.reservedUntil ?? new Date().toISOString(),
-        reservedUntil,
-        items: normalizedItems,
-        totalQty,
-        subtotal,
+      const item = {
+        kind: "product" as const,
+        id: row.documentId || row.id,
+        productId: row.productId,
+        collectionSlug: "",
+        title: row.productTitle,
+        article: row.productArticle || "",
+        quantity: Math.max(1, Number(row.quantity ?? 1)),
+        markupPercent: 0,
+        unitBasePrice: Math.max(0, Number(row.snapshotPrice ?? 0)),
+        unitFinalPrice: Math.max(0, Number(row.snapshotPrice ?? 0)),
+        totalBasePrice:
+          Math.max(1, Number(row.quantity ?? 1)) *
+          Math.max(0, Number(row.snapshotPrice ?? 0)),
+        totalFinalPrice:
+          Math.max(1, Number(row.quantity ?? 1)) *
+          Math.max(0, Number(row.snapshotPrice ?? 0)),
+        isReserved: true,
+        reservationId: row.documentId || row.id,
+        reservedUntil: row.reservedUntil,
       };
-    })
-    .sort(
-      (a, b) =>
-        new Date(b.reservedUntil).getTime() -
-        new Date(a.reservedUntil).getTime(),
+
+      if (!current) {
+        grouped.set(reservationNumber, {
+          reservationNumber,
+          createdAt: new Date().toISOString(),
+          reservedUntil: row.reservedUntil,
+          items: [item],
+          totalQty: item.quantity,
+          subtotal: item.totalFinalPrice,
+        });
+
+        return;
+      }
+
+      current.items.push(item);
+      current.totalQty += item.quantity;
+      current.subtotal += item.totalFinalPrice;
+
+      const currentUntil = new Date(current.reservedUntil).getTime();
+      const rowUntil = new Date(row.reservedUntil).getTime();
+
+      if (Number.isFinite(rowUntil) && rowUntil > currentUntil) {
+        current.reservedUntil = row.reservedUntil;
+      }
+    });
+
+  return Array.from(grouped.values()).sort((a, b) => {
+    return (
+      new Date(a.reservedUntil).getTime() - new Date(b.reservedUntil).getTime()
     );
+  });
 }
 
 export default function DealerCollectionClient({
@@ -373,6 +607,9 @@ export default function DealerCollectionClient({
   const searchParams = useSearchParams();
 
   const [country, setCountry] = useState<DealerCountryCode>("UZ");
+  const [productQuery, setProductQuery] = useState("");
+  const [activeModuleSlug, setActiveModuleSlug] = useState("all");
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [dealerMe, setDealerMe] = useState<DealerMe | null>(null);
   const [drafts, setDrafts] = useState<Record<string, ProductDraft>>({});
   const [addonDrafts, setAddonDrafts] = useState<Record<string, AddonDraft>>(
@@ -389,7 +626,6 @@ export default function DealerCollectionClient({
   const [isHydrated, setIsHydrated] = useState(false);
   const [confirmOrder, setConfirmOrder] = useState<DealerOrder | null>(null);
   const [successOrder, setSuccessOrder] = useState<DealerOrder | null>(null);
-  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [draftOrderNumber, setDraftOrderNumber] = useState("");
 
   const [reservationsMap, setReservationsMap] = useState<ReservationMap>({});
@@ -470,7 +706,8 @@ export default function DealerCollectionClient({
         reservations?: ReservationRecord[];
       };
 
-      const rows = data.reservations ?? [];
+      const rows = Array.isArray(data.reservations) ? data.reservations : [];
+
       setReservationsMap(buildReservationMap(rows));
       setReservationOrders(groupReservationOrders(rows));
       setReservationExtendMeta(buildReservationExtendMeta(rows));
@@ -482,52 +719,33 @@ export default function DealerCollectionClient({
   }
 
   useEffect(() => {
-    let cancelled = false;
+    syncReservations();
+  }, []);
 
+  useEffect(() => {
     async function loadDealerMe() {
       try {
-        const res = await fetch("/api/dealer/auth/me", {
-          method: "GET",
-          credentials: "include",
+        const res = await fetch("/api/dealer/me", {
           cache: "no-store",
+          credentials: "include",
         });
 
         if (!res.ok) return;
 
         const data = (await res.json()) as DealerMeResponse;
-        const dealer = data?.dealer;
-
-        if (!dealer || cancelled) return;
+        const dealer = data.dealer ?? null;
 
         setDealerMe(dealer);
         setCountry(
-          normalizeDealerCountryCode(
-            dealer.countryCode ?? null,
-            dealer.region ?? null,
-          ),
+          normalizeDealerCountryCode(dealer?.countryCode, dealer?.region),
         );
-
-        setDraftOrderNumber((prev) => {
-          if (prev) return prev;
-          return generateOrderNumber(dealer.login ?? "");
-        });
       } catch {
-        // fallback остается UZ
+        // ignore
       }
     }
 
     loadDealerMe();
-    syncReservations();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
-
-  useEffect(() => {
-    if (!dealerMe?.documentId) return;
-    syncReservations();
-  }, [dealerMe?.documentId]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -561,11 +779,66 @@ export default function DealerCollectionClient({
     });
   }, [allProducts, reservationsMap]);
 
-  const currentCollectionProducts = useMemo(() => {
-    return allProductsWithStock.filter(
-      (product) => product.collectionSlug === safeCollection.slug,
-    );
+  const currentCollectionAllProducts = useMemo(() => {
+    const activeSlug = normalizeCatalogSlug(safeCollection.slug);
+
+    return allProductsWithStock.filter((product) => {
+      return normalizeCatalogSlug(product.collectionSlug) === activeSlug;
+    });
   }, [allProductsWithStock, safeCollection.slug]);
+
+  const moduleTabs = useMemo(() => {
+    const map = new Map<
+      string,
+      { slug: string; label: string; count: number }
+    >();
+
+    currentCollectionAllProducts.forEach((product) => {
+      const slug = getProductModuleSlug(product);
+      const label = getProductModuleLabel(product);
+      const current = map.get(slug);
+
+      map.set(slug, {
+        slug,
+        label,
+        count: (current?.count ?? 0) + 1,
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      const orderA = MODULE_ORDER.indexOf(a.slug);
+      const orderB = MODULE_ORDER.indexOf(b.slug);
+
+      if (orderA !== -1 || orderB !== -1) {
+        return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
+      }
+
+      return a.label.localeCompare(b.label, "ru");
+    });
+  }, [currentCollectionAllProducts]);
+
+  useEffect(() => {
+    if (activeModuleSlug === "all") return;
+
+    const exists = moduleTabs.some((tab) => tab.slug === activeModuleSlug);
+    if (!exists) setActiveModuleSlug("all");
+  }, [activeModuleSlug, moduleTabs]);
+
+  const currentCollectionProducts = useMemo(() => {
+    const query = productQuery.trim().toLowerCase();
+
+    return currentCollectionAllProducts.filter((product) => {
+      if (activeModuleSlug !== "all") {
+        if (getProductModuleSlug(product) !== activeModuleSlug) return false;
+      }
+
+      if (query) {
+        if (!getSearchableProductText(product).includes(query)) return false;
+      }
+
+      return true;
+    });
+  }, [activeModuleSlug, currentCollectionAllProducts, productQuery]);
 
   const allProductsById = useMemo(() => {
     return new Map(
@@ -599,14 +872,6 @@ export default function DealerCollectionClient({
     return drafts[productId] ?? getDefaultDraft();
   }
 
-  function getAddonDraftByKey(draftKey: string): AddonDraft {
-    return addonDrafts[draftKey] ?? getDefaultAddonDraft();
-  }
-
-  function getAddonDraft(parentProductId: string, addonId: string): AddonDraft {
-    return getAddonDraftByKey(getAddonDraftKey(parentProductId, addonId));
-  }
-
   function updateDraft(
     productId: string,
     updater: (prev: ProductDraft) => ProductDraft,
@@ -621,36 +886,13 @@ export default function DealerCollectionClient({
     });
   }
 
-  function handleSelectProductVariant(
-    productId: string,
-    variantKey: string,
-    color: string,
-  ) {
-    setDrafts((prev) => {
-      const current = prev[productId] ?? getDefaultDraft();
-
-      if (
-        current.selectedVariantKey === variantKey &&
-        current.selectedColor === color
-      ) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [productId]: {
-          ...current,
-          selectedVariantKey: variantKey,
-          selectedColor: color,
-        },
-      };
-    });
-  }
-
-  function updateAddonDraftByKey(
-    draftKey: string,
+  function updateAddonDraft(
+    parentProductId: string,
+    addonId: string,
     updater: (prev: AddonDraft) => AddonDraft,
   ) {
+    const draftKey = getAddonDraftKey(parentProductId, addonId);
+
     setAddonDrafts((prev) => {
       const current = prev[draftKey] ?? getDefaultAddonDraft();
 
@@ -661,36 +903,30 @@ export default function DealerCollectionClient({
     });
   }
 
-  function handleSelectAddonVariant(
-    parentProductId: string,
+  function handleSelectProductVariant(
+    productId: string,
+    variantKey: string,
+    color: string,
+  ) {
+    updateDraft(productId, (prev) => ({
+      ...prev,
+      selectedVariantKey: variantKey,
+      selectedColor: color,
+    }));
+  }
+
+  function handleSelectedProductSelectAddonVariant(
     addonId: string,
     variantKey: string,
     color: string,
   ) {
-    const draftKey = getAddonDraftKey(parentProductId, addonId);
+    if (!selectedProduct) return;
 
-    updateAddonDraftByKey(draftKey, (prev) => {
-      if (
-        prev.selectedVariantKey === variantKey &&
-        prev.selectedColor === color
-      ) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        selectedVariantKey: variantKey,
-        selectedColor: color,
-      };
-    });
-  }
-
-  function updateAddonDraft(
-    parentProductId: string,
-    addonId: string,
-    updater: (prev: AddonDraft) => AddonDraft,
-  ) {
-    updateAddonDraftByKey(getAddonDraftKey(parentProductId, addonId), updater);
+    updateAddonDraft(selectedProduct.id, addonId, (prev) => ({
+      ...prev,
+      selectedVariantKey: variantKey,
+      selectedColor: color,
+    }));
   }
 
   function handleIncreaseQty(productId: string) {
@@ -703,244 +939,60 @@ export default function DealerCollectionClient({
   function handleDecreaseQty(productId: string) {
     updateDraft(productId, (prev) => ({
       ...prev,
-      quantity: prev.quantity > 1 ? prev.quantity - 1 : 1,
+      quantity: Math.max(1, prev.quantity - 1),
     }));
   }
 
-  function handleIncreaseAddonQtyByKey(draftKey: string) {
-    updateAddonDraftByKey(draftKey, (prev) => ({
+  function handleSelectedProductIncreaseAddonQty(addonId: string) {
+    if (!selectedProduct) return;
+
+    updateAddonDraft(selectedProduct.id, addonId, (prev) => ({
       ...prev,
       quantity: prev.quantity + 1,
+      isInCart: true,
     }));
   }
 
-  function handleDecreaseAddonQtyByKey(draftKey: string) {
-    updateAddonDraftByKey(draftKey, (prev) => ({
+  function handleSelectedProductDecreaseAddonQty(addonId: string) {
+    if (!selectedProduct) return;
+
+    updateAddonDraft(selectedProduct.id, addonId, (prev) => ({
       ...prev,
-      quantity: prev.quantity > 1 ? prev.quantity - 1 : 1,
+      quantity: Math.max(1, prev.quantity - 1),
     }));
   }
 
-  function resetStructuredConstructorDrafts(product: DealerProduct) {
-    const options = getProductOptions(product);
-    if (!options.length) return;
+  function handleSelectedProductToggleAddon(addonId: string, checked: boolean) {
+    if (!selectedProduct) return;
 
-    setAddonDrafts((prev) => {
-      const next = { ...prev };
+    updateAddonDraft(selectedProduct.id, addonId, (prev) => ({
+      ...prev,
+      isInCart: checked,
+      quantity: Math.max(1, prev.quantity),
+    }));
+  }
 
-      options.forEach((addon) => {
-        const draftKey = getAddonDraftKey(product.id, addon.id);
+  function handleSelectedProductToggleAddonCart(addonId: string) {
+    if (!selectedProduct) return;
 
-        next[draftKey] = {
-          quantity: addon.defaultQuantity ?? 1,
-          isInCart: false,
-          markupPercent: 0,
-          selectedVariantKey: "",
-          selectedColor: "",
-        };
-      });
+    const draftKey = getAddonDraftKey(selectedProduct.id, addonId);
+    const currentDraft = addonDrafts[draftKey] ?? getDefaultAddonDraft();
 
-      return next;
+    handleSelectedProductToggleAddon(addonId, !currentDraft.isInCart);
+  }
+
+  function handleToggleCart(productId: string) {
+    setCartProductIds((prev) => {
+      if (prev.includes(productId)) {
+        return prev.filter((item) => item !== productId);
+      }
+
+      return [...prev, productId];
     });
   }
 
   function handleOpenProductModal(product: DealerProduct) {
-    resetStructuredConstructorDrafts(product);
     setSelectedProduct(product);
-  }
-
-  function handleToggleCart(productId: string) {
-    const product = allProductsById.get(productId);
-
-    if (product) {
-      const requiredItems = product.requiredItems ?? [];
-      const hasRequired = requiredItems.length > 0;
-
-      if (hasRequired) {
-        const hasStructuredConstructor = requiredItems.some((item) =>
-          Boolean(item.groupKey),
-        );
-
-        let canAddProduct = true;
-
-        if (hasStructuredConstructor) {
-          const singleGroupsMap = new Map<
-            string,
-            {
-              key: string;
-              items: typeof requiredItems;
-            }
-          >();
-
-          requiredItems.forEach((item, index) => {
-            if (item.groupSelection !== "single") return;
-
-            const key = item.groupKey?.trim() || `group-${index + 1}`;
-            const existing = singleGroupsMap.get(key);
-
-            if (existing) {
-              existing.items.push(item);
-              return;
-            }
-
-            singleGroupsMap.set(key, {
-              key,
-              items: [item],
-            });
-          });
-
-          const singleGroups = Array.from(singleGroupsMap.values());
-
-          canAddProduct = singleGroups.every((group) => {
-            return group.items.some((item) => {
-              const state = getAddonDraft(product.id, item.id);
-              const minQty = item.minQuantity ?? 1;
-              const qty = Math.max(0, state?.quantity ?? 0);
-
-              return Boolean(state?.isInCart) && qty >= minQty;
-            });
-          });
-        } else {
-          canAddProduct = requiredItems.every((item) => {
-            const state = getAddonDraft(product.id, item.id);
-            const minQty = item.minQuantity ?? 1;
-            const qty = Math.max(0, state?.quantity ?? 0);
-
-            return Boolean(state?.isInCart) && qty >= minQty;
-          });
-        }
-
-        if (!canAddProduct) {
-          setSelectedProduct(product);
-          return;
-        }
-      }
-    }
-
-    setCartProductIds((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId],
-    );
-  }
-
-  function handleToggleAddonCartByKey(draftKey: string) {
-    const entry = allAddonsIndex.get(draftKey);
-    const addon = entry?.addon ?? null;
-
-    updateAddonDraftByKey(draftKey, (prev) => {
-      const nextInCart = !prev.isInCart;
-
-      return {
-        ...prev,
-        isInCart: nextInCart,
-        quantity: nextInCart
-          ? Math.max(
-              prev.quantity || 1,
-              addon?.minQuantity ?? addon?.defaultQuantity ?? 1,
-            )
-          : prev.quantity,
-        markupPercent: 0,
-      };
-    });
-  }
-
-  function handleChooseSingleAddonInGroup(groupKey: string, addonId: string) {
-    if (!selectedProduct) return;
-
-    const options = getProductOptions(selectedProduct);
-    if (!options.length) return;
-
-    setAddonDrafts((prev) => {
-      const next = { ...prev };
-
-      const sameGroupItems = options.filter(
-        (item) =>
-          item.groupKey === groupKey && item.groupSelection === "single",
-      );
-
-      const selectedItem = sameGroupItems.find((item) => item.id === addonId);
-
-      const selectedDraftKey = selectedItem
-        ? getAddonDraftKey(selectedProduct.id, selectedItem.id)
-        : "";
-
-      const selectedCurrent = selectedDraftKey
-        ? (next[selectedDraftKey] ?? getDefaultAddonDraft())
-        : getDefaultAddonDraft();
-
-      const shouldUnselect = Boolean(selectedCurrent.isInCart);
-
-      sameGroupItems.forEach((item) => {
-        const draftKey = getAddonDraftKey(selectedProduct.id, item.id);
-        const current = next[draftKey] ?? getDefaultAddonDraft();
-
-        const nextIsInCart = shouldUnselect ? false : item.id === addonId;
-
-        next[draftKey] = {
-          ...current,
-          isInCart: nextIsInCart,
-          quantity: nextIsInCart
-            ? Math.max(
-                current.quantity || 1,
-                item.minQuantity ?? item.defaultQuantity ?? 1,
-              )
-            : Math.max(1, item.defaultQuantity ?? 1),
-          markupPercent: 0,
-        };
-      });
-
-      return next;
-    });
-  }
-
-  function handleRemoveItem(itemId: string) {
-    if (itemId.includes("::addon::")) {
-      const [parentProductId, addonId] = itemId.split("::addon::");
-
-      if (parentProductId && addonId) {
-        updateAddonDraft(parentProductId, addonId, (prev) => ({
-          ...prev,
-          isInCart: false,
-          markupPercent: 0,
-        }));
-      }
-
-      return;
-    }
-
-    setCartProductIds((prev) => prev.filter((id) => id !== itemId));
-
-    setAddonDrafts((prev) => {
-      const next = { ...prev };
-
-      Object.keys(next).forEach((draftKey) => {
-        if (draftKey.startsWith(`${itemId}::`)) {
-          delete next[draftKey];
-        }
-      });
-
-      return next;
-    });
-  }
-
-  function handleClearCart() {
-    setCartProductIds([]);
-    setAddonDrafts({});
-    setDrafts({});
-    setSelectedProduct(null);
-    setConfirmOrder(null);
-
-    saveCartProductIds([]);
-    saveAddonDrafts({});
-    saveDrafts({});
-  }
-
-  function handleOpenRelatedProduct(productId: string) {
-    const product = allProductsById.get(productId);
-    if (!product) return;
-
-    handleOpenProductModal(product);
   }
 
   function handleOpenImagePreview(product: DealerProduct) {
@@ -952,175 +1004,191 @@ export default function DealerCollectionClient({
     });
   }
 
-  function handleScrollToCart() {
-    cartSidebarRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
+  function handleOpenRelatedProduct(productId: string) {
+    const product = allProductsById.get(productId);
+    if (!product) return;
+
+    setSelectedProduct(product);
+  }
+
+  function handleClearCart() {
+    setCartProductIds([]);
+    setAddonDrafts((prev) => {
+      const next = { ...prev };
+
+      Object.keys(next).forEach((key) => {
+        if (key.includes("::")) {
+          next[key] = {
+            ...next[key],
+            isInCart: false,
+          };
+        }
+      });
+
+      return next;
     });
   }
 
-  const productCartItems = useMemo<CartEntry[]>(() => {
-    return cartProductIds
+  function handleRemoveItem(itemId: string) {
+    if (itemId.startsWith("addon:")) {
+      const parts = itemId.split(":");
+      const parentProductId = parts[1] ?? "";
+      const addonId = parts.slice(2).join(":");
+      const draftKey = getAddonDraftKey(parentProductId, addonId);
+
+      setAddonDrafts((prev) => ({
+        ...prev,
+        [draftKey]: {
+          ...(prev[draftKey] ?? getDefaultAddonDraft()),
+          isInCart: false,
+        },
+      }));
+
+      return;
+    }
+
+    setCartProductIds((prev) => prev.filter((id) => id !== itemId));
+  }
+
+  const cartItems = useMemo<CartEntry[]>(() => {
+    const productItems: CartEntry[] = cartProductIds
       .map((productId) => {
         const product = allProductsById.get(productId);
         if (!product) return null;
 
-        const draft = getDraft(productId);
+        const draft = getDraft(product.id);
         const selectedVariant = getSelectedProductVariant(product, draft);
-        const quantity = Math.max(1, draft.quantity || 1);
+        const variantPrice = selectedVariant?.price?.[country];
+        const unitBasePrice =
+          typeof variantPrice === "number" && variantPrice > 0
+            ? variantPrice
+            : (product.price[country] ?? 0);
 
-        const productUnitPrice =
-          selectedVariant?.price?.[country] ?? product.price[country] ?? 0;
-
-        const selectedColor =
-          draft.selectedColor ||
-          selectedVariant?.label ||
-          getProductColor(product);
-
-        const productOptions = getProductOptions(product);
-
-        const addonsUnitTotal = productOptions.reduce((sum, addon) => {
-          const addonDraft = getAddonDraft(product.id, addon.id);
-          if (!addonDraft?.isInCart) return sum;
-
-          const addonSelectedVariant =
-            (addon.variants ?? []).find(
-              (variant) => variant.key === addonDraft.selectedVariantKey,
-            ) ?? null;
-
-          const addonUnitPrice =
-            addonSelectedVariant?.price?.[country] ?? addon.price[country] ?? 0;
-
-          const addonQty = Math.max(
-            addon.minQuantity ?? 1,
-            addonDraft.quantity || addon.defaultQuantity || 1,
-          );
-
-          return sum + addonUnitPrice * addonQty;
-        }, 0);
-
-        const unitBasePrice = productUnitPrice + addonsUnitTotal;
-        const totalBasePrice = unitBasePrice * quantity;
+        const quantity = Math.max(1, Number(draft.quantity ?? 1));
+        const markupPercent = Math.max(0, Number(draft.markupPercent ?? 0));
+        const unitFinalPrice = Math.round(
+          unitBasePrice * (1 + markupPercent / 100),
+        );
 
         return {
           kind: "product" as const,
-          id: productId,
-          productId,
+          id: product.id,
+          productId: product.id,
           collectionSlug: product.collectionSlug,
           title: product.title,
-          article: product.article ?? "",
-          articleShort: product.articleShort ?? "",
-          color: selectedColor,
-          size: product.size,
+          article:
+            getVariantArticle(selectedVariant, product.article) ||
+            product.article,
+          articleShort:
+            getVariantArticleShort(
+              selectedVariant,
+              product.articleShort || "",
+            ) || product.articleShort,
+          color:
+            draft.selectedColor ||
+            getVariantColor(selectedVariant, getProductColor(product)),
+          size: getVariantSize(selectedVariant, product.size),
           quantity,
-          markupPercent: 0,
+          markupPercent,
           unitBasePrice,
-          unitFinalPrice: unitBasePrice,
-          totalBasePrice,
-          totalFinalPrice: totalBasePrice,
-          isReserved: false,
-          reservedUntil: undefined,
-          reservationId: undefined,
+          unitFinalPrice,
+          totalBasePrice: unitBasePrice * quantity,
+          totalFinalPrice: unitFinalPrice * quantity,
+          isReserved: Boolean(reservationsMap[product.id]),
+          reservationId: reservationsMap[product.id]?.reservationId,
+          reservedUntil: reservationsMap[product.id]?.reservedUntil,
         };
       })
       .filter(Boolean) as CartEntry[];
-  }, [cartProductIds, drafts, country, allProductsById, addonDrafts]);
 
-  const addonCartItems = useMemo<CartEntry[]>(() => {
-    const items: CartEntry[] = [];
+    const addonItems: CartEntry[] = Object.entries(addonDrafts)
+      .filter(([, draft]) => draft.isInCart)
+      .map(([draftKey, draft]) => {
+        const record = allAddonsIndex.get(draftKey);
+        if (!record) return null;
 
-    allProductsWithStock.forEach((product) => {
-      if (!cartProductIds.includes(product.id)) return;
+        const { parentProduct, addon } = record;
 
-      const addons = getProductOptions(product);
-
-      addons.forEach((addon) => {
-        const draftKey = getAddonDraftKey(product.id, addon.id);
-        const addonDraft = getAddonDraftByKey(draftKey);
-
-        if (!addonDraft.isInCart) return;
-
-        const quantity = Math.max(
-          addon.minQuantity ?? 1,
-          addonDraft.quantity || addon.defaultQuantity || 1,
-        );
-
-        const addonSelectedVariant =
-          (addon.variants ?? []).find(
-            (variant) => variant.key === addonDraft.selectedVariantKey,
+        const selectedVariant =
+          addon.variants?.find(
+            (variant) => variant.key === draft.selectedVariantKey,
           ) ?? null;
 
+        const variantPrice = selectedVariant?.price?.[country];
         const unitBasePrice =
-          addonSelectedVariant?.price?.[country] ?? addon.price[country] ?? 0;
+          typeof variantPrice === "number" && variantPrice > 0
+            ? variantPrice
+            : (addon.price[country] ?? 0);
 
-        const totalBasePrice = unitBasePrice * quantity;
-
-        const productDraft = getDraft(product.id);
-        const selectedParentVariant = getSelectedProductVariant(
-          product,
-          productDraft,
+        const quantity = Math.max(1, Number(draft.quantity ?? 1));
+        const markupPercent = Math.max(0, Number(draft.markupPercent ?? 0));
+        const unitFinalPrice = Math.round(
+          unitBasePrice * (1 + markupPercent / 100),
         );
 
-        const selectedColor =
-          addonDraft.selectedColor ||
-          addonSelectedVariant?.label ||
-          addon.color ||
-          productDraft.selectedColor ||
-          selectedParentVariant?.label ||
-          getProductColor(product);
-
-        const baseAddonArticle =
-          addon.article ?? `${product.article} / ${addon.id}`;
-        const baseAddonArticleShort =
-          addon.articleShort ??
-          addon.article ??
-          `${product.article} / ${addon.id}`;
-
-        items.push({
-          kind: "addon",
-          id: getAddonCartId(product.id, addon.id),
-          parentProductId: product.id,
+        return {
+          kind: "addon" as const,
+          id: getAddonCartId(parentProduct.id, addon.id),
+          parentProductId: parentProduct.id,
           addonId: addon.id,
           addonKind: addon.kind,
           addonSelectionType: addon.selectionType,
-          parentProductTitle: product.title,
-          collectionSlug: product.collectionSlug,
+          parentProductTitle: parentProduct.title,
+          collectionSlug: parentProduct.collectionSlug,
           title: addon.title,
-          article: baseAddonArticle,
-          articleShort: baseAddonArticleShort,
-          color: selectedColor,
-          size: addon.size,
+          article:
+            getVariantArticle(selectedVariant, addon.article) || addon.article,
+          articleShort:
+            getVariantArticleShort(selectedVariant, addon.articleShort || "") ||
+            addon.articleShort,
+          color:
+            draft.selectedColor ||
+            getVariantColor(
+              selectedVariant,
+              addon.color || parentProduct.color,
+            ),
+          size: getVariantSize(selectedVariant, addon.size),
           quantity,
-          markupPercent: 0,
+          markupPercent,
           unitBasePrice,
-          unitFinalPrice: unitBasePrice,
-          totalBasePrice,
-          totalFinalPrice: totalBasePrice,
-        });
-      });
+          unitFinalPrice,
+          totalBasePrice: unitBasePrice * quantity,
+          totalFinalPrice: unitFinalPrice * quantity,
+          isReserved: false,
+        };
+      })
+      .filter(Boolean) as CartEntry[];
+
+    return [...productItems, ...addonItems];
+  }, [
+    addonDrafts,
+    allAddonsIndex,
+    allProductsById,
+    cartProductIds,
+    country,
+    drafts,
+    reservationsMap,
+  ]);
+
+  const selectedDraft = selectedProduct ? getDraft(selectedProduct.id) : null;
+
+  const selectedProductAddonDrafts = useMemo(() => {
+    if (!selectedProduct) return {};
+
+    const result: Record<string, AddonDraft> = {};
+
+    getProductOptions(selectedProduct).forEach((addon) => {
+      const draftKey = getAddonDraftKey(selectedProduct.id, addon.id);
+      result[addon.id] = addonDrafts[draftKey] ?? getDefaultAddonDraft();
     });
 
-    return items;
-  }, [addonDrafts, country, allProductsWithStock, drafts, cartProductIds]);
-
-  const cartItems = useMemo(() => {
-    return [...productCartItems, ...addonCartItems];
-  }, [productCartItems, addonCartItems]);
-
-  const reservationOrdersById = useMemo(() => {
-    return new Map(
-      reservationOrders.map((item) => [item.reservationNumber, item]),
-    );
-  }, [reservationOrders]);
+    return result;
+  }, [addonDrafts, selectedProduct]);
 
   const summary = useMemo(() => {
-    const totalQty = productCartItems.reduce(
-      (sum, item) => sum + item.quantity,
-      0,
-    );
-
-    const subtotal = productCartItems.reduce(
-      (sum, item) => sum + item.totalBasePrice,
+    const totalQty = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+    const subtotal = cartItems.reduce(
+      (acc, item) => acc + item.totalFinalPrice,
       0,
     );
 
@@ -1128,223 +1196,129 @@ export default function DealerCollectionClient({
       totalQty,
       subtotal,
     };
-  }, [productCartItems]);
+  }, [cartItems]);
 
-  const selectedDraft = selectedProduct ? getDraft(selectedProduct.id) : null;
+  function buildOrder(): DealerOrder | null {
+    if (!cartItems.length) return null;
 
-  const selectedProductAddonDrafts = useMemo(() => {
-    if (!selectedProduct) return {};
-
-    const options = getProductOptions(selectedProduct);
-    if (!options.length) return {};
-
-    return options.reduce<Record<string, AddonDraft>>((acc, addon) => {
-      const draftKey = getAddonDraftKey(selectedProduct.id, addon.id);
-      acc[addon.id] = getAddonDraftByKey(draftKey);
-      return acc;
-    }, {});
-  }, [selectedProduct, addonDrafts]);
-
-  function handleSelectedProductIncreaseAddonQty(addonId: string) {
-    if (!selectedProduct) return;
-    handleIncreaseAddonQtyByKey(getAddonDraftKey(selectedProduct.id, addonId));
-  }
-
-  function handleSelectedProductDecreaseAddonQty(addonId: string) {
-    if (!selectedProduct) return;
-    handleDecreaseAddonQtyByKey(getAddonDraftKey(selectedProduct.id, addonId));
-  }
-
-  function handleSelectedProductToggleAddonCart(addonId: string) {
-    if (!selectedProduct) return;
-    handleToggleAddonCartByKey(getAddonDraftKey(selectedProduct.id, addonId));
-  }
-
-  function handleSelectedProductSelectAddonVariant(
-    addonId: string,
-    variantKey: string,
-    color: string,
-  ) {
-    if (!selectedProduct) return;
-
-    handleSelectAddonVariant(selectedProduct.id, addonId, variantKey, color);
-  }
-
-  function handleSelectedProductChooseSingleAddonInGroup(
-    groupKey: string,
-    addonId: string,
-  ) {
-    if (!selectedProduct) return;
-    handleChooseSingleAddonInGroup(groupKey, addonId);
-  }
-
-  function getActiveOrderNumber() {
-    if (draftOrderNumber) return draftOrderNumber;
-    return generateOrderNumber(dealerMe?.login ?? "");
-  }
-
-  function buildOrderFromItems(
-    items: CartEntry[],
-    orderNumberOverride?: string,
-  ): DealerOrder {
     const collectionSlugs = Array.from(
-      new Set(items.map((item) => item.collectionSlug)),
+      new Set(cartItems.map((item) => item.collectionSlug)),
     );
 
-    const productItems = items.filter(
-      (item): item is Extract<CartEntry, { kind: "product" }> =>
-        item.kind === "product",
-    );
+    const totalQty = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+    const visibleItems = buildVisibleItems(cartItems);
+    const internalItems = buildInternalItems(cartItems);
 
-    const baseItems = productItems.length > 0 ? productItems : items;
-
-    const totalQty = baseItems.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = baseItems.reduce(
-      (sum, item) => sum + item.totalBasePrice,
+    const visibleSubtotal = visibleItems.reduce(
+      (acc, item) => acc + item.totalPrice,
       0,
     );
 
+    const internalSubtotal = internalItems.reduce(
+      (acc, item) => acc + item.totalBasePrice,
+      0,
+    );
+
+    const internalTotalWithItemMarkup = internalItems.reduce(
+      (acc, item) => acc + item.totalFinalPrice,
+      0,
+    );
+
+    const globalMarkupPercent = 0;
+    const globalMarkupAmount = 0;
+    const internalTotal = internalTotalWithItemMarkup + globalMarkupAmount;
+
+    const orderNumber =
+      draftOrderNumber || generateOrderNumber(dealerMe?.login ?? null);
+
+    if (!draftOrderNumber) {
+      setDraftOrderNumber(orderNumber);
+    }
+
     return {
       id: generateOrderId(),
-      orderNumber: orderNumberOverride ?? getActiveOrderNumber(),
+      orderNumber,
       createdAt: new Date().toISOString(),
       country,
-      collectionSlug: collectionSlugs[0] ?? safeCollection.slug,
+      collectionSlug: safeCollection.slug,
       collectionSlugs,
       totalQty,
-      visibleSubtotal: subtotal,
-      visibleItems: buildVisibleItems(items),
-      internalSubtotal: subtotal,
-      internalTotalWithItemMarkup: subtotal,
-      globalMarkupPercent: 0,
-      globalMarkupAmount: 0,
-      internalTotal: subtotal,
-      internalItems: buildInternalItems(items),
+      visibleSubtotal,
+      visibleItems,
+      internalSubtotal,
+      internalTotalWithItemMarkup,
+      globalMarkupPercent,
+      globalMarkupAmount,
+      internalTotal,
+      internalItems,
     };
   }
 
-  function buildCurrentOrder(orderNumberOverride?: string): DealerOrder {
-    return buildOrderFromItems(cartItems, orderNumberOverride);
-  }
-
   function handleCheckout() {
-    if (cartItems.length === 0) {
-      alert("Корзина пуста");
-      return;
-    }
+    const order = buildOrder();
+    if (!order) return;
 
-    const orderNumber = getActiveOrderNumber();
-    setDraftOrderNumber(orderNumber);
-    setConfirmingReservationNumber("");
-    setConfirmOrder(buildCurrentOrder(orderNumber));
+    setConfirmOrder(order);
   }
 
   async function handleConfirmOrder() {
-    if (!confirmOrder || isSubmittingOrder) return;
+    if (!confirmOrder) return;
 
     try {
-      setIsSubmittingOrder(true);
-
       const res = await fetch("/api/dealer/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({
-          orderNumber: confirmOrder.orderNumber,
-          dealerTitle: dealerMe?.title ?? "",
-          dealerEmail: dealerMe?.email ?? "",
-          countryCode: confirmOrder.country,
-          currency: confirmOrder.country,
-          collectionTitles: confirmOrder.collectionSlugs,
-          totalQty: confirmOrder.totalQty,
-          subtotal: confirmOrder.visibleSubtotal,
-          totalWithMarkup: confirmOrder.internalTotalWithItemMarkup,
-          globalMarkupPercent: confirmOrder.globalMarkupPercent,
-          globalMarkupAmount: confirmOrder.globalMarkupAmount,
-          total: confirmOrder.internalTotal,
-          items: confirmOrder.visibleItems,
-          notes: "",
-        }),
+        body: JSON.stringify(confirmOrder),
       });
 
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(data?.error || "Не удалось сохранить заказ");
-      }
-
-      if (confirmingReservationNumber) {
-        await fetch("/api/dealer/reservations", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            orderNumber: confirmingReservationNumber,
-            action: "convert",
-          }),
-        });
-
-        await syncReservations();
-      } else {
-        handleClearCart();
+        throw new Error(data?.error || "Не удалось оформить заказ");
       }
 
       setSuccessOrder(confirmOrder);
       setConfirmOrder(null);
-      setConfirmingReservationNumber("");
-
-      resetDraftOrderNumber(dealerMe?.login ?? "");
-      setDraftOrderNumber(generateOrderNumber(dealerMe?.login ?? ""));
+      setCartProductIds([]);
+      setAddonDrafts({});
+      resetDraftOrderNumber(dealerMe?.login ?? null);
+      setDraftOrderNumber("");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Не удалось сохранить заказ";
-
-      alert(message);
-    } finally {
-      setIsSubmittingOrder(false);
+      alert(
+        error instanceof Error ? error.message : "Не удалось оформить заказ",
+      );
     }
   }
 
   function handlePrintBase() {
-    if (cartItems.length === 0) {
-      alert("Корзина пуста");
-      return;
-    }
+    if (!cartItems.length) return;
 
-    const orderNumber = getActiveOrderNumber();
-    setDraftOrderNumber(orderNumber);
+    const order = buildOrder();
+    if (!order) return;
 
     openCartPrintWindow(
       cartItems,
       country,
-      orderNumber,
+      order.orderNumber,
       safeCollection.title,
-      summary.totalQty,
-      summary.subtotal,
-      summary.subtotal,
-      0,
-      0,
-      summary.subtotal,
+      order.totalQty,
+      order.visibleSubtotal,
+      order.internalTotalWithItemMarkup,
+      order.globalMarkupPercent,
+      order.globalMarkupAmount,
+      order.internalTotal,
       false,
     );
   }
 
-  async function handleReserveOrder(hours: number) {
-    if (cartItems.length === 0) {
-      alert("Корзина пуста");
-      return;
-    }
+  async function handleReserveOrderConfirm(hours: number) {
+    if (!cartItems.length) return;
 
     try {
       setIsSubmittingReservation(true);
-
-      const reservationNumber = `RSV-${
-        dealerMe?.login ?? "DEALER"
-      }-${Date.now()}`;
 
       const res = await fetch("/api/dealer/reservations", {
         method: "POST",
@@ -1353,9 +1327,10 @@ export default function DealerCollectionClient({
         },
         credentials: "include",
         body: JSON.stringify({
-          items: cartItems,
           hours,
-          reservationNumber,
+          items: cartItems,
+          collectionSlug: safeCollection.slug,
+          country,
         }),
       });
 
@@ -1365,9 +1340,13 @@ export default function DealerCollectionClient({
         throw new Error(data?.error || "Не удалось забронировать заказ");
       }
 
+      setConfirmingReservationNumber(
+        data?.reservationNumber || data?.orderNumber || "",
+      );
       setReservationModalOpen(false);
+      setCartProductIds([]);
+      setAddonDrafts({});
       await syncReservations();
-      handleClearCart();
       setReservationsModalOpen(true);
     } catch (error) {
       alert(
@@ -1380,57 +1359,20 @@ export default function DealerCollectionClient({
     }
   }
 
-  function handlePrintReservation(reservationNumber: string) {
-    const reservation = reservationOrdersById.get(reservationNumber);
-    if (!reservation) return;
-
-    openCartPrintWindow(
-      reservation.items,
-      country,
-      reservation.reservationNumber,
-      safeCollection.title,
-      reservation.totalQty,
-      reservation.subtotal,
-      reservation.subtotal,
-      0,
-      0,
-      reservation.subtotal,
-      false,
-    );
-  }
-
-  function handleCheckoutReservation(reservationNumber: string) {
-    const reservation = reservationOrdersById.get(reservationNumber);
-
-    if (!reservation) {
-      alert("Бронь не найдена. Обновите страницу и попробуйте снова.");
-      return;
-    }
-
-    const orderNumber = generateOrderNumber(dealerMe?.login ?? "");
-    const order = buildOrderFromItems(reservation.items, orderNumber);
-
-    setConfirmingReservationNumber(reservationNumber);
-    setReservationsModalOpen(false);
-
-    window.setTimeout(() => {
-      setConfirmOrder(order);
-    }, 80);
-  }
-
-  function handleExtendReservation(reservationNumber: string) {
+  function handleOpenExtendReservation(reservationNumber: string) {
     const meta = reservationExtendMeta.get(reservationNumber);
 
-    const maxExtendHours = Math.max(0, Number(meta?.maxExtendHours ?? 24));
-    const extendedHours = Math.max(0, Number(meta?.extendedHours ?? 0));
-    const remainingHours = Math.max(0, maxExtendHours - extendedHours);
+    const maxExtendHours = Math.max(0, meta?.maxExtendHours ?? 24);
+    const alreadyExtended = Math.max(0, meta?.extendedHours ?? 0);
+    const remaining = Math.max(0, maxExtendHours - alreadyExtended);
 
     setExtendReservationNumber(reservationNumber);
     setExtendMaxHours(maxExtendHours);
-    setExtendRemainingHours(remainingHours);
-    setExtendHours(remainingHours > 0 ? 1 : 0);
+    setExtendRemainingHours(remaining);
+    setExtendHours(Math.max(1, Math.min(remaining || 1, 1)));
+    setExtendUntilText(formatDateTime(meta?.reservedUntil));
 
-    if (remainingHours <= 0) {
+    if (remaining <= 0) {
       setExtendLimitModalOpen(true);
       return;
     }
@@ -1439,7 +1381,7 @@ export default function DealerCollectionClient({
   }
 
   async function handleConfirmExtendReservation() {
-    if (!extendReservationNumber || extendHours <= 0) return;
+    if (!extendReservationNumber) return;
 
     try {
       setIsSubmittingExtend(true);
@@ -1497,7 +1439,7 @@ export default function DealerCollectionClient({
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-[1460px] flex-col gap-3">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 px-0 2xl:max-w-[1760px]">
         <div className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] sm:rounded-[24px] sm:p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
@@ -1536,62 +1478,187 @@ export default function DealerCollectionClient({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="flex min-w-0 flex-col gap-2 sm:gap-[8px]">
-            {currentCollectionProducts.length > 0 ? (
-              currentCollectionProducts.map((product) => {
-                const draft = getDraft(product.id);
+        <div className="grid grid-cols-1 gap-3">
+          <div className="min-w-0">
+            <div className="mb-3 rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_-22px_rgba(0,0,0,0.18)] sm:rounded-[24px] sm:p-4">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/35">
+                    Модули коллекции
+                  </p>
+                  <p className="mt-1 text-[13px] text-black/50">
+                    {currentCollectionProducts.length} из{" "}
+                    {currentCollectionAllProducts.length} товаров
+                  </p>
+                </div>
 
-                return (
-                  <ProductRow
-                    key={product.id}
-                    product={product}
-                    country={country}
-                    draft={draft}
-                    isInCart={cartProductIds.includes(product.id)}
-                    myReservedQty={reservationsMap[product.id]?.quantity ?? 0}
-                    onIncreaseQty={handleIncreaseQty}
-                    onDecreaseQty={handleDecreaseQty}
-                    onOpenModal={handleOpenProductModal}
-                    onOpenImagePreview={handleOpenImagePreview}
-                    onToggleCart={handleToggleCart}
+                <label className="relative block w-full xl:max-w-[360px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black/35" />
+                  <input
+                    value={productQuery}
+                    onChange={(event) => setProductQuery(event.target.value)}
+                    placeholder="Поиск по названию или артикулу"
+                    className="h-11 w-full rounded-full border border-black/10 bg-[#fafaf8] pl-10 pr-4 text-[13px] font-medium text-black outline-none transition placeholder:text-black/35 focus:border-black/25 focus:bg-white"
                   />
-                );
-              })
+                </label>
+              </div>
+
+              <div className="relative mt-3">
+                <div className="pointer-events-none absolute left-0 top-0 z-10 h-[calc(100%-8px)] w-6 bg-gradient-to-r from-white to-transparent" />
+                <div className="pointer-events-none absolute right-0 top-0 z-10 h-[calc(100%-8px)] w-8 bg-gradient-to-l from-white to-transparent" />
+
+                <div className="dealer-module-scroll flex max-w-full cursor-grab gap-2 overflow-x-auto pb-2 pr-8 active:cursor-grabbing">
+                  <button
+                    type="button"
+                    onClick={() => setActiveModuleSlug("all")}
+                    className={cn(
+                      "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[12px] font-semibold transition",
+                      activeModuleSlug === "all"
+                        ? "border-black bg-black text-white"
+                        : "border-black/10 bg-white text-black/60 hover:border-black/20 hover:bg-black/[0.03] hover:text-black",
+                    )}
+                  >
+                    <span className="text-[14px] leading-none">▦</span>
+                    Все
+                    <span className="rounded-full bg-current/10 px-1.5 py-0.5 text-[10px]">
+                      {currentCollectionAllProducts.length}
+                    </span>
+                  </button>
+
+                  {moduleTabs.map((tab) => (
+                    <button
+                      key={tab.slug}
+                      type="button"
+                      onClick={() => setActiveModuleSlug(tab.slug)}
+                      className={cn(
+                        "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[12px] font-semibold transition",
+                        activeModuleSlug === tab.slug
+                          ? "border-black bg-black text-white"
+                          : "border-black/10 bg-white text-black/60 hover:border-black/20 hover:bg-black/[0.03] hover:text-black",
+                      )}
+                    >
+                      <span className="text-[14px] leading-none">
+                        {MODULE_ICONS[tab.slug] ?? "▧"}
+                      </span>
+                      {tab.label}
+                      <span className="rounded-full bg-current/10 px-1.5 py-0.5 text-[10px]">
+                        {tab.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {currentCollectionProducts.length > 0 ? (
+              <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2">
+                {currentCollectionProducts.map((product) => {
+                  const draft = getDraft(product.id);
+
+                  return (
+                    <ProductRow
+                      key={product.id}
+                      product={product}
+                      country={country}
+                      draft={draft}
+                      isInCart={cartProductIds.includes(product.id)}
+                      myReservedQty={reservationsMap[product.id]?.quantity ?? 0}
+                      onIncreaseQty={handleIncreaseQty}
+                      onDecreaseQty={handleDecreaseQty}
+                      onOpenModal={handleOpenProductModal}
+                      onOpenImagePreview={handleOpenImagePreview}
+                      onToggleCart={handleToggleCart}
+                    />
+                  );
+                })}
+              </div>
             ) : (
               <div className="rounded-[20px] border border-dashed border-black/15 bg-white p-6 text-[13px] text-black/45">
-                В этой коллекции пока нет модулей.
+                По выбранным фильтрам товары не найдены.
               </div>
             )}
           </div>
-
-          <div
-            ref={cartSidebarRef}
-            className="min-w-0 xl:sticky xl:top-3 xl:self-start"
-          >
-            <OrderSidebar
-              cartItems={cartItems}
-              totalQty={summary.totalQty}
-              subtotal={summary.subtotal}
-              country={country}
-              reservationsCount={reservationOrders.length}
-              onClearCart={handleClearCart}
-              onRemoveItem={handleRemoveItem}
-              onCheckout={handleCheckout}
-              onPrintBase={handlePrintBase}
-              onReserveOrder={() => setReservationModalOpen(true)}
-              onOpenReservations={() => setReservationsModalOpen(true)}
-            />
-          </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIsCartDrawerOpen(true)}
+        className={cn(
+          "fixed bottom-5 right-[128px] z-[70] inline-flex h-14 cursor-pointer items-center gap-3 rounded-full px-5 text-[14px] font-semibold shadow-[0_18px_44px_-20px_rgba(0,0,0,0.55)] transition hover:-translate-y-0.5 hover:scale-[1.02] active:scale-[0.98] max-sm:bottom-5 max-sm:right-[96px]",
+          summary.totalQty > 0
+            ? "bg-black text-white hover:bg-black/90"
+            : "bg-white text-black ring-1 ring-black/10 hover:bg-black/[0.03]",
+        )}
+      >
+        <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/12">
+          <ShoppingCart className="h-5 w-5" />
+
+          {summary.totalQty > 0 ? (
+            <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {summary.totalQty}
+            </span>
+          ) : null}
+        </span>
+
+        <span className="hidden sm:inline">Корзина</span>
+      </button>
+
+      {isCartDrawerOpen ? (
+        <button
+          type="button"
+          aria-label="Закрыть корзину"
+          onClick={() => setIsCartDrawerOpen(false)}
+          className="fixed inset-0 z-[80] cursor-default bg-black/25 backdrop-blur-[2px]"
+        />
+      ) : null}
+
+      <aside
+        ref={cartSidebarRef}
+        className={cn(
+          "fixed right-0 top-0 z-[90] flex h-dvh w-full max-w-[460px] flex-col bg-[#f7f6f2] shadow-[-28px_0_70px_-44px_rgba(0,0,0,0.65)] transition-transform duration-300",
+          isCartDrawerOpen ? "translate-x-0" : "translate-x-full",
+        )}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-black/10 bg-white px-4 py-3">
+          <div>
+            <div className="text-[15px] font-semibold text-black">Корзина</div>
+            <div className="mt-0.5 text-[12px] text-black/45">
+              {cartItems.length} поз. / {summary.totalQty} ед.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsCartDrawerOpen(false)}
+            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white text-black transition hover:bg-black hover:text-white"
+            aria-label="Закрыть корзину"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <OrderSidebar
+            cartItems={cartItems}
+            totalQty={summary.totalQty}
+            subtotal={summary.subtotal}
+            country={country}
+            onClearCart={handleClearCart}
+            onRemoveItem={handleRemoveItem}
+            onCheckout={handleCheckout}
+            onPrintBase={handlePrintBase}
+            onReserveOrder={() => setReservationModalOpen(true)}
+          />
+        </div>
+      </aside>
 
       <ImagePreviewModal
         image={previewImage}
         onClose={() => setPreviewImage(null)}
       />
 
-      <ProductDetailsModal
+      <ProductDetailsModalLoose
         product={selectedProduct}
         country={country}
         draft={selectedDraft}
@@ -1610,55 +1677,62 @@ export default function DealerCollectionClient({
         onIncreaseAddonQty={handleSelectedProductIncreaseAddonQty}
         onDecreaseAddonQty={handleSelectedProductDecreaseAddonQty}
         onToggleAddonCart={handleSelectedProductToggleAddonCart}
-        onChooseSingleAddonInGroup={
-          handleSelectedProductChooseSingleAddonInGroup
-        }
-        onGoToCart={handleScrollToCart}
         onContinueShopping={() => {
           setSelectedProduct(null);
         }}
       />
 
-      <OrderConfirmModal
+      <OrderConfirmModalLoose
         order={confirmOrder}
-        onClose={() => {
-          if (isSubmittingOrder) return;
-          setConfirmOrder(null);
-          setConfirmingReservationNumber("");
-        }}
+        onClose={() => setConfirmOrder(null)}
         onConfirm={handleConfirmOrder}
       />
 
-      <OrderSuccessModal
+      <OrderSuccessModalLoose
         order={successOrder}
         onClose={() => setSuccessOrder(null)}
       />
 
-      <ReserveOrderModal
+      <ReserveOrderModalLoose
         open={reservationModalOpen}
-        isSubmitting={isSubmittingReservation}
-        onClose={() => setReservationModalOpen(false)}
-        onConfirm={handleReserveOrder}
-      />
-
-      <MyReservationsModal
-        open={reservationsModalOpen}
+        cartItems={cartItems}
+        totalQty={summary.totalQty}
+        subtotal={summary.subtotal}
         country={country}
-        reservations={reservationOrders}
-        isLoading={isLoadingReservations}
-        onClose={() => setReservationsModalOpen(false)}
-        onPrint={handlePrintReservation}
-        onCheckout={handleCheckoutReservation}
-        onExtend={handleExtendReservation}
+        isSubmitting={isSubmittingReservation}
+        onClose={() => {
+          if (isSubmittingReservation) return;
+          setReservationModalOpen(false);
+        }}
+        onConfirm={handleReserveOrderConfirm}
       />
 
-      <ExtendReservationModal
+      <MyReservationsModalLoose
+        open={reservationsModalOpen}
+        orders={reservationOrders}
+        reservations={reservationOrders}
+        country={country}
+        loading={isLoadingReservations}
+        isLoading={isLoadingReservations}
+        confirmingReservationNumber={confirmingReservationNumber}
+        onClose={() => {
+          setReservationsModalOpen(false);
+          setConfirmingReservationNumber("");
+        }}
+        onRefresh={syncReservations}
+        onExtendReservation={handleOpenExtendReservation}
+        onExtend={handleOpenExtendReservation}
+      />
+
+      <ExtendReservationModalLoose
         open={extendModalOpen}
+        reservationNumber={extendReservationNumber}
+        untilText={extendUntilText}
         hours={extendHours}
         maxHours={extendMaxHours}
         remainingHours={extendRemainingHours}
         isSubmitting={isSubmittingExtend}
-        onChangeHours={(value) =>
+        onChangeHours={(value: number) =>
           setExtendHours(
             Math.max(1, Math.min(extendRemainingHours, Number(value || 1))),
           )
@@ -1670,14 +1744,14 @@ export default function DealerCollectionClient({
         onConfirm={handleConfirmExtendReservation}
       />
 
-      <ReservationExtendedSuccessModal
+      <ReservationExtendedSuccessModalLoose
         open={extendSuccessModalOpen}
         hours={extendedSuccessHours}
         untilText={extendUntilText}
         onClose={() => setExtendSuccessModalOpen(false)}
       />
 
-      <ReservationExtendLimitModal
+      <ReservationExtendLimitModalLoose
         open={extendLimitModalOpen}
         onClose={() => setExtendLimitModalOpen(false)}
       />

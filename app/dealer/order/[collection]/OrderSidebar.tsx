@@ -12,13 +12,11 @@ type Props = {
   totalQty: number;
   subtotal: number;
   country: DealerCountryCode;
-  reservationsCount?: number;
   onClearCart: () => void;
   onRemoveItem: (itemId: string) => void;
   onCheckout: () => void;
   onPrintBase: () => void;
   onReserveOrder: () => void;
-  onOpenReservations?: () => void;
 };
 
 function formatReservationDate(value?: string) {
@@ -28,6 +26,16 @@ function formatReservationDate(value?: string) {
   if (Number.isNaN(date.getTime())) return "";
 
   return date.toLocaleString("ru-RU");
+}
+
+function formatDealerMoney(value: number, country: DealerCountryCode) {
+  const formatted = formatMoney(value, country);
+
+  if (country === "UZ") {
+    return formatted.replace("UZS", "сум");
+  }
+
+  return formatted;
 }
 
 function groupCartItems(items: CartEntry[]) {
@@ -49,6 +57,44 @@ function groupCartItems(items: CartEntry[]) {
   }));
 }
 
+function PriceRow({
+  qty,
+  unitPrice,
+  totalPrice,
+  country,
+}: {
+  qty: number;
+  unitPrice: number;
+  totalPrice: number;
+  country: DealerCountryCode;
+}) {
+  return (
+    <div className="mt-3 rounded-[16px] bg-[#f6f4ee] p-3">
+      <div className="grid grid-cols-[54px_minmax(0,1fr)_minmax(0,1fr)] gap-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/30">
+        <div>Кол-во</div>
+        <div className="text-center">Цена</div>
+        <div className="text-right">Сумма</div>
+      </div>
+
+      <div className="mt-1 grid grid-cols-[54px_minmax(0,1fr)_minmax(0,1fr)] gap-2 text-[13px] font-semibold leading-tight text-black">
+        <div>{qty}</div>
+
+        <div className="min-w-0 text-center">
+          <span className="break-words">
+            {formatDealerMoney(unitPrice, country)}
+          </span>
+        </div>
+
+        <div className="min-w-0 text-right">
+          <span className="break-words">
+            {formatDealerMoney(totalPrice, country)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OrderSidebar({
   cartItems,
   totalQty,
@@ -64,16 +110,16 @@ export default function OrderSidebar({
   const isEmpty = cartItems.length === 0;
 
   return (
-    <aside className="rounded-[24px] border border-black/10 bg-white shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] xl:flex xl:max-h-[calc(100vh-24px)] xl:flex-col xl:overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-black/10 px-5 py-4">
+    <aside className="rounded-[24px] border border-black/10 bg-white shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)]">
+      <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-4">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-white">
-            <ShoppingCart className="h-6 w-6" />
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-white">
+            <ShoppingCart className="h-5 w-5" />
           </div>
 
           <div className="min-w-0">
-            <div className="text-[18px] font-semibold text-black">Корзина</div>
-            <div className="text-[13px] text-black/45">
+            <div className="text-[17px] font-semibold text-black">Корзина</div>
+            <div className="text-[12px] text-black/45">
               {cartItems.length} поз. / {totalQty} ед.
             </div>
           </div>
@@ -83,32 +129,32 @@ export default function OrderSidebar({
           type="button"
           onClick={onClearCart}
           disabled={isEmpty}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-black/10 px-4 py-2 text-[14px] font-medium text-black transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-black/10 px-3 text-[13px] font-medium text-black transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <Trash2 className="h-4 w-4" />
           Очистить
         </button>
       </div>
 
-      <div className="px-5 py-5 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+      <div className="p-4">
         {isEmpty ? (
-          <div className="rounded-[28px] border border-dashed border-black/10 px-6 py-14 text-center">
-            <div className="text-[18px] font-semibold text-black/85">
+          <div className="rounded-[24px] border border-dashed border-black/10 px-5 py-12 text-center">
+            <div className="text-[17px] font-semibold text-black/85">
               Корзина пока пустая
             </div>
-            <div className="mx-auto mt-3 max-w-[280px] text-[14px] leading-7 text-black/45">
+            <div className="mx-auto mt-3 max-w-[280px] text-[13px] leading-6 text-black/45">
               Добавьте основной товар и соберите комплект из обязательных и
               рекомендованных элементов.
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {groupedItems.map(({ product, addons }) => (
               <div
                 key={product.id}
-                className="rounded-[28px] border border-black/10 bg-[#fafaf8] p-3"
+                className="rounded-[22px] border border-black/10 bg-[#fafaf8] p-3"
               >
-                <div className="relative rounded-[22px] border border-black/8 bg-white p-4 shadow-[0_8px_20px_-20px_rgba(0,0,0,0.2)]">
+                <div className="relative rounded-[18px] border border-black/8 bg-white p-4 shadow-[0_8px_20px_-20px_rgba(0,0,0,0.2)]">
                   <button
                     type="button"
                     onClick={() => onRemoveItem(product.id)}
@@ -136,19 +182,22 @@ export default function OrderSidebar({
                     ) : null}
                   </div>
 
-                  <div className="mt-4">
-                    <div className="text-[15px] font-semibold leading-5 text-black">
+                  <div className="mt-4 pr-2">
+                    <div className="text-[14px] font-semibold leading-5 text-black">
                       {product.title}
                     </div>
 
                     {product.article ? (
-                      <div className="mt-2 text-[13px] text-black/45">
-                        {product.article}
+                      <div className="mt-2 text-[12px] text-black/45">
+                        Артикул:{" "}
+                        <span className="font-medium text-black/65">
+                          {product.article}
+                        </span>
                       </div>
                     ) : null}
 
                     {product.color ? (
-                      <div className="mt-1 text-[13px] text-black/45">
+                      <div className="mt-1 text-[12px] text-black/45">
                         Цвет:{" "}
                         <span className="font-medium text-black/65">
                           {product.color}
@@ -163,29 +212,12 @@ export default function OrderSidebar({
                     ) : null}
                   </div>
 
-                  <div className="mt-4 rounded-[18px] bg-[#f6f4ee] px-4 py-3">
-                    <div className="grid grid-cols-[56px_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 text-[11px] uppercase tracking-[0.08em] text-black/28">
-                      <div>Кол-во</div>
-                      <div className="text-center">Цена</div>
-                      <div className="text-right">Сумма</div>
-                    </div>
-
-                    <div className="mt-1 grid grid-cols-[56px_minmax(90px,1fr)_minmax(90px,1fr)] gap-3 text-[14px] font-semibold text-black">
-                      <div>{product.quantity}</div>
-
-                      <div className="text-center leading-tight">
-                        <div className="break-words">
-                          {formatMoney(product.unitFinalPrice, country)}
-                        </div>
-                      </div>
-
-                      <div className="text-right leading-tight">
-                        <div className="break-words">
-                          {formatMoney(product.totalFinalPrice, country)}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <PriceRow
+                    qty={product.quantity}
+                    unitPrice={product.unitFinalPrice}
+                    totalPrice={product.totalFinalPrice}
+                    country={country}
+                  />
 
                   {addons.length > 0 ? (
                     <div className="mt-4 space-y-3 border-t border-dashed border-black/10 pt-4">
@@ -211,21 +243,18 @@ export default function OrderSidebar({
                                 ? "Обязательный"
                                 : "Рекомендуемый"}
                             </span>
-
-                            {addon.parentProductTitle ? (
-                              <span className="inline-flex rounded-full border border-black/10 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/35">
-                                Для: {addon.parentProductTitle}
-                              </span>
-                            ) : null}
                           </div>
 
-                          <div className="mt-3 text-[14px] font-semibold leading-5 text-black">
+                          <div className="mt-3 pr-8 text-[13px] font-semibold leading-5 text-black">
                             {addon.title}
                           </div>
 
                           {addon.article ? (
                             <div className="mt-1 text-[12px] text-black/45">
-                              {addon.article}
+                              Артикул:{" "}
+                              <span className="font-medium text-black/65">
+                                {addon.article}
+                              </span>
                             </div>
                           ) : null}
 
@@ -238,29 +267,12 @@ export default function OrderSidebar({
                             </div>
                           ) : null}
 
-                          <div className="mt-3 rounded-[14px] bg-white px-3 py-2">
-                            <div className="grid grid-cols-[52px_minmax(80px,1fr)_minmax(80px,1fr)] gap-2 text-[10px] uppercase tracking-[0.08em] text-black/28">
-                              <div>Кол-во</div>
-                              <div className="text-center">Цена</div>
-                              <div className="text-right">Сумма</div>
-                            </div>
-
-                            <div className="mt-1 grid grid-cols-[52px_minmax(80px,1fr)_minmax(80px,1fr)] gap-2 text-[13px] font-semibold text-black">
-                              <div>{addon.quantity}</div>
-
-                              <div className="text-center leading-tight">
-                                <div className="break-words">
-                                  {formatMoney(addon.unitFinalPrice, country)}
-                                </div>
-                              </div>
-
-                              <div className="text-right leading-tight">
-                                <div className="break-words">
-                                  {formatMoney(addon.totalFinalPrice, country)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                          <PriceRow
+                            qty={addon.quantity}
+                            unitPrice={addon.unitFinalPrice}
+                            totalPrice={addon.totalFinalPrice}
+                            country={country}
+                          />
                         </div>
                       ))}
                     </div>
@@ -271,11 +283,11 @@ export default function OrderSidebar({
           </div>
         )}
 
-        <div className="mt-5 rounded-[26px] bg-[#f6f4ee] px-5 py-4">
+        <div className="mt-5 rounded-[22px] bg-[#f6f4ee] px-5 py-4">
           <div className="flex items-center justify-between gap-4">
             <span className="text-[15px] font-medium text-black/45">Итого</span>
             <span className="text-[18px] font-semibold text-black">
-              {formatMoney(subtotal, country)}
+              {formatDealerMoney(subtotal, country)}
             </span>
           </div>
         </div>
@@ -285,16 +297,16 @@ export default function OrderSidebar({
             type="button"
             onClick={onCheckout}
             disabled={isEmpty}
-            className="inline-flex min-h-[58px] w-full cursor-pointer items-center justify-center rounded-[18px] bg-black px-5 text-[18px] font-semibold text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/20"
+            className="inline-flex min-h-[56px] w-full cursor-pointer items-center justify-center rounded-[18px] bg-black px-5 text-[17px] font-semibold text-white transition hover:bg-black/90 disabled:cursor-not-allowed disabled:bg-black/20"
           >
-            Корзина
+            Оформить заказ
           </button>
 
           <button
             type="button"
             onClick={onReserveOrder}
             disabled={isEmpty}
-            className="inline-flex min-h-[54px] w-full cursor-pointer items-center justify-center gap-2 rounded-[18px] border border-red-200 bg-red-50 px-5 text-[18px] font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[52px] w-full cursor-pointer items-center justify-center gap-2 rounded-[18px] border border-red-200 bg-red-50 px-5 text-[16px] font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Archive className="h-5 w-5" />
             Забронировать заказ
@@ -304,7 +316,7 @@ export default function OrderSidebar({
             type="button"
             onClick={onPrintBase}
             disabled={isEmpty}
-            className="inline-flex min-h-[54px] w-full cursor-pointer items-center justify-center gap-2 rounded-[18px] border border-black/10 bg-white px-5 text-[18px] font-medium text-black transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[52px] w-full cursor-pointer items-center justify-center gap-2 rounded-[18px] border border-black/10 bg-white px-5 text-[16px] font-medium text-black transition hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Printer className="h-5 w-5" />
             Печать
@@ -312,7 +324,7 @@ export default function OrderSidebar({
 
           <Link
             href="/dealer/orders"
-            className="inline-flex min-h-[54px] w-full cursor-pointer items-center justify-center rounded-[18px] border border-black/10 bg-white px-5 text-[18px] font-medium text-black transition hover:bg-black/[0.03]"
+            className="inline-flex min-h-[52px] w-full cursor-pointer items-center justify-center rounded-[18px] border border-black/10 bg-white px-5 text-[16px] font-medium text-black transition hover:bg-black/[0.03]"
           >
             Мои заказы
           </Link>

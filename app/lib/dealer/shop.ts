@@ -25,11 +25,6 @@ export type DealerProductVariant = {
   image?: string;
   price?: Partial<DealerProductPriceMap>;
 
-  /**
-   * Новые поля из общего Excel/Strapi каталога.
-   * Они не ломают старую логику, но позволяют дилерскому shop
-   * автоматически подтягивать артикул/размер/материал варианта.
-   */
   variantSku?: string;
   article?: string;
   articleShort?: string;
@@ -66,12 +61,21 @@ export type DealerProduct = {
   id: string;
   collectionSlug: string;
   category: DealerCategory;
+
+  moduleSlug?: string;
+  moduleTitle?: string;
+  categorySlug?: string;
+  cat?: string;
+  module?: string;
+
   title: string;
   article: string;
   articleShort?: string;
+  collectionBadge?: string;
   image: string;
   description: string;
   price: DealerProductPriceMap;
+  oldPrice?: Partial<DealerProductPriceMap>;
   color?: string;
   size?: string;
   material?: string;
@@ -234,6 +238,7 @@ type StrapiProduct = {
   sku?: string;
   article?: string;
   articleShort?: string;
+  collectionBadge?: string | null;
   description?: string;
 
   category?: string;
@@ -277,6 +282,11 @@ type StrapiProduct = {
 
   price_rub?: number | string | null;
   price_uzs?: number | string | null;
+
+  oldPriceUZS?: number | string | null;
+  oldPriceRUB?: number | string | null;
+  oldPriceKZ?: number | string | null;
+  oldPriceTJ?: number | string | null;
 
   dealerPriceRUB?: number | string | null;
   dealerPriceUZS?: number | string | null;
@@ -353,6 +363,18 @@ function normalizeSlug(value: unknown) {
     .trim();
 
   if (raw === "scandy") return "scandi";
+
+  if (raw === "tumbi" || raw === "tumba") return "tumby";
+  if (raw === "shkaf") return "shkafy";
+  if (raw === "zerkalo") return "zerkala";
+  if (raw === "komod") return "komody";
+  if (raw === "stol") return "stoli";
+  if (raw === "vitrina") return "vitrini";
+  if (raw === "puf") return "pufi";
+  if (raw === "polka") return "polki";
+  if (raw === "stellaj") return "stellaji";
+  if (raw === "dekor") return "decor";
+
   return raw;
 }
 
@@ -455,6 +477,20 @@ function mapDealerPrices(raw: {
   };
 }
 
+function mapOldPrices(raw: {
+  oldPriceRUB?: unknown;
+  oldPriceUZS?: unknown;
+  oldPriceKZ?: unknown;
+  oldPriceTJ?: unknown;
+}): Partial<DealerProductPriceMap> {
+  return {
+    RU: toNumber(raw.oldPriceRUB),
+    UZ: toNumber(raw.oldPriceUZS),
+    KZ: toNumber(raw.oldPriceKZ),
+    TJ: toNumber(raw.oldPriceTJ),
+  };
+}
+
 function hasAnyPrice(price: DealerProductPriceMap) {
   return price.RU > 0 || price.UZ > 0 || price.KZ > 0 || price.TJ > 0;
 }
@@ -522,6 +558,46 @@ function normalizeCategory(value?: string | null): DealerCategory {
   if (normalized === "addon") return "addon";
 
   return "other";
+}
+
+function getModuleSlugFromProduct(raw: StrapiProduct) {
+  const moduleSlug = normalizeSlug(raw.module || "");
+  const catSlug = normalizeSlug(raw.cat || raw.category || "");
+
+  if (moduleSlug) return moduleSlug;
+  if (catSlug) return catSlug;
+
+  return "other";
+}
+
+function getModuleTitle(moduleSlug: string) {
+  const map: Record<string, string> = {
+    krovat: "Кровати",
+    krovati: "Кровати",
+    shkaf: "Шкафы",
+    shkafy: "Шкафы",
+    tumba: "Тумбы",
+    tumby: "Тумбы",
+    komod: "Комоды",
+    komody: "Комоды",
+    zerkalo: "Зеркала",
+    zerkala: "Зеркала",
+    stol: "Столы",
+    stoli: "Столы",
+    stellaj: "Стеллажи",
+    stellaji: "Стеллажи",
+    puf: "Пуфы",
+    pufi: "Пуфы",
+    vitrina: "Витрины",
+    vitrini: "Витрины",
+    polka: "Полки",
+    polki: "Полки",
+    fasadi: "Фасады",
+    decor: "Декор",
+    other: "Другое",
+  };
+
+  return map[moduleSlug] || "Другое";
 }
 
 function normalizeCollection(
@@ -711,10 +787,6 @@ function normalizeProductBase(rawInput: StrapiProduct): DealerProduct | null {
   if (raw.isDealerActive === false) return null;
   if (raw.publishedAt === null) return null;
 
-  /**
-   * Scene-карточки нужны публичному каталогу,
-   * но в dealer shop дилер заказывает конкретные модули.
-   */
   if (isSceneProduct(raw)) return null;
 
   const price = mapDealerPrices(raw);
@@ -722,6 +794,9 @@ function normalizeProductBase(rawInput: StrapiProduct): DealerProduct | null {
 
   const collectionSlug = getProductCollectionSlug(raw);
   if (!collectionSlug) return null;
+
+  const moduleSlug = getModuleSlugFromProduct(raw);
+  const categorySlug = normalizeSlug(raw.cat || raw.category || moduleSlug);
 
   const variants = Array.isArray(raw.variants)
     ? (raw.variants
@@ -762,12 +837,19 @@ function normalizeProductBase(rawInput: StrapiProduct): DealerProduct | null {
     id: String(raw.documentId ?? raw.id ?? raw.slug ?? ""),
     collectionSlug,
     category: getProductCategory(raw),
+    moduleSlug,
+    moduleTitle: getModuleTitle(moduleSlug),
+    categorySlug,
+    cat: normalizeSlug(raw.cat || ""),
+    module: moduleSlug,
     title: raw.title ?? "",
     article: getProductArticle(raw),
     articleShort: getString(raw.articleShort || raw.sku || raw.article),
+    collectionBadge: getString(raw.collectionBadge),
     image: getProductImage(raw),
     description: raw.description ?? "",
     price,
+    oldPrice: mapOldPrices(raw),
     color: raw.color ?? "",
     size: raw.size ?? "",
     material: raw.material ?? "",
@@ -843,14 +925,6 @@ async function getDealerProductsFromCatalog(): Promise<DealerProduct[]> {
   do {
     const params = new URLSearchParams();
 
-    /**
-     * Новый источник дилерского shop:
-     * общий Excel-driven catalog.
-     *
-     * ВАЖНО:
-     * Не забираем только первую страницу, потому что часть коллекций
-     * может оказаться дальше в Strapi pagination.
-     */
     params.set("filters[isActive][$eq]", "true");
     params.set("sort[0]", "sortOrder:asc");
     params.set("sort[1]", "title:asc");
@@ -985,22 +1059,14 @@ export async function getDealerCollectionPageData(
       normalizedCollectionSlug,
   );
 
-  /**
-   * ВАЖНО:
-   * Точечный запрос делаем ВСЕГДА для текущей коллекции.
-   *
-   * Почему:
-   * - Elizabeth была 0 товаров — fallback сработал.
-   * - Scandy была 15 товаров — старый fallback НЕ сработал.
-   * - Поэтому текущую коллекцию всегда добираем через brand/collection.
-   */
   const productsFromDirectLoad =
     await getDealerProductsFromCatalogByCollection(normalizedCollectionSlug);
 
   const currentProductsMap = new Map<string, DealerProduct>();
 
   [...productsFromGeneralLoad, ...productsFromDirectLoad].forEach((product) => {
-    const key = product.id || product.article || product.articleShort || product.title;
+    const key =
+      product.id || product.article || product.articleShort || product.title;
 
     if (key) currentProductsMap.set(key, product);
   });

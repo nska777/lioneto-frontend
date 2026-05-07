@@ -1,16 +1,18 @@
 "use client";
 
 import Image from "next/image";
+import { Check, ImageIcon, Minus, Plus, ShoppingCart } from "lucide-react";
 
-import type { DealerCountryCode, DealerProduct } from "@/app/lib/dealer/shop";
-import { getDisplayArticle } from "./order-utils";
+import type {
+  DealerCountryCode,
+  DealerProduct,
+  DealerProductPriceMap,
+  DealerProductVariant,
+} from "@/app/lib/dealer/shop";
 import type { ProductDraft } from "./types";
-import { formatMoney } from "./utils";
+import { formatMoney, cn } from "./utils";
 
-const cn = (...classes: Array<string | false | null | undefined>) =>
-  classes.filter(Boolean).join(" ");
-
-type ProductRowProps = {
+type Props = {
   product: DealerProduct;
   country: DealerCountryCode;
   draft: ProductDraft;
@@ -23,6 +25,120 @@ type ProductRowProps = {
   onToggleCart: (productId: string) => void;
 };
 
+type ProductVariantWithMeta = DealerProductVariant & {
+  variantSku?: string;
+  article?: string;
+  articleShort?: string;
+  size?: string;
+  material?: string;
+};
+
+type ProductWithBadgeAndOldPrice = DealerProduct & {
+  collectionBadge?: string;
+  oldPrice?: Partial<DealerProductPriceMap>;
+};
+
+function formatDealerMoney(value: number, country: DealerCountryCode) {
+  const formatted = formatMoney(value, country);
+
+  if (country === "UZ") {
+    return formatted.replace("UZS", "сум");
+  }
+
+  return formatted;
+}
+
+function getVariantMeta(
+  variant: DealerProductVariant | null | undefined,
+): ProductVariantWithMeta | null {
+  return variant ? (variant as ProductVariantWithMeta) : null;
+}
+
+function getSelectedVariant(product: DealerProduct, draft: ProductDraft) {
+  const variants = product.variants ?? [];
+
+  if (!variants.length) return null;
+
+  const selectedKey = draft.selectedVariantKey ?? "";
+
+  if (selectedKey) {
+    return (
+      variants.find((variant) => variant.key === selectedKey) ?? variants[0]
+    );
+  }
+
+  return variants[0];
+}
+
+function getDisplayArticle(product: DealerProduct, draft: ProductDraft) {
+  const variant = getVariantMeta(getSelectedVariant(product, draft));
+
+  return (
+    variant?.variantSku ||
+    variant?.article ||
+    product.articleShort ||
+    product.article ||
+    "—"
+  );
+}
+
+function getDisplayImage(product: DealerProduct, draft: ProductDraft) {
+  const variant = getSelectedVariant(product, draft);
+
+  return variant?.image || product.image || "";
+}
+
+function getUnitPrice(
+  product: DealerProduct,
+  draft: ProductDraft,
+  country: DealerCountryCode,
+) {
+  const variant = getSelectedVariant(product, draft);
+  const variantPrice = variant?.price?.[country];
+
+  if (typeof variantPrice === "number" && variantPrice > 0) {
+    return variantPrice;
+  }
+
+  return product.price[country] ?? 0;
+}
+
+function getOldUnitPrice(product: DealerProduct, country: DealerCountryCode) {
+  const oldPrice = (product as ProductWithBadgeAndOldPrice).oldPrice?.[country];
+
+  return typeof oldPrice === "number" && oldPrice > 0 ? oldPrice : 0;
+}
+
+function getDiscountPercent(currentPrice: number, oldPrice: number) {
+  if (oldPrice <= 0) return 0;
+  if (currentPrice <= 0) return 0;
+  if (currentPrice >= oldPrice) return 0;
+
+  return Math.round(((oldPrice - currentPrice) / oldPrice) * 100);
+}
+
+function getBadgeClasses(badge: string) {
+  const normalized = badge.trim().toLowerCase();
+
+  if (normalized.includes("хит")) {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+
+  if (normalized.includes("цена")) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (
+    normalized.includes("акция") ||
+    normalized.includes("распрод") ||
+    normalized.includes("супер")
+  ) {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
 export default function ProductRow({
   product,
   country,
@@ -34,189 +150,175 @@ export default function ProductRow({
   onOpenModal,
   onOpenImagePreview,
   onToggleCart,
-}: ProductRowProps) {
-  const selectedVariant =
-    product.variants?.find(
-      (variant) => variant.key === draft.selectedVariantKey,
-    ) ?? null;
+}: Props) {
+  const quantity = Math.max(1, Number(draft.quantity ?? 1));
 
-  const selectedColor =
-    draft.selectedColor?.trim() ||
-    selectedVariant?.color?.trim() ||
-    product.color?.trim() ||
-    "";
+  const unitPrice = getUnitPrice(product, draft, country);
+  const oldUnitPrice = getOldUnitPrice(product, country);
 
-  const variantPrice =
-    selectedVariant?.price?.[country] != null
-      ? Number(selectedVariant.price[country] ?? 0)
-      : null;
+  const totalPrice = unitPrice * quantity;
+  const oldTotalPrice = oldUnitPrice * quantity;
 
-  const unitBasePrice =
-    variantPrice != null ? variantPrice : Number(product.price[country] ?? 0);
+  const discountPercent = getDiscountPercent(unitPrice, oldUnitPrice);
 
-  const displayArticle = getDisplayArticle(
-    product.article,
-    product.articleShort,
-    selectedColor,
-  );
+  const article = getDisplayArticle(product, draft);
+  const image = getDisplayImage(product, draft);
+  const badge = String(
+    (product as ProductWithBadgeAndOldPrice).collectionBadge ?? "",
+  ).trim();
 
-  const stockQty = Math.max(0, Number(product.stockQty ?? 0));
-  const reservedQty = Math.max(0, Number(product.reservedQty ?? 0));
-  const availableQty = Math.max(0, stockQty - reservedQty);
-  const showStock = Boolean(product.isStockTracked);
-
-  const hasRequiredItems = (product.requiredItems?.length ?? 0) > 0;
+  const hasKit =
+    (product.requiredItems?.length ?? 0) > 0 ||
+    (product.recommendedItems?.length ?? 0) > 0 ||
+    (product.addons?.length ?? 0) > 0;
 
   return (
-    <div className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_-20px_rgba(0,0,0,0.18)] sm:rounded-[24px] sm:p-4">
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="w-full sm:w-[210px] sm:flex-none">
-          <button
-            type="button"
-            onClick={() => onOpenModal(product)}
-            className="group relative block h-[180px] w-full cursor-pointer overflow-hidden rounded-[18px] bg-[#f6f4ee] sm:h-[170px]"
-          >
-            {product.image ? (
-              <Image
-                src={product.image}
-                alt={product.title}
-                fill
-                className="object-cover transition duration-300 group-hover:scale-[1.03]"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-black/35">
-                Нет фото
-              </div>
-            )}
-          </button>
-
-          {!hasRequiredItems ? (
-            <div className="mt-3 rounded-[16px] bg-[#f6f4ee] px-4 py-3">
-              <div className="text-[24px] font-semibold leading-none text-black">
-                {formatMoney(unitBasePrice, country)}
-              </div>
-              <div className="mt-1 text-[12px] text-black/45">за 1 шт.</div>
+    <article
+      className={cn(
+        "group relative overflow-hidden rounded-[18px] border bg-white shadow-[0_14px_34px_-30px_rgba(0,0,0,0.35)] transition",
+        "hover:-translate-y-0.5 hover:border-black/20 hover:shadow-[0_18px_40px_-30px_rgba(0,0,0,0.42)]",
+        isInCart
+          ? "border-emerald-300 ring-1 ring-emerald-200"
+          : "border-black/10",
+      )}
+    >
+      <div className="relative h-[210px] w-full overflow-hidden bg-[#f5f3ef]">
+        <button
+          type="button"
+          onClick={() => {
+            if (image) onOpenImagePreview(product);
+          }}
+          className={cn(
+            "relative block h-full w-full",
+            image ? "cursor-zoom-in" : "cursor-default",
+          )}
+        >
+          {image ? (
+            <Image
+              src={image}
+              alt={product.title}
+              fill
+              className="object-contain p-3 transition duration-300 group-hover:scale-[1.03]"
+              sizes="(max-width: 1024px) 100vw, 360px"
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-black/30">
+              <ImageIcon className="h-7 w-7" />
+              <span className="text-[12px] font-medium">Нет фото</span>
             </div>
+          )}
+        </button>
+      </div>
+
+      <div className="p-4">
+        <div className="mb-3 flex min-h-[26px] flex-wrap items-center gap-1.5">
+          {discountPercent > 0 ? (
+            <span className="inline-flex rounded-[8px] bg-red-100 px-2.5 py-1 text-[12px] font-bold leading-none text-red-600">
+              -{discountPercent}%
+            </span>
+          ) : null}
+
+          {badge ? (
+            <span
+              className={cn(
+                "inline-flex max-w-full truncate rounded-[8px] border px-2.5 py-1 text-[11px] font-semibold leading-none",
+                getBadgeClasses(badge),
+              )}
+            >
+              {badge}
+            </span>
+          ) : null}
+
+          {hasKit ? (
+            <span className="inline-flex rounded-[8px] border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold leading-none text-amber-700">
+              Комплект
+            </span>
+          ) : null}
+
+          {isInCart ? (
+            <span className="inline-flex items-center gap-1 rounded-[8px] border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold leading-none text-emerald-700">
+              <Check className="h-3 w-3" />В корзине
+            </span>
           ) : null}
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => onOpenModal(product)}
-              className="cursor-pointer text-left"
-            >
-              <h3 className="max-w-full text-[18px] font-semibold leading-[1.1] text-black transition hover:text-black/75 sm:text-[20px] lg:text-[22px]">
-                {product.title}
-              </h3>
-            </button>
+        <h3 className="line-clamp-2 min-h-[38px] text-[15px] font-semibold leading-[1.25] tracking-[-0.02em] text-black">
+          {product.title}
+        </h3>
 
-            {displayArticle ? (
-              <div className="mt-2 text-[12px] text-black/55 sm:text-[13px]">
-                Артикул: {displayArticle}
-              </div>
-            ) : null}
-
-            {product.size ? (
-              <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
-                Размер: {product.size}
-              </div>
-            ) : null}
-
-            {product.material ? (
-              <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
-                Материал: {product.material}
-              </div>
-            ) : null}
-
-            {selectedColor ? (
-              <div className="mt-1 text-[12px] text-black/55 sm:text-[13px]">
-                Цвет: {selectedColor}
-              </div>
-            ) : null}
-
-            {showStock ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                <span className="inline-flex rounded-full border border-black/10 bg-[#f6f4ee] px-2.5 py-1 text-[10px] font-medium text-black/75">
-                  Всего: {stockQty}
-                </span>
-
-                <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700">
-                  В наличии: {availableQty}
-                </span>
-
-                {myReservedQty > 0 ? (
-                  <span className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-medium text-red-700">
-                    Забронировано: {myReservedQty} шт.
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <div className="inline-flex h-[42px] items-center rounded-full border border-black/10 bg-[#fafaf8] px-2">
-              <button
-                type="button"
-                onClick={() => onDecreaseQty(product.id)}
-                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-lg text-black transition hover:bg-black/5"
-                aria-label="Уменьшить количество"
-              >
-                −
-              </button>
-
-              <div className="min-w-[36px] text-center text-[15px] font-semibold text-black">
-                {Math.max(1, draft.quantity)}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onIncreaseQty(product.id)}
-                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-lg text-black transition hover:bg-black/5"
-                aria-label="Увеличить количество"
-              >
-                +
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onOpenModal(product)}
-              className="inline-flex min-h-[42px] cursor-pointer items-center justify-center rounded-full border border-black/10 px-4 text-sm font-medium text-black transition hover:border-black/20 hover:bg-black/[0.03]"
-            >
-              Открыть товар
-            </button>
-          </div>
-
-          {hasRequiredItems ? (
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => onOpenModal(product)}
-                className="inline-flex min-h-[46px] w-full cursor-pointer items-center justify-center rounded-full bg-black px-5 text-sm font-semibold text-white transition hover:bg-black/90"
-              >
-                Собрать комплект
-              </button>
-            </div>
-          ) : (
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => onToggleCart(product.id)}
-                className={cn(
-                  "inline-flex min-h-[42px] w-full cursor-pointer items-center justify-center rounded-full px-4 text-sm font-semibold transition",
-                  isInCart
-                    ? "bg-black text-white"
-                    : "border border-black/15 bg-white text-black hover:border-black/30",
-                )}
-              >
-                {isInCart ? "В корзине" : "Добавить в корзину"}
-              </button>
-            </div>
-          )}
+        <div className="mt-2 truncate text-[12px] font-medium text-black/50">
+          Артикул:{" "}
+          <span className="font-semibold text-black/70">{article}</span>
         </div>
+
+        <div className="mt-3">
+          <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
+            <div className="text-[21px] font-semibold leading-none tracking-[-0.04em] text-black">
+              {formatDealerMoney(totalPrice, country)}
+            </div>
+
+            {discountPercent > 0 ? (
+              <div className="pb-[1px] text-[14px] font-semibold leading-none text-black/45 line-through decoration-black/45 decoration-2">
+                {formatDealerMoney(oldTotalPrice, country)}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {myReservedQty > 0 ? (
+          <div className="mt-2 inline-flex rounded-[8px] border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold leading-none text-red-700">
+            Моя бронь: {myReservedQty}
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid grid-cols-[104px_minmax(0,1fr)] gap-2">
+          <div className="flex h-10 items-center justify-between rounded-full border border-black/10 bg-white px-1.5">
+            <button
+              type="button"
+              onClick={() => onDecreaseQty(product.id)}
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-black transition hover:bg-black/5"
+              aria-label="Уменьшить количество"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+
+            <span className="min-w-[24px] text-center text-[13px] font-semibold text-black">
+              {quantity}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => onIncreaseQty(product.id)}
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-black transition hover:bg-black/5"
+              aria-label="Увеличить количество"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onOpenModal(product)}
+            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[12px] font-semibold tracking-[0.04em] text-black transition hover:border-black/25 hover:bg-black/[0.03]"
+          >
+            Открыть товар
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onToggleCart(product.id)}
+          className={cn(
+            "mt-2 inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-full px-3 text-[12px] font-semibold tracking-[0.04em] transition",
+            isInCart
+              ? "border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+              : "border border-black bg-black text-white hover:opacity-90",
+          )}
+        >
+          <ShoppingCart className="h-3.5 w-3.5" />
+          {isInCart ? "Убрать из корзины" : "Добавить в корзину"}
+        </button>
       </div>
-    </div>
+    </article>
   );
 }
