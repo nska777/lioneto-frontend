@@ -1,23 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import gsap from "gsap";
-import { X } from "lucide-react";
 
 import { tF } from "@/i18n";
 import { MegaCategory, MegaKey, MegaItem } from "@/app/lib/headerData";
 
 function cn(...s: Array<string | false | null | undefined>) {
   return s.filter(Boolean).join(" ");
-}
-
-function chunkColumns(items: MegaItem[], cols: number) {
-  const perCol = Math.ceil(items.length / cols);
-
-  return Array.from({ length: cols }, (_, i) =>
-    items.slice(i * perCol, (i + 1) * perCol),
-  ).filter((c) => c.length);
 }
 
 type Dict = Record<string, unknown>;
@@ -38,34 +30,49 @@ export default function CategoryNav({
   dict: Dict;
 }) {
   const [active, setActive] = useState<MegaKey | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [menuTop, setMenuTop] = useState(0);
+
   const open = active !== null;
 
   const navWrapRef = useRef<HTMLDivElement | null>(null);
   const navRef = useRef<HTMLDivElement | null>(null);
   const indicatorRef = useRef<HTMLDivElement | null>(null);
-  const menuOuterRef = useRef<HTMLDivElement | null>(null);
   const menuPanelRef = useRef<HTMLDivElement | null>(null);
 
   const hoverTimer = useRef<number | null>(null);
+  const closeTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const activeCat = useMemo(
     () => categories.find((c) => c.key === active) || null,
     [categories, active],
   );
 
-  const colsCount = useMemo(() => {
-    const n = safeItems(activeCat?.items ?? undefined).length;
+  const activeItems = safeItems(activeCat?.items ?? undefined);
 
-    if (n <= 6) return 3;
-    if (n <= 10) return 4;
+  const updateMenuTop = () => {
+    const nav = navRef.current;
+    if (!nav) return;
 
-    return 5;
-  }, [activeCat]);
+    const rect = nav.getBoundingClientRect();
+    setMenuTop(Math.round(rect.bottom));
+  };
 
-  const columns = useMemo(
-    () => chunkColumns(safeItems(activeCat?.items ?? undefined), colsCount),
-    [activeCat, colsCount],
-  );
+  useEffect(() => {
+    updateMenuTop();
+
+    window.addEventListener("resize", updateMenuTop);
+    window.addEventListener("scroll", updateMenuTop, { passive: true });
+
+    return () => {
+      window.removeEventListener("resize", updateMenuTop);
+      window.removeEventListener("scroll", updateMenuTop);
+    };
+  }, []);
 
   const moveIndicatorTo = (el: HTMLElement | null, immediate = false) => {
     const ind = indicatorRef.current;
@@ -76,7 +83,7 @@ export default function CategoryNav({
     if (!el) {
       gsap.to(ind, {
         autoAlpha: 0,
-        duration: immediate ? 0 : 0.2,
+        duration: immediate ? 0 : 0.18,
         ease: "power2.out",
       });
 
@@ -92,70 +99,86 @@ export default function CategoryNav({
       x,
       width: w,
       autoAlpha: 1,
-      duration: immediate ? 0 : 0.35,
+      duration: immediate ? 0 : 0.3,
       ease: "power3.out",
     });
   };
 
   const cancelHoverOpen = () => {
-    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current);
+    }
+
     hoverTimer.current = null;
+  };
+
+  const cancelClose = () => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+    }
+
+    closeTimer.current = null;
   };
 
   const openWithDelay = (key: MegaKey, el: HTMLElement) => {
     cancelHoverOpen();
+    cancelClose();
+    updateMenuTop();
 
     hoverTimer.current = window.setTimeout(() => {
       setActive(key);
       moveIndicatorTo(el, false);
-    }, 240);
+    }, 90);
   };
 
-  useLayoutEffect(() => {
-    const panel = menuPanelRef.current;
-    const outer = menuOuterRef.current;
-
-    if (!panel || !outer) return;
-
-    const ctx = gsap.context(() => {
-      if (open) {
-        gsap.set(outer, { pointerEvents: "auto" });
-
-        gsap.fromTo(
-          panel,
-          { autoAlpha: 0, y: 10 },
-          {
-            autoAlpha: 1,
-            y: 0,
-            duration: 0.22,
-            ease: "power2.out",
-          },
-        );
-      } else {
-        gsap.set(outer, { pointerEvents: "none" });
-
-        gsap.to(panel, {
-          autoAlpha: 0,
-          y: 8,
-          duration: 0.16,
-          ease: "power2.out",
-        });
-      }
-    }, navWrapRef);
-
-    return () => ctx.revert();
-  }, [open, active]);
-
-  const onNavLeave = () => {
+  const closeWithDelay = () => {
     cancelHoverOpen();
+    cancelClose();
+
+    closeTimer.current = window.setTimeout(() => {
+      setActive(null);
+      moveIndicatorTo(null);
+    }, 220);
+  };
+
+  const closeNow = () => {
+    cancelHoverOpen();
+    cancelClose();
     setActive(null);
     moveIndicatorTo(null);
   };
 
   useLayoutEffect(() => {
-    if (!open) cancelHoverOpen();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    const panel = menuPanelRef.current;
+    if (!panel) return;
+
+    if (open) {
+      gsap.fromTo(
+        panel,
+        { autoAlpha: 0, y: 6 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.18,
+          ease: "power2.out",
+        },
+      );
+    } else {
+      gsap.to(panel, {
+        autoAlpha: 0,
+        y: 5,
+        duration: 0.14,
+        ease: "power2.out",
+      });
+    }
+  }, [open, active]);
+
+  useEffect(() => {
+    return () => {
+      cancelHoverOpen();
+      cancelClose();
+    };
+  }, []);
 
   const catLabel = (c: MegaCategory) =>
     tF(dict, safeStr(c.labelKey, ""), safeStr(c.fallback, ""));
@@ -163,63 +186,100 @@ export default function CategoryNav({
   const itemLabel = (it: MegaItem) =>
     tF(dict, safeStr(it.labelKey, ""), safeStr(it.fallback, ""));
 
-  const activeCatTitle = activeCat ? catLabel(activeCat) : "";
-  const activeItems = safeItems(activeCat?.items ?? undefined);
-
-  return (
-    <div className="w-full max-w-full overflow-x-clip bg-[#f3f3f3] border-black/10">
-      <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
-        <div
-          ref={navWrapRef}
-          className="relative min-w-0 max-w-full"
-          onMouseLeave={onNavLeave}
-        >
-          {/* DESKTOP */}
-          <div ref={navRef} className="relative hidden md:block">
-            <div className="flex h-16 min-w-0 items-center justify-between gap-4 overflow-hidden text-[15px] tracking-[0.12em] text-black/70">
-              {categories.map((c) => {
-                const isActive = c.key === active;
-                const label = catLabel(c);
-
-                return (
-                  <button
-                    key={c.key}
-                    type="button"
-                    onMouseEnter={(e) => openWithDelay(c.key, e.currentTarget)}
-                    onMouseLeave={cancelHoverOpen}
-                    onFocus={(e) => openWithDelay(c.key, e.currentTarget)}
-                    className={cn(
-                      "min-w-0 truncate py-2 transition select-none cursor-pointer",
-                      isActive ? "text-black" : "hover:text-black",
-                    )}
-                    aria-label={label}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div
-              ref={indicatorRef}
-              className="pointer-events-none absolute bottom-[10px] left-0 h-[1.5px] w-[40px] rounded-full bg-black/70 opacity-0"
-            />
-          </div>
-
-          {/* MOBILE */}
-          <div className="min-w-0 max-w-full md:hidden">
-            <div className="-mx-4 max-w-[100vw] overflow-hidden">
+  const desktopMenu =
+    mounted && open && activeCat
+      ? createPortal(
+          <div
+            className="fixed left-0 right-0 z-[99999] hidden md:block"
+            style={{ top: menuTop }}
+            onMouseEnter={cancelClose}
+            onMouseLeave={closeWithDelay}
+          >
+            <div className="mx-auto w-full max-w-[1200px] px-4">
               <div
+                ref={menuPanelRef}
                 className={cn(
-                  "flex h-14 max-w-full items-center gap-6 overflow-x-auto overflow-y-hidden whitespace-nowrap px-4",
-                  "text-[13px] tracking-[0.16em] text-black/70",
-                  "no-scrollbar overscroll-x-contain",
+                  "w-full bg-[#f3f3f3]",
+                  "border-0 ring-0 outline-none",
+                  "shadow-[0_22px_60px_-28px_rgba(0,0,0,0.28)]",
                 )}
                 style={{
-                  WebkitOverflowScrolling: "touch",
-                  touchAction: "pan-x pan-y",
+                  outline: "none",
+                  border: "none",
                 }}
               >
+                <div className="px-6 py-5">
+                  <div className="grid max-w-[520px] grid-cols-2 gap-x-20 gap-y-3">
+                    {activeItems.map((it) => {
+                      const label = itemLabel(it);
+
+                      return (
+                        <Link
+                          key={it.href}
+                          href={it.href}
+                          onClick={closeNow}
+                          className={cn(
+                            "block min-w-0 text-left cursor-pointer",
+                            "text-[14px] tracking-[0.08em] uppercase",
+                            "text-black/75 transition-colors duration-200",
+                            "hover:text-[#B9893B]",
+                          )}
+                        >
+                          <span className="block truncate">{label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <div className="w-full bg-[#f3f3f3] border-black/10">
+        <div className="mx-auto w-full max-w-[1200px] px-4">
+          <div ref={navWrapRef} className="relative">
+            {/* DESKTOP */}
+            <div ref={navRef} className="relative hidden md:block">
+              <div className="flex h-16 items-center justify-between text-[15px] tracking-[0.12em] text-black/70">
+                {categories.map((c) => {
+                  const isActive = c.key === active;
+                  const label = catLabel(c);
+
+                  return (
+                    <button
+                      key={c.key}
+                      type="button"
+                      onMouseEnter={(e) =>
+                        openWithDelay(c.key, e.currentTarget)
+                      }
+                      onMouseLeave={closeWithDelay}
+                      onFocus={(e) => openWithDelay(c.key, e.currentTarget)}
+                      className={cn(
+                        "py-2 transition select-none cursor-pointer",
+                        isActive ? "text-black" : "hover:text-black",
+                      )}
+                      aria-label={label}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
+                ref={indicatorRef}
+                className="pointer-events-none absolute bottom-[10px] left-0 h-[1.5px] w-[40px] rounded-full bg-black/70 opacity-0"
+              />
+            </div>
+
+            {/* MOBILE */}
+            <div className="md:hidden">
+              <div className="flex h-14 items-center gap-6 overflow-x-auto whitespace-nowrap text-[13px] tracking-[0.16em] text-black/70 no-scrollbar">
                 {categories.map((c) => {
                   const label = catLabel(c);
 
@@ -231,7 +291,7 @@ export default function CategoryNav({
                         setActive((prev) => (prev === c.key ? null : c.key))
                       }
                       className={cn(
-                        "shrink-0 cursor-pointer py-2 transition",
+                        "cursor-pointer py-2 transition",
                         active === c.key ? "text-black" : "hover:text-black",
                       )}
                     >
@@ -240,105 +300,31 @@ export default function CategoryNav({
                   );
                 })}
               </div>
-            </div>
 
-            {open && activeCat && (
-              <div className="max-w-full overflow-hidden pb-4">
-                <div className="rounded-none bg-[#f3f3f3] shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-                  <div className="mb-3 flex items-center justify-between pl-2">
-                    <div className="min-w-0 truncate text-[12px] tracking-[0.18em] text-black/50">
-                      {activeCatTitle}
-                    </div>
-
-                    <button
-                      type="button"
-                      className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-black/5 transition"
-                      onClick={() => setActive(null)}
-                      aria-label="Close"
-                    >
-                      <X className="h-4 w-4 text-black/60" />
-                    </button>
-                  </div>
-
-                  <div className="grid max-w-full grid-cols-2 gap-2 overflow-hidden">
-                    {activeItems.map((it) => (
-                      <Link
-                        key={it.href}
-                        href={it.href}
-                        onClick={() => setActive(null)}
-                        className="min-w-0 cursor-pointer rounded-xl px-3 py-2 text-[13px] text-black/75 hover:bg-black/5 transition"
-                      >
-                        <span className="block truncate">{itemLabel(it)}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* DESKTOP MEGA */}
-          <div
-            ref={menuOuterRef}
-            className="absolute left-0 top-[64px] z-50 hidden w-full max-w-full pointer-events-none md:block"
-          >
-            <div
-              ref={menuPanelRef}
-              className={cn(
-                "max-w-full overflow-hidden bg-[#f3f3f3]",
-                "border-0 ring-0 outline-none",
-                "shadow-[0_40px_120px_-30px_rgba(0,0,0,0.32),0_12px_30px_10px_rgba(0,0,0,0.15)]",
-                "opacity-0",
-              )}
-              style={{
-                outline: "none",
-                boxShadow: "0 22px 60px -28px rgba(0,0,0,0.28)",
-                border: "none",
-              }}
-              onMouseEnter={cancelHoverOpen}
-            >
-              <div className="px-8 pb-8 pt-7">
-                <div className="grid grid-cols-12 gap-10">
-                  <div className="col-span-12">
-                    <div
-                      className={cn(
-                        colsCount === 3 && "grid grid-cols-3 gap-x-12 gap-y-2",
-                        colsCount === 4 && "grid grid-cols-4 gap-x-10 gap-y-2",
-                        colsCount === 5 && "grid grid-cols-5 gap-x-8 gap-y-2",
-                      )}
-                    >
-                      {columns.map((col, idx) => (
-                        <div key={`col-${idx}`} className="min-w-0 space-y-3">
-                          {col.map((it) => {
-                            const label = itemLabel(it);
-
-                            return (
-                              <Link
-                                key={it.href}
-                                href={it.href}
-                                onClick={() => setActive(null)}
-                                className={cn(
-                                  "block w-full min-w-0 text-left cursor-pointer",
-                                  "text-[14px] tracking-[0.06em]",
-                                  "text-black/70 transition-colors duration-200",
-                                  "hover:text-[#B9893B]",
-                                )}
-                              >
-                                <span className="block truncate">{label}</span>
-                              </Link>
-                            );
-                          })}
-                        </div>
+              {open && activeCat && (
+                <div className="pb-4">
+                  <div className="rounded-none bg-[#f3f3f3] shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+                    <div className="grid grid-cols-2 gap-2 px-2 py-3">
+                      {activeItems.map((it) => (
+                        <Link
+                          key={it.href}
+                          href={it.href}
+                          onClick={() => setActive(null)}
+                          className="cursor-pointer rounded-xl px-3 py-2 text-[13px] text-black/75 hover:bg-black/5 transition"
+                        >
+                          {itemLabel(it)}
+                        </Link>
                       ))}
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
-          {/* /DESKTOP MEGA */}
         </div>
       </div>
-    </div>
+
+      {desktopMenu}
+    </>
   );
 }

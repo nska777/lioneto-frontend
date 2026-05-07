@@ -86,6 +86,12 @@ export default function Header({
     (REGION_DATA as Record<string, unknown>).uz;
 
   const regionData = REGION_DATA[regionKey];
+  const phonePrefix = String(regionData.phonePrefix);
+
+  const regionLabel =
+    regionKey === "uz"
+      ? safeTF(dict, "region.uz", "Узбекистан")
+      : safeTF(dict, "region.ru", "Россия");
 
   const topLinks = useMemo(() => {
     const normalize = (s: string) =>
@@ -187,7 +193,7 @@ export default function Header({
 
   return (
     <>
-      <header className="w-full max-w-full overflow-x-clip bg-[#f3f3f3]">
+      <header className="w-full bg-[#f3f3f3]">
         <TopBar
           key={regionKey}
           dict={dict}

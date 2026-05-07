@@ -39,6 +39,7 @@ function getFirstString(obj: unknown, keys: readonly string[]): string {
 
   for (const k of keys) {
     const v = obj[k];
+
     if (isString(v)) return v;
   }
 
@@ -50,6 +51,7 @@ function getFirstArray(obj: unknown, keys: readonly string[]): unknown[] {
 
   for (const k of keys) {
     const v = obj[k];
+
     if (Array.isArray(v)) return v;
   }
 
@@ -150,8 +152,7 @@ function CatalogDropdown({
   const [open, setOpen] = useState(false);
 
   const closeTimerRef = useRef<number | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
 
   const active = useMemo(() => isActive(pathname, "/catalog"), [pathname]);
 
@@ -187,22 +188,22 @@ function CatalogDropdown({
     setOpen(true);
   };
 
-  const closeMenu = () => {
+  const closeMenuSoon = () => {
     clearCloseTimer();
+
     closeTimerRef.current = window.setTimeout(() => {
       setOpen(false);
-    }, 160);
+    }, 240);
   };
 
   useEffect(() => {
     if (!open) return;
 
     const onDocMouseDown = (e: MouseEvent) => {
-      const t = e.target;
-      if (!(t instanceof Node)) return;
+      const target = e.target;
 
-      if (triggerRef.current?.contains(t)) return;
-      if (panelRef.current?.contains(t)) return;
+      if (!(target instanceof Node)) return;
+      if (wrapRef.current?.contains(target)) return;
 
       setOpen(false);
     };
@@ -229,12 +230,14 @@ function CatalogDropdown({
   const GOLD = "#B9893B";
 
   return (
-    <>
+    <div
+      ref={wrapRef}
+      className="relative"
+      onMouseEnter={openMenu}
+      onMouseLeave={closeMenuSoon}
+    >
       <button
-        ref={triggerRef}
         type="button"
-        onMouseEnter={openMenu}
-        onMouseLeave={closeMenu}
         onFocus={openMenu}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => {
@@ -252,12 +255,14 @@ function CatalogDropdown({
         )}
       >
         <span>{label}</span>
+
         <ChevronDown
           className={cn(
             "h-3.5 w-3.5 transition-transform duration-200",
             open ? "rotate-180" : "rotate-0",
           )}
         />
+
         <span
           aria-hidden
           className={cn(
@@ -271,15 +276,12 @@ function CatalogDropdown({
       </button>
 
       <div
-        ref={panelRef}
-        onMouseEnter={openMenu}
-        onMouseLeave={closeMenu}
         className={cn(
-          "fixed inset-x-0 top-[48px] z-[999] bg-[#f3f3f3]",
+          "fixed left-0 right-0 top-12 z-[9999] bg-[#f3f3f3]",
           open
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0",
-          "transition-opacity duration-200",
+            ? "pointer-events-auto opacity-100 visible"
+            : "pointer-events-none opacity-0 invisible",
+          "transition-opacity duration-150",
         )}
       >
         <div className="h-[3px] w-full" style={{ backgroundColor: GOLD }} />
@@ -326,7 +328,7 @@ function CatalogDropdown({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -443,6 +445,7 @@ export default function TopBar({
 
             <div className="hidden items-center gap-2 xl:inline-flex whitespace-nowrap">
               <Phone className="h-4 w-4 opacity-60" />
+
               <a
                 href={`tel:${phone.replace(/\s|\(|\)|-/g, "")}`}
                 className={cn(
@@ -452,6 +455,7 @@ export default function TopBar({
                 )}
               >
                 {phone}
+
                 <span
                   className={cn(
                     "pointer-events-none absolute left-0 -bottom-[0.75px]",

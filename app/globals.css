@@ -27,49 +27,18 @@
 
 /* ===== BASE ===== */
 html {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
   scroll-behavior: smooth;
+  overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: hidden;
-  position: relative;
-
   font-family: "Satoshi", system-ui, -apple-system, Segoe UI, Roboto, Arial,
     sans-serif;
   font-weight: 500;
   font-feature-settings: "kern" 1, "liga" 1;
   background: #ffffff;
-  color: #000000;
-}
-
-body,
-main {
-  min-width: 0;
-  max-width: 100%;
-}
-
-main {
   overflow-x: hidden;
-}
-
-img,
-video,
-canvas,
-svg {
-  max-width: 100%;
-  height: auto;
-}
-
-button,
-a {
-  -webkit-tap-highlight-color: transparent;
 }
 
 /* ===== HEADINGS ===== */
@@ -213,4 +182,38 @@ button,
 
 .dealer-module-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.3);
+}
+
+/* ===== iOS SCROLL GUARD ===== */
+/* Работает только на iPhone/iPad, когда IOSScrollGuard добавляет классы */
+html.ios-device {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+html.ios-device body {
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Во время движения пальцем временно гасим тяжелые эффекты.
+   Это не ломает верстку и не выключает слайдер навсегда. */
+html.ios-device.ios-is-scrolling * {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  animation-play-state: paused !important;
+}
+
+/* Самые тяжелые штуки для Safari — blur/backdrop-filter.
+   Отключаются только во время touch-scroll. */
+html.ios-device.ios-is-scrolling [class*="backdrop-blur"],
+html.ios-device.ios-is-scrolling [style*="backdrop-filter"],
+html.ios-device.ios-is-scrolling [style*="-webkit-backdrop-filter"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Убираем smooth-scroll на iOS, чтобы Safari не дергал прокрутку */
+html.ios-device {
+  scroll-behavior: auto !important;
 }
