@@ -241,9 +241,7 @@ export default async function RootLayout({
 
             <Footer />
 
-            <IOSOnlyHide>
-              <CallWidget />
-            </IOSOnlyHide>
+            <CallWidget />
           </ShopStateProvider>
         </RegionLangProvider>
 
