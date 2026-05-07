@@ -890,51 +890,67 @@ async function getDealerProductsFromCatalogByCollection(
 
   const found = new Map<string, DealerProduct>();
 
-  const requests: string[] = [];
+  for (const requestType of ["brand", "collection"] as const) {
+    let page = 1;
+    let pageCount = 1;
 
-  /**
-   * Страховка:
-   * часть товаров может лежать по brand,
-   * часть — по collection.
-   */
-  const brandParams = new URLSearchParams();
-  brandParams.set("filters[isActive][$eq]", "true");
-  brandParams.set("filters[brand][$eq]", strapiBrand);
-  brandParams.set("sort[0]", "sortOrder:asc");
-  brandParams.set("sort[1]", "title:asc");
-  brandParams.set("populate", "*");
-  brandParams.set("pagination[pageSize]", "1000");
-  requests.push(`/api/products?${brandParams.toString()}`);
+    do {
+      const params = new URLSearchParams();
 
-  const collectionParams = new URLSearchParams();
-  collectionParams.set("filters[isActive][$eq]", "true");
-  collectionParams.set("filters[collection][$eq]", strapiBrand);
-  collectionParams.set("sort[0]", "sortOrder:asc");
-  collectionParams.set("sort[1]", "title:asc");
-  collectionParams.set("populate", "*");
-  collectionParams.set("pagination[pageSize]", "1000");
-  requests.push(`/api/products?${collectionParams.toString()}`);
+      params.set("filters[isActive][$eq]", "true");
 
-  for (const path of requests) {
-    const json = await strapiFetch<{ data?: StrapiProduct[] }>(path);
-    const rows = Array.isArray(json?.data) ? json.data : [];
+      if (requestType === "brand") {
+        params.set("filters[brand][$eq]", strapiBrand);
+      } else {
+        params.set("filters[collection][$eq]", strapiBrand);
+      }
 
-    rows
-      .map(normalizeProductBase)
-      .filter(Boolean)
-      .forEach((product) => {
-        const p = product as DealerProduct;
+      params.set("sort[0]", "sortOrder:asc");
+      params.set("sort[1]", "title:asc");
+      params.set("populate", "*");
+      params.set("pagination[page]", String(page));
+      params.set("pagination[pageSize]", "500");
 
-        if (normalizeBrandForDealer(p.collectionSlug) !== normalized) return;
+      const json = await strapiFetch<{
+        data?: StrapiProduct[];
+        meta?: {
+          pagination?: {
+            page?: number;
+            pageSize?: number;
+            pageCount?: number;
+            total?: number;
+          };
+        };
+      }>(`/api/products?${params.toString()}`);
 
-        const key = p.id || p.article || p.title;
-        if (key) found.set(key, p);
-      });
+      const rows = Array.isArray(json?.data) ? json.data : [];
+
+      rows
+        .map(normalizeProductBase)
+        .filter(Boolean)
+        .forEach((product) => {
+          const p = product as DealerProduct;
+
+          if (normalizeBrandForDealer(p.collectionSlug) !== normalized) return;
+
+          const key = p.id || p.article || p.articleShort || p.title;
+          if (key) found.set(key, p);
+        });
+
+      pageCount = Number(json?.meta?.pagination?.pageCount ?? 1);
+      page += 1;
+    } while (page <= pageCount);
   }
 
-  return Array.from(found.values()).sort((a, b) =>
-    a.title.localeCompare(b.title, "ru"),
-  );
+  return Array.from(found.values()).sort((a, b) => {
+    const aa = a.article || a.articleShort || a.title;
+    const bb = b.article || b.articleShort || b.title;
+
+    return aa.localeCompare(bb, "ru", {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
 }
 
 export async function getDealerCollectionPageData(
@@ -963,20 +979,33 @@ export async function getDealerCollectionPageData(
 
   const allProducts = await getDealerProductsFromCatalog();
 
-  let productsForCurrentCollection = allProducts.filter(
+  const productsFromGeneralLoad = allProducts.filter(
     (product) =>
       normalizeBrandForDealer(product.collectionSlug) ===
       normalizedCollectionSlug,
   );
 
   /**
-   * Если общая загрузка по какой-то причине не вернула коллекцию
-   * например Elizabeth, делаем точечный запрос по brand/collection.
+   * ВАЖНО:
+   * Точечный запрос делаем ВСЕГДА для текущей коллекции.
+   *
+   * Почему:
+   * - Elizabeth была 0 товаров — fallback сработал.
+   * - Scandy была 15 товаров — старый fallback НЕ сработал.
+   * - Поэтому текущую коллекцию всегда добираем через brand/collection.
    */
-  if (productsForCurrentCollection.length === 0) {
-    productsForCurrentCollection =
-      await getDealerProductsFromCatalogByCollection(normalizedCollectionSlug);
-  }
+  const productsFromDirectLoad =
+    await getDealerProductsFromCatalogByCollection(normalizedCollectionSlug);
+
+  const currentProductsMap = new Map<string, DealerProduct>();
+
+  [...productsFromGeneralLoad, ...productsFromDirectLoad].forEach((product) => {
+    const key = product.id || product.article || product.articleShort || product.title;
+
+    if (key) currentProductsMap.set(key, product);
+  });
+
+  const productsForCurrentCollection = Array.from(currentProductsMap.values());
 
   const productsByCollection = new Map<string, DealerProduct[]>();
 
@@ -987,12 +1016,10 @@ export async function getDealerCollectionPageData(
     productsByCollection.set(key, list);
   });
 
-  if (productsForCurrentCollection.length > 0) {
-    productsByCollection.set(
-      normalizedCollectionSlug,
-      productsForCurrentCollection,
-    );
-  }
+  productsByCollection.set(
+    normalizedCollectionSlug,
+    productsForCurrentCollection,
+  );
 
   const finalCollections = baseCollections.map((collection) => {
     const collectionSlugNormalized = normalizeBrandForDealer(collection.slug);
