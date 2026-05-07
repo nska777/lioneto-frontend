@@ -54,12 +54,15 @@ function normalizeRegionKey(x: unknown): RegionKey {
   const v = String(x ?? "")
     .toLowerCase()
     .trim();
+
   return v === "ru" ? "ru" : "uz";
 }
 
 function safeTF(dict: unknown, key: unknown, fallback: string) {
   if (!dict || typeof dict !== "object") return fallback;
+
   const k = typeof key === "string" ? key : "";
+
   return tF(dict as never, k, fallback);
 }
 
@@ -83,12 +86,6 @@ export default function Header({
     (REGION_DATA as Record<string, unknown>).uz;
 
   const regionData = REGION_DATA[regionKey];
-  const phonePrefix = String(regionData.phonePrefix);
-
-  const regionLabel =
-    regionKey === "uz"
-      ? safeTF(dict, "region.uz", "Узбекистан")
-      : safeTF(dict, "region.ru", "Россия");
 
   const topLinks = useMemo(() => {
     const normalize = (s: string) =>
@@ -127,6 +124,7 @@ export default function Header({
     if (fromCmsRaw.length) {
       return fromCmsRaw.map((x) => {
         const k = KEY_BY_LABEL[normalize(x.label)];
+
         return {
           labelKey: k ?? "",
           fallback: x.label,
@@ -169,6 +167,7 @@ export default function Header({
         const work = String(workRaw ?? x?.workTime ?? "").trim();
 
         const base = [city, addr].filter(Boolean).join(", ");
+
         return work ? `${base} — ${work}` : base;
       })
       .filter((s) => String(s).trim().length > 0);
@@ -188,7 +187,7 @@ export default function Header({
 
   return (
     <>
-      <header className="w-full bg-[#f3f3f3]">
+      <header className="w-full max-w-full overflow-x-clip bg-[#f3f3f3]">
         <TopBar
           key={regionKey}
           dict={dict}

@@ -210,7 +210,7 @@ export default async function RootLayout({
 
   return (
     <html lang="ru">
-      <body className="min-h-screen flex flex-col bg-white text-black antialiased">
+      <body className="min-h-screen w-full max-w-full overflow-x-clip flex flex-col bg-white text-black antialiased">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -233,16 +233,17 @@ export default async function RootLayout({
         <RegionLangProvider>
           <ShopStateProvider>
             <Header global={global} />
-            <main className="flex-1">{children}</main>
+            <main className="min-w-0 flex-1 overflow-x-clip">{children}</main>
             <Footer />
             <CallWidget />
           </ShopStateProvider>
         </RegionLangProvider>
 
-        {/*<BackToTop />
+        {/* <BackToTop /> */}
 
         {/* Jivo */}
         {/* {jivoId ? <JivoProvider widgetId={jivoId} /> : null} */}
+
         <UtmTracker />
         <YandexMetrika />
       </body>

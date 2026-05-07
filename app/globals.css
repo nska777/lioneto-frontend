@@ -27,15 +27,50 @@
 
 /* ===== BASE ===== */
 html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+
   font-family: "Satoshi", system-ui, -apple-system, Segoe UI, Roboto, Arial,
     sans-serif;
   font-weight: 500;
   font-feature-settings: "kern" 1, "liga" 1;
   background: #ffffff;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+body,
+main {
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ===== HEADINGS ===== */
@@ -53,6 +88,7 @@ button,
   font-weight: 600;
   letter-spacing: 0.06em;
 }
+
 /* Force override for classicomobili-like white */
 :root {
   --force-white: #ffffff;
@@ -69,22 +105,28 @@ button,
 .bg-\[\#f3f3f3\] {
   background-color: var(--force-white) !important;
 }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-.no-scrollbar::-webkit-scrollbar { display: none; }
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 
 /* === Custom horizontal scrollbar === */
-
 .custom-scrollbar::-webkit-scrollbar {
-  height: 4px; /* толщина */
+  height: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.15); /* фон трека */
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: white; /* цвет ползунка */
+  background: white;
   border-radius: 999px;
 }
 
@@ -95,7 +137,7 @@ button,
 /* Firefox */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: white rgba(255,255,255,0.15);
+  scrollbar-color: white rgba(255, 255, 255, 0.15);
 }
 
 .dealer-portal-black-gold {
@@ -129,23 +171,28 @@ button,
     background-position: 0% 50%;
     opacity: 1;
   }
+
   25% {
     background-position: 100% 50%;
     opacity: 1;
   }
+
   45% {
     background-position: 100% 50%;
     opacity: 0;
   }
+
   65% {
     background-position: 100% 50%;
     opacity: 0;
   }
+
   100% {
     background-position: 0% 50%;
     opacity: 1;
   }
 }
+
 .dealer-module-scroll {
   scroll-behavior: smooth;
   scrollbar-width: thin;

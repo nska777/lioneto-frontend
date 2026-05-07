@@ -131,6 +131,7 @@ export default function GSAPHeroSlider({
     };
 
     checkMobile();
+
     window.addEventListener("resize", checkMobile);
 
     return () => {
@@ -205,15 +206,19 @@ export default function GSAPHeroSlider({
 
       const prevImg = prev.querySelector("[data-img]") as HTMLElement | null;
       const nextImg = next.querySelector("[data-img]") as HTMLElement | null;
+
       const prevOverlay = prev.querySelector(
         "[data-overlay]",
       ) as HTMLElement | null;
+
       const nextOverlay = next.querySelector(
         "[data-overlay]",
       ) as HTMLElement | null;
+
       const nextTitle = next.querySelector(
         "[data-title]",
       ) as HTMLElement | null;
+
       const nextBtnWrap = next.querySelector(
         "[data-btn-wrap]",
       ) as HTMLElement | null;
@@ -271,6 +276,7 @@ export default function GSAPHeroSlider({
           .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.28 }, 0.12);
 
         tlRef.current = tl;
+
         return;
       }
 
@@ -421,10 +427,13 @@ export default function GSAPHeroSlider({
     ) as HTMLElement | null;
 
     const img = first?.querySelector("[data-img]") as HTMLElement | null;
+
     const overlay = first?.querySelector(
       "[data-overlay]",
     ) as HTMLElement | null;
+
     const title = first?.querySelector("[data-title]") as HTMLElement | null;
+
     const btnWrap = first?.querySelector(
       "[data-btn-wrap]",
     ) as HTMLElement | null;
@@ -509,8 +518,8 @@ export default function GSAPHeroSlider({
   }, [active, slides]);
 
   return (
-    <section className="w-full overflow-x-clip">
-      <div className="mx-auto w-full max-w-[1200px] overflow-x-clip px-4">
+    <section className="w-full max-w-full overflow-hidden">
+      <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
         <div
           ref={rootRef}
           onMouseEnter={stopAuto}
@@ -532,9 +541,9 @@ export default function GSAPHeroSlider({
             border: "none",
             outline: "none",
             boxShadow: "none",
-            WebkitOverflowScrolling: "touch",
-            transform: "translateZ(0)",
-            contain: "layout paint",
+            touchAction: "pan-y",
+            WebkitBackfaceVisibility: "hidden",
+            backfaceVisibility: "hidden",
           }}
         >
           {slides.map((s, i) => {
@@ -550,13 +559,15 @@ export default function GSAPHeroSlider({
               >
                 <div
                   data-img
-                  className="absolute inset-0 will-change-transform"
+                  className="absolute inset-0 md:will-change-transform"
                   style={{
                     backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
                     backgroundSize: "cover",
                     backgroundRepeat: "no-repeat",
                     backgroundPosition: "center center",
-                    transform: "translateZ(0) scale(1)",
+                    transform: "scale(1)",
+                    WebkitBackfaceVisibility: "hidden",
+                    backfaceVisibility: "hidden",
                   }}
                 />
 
