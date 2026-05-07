@@ -841,25 +841,50 @@ export const getDealerCollections = cache(
 );
 
 async function getDealerProductsFromCatalog(): Promise<DealerProduct[]> {
-  const params = new URLSearchParams();
+  const allRows: StrapiProduct[] = [];
 
-  /**
-   * Новый источник дилерского shop:
-   * общий Excel-driven catalog.
-   */
-  params.set("filters[isActive][$eq]", "true");
-  params.set("sort[0]", "sortOrder:asc");
-  params.set("sort[1]", "title:asc");
-  params.set("populate", "*");
-  params.set("pagination[pageSize]", "1000");
+  let page = 1;
+  let pageCount = 1;
 
-  const json = await strapiFetch<{ data?: StrapiProduct[] }>(
-    `/api/products?${params.toString()}`,
-  );
+  do {
+    const params = new URLSearchParams();
 
-  const rows = Array.isArray(json?.data) ? json.data : [];
+    /**
+     * Новый источник дилерского shop:
+     * общий Excel-driven catalog.
+     *
+     * ВАЖНО:
+     * Нельзя забирать только первые 1000 товаров,
+     * потому что часть коллекций, например Elizabeth,
+     * может оказаться на следующих страницах Strapi pagination.
+     */
+    params.set("filters[isActive][$eq]", "true");
+    params.set("sort[0]", "sortOrder:asc");
+    params.set("sort[1]", "title:asc");
+    params.set("populate", "*");
+    params.set("pagination[page]", String(page));
+    params.set("pagination[pageSize]", "500");
 
-  return rows
+    const json = await strapiFetch<{
+      data?: StrapiProduct[];
+      meta?: {
+        pagination?: {
+          page?: number;
+          pageSize?: number;
+          pageCount?: number;
+          total?: number;
+        };
+      };
+    }>(`/api/products?${params.toString()}`);
+
+    const rows = Array.isArray(json?.data) ? json.data : [];
+    allRows.push(...rows);
+
+    pageCount = Number(json?.meta?.pagination?.pageCount ?? 1);
+    page += 1;
+  } while (page <= pageCount);
+
+  return allRows
     .map(normalizeProductBase)
     .filter(Boolean) as DealerProduct[];
 }
