@@ -1,9 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Instagram,
   Youtube,
@@ -14,8 +12,6 @@ import {
   MapPin,
 } from "lucide-react";
 import Image from "next/image";
-
-gsap.registerPlugin(ScrollTrigger);
 
 /* ================= TYPES ================= */
 
@@ -57,9 +53,11 @@ const cn = (...s: Array<string | false | null | undefined>) =>
 
 function SocialIcon({ name }: { name: FooterData["socials"][number]["icon"] }) {
   const cls = "h-5 w-5";
+
   if (name === "instagram") return <Instagram className={cls} />;
   if (name === "telegram") return <Send className={cls} />;
   if (name === "youtube") return <Youtube className={cls} />;
+
   return <Facebook className={cls} />;
 }
 
@@ -93,8 +91,6 @@ const seoCollectionLinks: FooterLink[] = [
 /* ================= COMPONENT ================= */
 
 export default function Footer({ data }: { data?: Partial<FooterData> }) {
-  const rootRef = useRef<HTMLElement | null>(null);
-
   const footerData = useMemo<FooterData>(() => {
     return {
       brand: data?.brand ?? {
@@ -182,120 +178,20 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
     };
   }, [data]);
 
-  /* ================= GSAP (FIXED) ================= */
-
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    const reduceMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-
-    const ctx = gsap.context(() => {
-      const targets = gsap.utils.toArray<HTMLElement>("[data-ft-reveal]");
-      if (!targets.length) return;
-
-      if (!reduceMotion) {
-        gsap.set(targets, { autoAlpha: 0, y: 14 });
-      } else {
-        gsap.set(targets, { autoAlpha: 1, y: 0 });
-        return;
-      }
-
-      let revealed = false;
-
-      const reveal = () => {
-        if (revealed) return;
-        revealed = true;
-
-        gsap.to(targets, {
-          autoAlpha: 1,
-          y: 0,
-          duration: 0.9,
-          ease: "power3.out",
-          stagger: 0.07,
-          overwrite: true,
-        });
-      };
-
-      const checkAndRevealIfInView = () => {
-        const r = root.getBoundingClientRect();
-        const vh = window.innerHeight || 0;
-        const inView = r.top < vh * 0.9;
-        if (inView) reveal();
-      };
-
-      const st = ScrollTrigger.create({
-        trigger: root,
-        start: "top 90%",
-        once: true,
-        onEnter: reveal,
-        onRefresh: checkAndRevealIfInView,
-      });
-
-      requestAnimationFrame(() => {
-        checkAndRevealIfInView();
-      });
-
-      let raf = 0;
-      const scheduleRefresh = () => {
-        if (revealed) return;
-        if (raf) cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(() => {
-          ScrollTrigger.refresh();
-          checkAndRevealIfInView();
-        });
-      };
-
-      const onLoad = () => scheduleRefresh();
-      window.addEventListener("load", onLoad, { once: true });
-
-      let ro: ResizeObserver | null = null;
-      if (typeof ResizeObserver !== "undefined") {
-        ro = new ResizeObserver(() => scheduleRefresh());
-        ro.observe(document.documentElement);
-      }
-
-      let mo: MutationObserver | null = null;
-      if (typeof MutationObserver !== "undefined") {
-        mo = new MutationObserver(() => scheduleRefresh());
-        mo.observe(document.body, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-        });
-      }
-
-      requestAnimationFrame(() => scheduleRefresh());
-
-      return () => {
-        window.removeEventListener("load", onLoad);
-        if (raf) cancelAnimationFrame(raf);
-        ro?.disconnect();
-        mo?.disconnect();
-        st.kill();
-      };
-    }, root);
-
-    return () => ctx.revert();
-  }, []);
-
-  /* ================= JSX ================= */
-
   const DISABLE_CUSTOMER_LINKS = new Set(["Доставка и оплата", "Возврат"]);
 
   return (
-    <footer ref={rootRef} className="bg-black text-white" aria-label="Footer">
+    <footer className="bg-black text-white" aria-label="Footer">
       <div className="mx-auto w-full max-w-[1200px] px-4">
         <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-5">
-          <div data-ft-reveal className="space-y-4 lg:col-span-2">
+          <div className="space-y-4 lg:col-span-2">
             <div className="flex items-center gap-3">
-              <div className="relative h-25 w-25 overflow-hidden rounded-full">
+              <div className="relative h-24 w-24 overflow-hidden rounded-full">
                 <Image
                   src="/logo-lioneto.svg"
                   alt="Lioneto"
                   fill
+                  sizes="96px"
                   className="object-contain p-1"
                   priority={false}
                 />
@@ -305,6 +201,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
                 <div className="text-[14px] font-semibold tracking-[0.26em]">
                   {footerData.brand.title}
                 </div>
+
                 {footerData.brand.tagline && (
                   <div className="mt-1 text-[12px] text-white/55">
                     {footerData.brand.tagline}
@@ -319,7 +216,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
           </div>
 
           {footerData.columns.map((col) => (
-            <div key={col.title} data-ft-reveal className="space-y-4">
+            <div key={col.title} className="space-y-4">
               <div className="text-[12px] font-semibold tracking-[0.18em] text-white/70">
                 {col.title}
               </div>
@@ -347,7 +244,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
                           href={l.href}
                           className={cn(
                             "inline-flex items-center gap-2 text-[13px] text-white/55",
-                            "transition hover:text-white hover:-translate-y-[1px]",
+                            "transition-colors hover:text-white",
                             "cursor-pointer",
                           )}
                         >
@@ -362,7 +259,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
             </div>
           ))}
 
-          <div data-ft-reveal className="space-y-5">
+          <div className="space-y-5">
             <div className="text-[12px] font-semibold tracking-[0.18em] text-white/70">
               Контакты
             </div>
@@ -372,7 +269,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
                 <a
                   key={p.value}
                   href={p.href}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-white/60 transition hover:-translate-y-[1px] hover:text-white"
+                  className="flex cursor-pointer items-center gap-2 text-[13px] text-white/60 transition-colors hover:text-white"
                 >
                   <Phone className="h-4 w-4 text-white/40" />
                   <span>{p.value}</span>
@@ -381,7 +278,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
 
               <a
                 href={footerData.contacts.email.href}
-                className="flex cursor-pointer items-center gap-2 text-[13px] text-white/60 transition hover:-translate-y-[1px] hover:text-white"
+                className="flex cursor-pointer items-center gap-2 text-[13px] text-white/60 transition-colors hover:text-white"
               >
                 <Mail className="h-4 w-4 text-white/40" />
                 <span>{footerData.contacts.email.value}</span>
@@ -393,11 +290,13 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
                   href={a.mapUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="group flex cursor-pointer items-start gap-2 text-[13px] text-white/60 transition hover:-translate-y-[1px] hover:text-white"
+                  className="group flex cursor-pointer items-start gap-2 text-[13px] text-white/60 transition-colors hover:text-white"
                 >
-                  <MapPin className="mt-[2px] h-4 w-4 text-white/40 transition group-hover:text-white" />
+                  <MapPin className="mt-[2px] h-4 w-4 text-white/40 transition-colors group-hover:text-white" />
+
                   <div>
                     <div className="text-[12px] text-white/45">{a.label}</div>
+
                     <div className="text-white/75 underline-offset-4 group-hover:underline">
                       {a.value}
                     </div>
@@ -414,7 +313,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={s.label}
-                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-white/15 bg-white/5 transition hover:scale-[1.06] hover:bg-white/10"
+                  className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-white/15 bg-white/5 transition-colors hover:bg-white/10"
                 >
                   <SocialIcon name={s.icon} />
                 </a>
@@ -435,7 +334,7 @@ export default function Footer({ data }: { data?: Partial<FooterData> }) {
                 key={l.href}
                 href={l.href}
                 download={l.fileName}
-                className="cursor-pointer text-[12px] text-white/45 transition hover:-translate-y-[1px] hover:text-white"
+                className="cursor-pointer text-[12px] text-white/45 transition-colors hover:text-white"
               >
                 {l.label}
               </a>
