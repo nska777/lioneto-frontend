@@ -14,6 +14,8 @@ import SupplyNewsSection from "./components/home/SupplyNewsSection";
 import { supplyNewsMock } from "./mocks/supplyNews";
 import NewsletterCta from "./components/home/NewsletterCta";
 
+import IOSHeavySectionGate from "./components/system/IOSHeavySectionGate";
+
 import { COLLECTIONS_SLIDER_MOCK } from "./lib/mock/collections-slider";
 import { fetchNews } from "./lib/strapi/news";
 
@@ -105,16 +107,19 @@ function getStrapiBase() {
 
 function absUrl(base: string, url: string) {
   const u = String(url ?? "").trim();
+
   if (!u) return "";
   if (u.startsWith("http://") || u.startsWith("https://")) return u;
   if (u.startsWith("//")) return `https:${u}`;
   if (u.startsWith("/")) return `${base}${u}`;
+
   return `${base}/${u}`;
 }
 
 function pickMediaUrl(base: string, mediaAny: any): string {
   const m = mediaAny?.data?.attributes ?? mediaAny?.attributes ?? mediaAny;
   const url = String(m?.url ?? "").trim();
+
   return absUrl(base, url);
 }
 
@@ -154,6 +159,7 @@ async function fetchFeaturedProducts(
     const url = `${base}/api/products?${qs.toString()}`;
 
     const res = await fetch(url, { cache: "no-store" });
+
     if (!res.ok) {
       console.error(
         "products fetch failed:",
@@ -161,6 +167,7 @@ async function fetchFeaturedProducts(
         res.status,
         res.statusText,
       );
+
       return [];
     }
 
@@ -202,6 +209,7 @@ async function fetchFeaturedProducts(
       .filter(Boolean) as FeaturedProduct[];
   } catch (e) {
     console.error("products fetch error:", badge, e);
+
     return [];
   }
 }
@@ -260,13 +268,18 @@ export default async function Page() {
         }}
       />
 
-      <main>
+      <main className="min-w-0 overflow-x-hidden">
         <GSAPHeroSlider />
-        <BestSellers products={hitProducts} />
-        <BestPrice products={bestProducts} />
+
+        <IOSHeavySectionGate>
+          <BestSellers products={hitProducts} />
+          <BestPrice products={bestProducts} />
+          <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
+          <SupplyNewsSection items={newsItems} />
+        </IOSHeavySectionGate>
+
         <AboutCompany />
-        <CollectionsSlider collections={COLLECTIONS_SLIDER_MOCK} />
-        <SupplyNewsSection items={newsItems} />
+
         <NewsletterCta backgroundUrl="/images/home/newsletter-bg.jpg" />
 
         <section className="border-t border-black/10 bg-white text-black">
@@ -275,6 +288,7 @@ export default async function Page() {
               <h2 className="text-[28px] font-semibold tracking-[-0.02em] md:text-[40px]">
                 Популярные коллекции Lioneto в Ташкенте
               </h2>
+
               <p className="mt-4 text-[15px] leading-7 text-black/70 md:text-[17px]">
                 Откройте популярные коллекции мебели Lioneto и перейдите к
                 актуальным подборкам внутри каталога. Эти страницы помогают
@@ -293,9 +307,11 @@ export default async function Page() {
                   <div className="text-[12px] tracking-[0.18em] text-black/45">
                     КОЛЛЕКЦИЯ
                   </div>
+
                   <div className="mt-2 text-[20px] font-semibold tracking-[-0.02em]">
                     {item.label}
                   </div>
+
                   <div className="mt-2 text-[14px] leading-6 text-black/70">
                     {item.text}
                   </div>
@@ -311,9 +327,11 @@ export default async function Page() {
                 <div className="text-[12px] tracking-[0.18em] text-black/45">
                   КАТАЛОГ
                 </div>
+
                 <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
                   Каталог мебели
                 </h3>
+
                 <p className="mt-3 text-[15px] leading-7 text-black/70">
                   Откройте каталог Lioneto и посмотрите мебель для спальни,
                   гостиной и других интерьерных зон.
@@ -327,9 +345,11 @@ export default async function Page() {
                 <div className="text-[12px] tracking-[0.18em] text-black/45">
                   КОНТАКТЫ
                 </div>
+
                 <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
                   Салоны в Ташкенте
                 </h3>
+
                 <p className="mt-3 text-[15px] leading-7 text-black/70">
                   Адреса магазинов, телефоны, режим работы и карта салонов
                   Lioneto.
@@ -343,9 +363,11 @@ export default async function Page() {
                 <div className="text-[12px] tracking-[0.18em] text-black/45">
                   НОВОСТИ
                 </div>
+
                 <h3 className="mt-3 text-[22px] font-semibold tracking-[-0.02em]">
                   Новости и материалы
                 </h3>
+
                 <p className="mt-3 text-[15px] leading-7 text-black/70">
                   Следите за новостями Lioneto, новыми коллекциями и полезными
                   материалами по интерьеру.
@@ -357,6 +379,7 @@ export default async function Page() {
               <h2 className="text-[28px] font-semibold tracking-[-0.02em] md:text-[40px]">
                 Мебель в Ташкенте
               </h2>
+
               <div className="mt-4 space-y-4 text-[15px] leading-7 text-black/70 md:text-[17px]">
                 <p>
                   Lioneto — премиальная мебель в Ташкенте для современных
@@ -364,6 +387,7 @@ export default async function Page() {
                   кровати, шкафы и другие интерьерные решения, которые помогают
                   собрать цельное и визуально сильное пространство.
                 </p>
+
                 <p>
                   Если вы ищете мебель в Ташкенте, каталог Lioneto позволяет
                   быстро перейти к нужным коллекциям, посмотреть фото,
