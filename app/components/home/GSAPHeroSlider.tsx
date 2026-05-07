@@ -96,6 +96,18 @@ const DEFAULT_SLIDES: Slide[] = [
   },
 ];
 
+function isIOSDevice() {
+  if (typeof window === "undefined") return false;
+
+  const ua = window.navigator.userAgent || "";
+  const platform = window.navigator.platform || "";
+
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    (platform === "MacIntel" && window.navigator.maxTouchPoints > 1)
+  );
+}
+
 export default function GSAPHeroSlider({
   slides = DEFAULT_SLIDES,
   autoMs = 5200,
@@ -112,11 +124,16 @@ export default function GSAPHeroSlider({
   const activeRef = useRef(0);
 
   const [isMobile, setIsMobile] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
   useEffect(() => {
     activeRef.current = active;
   }, [active]);
+
+  useEffect(() => {
+    setIsIOS(isIOSDevice());
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -150,16 +167,26 @@ export default function GSAPHeroSlider({
     };
   }, []);
 
+  const safeSlides = useMemo(() => {
+    const arr =
+      Array.isArray(slides) && slides.length ? slides : DEFAULT_SLIDES;
+    return arr.filter((s) => s && s.id && s.title && s.image);
+  }, [slides]);
+
+  const activeSlide = useMemo(() => {
+    return safeSlides[active] ?? safeSlides[0];
+  }, [active, safeSlides]);
+
   const shouldLoadImage = useCallback(
     (idx: number) => {
       if (!isMobile) return true;
 
-      const prevIdx = (active - 1 + slides.length) % slides.length;
-      const nextIdx = (active + 1) % slides.length;
+      const prevIdx = (active - 1 + safeSlides.length) % safeSlides.length;
+      const nextIdx = (active + 1) % safeSlides.length;
 
       return idx === active || idx === prevIdx || idx === nextIdx;
     },
-    [active, isMobile, slides.length],
+    [active, isMobile, safeSlides.length],
   );
 
   const stopAuto = useCallback(() => {
@@ -170,15 +197,32 @@ export default function GSAPHeroSlider({
     autoRef.current = null;
   }, []);
 
+  const goLight = useCallback(
+    (nextIdx: number) => {
+      if (safeSlides.length <= 1) return;
+
+      const clamped = (nextIdx + safeSlides.length) % safeSlides.length;
+
+      activeRef.current = clamped;
+      setActive(clamped);
+    },
+    [safeSlides.length],
+  );
+
   const go = useCallback(
     (nextIdx: number) => {
+      if (isIOS) {
+        goLight(nextIdx);
+        return;
+      }
+
       if (!rootRef.current) return;
       if (busyRef.current) return;
-      if (slides.length <= 1) return;
+      if (safeSlides.length <= 1) return;
 
       const root = rootRef.current;
       const prevIdx = activeRef.current;
-      const clamped = (nextIdx + slides.length) % slides.length;
+      const clamped = (nextIdx + safeSlides.length) % safeSlides.length;
 
       if (clamped === prevIdx) return;
 
@@ -326,29 +370,40 @@ export default function GSAPHeroSlider({
 
       tlRef.current = tl;
     },
-    [isMobile, reducedMotion, slides.length],
+    [goLight, isIOS, isMobile, reducedMotion, safeSlides.length],
   );
 
   const startAuto = useCallback(() => {
     stopAuto();
 
+    if (isIOS) return;
     if (reducedMotion) return;
-    if (slides.length <= 1) return;
+    if (safeSlides.length <= 1) return;
 
     autoRef.current = window.setInterval(() => {
       if (!busyRef.current) {
         go(activeRef.current + 1);
       }
     }, autoMs);
-  }, [autoMs, go, reducedMotion, slides.length, stopAuto]);
+  }, [autoMs, go, isIOS, reducedMotion, safeSlides.length, stopAuto]);
 
   const next = useCallback(() => {
+    if (isIOS) {
+      goLight(activeRef.current + 1);
+      return;
+    }
+
     go(activeRef.current + 1);
-  }, [go]);
+  }, [go, goLight, isIOS]);
 
   const prev = useCallback(() => {
+    if (isIOS) {
+      goLight(activeRef.current - 1);
+      return;
+    }
+
     go(activeRef.current - 1);
-  }, [go]);
+  }, [go, goLight, isIOS]);
 
   useLayoutEffect(() => {
     if (!rootRef.current) return;
@@ -357,7 +412,58 @@ export default function GSAPHeroSlider({
 
     tlRef.current?.kill();
 
-    slides.forEach((_, i) => {
+    if (isIOS) {
+      safeSlides.forEach((_, i) => {
+        const el = root.querySelector(
+          `[data-slide="${i}"]`,
+        ) as HTMLElement | null;
+
+        if (!el) return;
+
+        el.style.opacity = i === activeRef.current ? "1" : "0";
+        el.style.zIndex = i === activeRef.current ? "2" : "1";
+        el.style.pointerEvents = i === activeRef.current ? "auto" : "none";
+
+        const img = el.querySelector("[data-img]") as HTMLElement | null;
+        const overlay = el.querySelector(
+          "[data-overlay]",
+        ) as HTMLElement | null;
+        const title = el.querySelector("[data-title]") as HTMLElement | null;
+        const btnWrap = el.querySelector(
+          "[data-btn-wrap]",
+        ) as HTMLElement | null;
+
+        if (img) {
+          img.style.transform = "none";
+          img.style.willChange = "auto";
+          img.style.backfaceVisibility = "visible";
+          img.style.webkitBackfaceVisibility = "visible";
+        }
+
+        if (overlay) {
+          overlay.style.opacity = "0.34";
+        }
+
+        if (title) {
+          title.style.transform = "none";
+          title.style.opacity = "1";
+        }
+
+        if (btnWrap) {
+          btnWrap.style.transform = "none";
+          btnWrap.style.opacity = "1";
+        }
+      });
+
+      stopAuto();
+
+      return () => {
+        stopAuto();
+        tlRef.current?.kill();
+      };
+    }
+
+    safeSlides.forEach((_, i) => {
       const el = root.querySelector(
         `[data-slide="${i}"]`,
       ) as HTMLElement | null;
@@ -460,21 +566,27 @@ export default function GSAPHeroSlider({
       stopAuto();
       tlRef.current?.kill();
     };
-  }, [isMobile, reducedMotion, slides.length, startAuto, stopAuto]);
+  }, [
+    active,
+    isIOS,
+    isMobile,
+    reducedMotion,
+    safeSlides.length,
+    startAuto,
+    stopAuto,
+  ]);
 
-  const activeSlide = useMemo(() => {
-    return slides[active] ?? slides[0];
-  }, [active, slides]);
+  if (!safeSlides.length) return null;
 
   return (
     <section className="w-full max-w-full overflow-hidden">
       <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
         <div
           ref={rootRef}
-          onMouseEnter={stopAuto}
-          onMouseLeave={startAuto}
+          onMouseEnter={isIOS ? undefined : stopAuto}
+          onMouseLeave={isIOS ? undefined : startAuto}
           className={cn(
-            "relative isolate overflow-hidden rounded-none ios-stable-layer",
+            "relative isolate overflow-hidden rounded-none",
             "bg-transparent",
             "border-0 ring-0 outline-none",
             "h-[335px] sm:h-[420px] md:h-[520px]",
@@ -484,9 +596,13 @@ export default function GSAPHeroSlider({
             border: "none",
             outline: "none",
             boxShadow: "none",
+            transform: isIOS ? "none" : undefined,
+            willChange: isIOS ? "auto" : undefined,
+            WebkitBackfaceVisibility: isIOS ? "visible" : "hidden",
+            backfaceVisibility: isIOS ? "visible" : "hidden",
           }}
         >
-          {slides.map((s, i) => {
+          {safeSlides.map((s, i) => {
             const isActive = i === active;
             const imageUrl = shouldLoadImage(i) ? s.image : "";
 
@@ -499,15 +615,19 @@ export default function GSAPHeroSlider({
               >
                 <div
                   data-img
-                  className="absolute inset-0 md:will-change-transform"
+                  className={cn(
+                    "absolute inset-0",
+                    isIOS ? "" : "md:will-change-transform",
+                  )}
                   style={{
                     backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
                     backgroundSize: "cover",
                     backgroundRepeat: "no-repeat",
                     backgroundPosition: "center center",
-                    transform: "scale(1)",
-                    WebkitBackfaceVisibility: "hidden",
-                    backfaceVisibility: "hidden",
+                    transform: isIOS ? "none" : "scale(1)",
+                    willChange: isIOS ? "auto" : undefined,
+                    WebkitBackfaceVisibility: isIOS ? "visible" : "hidden",
+                    backfaceVisibility: isIOS ? "visible" : "hidden",
                   }}
                 />
 
@@ -564,7 +684,9 @@ export default function GSAPHeroSlider({
                           "text-[11px] md:text-[13px] tracking-[0.18em] md:tracking-[0.22em] uppercase",
                           "border border-white/75",
                           "transition-all duration-300",
-                          "hover:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.9)]",
+                          isIOS
+                            ? ""
+                            : "hover:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.9)]",
                           "cursor-pointer",
                         )}
                       >
@@ -633,9 +755,16 @@ export default function GSAPHeroSlider({
           </button>
 
           <div className="pointer-events-auto absolute bottom-4 left-0 right-0 z-[30] flex justify-center">
-            <div className="rounded-full bg-black/18 px-3 py-2 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)] md:backdrop-blur-[6px]">
+            <div
+              className={cn(
+                "rounded-full bg-black/18 px-3 py-2 ring-1 ring-white/10",
+                isIOS
+                  ? ""
+                  : "shadow-[0_10px_30px_rgba(0,0,0,0.18)] md:backdrop-blur-[6px]",
+              )}
+            >
               <div className="flex items-center gap-2">
-                {Array.from({ length: slides.length }).map((_, idx) => {
+                {Array.from({ length: safeSlides.length }).map((_, idx) => {
                   const dotActive = idx === active;
 
                   return (
@@ -644,6 +773,12 @@ export default function GSAPHeroSlider({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+
+                        if (isIOS) {
+                          goLight(idx);
+                          return;
+                        }
+
                         go(idx);
                       }}
                       className={cn(
