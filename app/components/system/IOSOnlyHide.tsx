@@ -23,19 +23,8 @@ export default function IOSOnlyHide({ children }: { children: ReactNode }) {
     setMounted(true);
   }, []);
 
-  /*
-    Временная диагностика:
-    - до hydration показываем children;
-    - после hydration на iPhone/iPad скрываем children;
-    - Android/Desktop не трогаем.
-  */
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
-  if (isIOS) {
-    return null;
-  }
+  if (!mounted) return null;
+  if (isIOS) return null;
 
   return <>{children}</>;
 }
