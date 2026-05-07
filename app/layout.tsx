@@ -9,7 +9,6 @@ import { ShopStateProvider } from "./context/shop-state";
 import Header from "./components/Header";
 import Footer from "./components/sections/Footer";
 import CallWidget from "./components/modals/CallWidget";
-import IOSScrollGuard from "./components/system/IOSScrollGuard";
 
 import { getGlobal } from "./lib/strapi";
 
@@ -212,8 +211,6 @@ export default async function RootLayout({
   return (
     <html lang="ru">
       <body className="min-h-screen flex flex-col bg-white text-black antialiased">
-        <IOSScrollGuard />
-
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
