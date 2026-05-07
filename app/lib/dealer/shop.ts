@@ -356,6 +356,10 @@ function normalizeSlug(value: unknown) {
   return raw;
 }
 
+function strapiEnumBrand(value: string) {
+  return value === "scandi" ? "scandy" : value;
+}
+
 function normalizeBrandForDealer(value: unknown) {
   const slug = normalizeSlug(value);
 
@@ -443,16 +447,6 @@ function mapDealerPrices(raw: {
   const dealerKZ = toNumber(raw.dealerPriceKZ);
   const dealerTJ = toNumber(raw.dealerPriceTJ);
 
-  /**
-   * Сейчас по твоей задаче:
-   * dealerPriceUZS может быть пустой.
-   * Российские дилерские цены должны подтянуться из dealerPriceRUB.
-   *
-   * Поэтому:
-   * - если dealerPrice есть — берём его;
-   * - если dealerPrice пустой — временно fallback на retail price,
-   *   чтобы магазин не вставал.
-   */
   return {
     RU: dealerRU > 0 ? dealerRU : retailRU,
     UZ: dealerUZ > 0 ? dealerUZ : retailUZ,
@@ -854,9 +848,8 @@ async function getDealerProductsFromCatalog(): Promise<DealerProduct[]> {
      * общий Excel-driven catalog.
      *
      * ВАЖНО:
-     * Нельзя забирать только первые 1000 товаров,
-     * потому что часть коллекций, например Elizabeth,
-     * может оказаться на следующих страницах Strapi pagination.
+     * Не забираем только первую страницу, потому что часть коллекций
+     * может оказаться дальше в Strapi pagination.
      */
     params.set("filters[isActive][$eq]", "true");
     params.set("sort[0]", "sortOrder:asc");
@@ -889,6 +882,61 @@ async function getDealerProductsFromCatalog(): Promise<DealerProduct[]> {
     .filter(Boolean) as DealerProduct[];
 }
 
+async function getDealerProductsFromCatalogByCollection(
+  collectionSlug: string,
+): Promise<DealerProduct[]> {
+  const normalized = normalizeBrandForDealer(collectionSlug);
+  const strapiBrand = strapiEnumBrand(normalized);
+
+  const found = new Map<string, DealerProduct>();
+
+  const requests: string[] = [];
+
+  /**
+   * Страховка:
+   * часть товаров может лежать по brand,
+   * часть — по collection.
+   */
+  const brandParams = new URLSearchParams();
+  brandParams.set("filters[isActive][$eq]", "true");
+  brandParams.set("filters[brand][$eq]", strapiBrand);
+  brandParams.set("sort[0]", "sortOrder:asc");
+  brandParams.set("sort[1]", "title:asc");
+  brandParams.set("populate", "*");
+  brandParams.set("pagination[pageSize]", "1000");
+  requests.push(`/api/products?${brandParams.toString()}`);
+
+  const collectionParams = new URLSearchParams();
+  collectionParams.set("filters[isActive][$eq]", "true");
+  collectionParams.set("filters[collection][$eq]", strapiBrand);
+  collectionParams.set("sort[0]", "sortOrder:asc");
+  collectionParams.set("sort[1]", "title:asc");
+  collectionParams.set("populate", "*");
+  collectionParams.set("pagination[pageSize]", "1000");
+  requests.push(`/api/products?${collectionParams.toString()}`);
+
+  for (const path of requests) {
+    const json = await strapiFetch<{ data?: StrapiProduct[] }>(path);
+    const rows = Array.isArray(json?.data) ? json.data : [];
+
+    rows
+      .map(normalizeProductBase)
+      .filter(Boolean)
+      .forEach((product) => {
+        const p = product as DealerProduct;
+
+        if (normalizeBrandForDealer(p.collectionSlug) !== normalized) return;
+
+        const key = p.id || p.article || p.title;
+        if (key) found.set(key, p);
+      });
+  }
+
+  return Array.from(found.values()).sort((a, b) =>
+    a.title.localeCompare(b.title, "ru"),
+  );
+}
+
 export async function getDealerCollectionPageData(
   collectionSlug: string,
 ): Promise<{
@@ -915,24 +963,43 @@ export async function getDealerCollectionPageData(
 
   const allProducts = await getDealerProductsFromCatalog();
 
-  const productsForCurrentCollection = allProducts.filter(
+  let productsForCurrentCollection = allProducts.filter(
     (product) =>
       normalizeBrandForDealer(product.collectionSlug) ===
       normalizedCollectionSlug,
   );
 
+  /**
+   * Если общая загрузка по какой-то причине не вернула коллекцию
+   * например Elizabeth, делаем точечный запрос по brand/collection.
+   */
+  if (productsForCurrentCollection.length === 0) {
+    productsForCurrentCollection =
+      await getDealerProductsFromCatalogByCollection(normalizedCollectionSlug);
+  }
+
+  const productsByCollection = new Map<string, DealerProduct[]>();
+
+  allProducts.forEach((product) => {
+    const key = normalizeBrandForDealer(product.collectionSlug);
+    const list = productsByCollection.get(key) ?? [];
+    list.push(product);
+    productsByCollection.set(key, list);
+  });
+
+  if (productsForCurrentCollection.length > 0) {
+    productsByCollection.set(
+      normalizedCollectionSlug,
+      productsForCurrentCollection,
+    );
+  }
+
   const finalCollections = baseCollections.map((collection) => {
     const collectionSlugNormalized = normalizeBrandForDealer(collection.slug);
 
-    const collectionProducts = allProducts.filter(
-      (product) =>
-        normalizeBrandForDealer(product.collectionSlug) ===
-        collectionSlugNormalized,
-    );
-
     return {
       ...collection,
-      products: collectionProducts,
+      products: productsByCollection.get(collectionSlugNormalized) ?? [],
     };
   });
 
