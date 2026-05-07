@@ -235,9 +235,7 @@ export default async function RootLayout({
 
         <RegionLangProvider>
           <ShopStateProvider>
-            <IOSOnlyHide>
-              <Header global={global} />
-            </IOSOnlyHide>
+            <Header global={global} />
 
             <main className="min-w-0 flex-1 overflow-x-hidden">{children}</main>
 
