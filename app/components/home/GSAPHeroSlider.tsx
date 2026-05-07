@@ -126,16 +126,18 @@ export default function GSAPHeroSlider({
   }, [active]);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    const mq = window.matchMedia("(max-width: 767px)");
+
+    const update = () => {
+      setIsMobile(mq.matches);
     };
 
-    checkMobile();
+    update();
 
-    window.addEventListener("resize", checkMobile);
+    mq.addEventListener?.("change", update);
 
     return () => {
-      window.removeEventListener("resize", checkMobile);
+      mq.removeEventListener?.("change", update);
     };
   }, []);
 
@@ -247,35 +249,25 @@ export default function GSAPHeroSlider({
         });
 
         gsap.set(nextTitle, {
-          y: 10,
-          opacity: 0,
+          y: 0,
+          opacity: 1,
+          clearProps: "transform",
         });
 
         gsap.set(nextBtnWrap, {
-          y: 10,
+          y: 0,
+          opacity: 1,
+          clearProps: "transform",
+        });
+
+        gsap.set(prev, {
           opacity: 0,
+          pointerEvents: "none",
         });
 
-        const tl = gsap.timeline({
-          defaults: { ease: "power2.out" },
-          onComplete: () => {
-            gsap.set(prev, {
-              opacity: 0,
-              pointerEvents: "none",
-            });
-
-            activeRef.current = clamped;
-            setActive(clamped);
-            busyRef.current = false;
-          },
-        });
-
-        tl.to(prev, { opacity: 0, duration: 0.28 }, 0)
-          .to(next, { opacity: 1, duration: 0.28 }, 0)
-          .to(nextTitle, { y: 0, opacity: 1, duration: 0.28 }, 0.08)
-          .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.28 }, 0.12);
-
-        tlRef.current = tl;
+        activeRef.current = clamped;
+        setActive(clamped);
+        busyRef.current = false;
 
         return;
       }
@@ -338,6 +330,7 @@ export default function GSAPHeroSlider({
     stopAuto();
 
     if (reducedMotion) return;
+    if (isMobile) return;
     if (slides.length <= 1) return;
 
     autoRef.current = window.setInterval(() => {
@@ -345,7 +338,7 @@ export default function GSAPHeroSlider({
         go(activeRef.current + 1);
       }
     }, autoMs);
-  }, [autoMs, go, reducedMotion, slides.length, stopAuto]);
+  }, [autoMs, go, isMobile, reducedMotion, slides.length, stopAuto]);
 
   const next = useCallback(() => {
     go(activeRef.current + 1);
@@ -451,14 +444,14 @@ export default function GSAPHeroSlider({
       gsap.set(title, {
         y: 0,
         opacity: 1,
+        clearProps: "transform",
       });
 
       gsap.set(btnWrap, {
         y: 0,
         opacity: 1,
+        clearProps: "transform",
       });
-
-      startAuto();
 
       return () => {
         stopAuto();

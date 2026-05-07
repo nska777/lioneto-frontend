@@ -30,8 +30,13 @@ html {
   width: 100%;
   max-width: 100%;
   overflow-x: clip;
-  scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+}
+
+@media (min-width: 768px) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -40,7 +45,6 @@ body {
   min-width: 0;
   overflow-x: clip;
   overscroll-behavior-x: none;
-  touch-action: pan-y;
 
   font-family: "Satoshi", system-ui, -apple-system, Segoe UI, Roboto, Arial,
     sans-serif;
