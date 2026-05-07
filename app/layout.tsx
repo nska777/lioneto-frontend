@@ -9,7 +9,6 @@ import { ShopStateProvider } from "./context/shop-state";
 import Header from "./components/Header";
 import Footer from "./components/sections/Footer";
 import CallWidget from "./components/modals/CallWidget";
-import IOSOnlyHide from "./components/system/IOSOnlyHide";
 
 import { getGlobal } from "./lib/strapi";
 
