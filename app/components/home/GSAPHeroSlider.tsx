@@ -474,7 +474,7 @@ export default function GSAPHeroSlider({
           onMouseEnter={stopAuto}
           onMouseLeave={startAuto}
           className={cn(
-            "relative isolate overflow-hidden rounded-none",
+            "relative isolate overflow-hidden rounded-none ios-stable-layer",
             "bg-transparent",
             "border-0 ring-0 outline-none",
             "h-[335px] sm:h-[420px] md:h-[520px]",

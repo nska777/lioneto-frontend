@@ -235,7 +235,7 @@ export default async function RootLayout({
             <Header global={global} />
             <main className="min-w-0 flex-1 overflow-x-clip">{children}</main>
             <Footer />
-            {/*<CallWidget />*/}
+            <CallWidget />
           </ShopStateProvider>
         </RegionLangProvider>
 
