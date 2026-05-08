@@ -264,13 +264,8 @@ export async function POST(req: Request) {
   const threadId = asIntFromEnv(process.env.TELEGRAM_ORDERS_THREAD_ID);
 
   if (!token || !chatId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "Missing TELEGRAM_ORDERS_BOT_TOKEN or TELEGRAM_ORDERS_CHAT_ID (check Production env)",
-      },
-      { status: 500 },
+    console.error(
+      "[order][telegram] Missing TELEGRAM_ORDERS_BOT_TOKEN or TELEGRAM_ORDERS_CHAT_ID",
     );
   }
 
@@ -394,93 +389,95 @@ export async function POST(req: Request) {
     `\n<b>Состав заказа:</b>\n<pre>${esc(itemsLines)}</pre>\n` +
     `💰 <b>Итого:</b> ${esc(formatMoney(totalSafe))} ${currencyLabel}`;
 
-  let tgRes: Response;
-  try {
-    const bodyObj: Record<string, unknown> = {
-      chat_id: chatId,
-      text,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-    };
+  let telegramSent = false;
 
-    if (threadId) bodyObj.message_thread_id = threadId;
-
-    tgRes = await tgCall(token, "sendMessage", bodyObj);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Telegram request failed",
-        details: msg,
-      },
-      { status: 502 },
-    );
-  }
-
-  if (!tgRes.ok) {
-    const errText = await tgRes.text().catch(() => "");
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Telegram sendMessage failed",
-        status: tgRes.status,
-        details: errText,
-      },
-      { status: 502 },
-    );
-  }
-
-  const media = itemsSafe
-    .map((it) => {
-      const img = resolveAbsUrl(String(it.imageUrl ?? "").trim());
-      if (!img) return null;
-
-      const collection =
-        it.collectionLabel || it.collection || it.brandLabel || it.brand || "";
-      const title = String(it.title ?? "Товар").trim();
-      const vTitle = String(it.variantTitle ?? "").trim();
-      const vId = String(it.variantId ?? "").trim();
-
-      const qty = toNum(it?.qty);
-      const unit = toNum(it?.unit);
-      const sum = toNum(it?.sum) || unit * qty;
-
-      const header = collection ? `${collection} / ${title}` : title;
-      const variant =
-        vTitle && vId && vId !== "base"
-          ? `\nВариант: ${vTitle}`
-          : vTitle
-            ? `\nВариант: ${vTitle}`
-            : "";
-
-      const caption =
-        `🪑 <b>${esc(header)}</b>` +
-        `${variant ? `\n${esc(variant)}` : ""}` +
-        `\n${esc(String(qty))} × ${esc(formatMoney(unit))} = ${esc(formatMoney(sum))} ${esc(currencyLabel)}`;
-
-      return {
-        type: "photo",
-        media: img,
-        caption,
-        parse_mode: "HTML",
-      };
-    })
-    .filter(Boolean)
-    .slice(0, 10) as Array<Record<string, unknown>>;
-
-  if (media.length) {
+  if (token && chatId) {
     try {
       const bodyObj: Record<string, unknown> = {
         chat_id: chatId,
-        media,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
       };
 
       if (threadId) bodyObj.message_thread_id = threadId;
 
-      await tgCall(token, "sendMediaGroup", bodyObj);
-    } catch {}
+      const tgRes = await tgCall(token, "sendMessage", bodyObj);
+
+      if (!tgRes.ok) {
+        const errText = await tgRes.text().catch(() => "");
+        console.error("[order][telegram] sendMessage failed:", {
+          status: tgRes.status,
+          details: errText,
+        });
+      } else {
+        telegramSent = true;
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[order][telegram] request failed:", msg);
+    }
   }
 
-  return NextResponse.json({ ok: true, orderId: oid });
+  if (token && chatId && telegramSent) {
+    const media = itemsSafe
+      .map((it) => {
+        const img = resolveAbsUrl(String(it.imageUrl ?? "").trim());
+        if (!img) return null;
+
+        const collection =
+          it.collectionLabel || it.collection || it.brandLabel || it.brand || "";
+        const title = String(it.title ?? "Товар").trim();
+        const vTitle = String(it.variantTitle ?? "").trim();
+        const vId = String(it.variantId ?? "").trim();
+
+        const qty = toNum(it?.qty);
+        const unit = toNum(it?.unit);
+        const sum = toNum(it?.sum) || unit * qty;
+
+        const header = collection ? `${collection} / ${title}` : title;
+        const variant =
+          vTitle && vId && vId !== "base"
+            ? `\nВариант: ${vTitle}`
+            : vTitle
+              ? `\nВариант: ${vTitle}`
+              : "";
+
+        const caption =
+          `🪑 <b>${esc(header)}</b>` +
+          `${variant ? `\n${esc(variant)}` : ""}` +
+          `\n${esc(String(qty))} × ${esc(formatMoney(unit))} = ${esc(formatMoney(sum))} ${esc(currencyLabel)}`;
+
+        return {
+          type: "photo",
+          media: img,
+          caption,
+          parse_mode: "HTML",
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 10) as Array<Record<string, unknown>>;
+
+    if (media.length) {
+      try {
+        const bodyObj: Record<string, unknown> = {
+          chat_id: chatId,
+          media,
+        };
+
+        if (threadId) bodyObj.message_thread_id = threadId;
+
+        await tgCall(token, "sendMediaGroup", bodyObj);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[order][telegram] sendMediaGroup failed:", msg);
+      }
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    orderId: oid,
+    telegramSent,
+  });
 }
