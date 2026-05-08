@@ -144,8 +144,12 @@ function isUniqueConstraintError(payload: any): boolean {
     payload?.message,
     payload?.details?.error?.message,
     payload?.details?.message,
-    payload?.error?.details?.errors?.map((item: any) => item?.message).join(" "),
-    payload?.error?.details?.errors?.map((item: any) => item?.path?.join?.(".")).join(" "),
+    payload?.error?.details?.errors
+      ?.map((item: any) => item?.message)
+      .join(" "),
+    payload?.error?.details?.errors
+      ?.map((item: any) => item?.path?.join?.("."))
+      .join(" "),
   ]
     .filter((value): value is string => typeof value === "string")
     .join(" ")
@@ -160,12 +164,14 @@ function isUniqueConstraintError(payload: any): boolean {
 }
 
 function sanitizeOrderPart(value: string): string {
-  return value
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9_-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "DEALER";
+  return (
+    value
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "DEALER"
+  );
 }
 
 function pad2(value: number): string {
@@ -178,6 +184,7 @@ function generateUniqueOrderNumber(dealer: JwtPayload): string {
   );
 
   const now = new Date();
+
   const datePart = [
     now.getFullYear(),
     pad2(now.getMonth() + 1),
@@ -208,7 +215,11 @@ async function getDealerFromCookie(): Promise<JwtPayload> {
   return payload as JwtPayload;
 }
 
-function buildPayload(body: CreateDealerOrderBody, dealer: JwtPayload, orderNumber: string) {
+function buildPayload(
+  body: CreateDealerOrderBody,
+  dealer: JwtPayload,
+  orderNumber: string,
+) {
   const collectionTitles = Array.isArray(body.collectionTitles)
     ? body.collectionTitles.filter(
         (item): item is string => typeof item === "string",
@@ -226,22 +237,28 @@ function buildPayload(body: CreateDealerOrderBody, dealer: JwtPayload, orderNumb
     data: {
       orderNumber,
       orderStatus: "new",
+
       dealer: dealer.documentId,
+
       dealerTitle: asString(body.dealerTitle, dealer.title || ""),
       dealerEmail: asString(body.dealerEmail, dealer.email || ""),
+
       countryCode: asString(
         body.countryCode,
         normalizeCountryCode(dealer.countryCode),
       ),
+
       currency: asString(body.currency, ""),
       collectionTitles: collectionTitles.join(", "),
+
       totalQty: Math.trunc(asNumber(body.totalQty, 0)),
+
       subtotalText: asMoneyString(body.subtotal),
       totalWithMarkupText: asMoneyString(body.totalWithMarkup),
       globalMarkupPercent: asNumber(body.globalMarkupPercent, 0),
       globalMarkupAmountText: asMoneyString(body.globalMarkupAmount),
       totalText: asMoneyString(body.total),
-      submittedAt: new Date().toISOString(),
+
       items,
       notes: asString(body.notes, ""),
       isArchived: false,
@@ -249,8 +266,12 @@ function buildPayload(body: CreateDealerOrderBody, dealer: JwtPayload, orderNumb
   };
 }
 
-async function createOrderInStrapi(body: CreateDealerOrderBody, dealer: JwtPayload) {
+async function createOrderInStrapi(
+  body: CreateDealerOrderBody,
+  dealer: JwtPayload,
+) {
   const requestedOrderNumber = asString(body.orderNumber).trim();
+
   let currentOrderNumber =
     requestedOrderNumber || generateUniqueOrderNumber(dealer);
 
@@ -361,7 +382,8 @@ export async function GET() {
     }
 
     const qs = new URLSearchParams();
-    qs.set("sort[0]", "submittedAt:desc");
+
+    qs.set("sort[0]", "createdAt:desc");
     qs.set("filters[dealer][documentId][$eq]", dealer.documentId);
     qs.set("pagination[pageSize]", "100");
 
