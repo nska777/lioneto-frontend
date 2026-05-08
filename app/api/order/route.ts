@@ -191,7 +191,6 @@ async function tgCall(
 
 async function saveOrderToStrapi(args: {
   orderId: string;
-  createdAtIso: string;
   regionUpper: string;
   currency: "UZS" | "RUB";
   customerSafe: Customer;
@@ -206,6 +205,7 @@ async function saveOrderToStrapi(args: {
       orderNumber: args.orderId,
       orderStatus: "new",
       ...(customerDocumentId ? { customer: customerDocumentId } : {}),
+
       items: args.itemsSafe.map((it) => ({
         productId: String(it.productId ?? "").trim() || null,
         title: String(it.title ?? "").trim() || "Товар",
@@ -219,16 +219,18 @@ async function saveOrderToStrapi(args: {
         unit: toNum(it.unit),
         sum: toNum(it.sum) || toNum(it.unit) * toNum(it.qty),
       })),
+
       totalAmount: args.totalSafe,
       currency: args.currency,
       region: args.regionUpper,
+
       comment: String(args.customerSafe.comment ?? "").trim(),
       deliveryType: "customer_checkout",
       deliveryAddress: String(args.customerSafe.address ?? "").trim(),
       paymentType: "not_selected",
+
       phone: String(args.customerSafe.phone ?? "").trim(),
       fullName: String(args.customerSafe.name ?? "").trim(),
-      submittedAt: args.createdAtIso,
     },
   };
 
@@ -331,7 +333,6 @@ export async function POST(req: Request) {
 
   const strapiSave = await saveOrderToStrapi({
     orderId: oid,
-    createdAtIso: cAtUtc,
     regionUpper,
     currency,
     customerSafe,
@@ -474,7 +475,9 @@ export async function POST(req: Request) {
         chat_id: chatId,
         media,
       };
+
       if (threadId) bodyObj.message_thread_id = threadId;
+
       await tgCall(token, "sendMediaGroup", bodyObj);
     } catch {}
   }
