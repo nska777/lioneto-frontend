@@ -137,6 +137,7 @@ export type ProductPageModel = {
     size?: string;
     color?: string;
     material?: string;
+    module?: string;
   };
 
   assemblyInstructionTitle?: string;
@@ -843,6 +844,27 @@ export default function ProductClient({
 
   const hasSetItems = visibleSetItems.length > 0;
 
+  const isSceneProduct = useMemo(() => {
+    const id = normalizeKey(product.id);
+    const sku = normalizeKey(product.sku);
+    const article = normalizeKey(product.extra?.article);
+    const module = normalizeKey(product.extra?.module);
+
+    return (
+      product.isCollection === true ||
+      id.startsWith("scene-") ||
+      sku.startsWith("scene-") ||
+      article.startsWith("scene-") ||
+      module === "scene"
+    );
+  }, [
+    product.id,
+    product.sku,
+    product.extra?.article,
+    product.extra?.module,
+    product.isCollection,
+  ]);
+
   useEffect(() => {
     setCollapsedSetItemIds([]);
     setHoveredSetItemId(null);
@@ -913,26 +935,63 @@ export default function ProductClient({
     return out;
   }, [setItemGroups, selectedSetItemByGroup]);
 
+  const collapsedSet = useMemo(
+    () => new Set(collapsedSetItemIds),
+    [collapsedSetItemIds],
+  );
+
+  const activeSceneSetItems = useMemo(() => {
+    if (!isSceneProduct) return [];
+    return visibleSetItems.filter((item) => !collapsedSet.has(item.id));
+  }, [isSceneProduct, visibleSetItems, collapsedSet]);
+
+  const excludedSceneSetItems = useMemo(() => {
+    if (!isSceneProduct) return [];
+    return visibleSetItems.filter((item) => collapsedSet.has(item.id));
+  }, [isSceneProduct, visibleSetItems, collapsedSet]);
+
+  const sceneTotalCount = visibleSetItems.length;
+  const sceneActiveCount = activeSceneSetItems.length;
+  const sceneExcludedCount = excludedSceneSetItems.length;
+
   const selectedSetItemLabel = useMemo(() => {
+    if (isSceneProduct) {
+      const total = visibleSetItems.length;
+      const excluded = collapsedSetItemIds.length;
+      const active = Math.max(0, total - excluded);
+
+      if (!total) return null;
+      return `В комплекте: ${active} из ${total}`;
+    }
+
     if (!selectedSetItems.length) return null;
 
     return selectedSetItems
       .map((item) => getSetItemOptionLabel(item))
       .filter(Boolean)
       .join(", ");
-  }, [selectedSetItems]);
+  }, [
+    isSceneProduct,
+    visibleSetItems.length,
+    collapsedSetItemIds.length,
+    selectedSetItems,
+  ]);
 
   const setItemKey = useMemo(() => {
-    if (!selectedSetItems.length) return "no-set";
+    const itemsForKey = isSceneProduct
+      ? visibleSetItems.filter((item) => !collapsedSetItemIds.includes(item.id))
+      : selectedSetItems;
 
-    return selectedSetItems
+    if (!itemsForKey.length) return "no-set";
+
+    return itemsForKey
       .map((item) => {
         const group = normalizeKey(item.groupKey || "set");
         const option = normalizeKey(item.optionKey || item.id);
         return `set:${group}-${option}`;
       })
       .join("|");
-  }, [selectedSetItems]);
+  }, [isSceneProduct, visibleSetItems, collapsedSetItemIds, selectedSetItems]);
 
   const colorKeyForCart = selectedColorKey || "base-color";
 
@@ -975,13 +1034,15 @@ export default function ProductClient({
     return getCompositeArticle({
       baseArticle: baseArticleForDisplay,
       selectedColor: selectedColorVariant?.variantSku ? null : displayColor,
-      selectedSetItems,
+      selectedSetItems: isSceneProduct ? activeSceneSetItems : selectedSetItems,
     });
   }, [
     baseArticleForDisplay,
     selectedColorVariant?.variantSku,
     displayColor,
     selectedSetItems,
+    isSceneProduct,
+    activeSceneSetItems,
   ]);
 
   const variantGallery = useMemo(() => {
@@ -1063,11 +1124,37 @@ export default function ProductClient({
   }, [selectedSetItems, currency]);
 
   const corpusUnitPrice = selectedVariantFinalPrice ?? baseUnitPrice;
-  const unitPrice = corpusUnitPrice + selectedSetItemsSum;
+
+  const excludedOneSetSum = useMemo(() => {
+    if (!isSceneProduct) return 0;
+
+    return excludedSceneSetItems.reduce((sum, item) => {
+      const itemPrice = getSetItemPrice(item, currency);
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + itemPrice * itemQty;
+    }, 0);
+  }, [excludedSceneSetItems, currency, isSceneProduct]);
+
+  const unitPrice = isSceneProduct
+    ? Math.max(0, corpusUnitPrice - excludedOneSetSum)
+    : corpusUnitPrice + selectedSetItemsSum;
+
+  const displayUnitPrice = unitPrice;
+  const displayTotalPrice = displayUnitPrice * qty;
 
   const finalUZS = useMemo(() => {
     const variantUZS = getPositiveNumber(selectedColorVariant?.priceDeltaUZS);
     const corpus = variantUZS > 0 ? variantUZS : product.price_uzs;
+
+    if (isSceneProduct) {
+      const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
+        const price = getSetItemPrice(item, "UZS");
+        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        return sum + price * itemQty;
+      }, 0);
+
+      return Math.max(0, corpus - excludedSum);
+    }
 
     const setSum = selectedSetItems.reduce((sum, item) => {
       const price = getSetItemPrice(item, "UZS");
@@ -1076,11 +1163,27 @@ export default function ProductClient({
     }, 0);
 
     return corpus + setSum;
-  }, [selectedColorVariant, selectedSetItems, product.price_uzs]);
+  }, [
+    selectedColorVariant,
+    selectedSetItems,
+    product.price_uzs,
+    isSceneProduct,
+    excludedSceneSetItems,
+  ]);
 
   const finalRUB = useMemo(() => {
     const variantRUB = getPositiveNumber(selectedColorVariant?.priceDeltaRUB);
     const corpus = variantRUB > 0 ? variantRUB : product.price_rub;
+
+    if (isSceneProduct) {
+      const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
+        const price = getSetItemPrice(item, "RUB");
+        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        return sum + price * itemQty;
+      }, 0);
+
+      return Math.max(0, corpus - excludedSum);
+    }
 
     const setSum = selectedSetItems.reduce((sum, item) => {
       const price = getSetItemPrice(item, "RUB");
@@ -1089,7 +1192,13 @@ export default function ProductClient({
     }, 0);
 
     return corpus + setSum;
-  }, [selectedColorVariant, selectedSetItems, product.price_rub]);
+  }, [
+    selectedColorVariant,
+    selectedSetItems,
+    product.price_rub,
+    isSceneProduct,
+    excludedSceneSetItems,
+  ]);
 
   const finalImage = useMemo(() => {
     const imageFromSetItem =
@@ -1110,27 +1219,6 @@ export default function ProductClient({
     return imageFromSetItem || imageFromVariant || product.image || null;
   }, [selectedSetItems, variantGallery, product.image]);
 
-  const collapsedSet = useMemo(
-    () => new Set(collapsedSetItemIds),
-    [collapsedSetItemIds],
-  );
-
-  const excludedOneSetSum = useMemo(() => {
-    if (!product.isCollection) return 0;
-
-    return visibleSetItems.reduce((sum, item) => {
-      if (!collapsedSet.has(item.id)) return sum;
-
-      const itemPrice = getSetItemPrice(item, currency);
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
-
-      return sum + itemPrice * itemQty;
-    }, 0);
-  }, [visibleSetItems, collapsedSet, currency, product.isCollection]);
-
-  const displayUnitPrice = Math.max(0, unitPrice - excludedOneSetSum);
-  const displayTotalPrice = displayUnitPrice * qty;
-
   const oldCorpusUnitPrice =
     currency === "RUB"
       ? getPositiveNumber(product.old_price_rub)
@@ -1140,18 +1228,20 @@ export default function ProductClient({
     oldCorpusUnitPrice > 0 && oldCorpusUnitPrice > corpusUnitPrice;
 
   const displayOldUnitPrice = hasProductDiscount
-    ? Math.max(0, oldCorpusUnitPrice + selectedSetItemsSum - excludedOneSetSum)
+    ? isSceneProduct
+      ? Math.max(0, oldCorpusUnitPrice - excludedOneSetSum)
+      : Math.max(0, oldCorpusUnitPrice + selectedSetItemsSum)
     : 0;
 
   const displayOldTotalPrice = displayOldUnitPrice * qty;
 
   const discountPercent =
-    hasProductDiscount && displayOldUnitPrice > displayUnitPrice
+    hasProductDiscount && oldCorpusUnitPrice > corpusUnitPrice
       ? Math.max(
           1,
           Math.min(
             99,
-            Math.round((1 - displayUnitPrice / displayOldUnitPrice) * 100),
+            Math.round((1 - corpusUnitPrice / oldCorpusUnitPrice) * 100),
           ),
         )
       : 0;
@@ -1170,12 +1260,16 @@ export default function ProductClient({
   };
 
   function saveCartMeta() {
-    const selectedSetItemsTitle = selectedSetItems
+    const cartSetItems = isSceneProduct
+      ? activeSceneSetItems
+      : selectedSetItems;
+
+    const selectedSetItemsTitle = cartSetItems
       .map((item) => item.title)
       .filter(Boolean)
       .join(", ");
 
-    const selectedSetItemsArticle = selectedSetItems
+    const selectedSetItemsArticle = cartSetItems
       .filter((item) => item.addsToArticle !== false)
       .map((item) => item.article)
       .filter(Boolean)
@@ -1205,36 +1299,36 @@ export default function ProductClient({
       selectedColor: displayColor,
       selectedVariantKey: selectedColorVariant?.id ?? null,
 
-      selectedSetItemId: selectedSetItems.map((item) => item.id).join("|"),
+      selectedSetItemId: cartSetItems.map((item) => item.id).join("|"),
       selectedSetItemTitle: selectedSetItemsTitle || null,
-      selectedSetItemOptionKey: selectedSetItems
+      selectedSetItemOptionKey: cartSetItems
         .map((item) => item.optionKey || item.id)
         .filter(Boolean)
         .join("|"),
       selectedSetItemColorKey:
-        selectedSetItems.find((item) => item.colorKey)?.colorKey ??
+        cartSetItems.find((item) => item.colorKey)?.colorKey ??
         selectedColorKey ??
         null,
       selectedSetItemArticle: selectedSetItemsArticle || null,
       selectedSetItemNote:
-        selectedSetItems
+        cartSetItems
           .map((item) => item.note)
           .filter(Boolean)
           .join(", ") || null,
 
       optionTitle: selectedSetItemsTitle || null,
-      optionKey: selectedSetItems
+      optionKey: cartSetItems
         .map((item) => item.optionKey || item.id)
         .filter(Boolean)
         .join("|"),
       colorKey:
-        selectedSetItems.find((item) => item.colorKey)?.colorKey ??
+        cartSetItems.find((item) => item.colorKey)?.colorKey ??
         selectedColorKey ??
         null,
 
       quantity: qty,
 
-      selectedSetItems: selectedSetItems.map((item) => ({
+      selectedSetItems: cartSetItems.map((item) => ({
         id: item.id,
         title: item.title,
         article: item.article ?? null,
@@ -1485,13 +1579,29 @@ export default function ProductClient({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSetItemsOpen((v) => !v)}
-                    className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[12px] font-medium text-black/70 transition hover:border-black/20 hover:text-black"
-                  >
-                    {setItemsOpen ? "Скрыть" : "Изменить"}
-                  </button>
+                  {isSceneProduct ? (
+                    sceneExcludedCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setCollapsedSetItemIds([])}
+                        className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-black px-3 text-[12px] font-semibold text-white transition hover:bg-black/85"
+                      >
+                        Вернуть все
+                      </button>
+                    ) : (
+                      <div className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-3 text-[12px] font-semibold text-emerald-700">
+                        Полный комплект
+                      </div>
+                    )
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSetItemsOpen((v) => !v)}
+                      className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-black/10 bg-white px-3 text-[12px] font-medium text-black/70 transition hover:border-black/20 hover:text-black"
+                    >
+                      {setItemsOpen ? "Скрыть" : "Изменить"}
+                    </button>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -1516,8 +1626,11 @@ export default function ProductClient({
 
                 {hasSetItems ? (
                   <div className="mt-1 text-[12px] text-black/45">
-                    Корпус: {formatPrice(corpusUnitPrice, currency)} + выбранная
-                    комплектация
+                    {isSceneProduct
+                      ? sceneExcludedCount > 0
+                        ? `Цена пересчитана: исключено ${sceneExcludedCount} поз.`
+                        : "Цена указана за полный комплект"
+                      : `Корпус: ${formatPrice(corpusUnitPrice, currency)} + выбранная комплектация`}
                   </div>
                 ) : null}
               </div>
@@ -1592,16 +1705,21 @@ export default function ProductClient({
               </button>
             </div>
 
-            {product.isCollection && hasSetItems ? (
+            {isSceneProduct && hasSetItems ? (
               <section className="relative mt-6">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-[16px] font-semibold text-black sm:text-[18px]">
-                    В комплектацию входит:
-                  </h2>
+                  <div>
+                    <div className="text-[10px] tracking-[0.18em] uppercase text-black/40">
+                      Комплектация
+                    </div>
+                    <h2 className="mt-1 text-[18px] font-semibold leading-tight text-black">
+                      Что входит в комплект
+                    </h2>
+                  </div>
 
                   {collapsedSetItemIds.length > 0 ? (
                     <div className="text-[12px] text-black/45">
-                      Исключено: {collapsedSetItemIds.length}
+                      Исключено: {sceneExcludedCount}
                     </div>
                   ) : null}
                 </div>
@@ -1642,9 +1760,11 @@ export default function ProductClient({
                           )
                         }
                         className={cn(
-                          "overflow-hidden rounded-[18px] border border-black/10 bg-white transition-all duration-300 ease-out",
-                          "hover:border-black/20 hover:shadow-[0_12px_30px_-24px_rgba(0,0,0,0.22)]",
-                          collapsed ? "px-3 py-2.5" : "px-3 py-3 sm:px-4",
+                          "overflow-hidden rounded-[20px] border bg-white transition-all duration-300 ease-out",
+                          collapsed
+                            ? "border-black/10 bg-black/[0.025] opacity-75"
+                            : "border-emerald-100 bg-emerald-50/35 hover:border-emerald-200 hover:shadow-[0_12px_30px_-24px_rgba(0,0,0,0.22)]",
+                          "px-3 py-3 sm:px-4",
                         )}
                       >
                         <div className="flex items-center gap-3">
@@ -1652,7 +1772,7 @@ export default function ProductClient({
                             type="button"
                             onClick={() => toggleSetItemCollapsed(item.id)}
                             className={cn(
-                              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition",
+                              "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition",
                               collapsed
                                 ? "border-black/15 bg-white text-black/70 hover:border-black/30 hover:bg-black/[0.03] hover:text-black"
                                 : "border-black/15 bg-black/[0.04] text-black/80 hover:border-black/30 hover:bg-black/[0.07] hover:text-black",
@@ -1669,9 +1789,15 @@ export default function ProductClient({
                             }
                           >
                             {collapsed ? (
-                              <Plus className="h-4 w-4" />
+                              <>
+                                <Plus className="h-4 w-4 stroke-[2.5]" />
+                                Вернуть
+                              </>
                             ) : (
-                              <Minus className="h-4 w-4" />
+                              <>
+                                <Minus className="h-4 w-4 stroke-[2.5]" />
+                                Убрать
+                              </>
                             )}
                           </button>
 
