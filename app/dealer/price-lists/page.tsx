@@ -43,8 +43,9 @@ const EXTRA_CARD_LABELS: Record<ExtraCardSlug, string> = {
 const UNIFIED_PRICE_CARD = {
   id: "unified-price",
   title: "Единый прайс по коллекциям",
-  subtitle: "Скачать Excel (.xlsx)",
-  fileHref: "/api/dealer/download?type=price-list&slug=unified-price",
+  subtitle: "В разработке",
+  fileHref: "",
+  disabled: true,
 };
 
 const cardStyle: CSSProperties = {
