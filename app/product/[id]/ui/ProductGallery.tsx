@@ -122,7 +122,7 @@ export default function ProductGallery({
     <section>
       <div
         role="button"
-        tabIndex={safeGallery.length ? 0 : -1}
+        tabIndex={safeGallery.length > 0 ? 0 : -1}
         onClick={() => {
           if (!safeGallery.length) return;
           onOpenLightbox(safeIdx);
@@ -137,7 +137,7 @@ export default function ProductGallery({
         }}
         className={cn(
           "group relative aspect-square overflow-hidden rounded-3xl bg-black/[0.03]",
-          safeGallery.length && "cursor-zoom-in",
+          safeGallery.length > 0 ? "cursor-zoom-in" : false,
         )}
         aria-label="Открыть фото в полный размер"
       >
@@ -164,12 +164,11 @@ export default function ProductGallery({
 
             <div
               className={cn(
-                "pointer-events-none absolute bottom-4 left-1/2 z-[5] -translate-x-1/2",
+                "pointer-events-none absolute bottom-4 left-1/2 z-[5] hidden -translate-x-1/2 sm:block",
                 "rounded-full bg-white/90 px-4 py-2",
                 "text-[11px] font-medium uppercase tracking-[0.16em] text-black/60",
                 "opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur-md",
                 "transition duration-300 group-hover:opacity-100",
-                "hidden sm:block",
               )}
             >
               Нажмите, чтобы увеличить
@@ -189,7 +188,7 @@ export default function ProductGallery({
                     "grid h-11 w-11 place-items-center rounded-full",
                     "border border-black/10 bg-white/90",
                     "shadow-[0_10px_30px_rgba(0,0,0,0.10)]",
-                    "cursor-pointer transition hover:bg-white hover:scale-[1.03]",
+                    "cursor-pointer transition hover:scale-[1.03] hover:bg-white",
                     "active:scale-[0.98]",
                   )}
                   aria-label="Предыдущее фото"
@@ -209,7 +208,7 @@ export default function ProductGallery({
                     "grid h-11 w-11 place-items-center rounded-full",
                     "border border-black/10 bg-white/90",
                     "shadow-[0_10px_30px_rgba(0,0,0,0.10)]",
-                    "cursor-pointer transition hover:bg-white hover:scale-[1.03]",
+                    "cursor-pointer transition hover:scale-[1.03] hover:bg-white",
                     "active:scale-[0.98]",
                   )}
                   aria-label="Следующее фото"
