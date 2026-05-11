@@ -11,6 +11,7 @@ type PriceListCardItem = {
   title: string;
   fileHref: string;
   subtitle: string;
+  disabled?: boolean;
 };
 
 const COLLECTION_ORDER = [
@@ -40,7 +41,7 @@ const EXTRA_CARD_LABELS: Record<ExtraCardSlug, string> = {
   "request-form": "Форма заявки",
 };
 
-const UNIFIED_PRICE_CARD = {
+const UNIFIED_PRICE_CARD: PriceListCardItem = {
   id: "unified-price",
   title: "Единый прайс по коллекциям",
   subtitle: "В разработке",
@@ -195,23 +196,10 @@ function PriceCard({
   item: PriceListCardItem;
   large?: boolean;
 }) {
-  return (
-    <a
-      href={item.fileHref}
-      download
-      target="_blank"
-      rel="noreferrer"
-      className={[
-        "group relative overflow-hidden rounded-[24px] border",
-        large ? "min-h-[118px] px-6 py-5" : "min-h-[106px] px-5 py-4",
-        "flex items-center justify-between gap-5",
-        "transition-all duration-300 ease-out",
-        "hover:-translate-y-[2px] hover:border-[#c9ad6e]/45 hover:shadow-[0_18px_48px_-32px_rgba(0,0,0,0.32)]",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
-      ].join(" ")}
-      style={cardStyle}
-      aria-label={`Скачать ${item.title}`}
-    >
+  const isDisabled = Boolean(item.disabled);
+
+  const content = (
+    <>
       <span
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         style={cardGlowStyle}
@@ -220,14 +208,22 @@ function PriceCard({
       <span className="pointer-events-none absolute left-0 top-0 h-full w-[5px] bg-gradient-to-b from-[#eadfbe] via-[#cdb26f] to-[#f4ead2]" />
 
       <div className="relative z-[1] flex min-w-0 items-center gap-4">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[#d8c493]/45 bg-[#f8f1dd] text-[#9a7a2e] shadow-[0_10px_22px_-18px_rgba(0,0,0,0.35)]">
+        <span
+          className={[
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border shadow-[0_10px_22px_-18px_rgba(0,0,0,0.35)]",
+            isDisabled
+              ? "border-black/10 bg-black/[0.03] text-black/35"
+              : "border-[#d8c493]/45 bg-[#f8f1dd] text-[#9a7a2e]",
+          ].join(" ")}
+        >
           <ExcelIcon />
         </span>
 
         <div className="min-w-0">
           <div
             className={[
-              "break-words font-semibold leading-[1.2] tracking-[0.03em] text-black",
+              "break-words font-semibold leading-[1.2] tracking-[0.03em]",
+              isDisabled ? "text-black/45" : "text-black",
               large ? "text-[18px]" : "text-[16px]",
             ].join(" ")}
           >
@@ -235,7 +231,14 @@ function PriceCard({
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-black/8 bg-white/75 px-3 py-1 text-[12px] font-medium text-black/58">
+            <span
+              className={[
+                "rounded-full border px-3 py-1 text-[12px] font-medium",
+                isDisabled
+                  ? "border-black/8 bg-black/[0.03] text-black/38"
+                  : "border-black/8 bg-white/75 text-black/58",
+              ].join(" ")}
+            >
               {item.subtitle}
             </span>
           </div>
@@ -245,15 +248,57 @@ function PriceCard({
       <div className="relative z-[1] flex shrink-0 items-center">
         <span
           className={[
-            "inline-flex items-center justify-center rounded-full border border-black/10 bg-white text-black/62",
-            "shadow-[0_10px_24px_-18px_rgba(0,0,0,0.38)] transition-all duration-300",
-            "group-hover:scale-105 group-hover:border-[#c9ad6e]/45 group-hover:text-black",
+            "inline-flex items-center justify-center rounded-full border shadow-[0_10px_24px_-18px_rgba(0,0,0,0.38)] transition-all duration-300",
             large ? "h-11 w-11" : "h-10 w-10",
+            isDisabled
+              ? "cursor-not-allowed border-black/8 bg-black/[0.03] text-black/28"
+              : "border-black/10 bg-white text-black/62 group-hover:scale-105 group-hover:border-[#c9ad6e]/45 group-hover:text-black",
           ].join(" ")}
         >
-          <DownloadIcon />
+          {isDisabled ? (
+            <span className="text-[16px] font-semibold">×</span>
+          ) : (
+            <DownloadIcon />
+          )}
         </span>
       </div>
+    </>
+  );
+
+  const className = [
+    "group relative overflow-hidden rounded-[24px] border",
+    large ? "min-h-[118px] px-6 py-5" : "min-h-[106px] px-5 py-4",
+    "flex items-center justify-between gap-5",
+    "transition-all duration-300 ease-out",
+    isDisabled
+      ? "cursor-not-allowed opacity-80"
+      : "hover:-translate-y-[2px] hover:border-[#c9ad6e]/45 hover:shadow-[0_18px_48px_-32px_rgba(0,0,0,0.32)]",
+    "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
+  ].join(" ");
+
+  if (isDisabled) {
+    return (
+      <div
+        className={className}
+        style={cardStyle}
+        aria-label={`${item.title} — в разработке`}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={item.fileHref}
+      download
+      target="_blank"
+      rel="noreferrer"
+      className={className}
+      style={cardStyle}
+      aria-label={`Скачать ${item.title}`}
+    >
+      {content}
     </a>
   );
 }
@@ -281,10 +326,7 @@ export default async function Page() {
     <div className="space-y-10">
       <header className="flex items-start justify-between gap-6">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a5823a]">
-            Dealer documents
-          </p>
-          <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.035em] text-black">
+          <h1 className="mt-1 text-[26px] font-semibold tracking-[-0.035em] text-black">
             Прайс-листы
           </h1>
         </div>
