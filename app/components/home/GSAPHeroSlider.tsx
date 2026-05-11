@@ -119,17 +119,45 @@ export default function GSAPHeroSlider({
   const tlRef = useRef<gsap.core.Timeline | null>(null);
   const autoRef = useRef<number | null>(null);
   const busyRef = useRef(false);
+  const activeRef = useRef(0);
+  const preloadedRef = useRef<Set<string>>(new Set());
 
   const [active, setActive] = useState(0);
-  const activeRef = useRef(0);
-
   const [isMobile, setIsMobile] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
-  useEffect(() => {
-    activeRef.current = active;
-  }, [active]);
+  const safeSlides = useMemo(() => {
+    const arr =
+      Array.isArray(slides) && slides.length ? slides : DEFAULT_SLIDES;
+
+    return arr.filter((s) => s && s.id && s.title && s.image);
+  }, [slides]);
+
+  const preloadImage = useCallback((src?: string) => {
+    if (!src || typeof window === "undefined") return;
+    if (preloadedRef.current.has(src)) return;
+
+    preloadedRef.current.add(src);
+
+    const img = new window.Image();
+    img.src = src;
+  }, []);
+
+  const preloadAround = useCallback(
+    (idx: number) => {
+      if (!safeSlides.length) return;
+
+      const current = (idx + safeSlides.length) % safeSlides.length;
+      const prevIdx = (current - 1 + safeSlides.length) % safeSlides.length;
+      const nextIdx = (current + 1) % safeSlides.length;
+
+      preloadImage(safeSlides[current]?.image);
+      preloadImage(safeSlides[prevIdx]?.image);
+      preloadImage(safeSlides[nextIdx]?.image);
+    },
+    [preloadImage, safeSlides],
+  );
 
   useEffect(() => {
     setIsIOS(isIOSDevice());
@@ -167,19 +195,14 @@ export default function GSAPHeroSlider({
     };
   }, []);
 
-  const safeSlides = useMemo(() => {
-    const arr =
-      Array.isArray(slides) && slides.length ? slides : DEFAULT_SLIDES;
-    return arr.filter((s) => s && s.id && s.title && s.image);
-  }, [slides]);
-
-  const activeSlide = useMemo(() => {
-    return safeSlides[active] ?? safeSlides[0];
-  }, [active, safeSlides]);
+  useEffect(() => {
+    preloadAround(active);
+  }, [active, preloadAround]);
 
   const shouldLoadImage = useCallback(
     (idx: number) => {
       if (!isMobile) return true;
+      if (!safeSlides.length) return false;
 
       const prevIdx = (active - 1 + safeSlides.length) % safeSlides.length;
       const nextIdx = (active + 1) % safeSlides.length;
@@ -204,9 +227,10 @@ export default function GSAPHeroSlider({
       const clamped = (nextIdx + safeSlides.length) % safeSlides.length;
 
       activeRef.current = clamped;
+      preloadAround(clamped);
       setActive(clamped);
     },
-    [safeSlides.length],
+    [preloadAround, safeSlides.length],
   );
 
   const go = useCallback(
@@ -217,7 +241,6 @@ export default function GSAPHeroSlider({
       }
 
       if (!rootRef.current) return;
-      if (busyRef.current) return;
       if (safeSlides.length <= 1) return;
 
       const root = rootRef.current;
@@ -226,7 +249,12 @@ export default function GSAPHeroSlider({
 
       if (clamped === prevIdx) return;
 
-      busyRef.current = true;
+      preloadAround(clamped);
+
+      if (busyRef.current) {
+        tlRef.current?.kill();
+        busyRef.current = false;
+      }
 
       const prev = root.querySelector(
         `[data-slide="${prevIdx}"]`,
@@ -262,16 +290,24 @@ export default function GSAPHeroSlider({
         "[data-btn-wrap]",
       ) as HTMLElement | null;
 
+      if (nextImg && safeSlides[clamped]?.image) {
+        nextImg.style.backgroundImage = `url(${safeSlides[clamped].image})`;
+      }
+
       tlRef.current?.kill();
+      busyRef.current = true;
+
+      activeRef.current = clamped;
+      setActive(clamped);
 
       gsap.set(next, {
-        zIndex: 2,
+        zIndex: 3,
         opacity: 1,
         pointerEvents: "auto",
       });
 
       gsap.set(prev, {
-        zIndex: 1,
+        zIndex: 2,
         pointerEvents: "none",
       });
 
@@ -286,33 +322,37 @@ export default function GSAPHeroSlider({
         });
 
         gsap.set(nextTitle, {
-          y: 10,
+          y: 8,
           opacity: 0,
         });
 
         gsap.set(nextBtnWrap, {
-          y: 10,
+          y: 8,
           opacity: 0,
         });
 
         const tl = gsap.timeline({
-          defaults: { ease: "power2.out" },
+          defaults: { ease: "power2.out", overwrite: "auto" },
           onComplete: () => {
             gsap.set(prev, {
               opacity: 0,
+              zIndex: 1,
               pointerEvents: "none",
             });
 
-            activeRef.current = clamped;
-            setActive(clamped);
+            gsap.set(next, {
+              zIndex: 2,
+              pointerEvents: "auto",
+            });
+
             busyRef.current = false;
           },
         });
 
-        tl.to(prev, { opacity: 0, duration: 0.28 }, 0)
-          .to(next, { opacity: 1, duration: 0.28 }, 0)
-          .to(nextTitle, { y: 0, opacity: 1, duration: 0.28 }, 0.08)
-          .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.28 }, 0.12);
+        tl.to(prev, { opacity: 0, duration: 0.22 }, 0)
+          .to(next, { opacity: 1, duration: 0.22 }, 0)
+          .to(nextTitle, { y: 0, opacity: 1, duration: 0.24 }, 0.04)
+          .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.24 }, 0.08);
 
         tlRef.current = tl;
 
@@ -320,57 +360,61 @@ export default function GSAPHeroSlider({
       }
 
       gsap.set(nextImg, {
-        scale: 1.025,
+        scale: 1.018,
         clearProps: "filter",
       });
 
       gsap.set(nextOverlay, {
-        opacity: 0.2,
+        opacity: 0.24,
       });
 
       gsap.set(nextTitle, {
-        y: 18,
+        y: 14,
         opacity: 0,
       });
 
       gsap.set(nextBtnWrap, {
-        y: 18,
+        y: 14,
         opacity: 0,
       });
 
       const tl = gsap.timeline({
-        defaults: { ease: "power3.out" },
+        defaults: { ease: "power3.out", overwrite: "auto" },
         onComplete: () => {
           gsap.set(prev, {
             opacity: 0,
+            zIndex: 1,
             pointerEvents: "none",
           });
 
-          activeRef.current = clamped;
-          setActive(clamped);
+          gsap.set(next, {
+            zIndex: 2,
+            pointerEvents: "auto",
+          });
+
           busyRef.current = false;
         },
       });
 
-      tl.to(prevImg, { scale: 1.01, duration: 0.4 }, 0)
-        .to(prevOverlay, { opacity: 0.5, duration: 0.4 }, 0)
-        .to(prev, { opacity: 0, duration: 0.45 }, 0.08)
+      tl.to(prevImg, { scale: 1.006, duration: 0.32 }, 0)
+        .to(prevOverlay, { opacity: 0.48, duration: 0.32 }, 0)
+        .to(prev, { opacity: 0, duration: 0.34 }, 0.04)
         .to(
           nextImg,
           {
             scale: 1,
-            duration: 0.75,
-            ease: "expo.out",
+            duration: 0.56,
+            ease: "power3.out",
           },
-          0.04,
+          0,
         )
-        .to(nextOverlay, { opacity: 0.38, duration: 0.55 }, 0.08)
-        .to(nextTitle, { y: 0, opacity: 1, duration: 0.45 }, 0.18)
-        .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.42 }, 0.24);
+        .to(nextOverlay, { opacity: 0.38, duration: 0.4 }, 0.04)
+        .to(nextTitle, { y: 0, opacity: 1, duration: 0.34 }, 0.1)
+        .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.32 }, 0.14);
 
       tlRef.current = tl;
     },
-    [goLight, isIOS, isMobile, reducedMotion, safeSlides.length],
+    [goLight, isIOS, isMobile, preloadAround, reducedMotion, safeSlides],
   );
 
   const startAuto = useCallback(() => {
@@ -411,18 +455,21 @@ export default function GSAPHeroSlider({
     const root = rootRef.current;
 
     tlRef.current?.kill();
+    busyRef.current = false;
 
-    if (isIOS) {
-      safeSlides.forEach((_, i) => {
-        const el = root.querySelector(
-          `[data-slide="${i}"]`,
-        ) as HTMLElement | null;
+    safeSlides.forEach((s, i) => {
+      const el = root.querySelector(
+        `[data-slide="${i}"]`,
+      ) as HTMLElement | null;
 
-        if (!el) return;
+      if (!el) return;
 
-        el.style.opacity = i === activeRef.current ? "1" : "0";
-        el.style.zIndex = i === activeRef.current ? "2" : "1";
-        el.style.pointerEvents = i === activeRef.current ? "auto" : "none";
+      const isCurrent = i === activeRef.current;
+
+      if (isIOS) {
+        el.style.opacity = isCurrent ? "1" : "0";
+        el.style.zIndex = isCurrent ? "2" : "1";
+        el.style.pointerEvents = isCurrent ? "auto" : "none";
 
         const img = el.querySelector("[data-img]") as HTMLElement | null;
         const overlay = el.querySelector(
@@ -434,6 +481,7 @@ export default function GSAPHeroSlider({
         ) as HTMLElement | null;
 
         if (img) {
+          img.style.backgroundImage = s.image ? `url(${s.image})` : "";
           img.style.transform = "none";
           img.style.willChange = "auto";
           img.style.backfaceVisibility = "visible";
@@ -453,29 +501,26 @@ export default function GSAPHeroSlider({
           btnWrap.style.transform = "none";
           btnWrap.style.opacity = "1";
         }
-      });
 
+        return;
+      }
+
+      gsap.set(el, {
+        opacity: isCurrent ? 1 : 0,
+        zIndex: isCurrent ? 2 : 1,
+        pointerEvents: isCurrent ? "auto" : "none",
+      });
+    });
+
+    if (isIOS) {
       stopAuto();
 
       return () => {
         stopAuto();
         tlRef.current?.kill();
+        busyRef.current = false;
       };
     }
-
-    safeSlides.forEach((_, i) => {
-      const el = root.querySelector(
-        `[data-slide="${i}"]`,
-      ) as HTMLElement | null;
-
-      if (!el) return;
-
-      gsap.set(el, {
-        opacity: i === activeRef.current ? 1 : 0,
-        zIndex: i === activeRef.current ? 2 : 1,
-        pointerEvents: i === activeRef.current ? "auto" : "none",
-      });
-    });
 
     const first = root.querySelector(
       `[data-slide="${activeRef.current}"]`,
@@ -518,45 +563,51 @@ export default function GSAPHeroSlider({
       return () => {
         stopAuto();
         tlRef.current?.kill();
+        busyRef.current = false;
       };
     }
 
     gsap.set(img, {
-      scale: 1.025,
+      scale: 1.018,
       clearProps: "filter",
     });
 
     gsap.set(overlay, {
-      opacity: 0.2,
+      opacity: 0.24,
     });
 
     gsap.set(title, {
-      y: 18,
+      y: 14,
       opacity: 0,
     });
 
     gsap.set(btnWrap, {
-      y: 18,
+      y: 14,
       opacity: 0,
     });
 
     const introTl = gsap.timeline({
-      defaults: { ease: "power3.out" },
+      defaults: { ease: "power3.out", overwrite: "auto" },
+      onComplete: () => {
+        busyRef.current = false;
+      },
     });
+
+    busyRef.current = true;
 
     introTl
       .to(
         img,
         {
           scale: 1,
-          duration: 0.9,
-          ease: "expo.out",
+          duration: 0.6,
+          ease: "power3.out",
         },
         0,
       )
-      .to(overlay, { opacity: 0.38, duration: 0.55 }, 0.08)
-      .to(title, { y: 0, opacity: 1, duration: 0.45 }, 0.18)
-      .to(btnWrap, { y: 0, opacity: 1, duration: 0.42 }, 0.24);
+      .to(overlay, { opacity: 0.38, duration: 0.4 }, 0.04)
+      .to(title, { y: 0, opacity: 1, duration: 0.34 }, 0.1)
+      .to(btnWrap, { y: 0, opacity: 1, duration: 0.32 }, 0.14);
 
     tlRef.current = introTl;
 
@@ -565,16 +616,9 @@ export default function GSAPHeroSlider({
     return () => {
       stopAuto();
       tlRef.current?.kill();
+      busyRef.current = false;
     };
-  }, [
-    active,
-    isIOS,
-    isMobile,
-    reducedMotion,
-    safeSlides.length,
-    startAuto,
-    stopAuto,
-  ]);
+  }, [isIOS, isMobile, reducedMotion, safeSlides, startAuto, stopAuto]);
 
   if (!safeSlides.length) return null;
 
@@ -675,7 +719,7 @@ export default function GSAPHeroSlider({
 
                       <Link
                         data-btn
-                        href={activeSlide?.href ?? s.href}
+                        href={s.href}
                         className={cn(
                           "inline-flex items-center justify-center",
                           "min-w-[160px] sm:min-w-[180px] md:min-w-[190px]",

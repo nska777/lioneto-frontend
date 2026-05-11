@@ -420,12 +420,6 @@ export default function CallModal({
 
   const handleCloseCallModal = () => {
     if (pending) return;
-
-    if (privacyOpen) {
-      return;
-    }
-
-    setPrivacyOpen(false);
     onClose();
   };
 
@@ -435,22 +429,25 @@ export default function CallModal({
         open={open}
         onClose={handleCloseCallModal}
         title={tt("header.ui.callMe", "ЗАКАЗАТЬ ЗВОНОК")}
-        widthClass="max-w-[720px]"
+        widthClass="max-w-[660px]"
       >
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div className="text-[12px] tracking-[0.18em] text-black/50">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="text-[11px] tracking-[0.18em] text-black/50">
             {tt("header.pickRegion", "Выберите регион").toUpperCase()}
           </div>
 
-          <div className="inline-flex rounded-full border border-black/10 bg-white p-1 shadow-sm">
+          <div className="inline-flex shrink-0 rounded-full border border-black/10 bg-white p-1 shadow-sm">
             <button
               type="button"
-              onClick={() => setRegion("uz")}
+              onClick={() => {
+                setRegion("uz");
+                setPhoneDigits("");
+              }}
               className={cn(
-                "h-8 px-4 rounded-full text-[12px] tracking-[0.12em] transition cursor-pointer",
+                "h-8 rounded-full px-4 text-[12px] tracking-[0.12em] transition",
                 regionKey === "uz"
                   ? "bg-black text-white"
-                  : "text-black/70 hover:text-black hover:bg-black/5",
+                  : "cursor-pointer text-black/70 hover:bg-black/5 hover:text-black",
               )}
             >
               {tt("header.regionUz", "Узбекистан")}
@@ -458,12 +455,15 @@ export default function CallModal({
 
             <button
               type="button"
-              onClick={() => setRegion("ru")}
+              onClick={() => {
+                setRegion("ru");
+                setPhoneDigits("");
+              }}
               className={cn(
-                "h-8 px-4 rounded-full text-[12px] tracking-[0.12em] transition cursor-pointer",
+                "h-8 rounded-full px-4 text-[12px] tracking-[0.12em] transition",
                 regionKey === "ru"
                   ? "bg-black text-white"
-                  : "text-black/70 hover:text-black hover:bg-black/5",
+                  : "cursor-pointer text-black/70 hover:bg-black/5 hover:text-black",
               )}
             >
               {tt("header.regionRu", "Россия")}
@@ -472,7 +472,7 @@ export default function CallModal({
         </div>
 
         <form
-          className="space-y-4"
+          className="space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
 
@@ -514,6 +514,7 @@ export default function CallModal({
 
               setPrivacyOpen(false);
               setPrivacyConsent(null);
+              setPhoneDigits("");
               onClose();
             } catch (err) {
               console.error("CALL REQUEST ERROR:", err);
@@ -524,36 +525,38 @@ export default function CallModal({
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <div className="mb-2 text-[11px] tracking-[0.22em] text-black/45">
+              <div className="mb-1.5 text-[10px] tracking-[0.22em] text-black/45">
                 {tt("form.lastName", "ФАМИЛИЯ")}
               </div>
+
               <input
                 required
                 name="lastName"
-                className="h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-[14px] outline-none focus:border-black/20 focus:shadow-[0_0_0_6px_rgba(0,0,0,0.04)] transition"
+                className="h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-[14px] outline-none transition focus:border-black/20 focus:shadow-[0_0_0_5px_rgba(0,0,0,0.04)]"
                 placeholder={tt("form.lastNamePh", "Иванов")}
               />
             </div>
 
             <div>
-              <div className="mb-2 text-[11px] tracking-[0.22em] text-black/45">
+              <div className="mb-1.5 text-[10px] tracking-[0.22em] text-black/45">
                 {tt("form.firstName", "ИМЯ")}
               </div>
+
               <input
                 required
                 name="firstName"
-                className="h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-[14px] outline-none focus:border-black/20 focus:shadow-[0_0_0_6px_rgba(0,0,0,0.04)] transition"
+                className="h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-[14px] outline-none transition focus:border-black/20 focus:shadow-[0_0_0_5px_rgba(0,0,0,0.04)]"
                 placeholder={tt("form.firstNamePh", "Иван")}
               />
             </div>
           </div>
 
           <div>
-            <div className="mb-2 text-[11px] tracking-[0.22em] text-black/45">
+            <div className="mb-1.5 text-[10px] tracking-[0.22em] text-black/45">
               {tt("form.phone", "ТЕЛЕФОН")}
             </div>
 
-            <div className="flex h-12 overflow-hidden rounded-2xl border border-black/10 bg-white focus-within:border-black/20 focus-within:shadow-[0_0_0_6px_rgba(0,0,0,0.04)] transition">
+            <div className="flex h-11 overflow-hidden rounded-2xl border border-black/10 bg-white transition focus-within:border-black/20 focus-within:shadow-[0_0_0_5px_rgba(0,0,0,0.04)]">
               <div className="inline-flex items-center px-4 text-[13px] tracking-[0.14em] text-black/60">
                 {phonePrefix}
               </div>
@@ -573,7 +576,7 @@ export default function CallModal({
               />
             </div>
 
-            <div className="mt-2 text-[12px] text-black/45">
+            <div className="mt-1.5 text-[12px] text-black/45">
               {tt("form.region", "Регион")}:{" "}
               <span className="text-black/70">{regionLabel}</span>
             </div>
@@ -582,90 +585,89 @@ export default function CallModal({
           <div>
             <textarea
               name="question"
-              rows={3}
-              className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] outline-none resize-none transition focus:border-black/20 focus:shadow-[0_0_0_6px_rgba(0,0,0,0.04)]"
+              rows={2}
+              className="min-h-[72px] w-full resize-none rounded-2xl border border-black/10 bg-white px-4 py-3 text-[14px] outline-none transition focus:border-black/20 focus:shadow-[0_0_0_5px_rgba(0,0,0,0.04)]"
               placeholder="Кратко опишите ваш вопрос"
             />
           </div>
 
-          <div className="rounded-[20px] border border-black/10 bg-black/[0.02] px-4 py-4">
-            <p className="text-[12px] leading-5 text-black/55">
-              Перед отправкой формы выберите согласие на обработку персональных
-              данных. Подробные условия доступны в{" "}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setPrivacyOpen(true);
-                }}
-                className="cursor-pointer font-medium text-black underline underline-offset-4 transition hover:text-black/60"
-              >
-                пользовательском соглашении
-              </button>
-              .
-            </p>
+          <div className="rounded-[18px] border border-black/10 bg-black/[0.025] px-3 py-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-black/55">
+                  Персональные данные
+                </p>
 
-            <div className="mt-3 space-y-2">
-              <label
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-2xl bg-white px-3 py-3 text-[12px] leading-5 text-black/70 ring-1 transition",
-                  privacyConsent === "accepted"
-                    ? "ring-black bg-white"
-                    : "ring-black/10 hover:ring-black/20",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="privacyConsent"
-                  checked={privacyConsent === "accepted"}
-                  onChange={() => setPrivacyConsent("accepted")}
-                  className="mt-1 h-4 w-4 accent-black"
-                />
+                <p className="mt-1 text-[12px] leading-5 text-black/55">
+                  Перед отправкой выберите согласие.{" "}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPrivacyOpen(true);
+                    }}
+                    className="cursor-pointer font-medium text-black underline underline-offset-4 transition hover:text-black/60"
+                  >
+                    Условия обработки
+                  </button>
+                </p>
+              </div>
 
-                <span>
-                  Я даю согласие на обработку персональных данных и принимаю
-                  условия пользовательского соглашения.
-                </span>
-              </label>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+                <label
+                  className={cn(
+                    "inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border px-3 text-[12px] font-medium transition",
+                    privacyConsent === "accepted"
+                      ? "border-black bg-black text-white"
+                      : "border-black/10 bg-white text-black/65 hover:border-black/25 hover:text-black",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="privacyConsent"
+                    checked={privacyConsent === "accepted"}
+                    onChange={() => setPrivacyConsent("accepted")}
+                    className="h-3.5 w-3.5 accent-black"
+                  />
 
-              <label
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-2xl bg-white px-3 py-3 text-[12px] leading-5 text-black/70 ring-1 transition",
-                  privacyConsent === "declined"
-                    ? "ring-red-300 bg-red-50"
-                    : "ring-black/10 hover:ring-black/20",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="privacyConsent"
-                  checked={privacyConsent === "declined"}
-                  onChange={() => setPrivacyConsent("declined")}
-                  className="mt-1 h-4 w-4 accent-black"
-                />
+                  <span className="whitespace-nowrap">Согласен</span>
+                </label>
 
-                <span>
-                  Я отказываюсь от обработки персональных данных и понимаю, что
-                  отправка формы будет недоступна.
-                </span>
-              </label>
+                <label
+                  className={cn(
+                    "inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border px-3 text-[12px] font-medium transition",
+                    privacyConsent === "declined"
+                      ? "border-red-300 bg-red-50 text-red-700"
+                      : "border-black/10 bg-white text-black/65 hover:border-black/25 hover:text-black",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="privacyConsent"
+                    checked={privacyConsent === "declined"}
+                    onChange={() => setPrivacyConsent("declined")}
+                    className="h-3.5 w-3.5 accent-black"
+                  />
+
+                  <span className="whitespace-nowrap">Отказываюсь</span>
+                </label>
+              </div>
             </div>
 
             {privacyConsent === "declined" && (
-              <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-[12px] leading-5 text-red-700 ring-1 ring-red-100">
-                Без согласия на обработку персональных данных мы не сможем
-                принять заявку через форму.
+              <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] leading-4 text-red-700 ring-1 ring-red-100">
+                Без согласия отправка формы будет недоступна.
               </p>
             )}
           </div>
 
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               type="submit"
               disabled={submitDisabled}
               className={cn(
-                "w-full rounded-2xl py-3 text-[13px] tracking-[0.18em] text-white transition",
+                "h-11 w-full rounded-2xl text-[13px] font-semibold tracking-[0.18em] text-white transition",
                 submitDisabled
                   ? "cursor-not-allowed bg-black/35"
                   : "cursor-pointer bg-black hover:opacity-90",

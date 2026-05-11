@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
@@ -32,6 +32,7 @@ function UseImage({
         alt={alt}
         className={className}
         loading={priority ? "eager" : "lazy"}
+        draggable={false}
       />
     );
   }
@@ -44,6 +45,7 @@ function UseImage({
       priority={priority}
       className={className}
       sizes="(max-width: 1024px) 100vw, 520px"
+      draggable={false}
     />
   );
 }
@@ -60,10 +62,27 @@ function UseThumb({
   if (!src) return null;
 
   if (isRemoteSrc(src)) {
-    return <img src={src} alt={alt} className={className} loading="lazy" />;
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        loading="lazy"
+        draggable={false}
+      />
+    );
   }
 
-  return <Image src={src} alt={alt} fill className={className} sizes="120px" />;
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      className={className}
+      sizes="120px"
+      draggable={false}
+    />
+  );
 }
 
 export default function ProductGallery({
@@ -84,6 +103,7 @@ export default function ProductGallery({
   onOpenLightbox: (idx: number) => void;
 }) {
   const safeGallery = gallery?.length ? gallery : [];
+
   const safeIdx =
     safeGallery.length > 0
       ? Math.min(Math.max(activeIdx, 0), safeGallery.length - 1)
@@ -100,22 +120,60 @@ export default function ProductGallery({
 
   return (
     <section>
-      <div className="relative aspect-square overflow-hidden rounded-3xl bg-black/[0.03]">
+      <div
+        role="button"
+        tabIndex={safeGallery.length ? 0 : -1}
+        onClick={() => {
+          if (!safeGallery.length) return;
+          onOpenLightbox(safeIdx);
+        }}
+        onKeyDown={(e) => {
+          if (!safeGallery.length) return;
+
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpenLightbox(safeIdx);
+          }
+        }}
+        className={cn(
+          "group relative aspect-square overflow-hidden rounded-3xl bg-black/[0.03]",
+          safeGallery.length && "cursor-zoom-in",
+        )}
+        aria-label="Открыть фото в полный размер"
+      >
         {safeGallery.length ? (
           <>
-            <button
-              type="button"
-              onClick={() => onOpenLightbox(safeIdx)}
-              className="absolute inset-0 cursor-zoom-in"
-              aria-label="Открыть фото в полный размер"
-            />
-
             <UseImage
               src={safeGallery[safeIdx]}
               alt={title}
               priority
-              className="absolute inset-0 h-full w-full object-cover"
+              className={cn(
+                "absolute inset-0 h-full w-full object-cover",
+                "transition-transform duration-500 ease-out",
+                "group-hover:scale-[1.015]",
+              )}
             />
+
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-0 z-[1]",
+                "bg-black/0 transition duration-300",
+                "group-hover:bg-black/[0.025]",
+              )}
+            />
+
+            <div
+              className={cn(
+                "pointer-events-none absolute bottom-4 left-1/2 z-[5] -translate-x-1/2",
+                "rounded-full bg-white/90 px-4 py-2",
+                "text-[11px] font-medium uppercase tracking-[0.16em] text-black/60",
+                "opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur-md",
+                "transition duration-300 group-hover:opacity-100",
+                "hidden sm:block",
+              )}
+            >
+              Нажмите, чтобы увеличить
+            </div>
 
             {safeGallery.length > 1 && (
               <>
@@ -127,10 +185,12 @@ export default function ProductGallery({
                     onPrev();
                   }}
                   className={cn(
-                    "absolute left-3 top-1/2 -translate-y-1/2 z-10",
-                    "h-11 w-11 rounded-full bg-white/90 border border-black/10",
-                    "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.10)]",
-                    "hover:bg-white transition cursor-pointer",
+                    "absolute left-3 top-1/2 z-10 -translate-y-1/2",
+                    "grid h-11 w-11 place-items-center rounded-full",
+                    "border border-black/10 bg-white/90",
+                    "shadow-[0_10px_30px_rgba(0,0,0,0.10)]",
+                    "cursor-pointer transition hover:bg-white hover:scale-[1.03]",
+                    "active:scale-[0.98]",
                   )}
                   aria-label="Предыдущее фото"
                 >
@@ -145,10 +205,12 @@ export default function ProductGallery({
                     onNext();
                   }}
                   className={cn(
-                    "absolute right-3 top-1/2 -translate-y-1/2 z-10",
-                    "h-11 w-11 rounded-full bg-white/90 border border-black/10",
-                    "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.10)]",
-                    "hover:bg-white transition cursor-pointer",
+                    "absolute right-3 top-1/2 z-10 -translate-y-1/2",
+                    "grid h-11 w-11 place-items-center rounded-full",
+                    "border border-black/10 bg-white/90",
+                    "shadow-[0_10px_30px_rgba(0,0,0,0.10)]",
+                    "cursor-pointer transition hover:bg-white hover:scale-[1.03]",
+                    "active:scale-[0.98]",
                   )}
                   aria-label="Следующее фото"
                 >
@@ -156,24 +218,6 @@ export default function ProductGallery({
                 </button>
               </>
             )}
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onOpenLightbox(safeIdx);
-              }}
-              className={cn(
-                "absolute right-3 bottom-3 z-10",
-                "h-10 w-10 rounded-full bg-white/90 border border-black/10",
-                "grid place-items-center shadow-[0_10px_30px_rgba(0,0,0,0.10)]",
-                "hover:bg-white transition cursor-pointer",
-              )}
-              aria-label="Открыть в полный размер"
-            >
-              <Maximize2 className="h-4 w-4 text-black/70" />
-            </button>
           </>
         ) : null}
       </div>
@@ -182,13 +226,14 @@ export default function ProductGallery({
         <div className={cn("mt-3 grid gap-2", thumbsCols)}>
           {safeGallery.map((src, i) => {
             const active = i === safeIdx;
+
             return (
               <button
                 key={`${src}-${i}`}
                 type="button"
                 onClick={() => setActiveIdx(i)}
                 className={cn(
-                  "cursor-pointer relative aspect-square overflow-hidden rounded-2xl bg-black/[0.03] transition",
+                  "relative aspect-square cursor-pointer overflow-hidden rounded-2xl bg-black/[0.03] transition",
                   active
                     ? "ring-2 ring-black/20"
                     : "hover:ring-2 hover:ring-black/10",
