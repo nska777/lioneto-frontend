@@ -18,7 +18,8 @@ export type DealerCollectionSlug =
   | "elizabeth"
   | "salvador"
   | "pitti"
-  | "buongiorno";
+  | "buongiorno"
+  | "request-form";
 
 export type DealerFileItem = {
   id: number;
@@ -123,6 +124,8 @@ export function getCollectionTitle(
       return "PITTI";
     case "buongiorno":
       return "BUONGIORNO";
+    case "request-form":
+      return "Форма заявки";
     default:
       return String(slug || "").toUpperCase();
   }
@@ -156,6 +159,7 @@ function normalizeCollectionSlug(value: unknown): DealerCollectionSlug {
     case "salvador":
     case "pitti":
     case "buongiorno":
+    case "request-form":
       return slug;
     default:
       return "amber";
@@ -296,12 +300,19 @@ export async function getDealerPriceListsByCountry(
 
   const params = new URLSearchParams();
   params.set("status", "published");
-  params.set("sort[0]", "collectionSlug:asc");
+  params.set("sort[0]", "sortOrder:asc");
+  params.set("sort[1]", "collectionSlug:asc");
+  params.set("sort[2]", "title:asc");
   params.set("pagination[pageSize]", "100");
 
   params.set("filters[type][$eq]", "price");
-  params.set("filters[countryCode][$eq]", normalizedCountryCode);
   params.set("filters[isActive][$eq]", "true");
+
+  // Важно:
+  // показываем прайсы конкретного региона дилера
+  // + общие прайсы без countryCode, например "Форма заявки".
+  params.set("filters[$or][0][countryCode][$eq]", normalizedCountryCode);
+  params.set("filters[$or][1][countryCode][$null]", "true");
 
   appendCommonFields(params);
 
