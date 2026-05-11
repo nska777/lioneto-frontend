@@ -22,7 +22,10 @@ const COLLECTION_ORDER = [
   "buongiorno",
 ] as const;
 
+const EXTRA_CARD_ORDER = ["request-form"] as const;
+
 type CollectionSlug = (typeof COLLECTION_ORDER)[number];
+type ExtraCardSlug = (typeof EXTRA_CARD_ORDER)[number];
 
 const COLLECTION_LABELS: Record<CollectionSlug, string> = {
   amber: "AMBER",
@@ -31,6 +34,10 @@ const COLLECTION_LABELS: Record<CollectionSlug, string> = {
   salvador: "SALVADOR",
   pitti: "PITTI",
   buongiorno: "BUONGIORNO",
+};
+
+const EXTRA_CARD_LABELS: Record<ExtraCardSlug, string> = {
+  "request-form": "Форма заявки",
 };
 
 const UNIFIED_PRICE_CARD = {
@@ -86,7 +93,17 @@ function DownloadIcon() {
   );
 }
 
-function buildCards(items: DealerPriceListItem[]): PriceListCardItem[] {
+function isCollectionSlug(slug: string): slug is CollectionSlug {
+  return (COLLECTION_ORDER as readonly string[]).includes(slug);
+}
+
+function isExtraCardSlug(slug: string): slug is ExtraCardSlug {
+  return (EXTRA_CARD_ORDER as readonly string[]).includes(slug);
+}
+
+function buildCollectionCards(
+  items: DealerPriceListItem[],
+): PriceListCardItem[] {
   const bySlug = new Map<string, DealerPriceListItem>();
 
   for (const item of items) {
@@ -115,12 +132,128 @@ function buildCards(items: DealerPriceListItem[]): PriceListCardItem[] {
   return result;
 }
 
+function buildExtraCards(items: DealerPriceListItem[]): PriceListCardItem[] {
+  const bySlug = new Map<string, DealerPriceListItem>();
+
+  for (const item of items) {
+    if (!bySlug.has(item.collectionSlug)) {
+      bySlug.set(item.collectionSlug, item);
+    }
+  }
+
+  const result: PriceListCardItem[] = [];
+
+  for (const slug of EXTRA_CARD_ORDER) {
+    const item = bySlug.get(slug);
+
+    if (!item) {
+      continue;
+    }
+
+    result.push({
+      id: slug,
+      title: item.collectionTitle?.trim() || EXTRA_CARD_LABELS[slug],
+      fileHref: item.fileUrl,
+      subtitle: "Скачать Excel (.xlsx)",
+    });
+  }
+
+  return result;
+}
+
+function PriceCard({
+  item,
+  large = false,
+}: {
+  item: PriceListCardItem;
+  large?: boolean;
+}) {
+  return (
+    <a
+      href={item.fileHref}
+      download
+      target="_blank"
+      rel="noreferrer"
+      className={[
+        "group relative overflow-visible rounded-[22px] border",
+        large ? "flex min-h-[110px] px-6 py-5" : "h-[92px] px-5",
+        "items-center justify-between",
+        "transition-all duration-300 ease-out",
+        "hover:-translate-y-[2px] hover:shadow-[0_18px_44px_-30px_rgba(0,0,0,0.24)]",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
+      ].join(" ")}
+      style={cardStyle}
+      aria-label={`Скачать ${item.title}`}
+    >
+      <span
+        className="pointer-events-none absolute inset-0 rounded-[22px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={glowStyle}
+      />
+
+      <span
+        className="pointer-events-none absolute left-[18px] top-[-8px] h-[18px] w-[74px] rounded-[10px] border"
+        style={tabStyle}
+      />
+
+      <span className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-transparent transition-all duration-300 group-hover:ring-[rgba(178,197,109,0.30)]" />
+
+      <span className="pointer-events-none absolute left-0 top-[14px] bottom-[14px] w-[4px] rounded-r-full bg-gradient-to-b from-[#efe5c6] via-[#ddcf9f] to-[#f5ecd3] opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
+
+      <div className="relative z-[1] min-w-0">
+        <div
+          className={[
+            "font-extrabold text-black",
+            large
+              ? "text-[13px] tracking-[0.18em]"
+              : "text-[12px] tracking-[0.22em]",
+          ].join(" ")}
+        >
+          {item.title}
+        </div>
+        <div
+          className={[
+            "text-[11px] text-black/46 transition-colors duration-300 group-hover:text-black/58",
+            large ? "mt-2" : "mt-1",
+          ].join(" ")}
+        >
+          {item.subtitle}
+        </div>
+      </div>
+
+      <div className="relative z-[1] ml-4 flex shrink-0 items-center">
+        <span
+          className={[
+            "inline-flex items-center justify-center rounded-full border border-black/10 bg-white/86 text-black/60",
+            "shadow-[0_4px_12px_-10px_rgba(0,0,0,0.18)] transition-all duration-300",
+            "group-hover:border-black/12 group-hover:bg-white group-hover:text-black/82 group-hover:shadow-[0_8px_18px_-12px_rgba(0,0,0,0.22)]",
+            large ? "h-10 w-10" : "h-8 w-8",
+          ].join(" ")}
+        >
+          <DownloadIcon />
+        </span>
+      </div>
+    </a>
+  );
+}
+
 export default async function Page() {
   const dealer = await getCurrentDealer();
   const countryCode = dealer?.countryCode?.trim().toUpperCase() || "RU";
 
   const priceLists = await getDealerPriceListsByCountry(countryCode);
-  const cards = buildCards(priceLists);
+
+  const normalizedPriceLists = priceLists.filter((item) => {
+    const slug = item.collectionSlug?.trim();
+
+    if (!slug) {
+      return false;
+    }
+
+    return isCollectionSlug(slug) || isExtraCardSlug(slug);
+  });
+
+  const cards = buildCollectionCards(normalizedPriceLists);
+  const extraCards = buildExtraCards(normalizedPriceLists);
 
   return (
     <div className="space-y-8">
@@ -135,53 +268,7 @@ export default async function Page() {
       {cards.length > 0 ? (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((it) => (
-            <a
-              key={it.id}
-              href={it.fileHref}
-              download
-              target="_blank"
-              rel="noreferrer"
-              className={[
-                "group relative overflow-visible",
-                "h-[92px] rounded-[22px] border",
-                "px-5",
-                "flex items-center justify-between",
-                "transition-all duration-300 ease-out",
-                "hover:-translate-y-[2px] hover:shadow-[0_18px_44px_-30px_rgba(0,0,0,0.24)]",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
-              ].join(" ")}
-              style={cardStyle}
-              aria-label={`Скачать прайс-лист ${it.title}`}
-            >
-              <span
-                className="pointer-events-none absolute inset-0 rounded-[22px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                style={glowStyle}
-              />
-
-              <span
-                className="pointer-events-none absolute left-[18px] top-[-8px] h-[18px] w-[74px] rounded-[10px] border"
-                style={tabStyle}
-              />
-
-              <span className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-transparent transition-all duration-300 group-hover:ring-[rgba(178,197,109,0.30)]" />
-
-              <span className="pointer-events-none absolute left-0 top-[14px] bottom-[14px] w-[4px] rounded-r-full bg-gradient-to-b from-[#efe5c6] via-[#ddcf9f] to-[#f5ecd3] opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
-
-              <div className="relative z-[1] min-w-0">
-                <div className="text-[12px] font-extrabold tracking-[0.22em] text-black">
-                  {it.title}
-                </div>
-                <div className="mt-1 text-[11px] text-black/46 transition-colors duration-300 group-hover:text-black/58">
-                  {it.subtitle}
-                </div>
-              </div>
-
-              <div className="relative z-[1] ml-4 flex shrink-0 items-center">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white/86 text-black/60 shadow-[0_4px_12px_-10px_rgba(0,0,0,0.18)] transition-all duration-300 group-hover:border-black/12 group-hover:bg-white group-hover:text-black/82 group-hover:shadow-[0_8px_18px_-12px_rgba(0,0,0,0.22)]">
-                  <DownloadIcon />
-                </span>
-              </div>
-            </a>
+            <PriceCard key={it.id} item={it} />
           ))}
         </section>
       ) : (
@@ -190,6 +277,22 @@ export default async function Page() {
         </div>
       )}
 
+      {extraCards.length > 0 ? (
+        <section className="space-y-4">
+          <div>
+            <h2 className="mt-1 text-[21px] font-semibold tracking-[-0.02em] text-black">
+              Документы
+            </h2>
+          </div>
+
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {extraCards.map((it) => (
+              <PriceCard key={it.id} item={it} />
+            ))}
+          </section>
+        </section>
+      ) : null}
+
       <section className="space-y-4">
         <div>
           <h2 className="mt-1 text-[21px] font-semibold tracking-[-0.02em] text-black">
@@ -197,50 +300,7 @@ export default async function Page() {
           </h2>
         </div>
 
-        <a
-          href={UNIFIED_PRICE_CARD.fileHref}
-          download
-          target="_blank"
-          rel="noreferrer"
-          className={[
-            "group relative flex min-h-[110px] overflow-visible rounded-[22px] border px-6 py-5",
-            "items-center justify-between",
-            "transition-all duration-300 ease-out",
-            "hover:-translate-y-[2px] hover:shadow-[0_18px_44px_-30px_rgba(0,0,0,0.24)]",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
-          ].join(" ")}
-          style={cardStyle}
-          aria-label="Скачать единый прайс по коллекциям"
-        >
-          <span
-            className="pointer-events-none absolute inset-0 rounded-[22px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-            style={glowStyle}
-          />
-
-          <span
-            className="pointer-events-none absolute left-[18px] top-[-8px] h-[18px] w-[74px] rounded-[10px] border"
-            style={tabStyle}
-          />
-
-          <span className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-transparent transition-all duration-300 group-hover:ring-[rgba(178,197,109,0.30)]" />
-
-          <span className="pointer-events-none absolute left-0 top-[14px] bottom-[14px] w-[4px] rounded-r-full bg-gradient-to-b from-[#efe5c6] via-[#ddcf9f] to-[#f5ecd3] opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
-
-          <div className="relative z-[1] min-w-0">
-            <div className="text-[13px] font-extrabold tracking-[0.18em] text-black">
-              {UNIFIED_PRICE_CARD.title}
-            </div>
-            <div className="mt-2 text-[11px] text-black/46 transition-colors duration-300 group-hover:text-black/58">
-              {UNIFIED_PRICE_CARD.subtitle}
-            </div>
-          </div>
-
-          <div className="relative z-[1] ml-4 flex shrink-0 items-center">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/86 text-black/60 shadow-[0_4px_12px_-10px_rgba(0,0,0,0.18)] transition-all duration-300 group-hover:border-black/12 group-hover:bg-white group-hover:text-black/82 group-hover:shadow-[0_8px_18px_-12px_rgba(0,0,0,0.22)]">
-              <DownloadIcon />
-            </span>
-          </div>
-        </a>
+        <PriceCard item={UNIFIED_PRICE_CARD} large />
       </section>
     </div>
   );
