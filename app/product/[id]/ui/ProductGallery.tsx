@@ -162,18 +162,6 @@ export default function ProductGallery({
               )}
             />
 
-            <div
-              className={cn(
-                "pointer-events-none absolute bottom-4 left-1/2 z-[5] hidden -translate-x-1/2 sm:block",
-                "rounded-full bg-white/90 px-4 py-2",
-                "text-[11px] font-medium uppercase tracking-[0.16em] text-black/60",
-                "opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.12)] backdrop-blur-md",
-                "transition duration-300 group-hover:opacity-100",
-              )}
-            >
-              Нажмите, чтобы увеличить
-            </div>
-
             {safeGallery.length > 1 && (
               <>
                 <button
