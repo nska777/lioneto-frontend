@@ -48,46 +48,72 @@ const UNIFIED_PRICE_CARD = {
 };
 
 const cardStyle: CSSProperties = {
-  borderColor: "rgba(189, 160, 86, 0.22)",
+  borderColor: "rgba(184, 154, 92, 0.24)",
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(249,246,239,0.98) 100%)",
+    "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,247,240,0.98) 100%)",
 };
 
-const glowStyle: CSSProperties = {
+const cardGlowStyle: CSSProperties = {
   background: `
-    radial-gradient(90% 90% at 0% 0%, rgba(221, 240, 154, 0.30) 0%, rgba(221, 240, 154, 0.00) 42%),
-    radial-gradient(65% 60% at 100% 0%, rgba(191, 214, 255, 0.15) 0%, rgba(191, 214, 255, 0.00) 42%),
-    linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.00) 58%)
+    radial-gradient(90% 100% at 0% 0%, rgba(225, 211, 166, 0.26) 0%, rgba(225, 211, 166, 0.00) 48%),
+    radial-gradient(70% 70% at 100% 0%, rgba(245, 236, 211, 0.36) 0%, rgba(245, 236, 211, 0.00) 48%)
   `,
-};
-
-const tabStyle: CSSProperties = {
-  background:
-    "linear-gradient(180deg, rgba(248,244,232,0.98) 0%, rgba(237,228,203,0.98) 100%)",
-  borderColor: "rgba(189, 160, 86, 0.22)",
 };
 
 function DownloadIcon() {
   return (
     <svg
-      width="16"
-      height="16"
+      width="17"
+      height="17"
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden="true"
     >
       <path
-        d="M12 4v7.5m0 0 3-3m-3 3-3-3"
+        d="M12 4v8.2m0 0 3.2-3.2M12 12.2 8.8 9"
         stroke="currentColor"
-        strokeWidth="1.55"
+        strokeWidth="1.7"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="M5.5 16v1.1A1.4 1.4 0 0 0 6.9 18.5h10.2a1.4 1.4 0 0 0 1.4-1.4V16"
+        d="M5.5 16.3v1.1A1.6 1.6 0 0 0 7.1 19h9.8a1.6 1.6 0 0 0 1.6-1.6v-1.1"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ExcelIcon() {
+  return (
+    <svg
+      width="19"
+      height="19"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M6.8 3.8h7.1l3.3 3.35v13.05H6.8V3.8Z"
+        stroke="currentColor"
+        strokeWidth="1.45"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.8 3.9v3.45h3.35"
+        stroke="currentColor"
+        strokeWidth="1.45"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m9.2 10 2.1 2.55L9.05 15.5m4.75-5.5-2.25 2.55 2.1 2.95"
         stroke="currentColor"
         strokeWidth="1.55"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -175,58 +201,53 @@ function PriceCard({
       target="_blank"
       rel="noreferrer"
       className={[
-        "group relative overflow-visible rounded-[22px] border",
-        large ? "flex min-h-[110px] px-6 py-5" : "h-[92px] px-5",
-        "items-center justify-between",
+        "group relative overflow-hidden rounded-[24px] border",
+        large ? "min-h-[118px] px-6 py-5" : "min-h-[106px] px-5 py-4",
+        "flex items-center justify-between gap-5",
         "transition-all duration-300 ease-out",
-        "hover:-translate-y-[2px] hover:shadow-[0_18px_44px_-30px_rgba(0,0,0,0.24)]",
+        "hover:-translate-y-[2px] hover:border-[#c9ad6e]/45 hover:shadow-[0_18px_48px_-32px_rgba(0,0,0,0.32)]",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
       ].join(" ")}
       style={cardStyle}
       aria-label={`Скачать ${item.title}`}
     >
       <span
-        className="pointer-events-none absolute inset-0 rounded-[22px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={glowStyle}
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={cardGlowStyle}
       />
 
-      <span
-        className="pointer-events-none absolute left-[18px] top-[-8px] h-[18px] w-[74px] rounded-[10px] border"
-        style={tabStyle}
-      />
+      <span className="pointer-events-none absolute left-0 top-0 h-full w-[5px] bg-gradient-to-b from-[#eadfbe] via-[#cdb26f] to-[#f4ead2]" />
 
-      <span className="pointer-events-none absolute inset-0 rounded-[22px] ring-1 ring-transparent transition-all duration-300 group-hover:ring-[rgba(178,197,109,0.30)]" />
+      <div className="relative z-[1] flex min-w-0 items-center gap-4">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[#d8c493]/45 bg-[#f8f1dd] text-[#9a7a2e] shadow-[0_10px_22px_-18px_rgba(0,0,0,0.35)]">
+          <ExcelIcon />
+        </span>
 
-      <span className="pointer-events-none absolute left-0 top-[14px] bottom-[14px] w-[4px] rounded-r-full bg-gradient-to-b from-[#efe5c6] via-[#ddcf9f] to-[#f5ecd3] opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
+        <div className="min-w-0">
+          <div
+            className={[
+              "break-words font-semibold leading-[1.2] tracking-[0.03em] text-black",
+              large ? "text-[18px]" : "text-[16px]",
+            ].join(" ")}
+          >
+            {item.title}
+          </div>
 
-      <div className="relative z-[1] min-w-0">
-        <div
-          className={[
-            "font-extrabold text-black",
-            large
-              ? "text-[13px] tracking-[0.18em]"
-              : "text-[12px] tracking-[0.22em]",
-          ].join(" ")}
-        >
-          {item.title}
-        </div>
-        <div
-          className={[
-            "text-[11px] text-black/46 transition-colors duration-300 group-hover:text-black/58",
-            large ? "mt-2" : "mt-1",
-          ].join(" ")}
-        >
-          {item.subtitle}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-black/8 bg-white/75 px-3 py-1 text-[12px] font-medium text-black/58">
+              {item.subtitle}
+            </span>
+          </div>
         </div>
       </div>
 
-      <div className="relative z-[1] ml-4 flex shrink-0 items-center">
+      <div className="relative z-[1] flex shrink-0 items-center">
         <span
           className={[
-            "inline-flex items-center justify-center rounded-full border border-black/10 bg-white/86 text-black/60",
-            "shadow-[0_4px_12px_-10px_rgba(0,0,0,0.18)] transition-all duration-300",
-            "group-hover:border-black/12 group-hover:bg-white group-hover:text-black/82 group-hover:shadow-[0_8px_18px_-12px_rgba(0,0,0,0.22)]",
-            large ? "h-10 w-10" : "h-8 w-8",
+            "inline-flex items-center justify-center rounded-full border border-black/10 bg-white text-black/62",
+            "shadow-[0_10px_24px_-18px_rgba(0,0,0,0.38)] transition-all duration-300",
+            "group-hover:scale-105 group-hover:border-[#c9ad6e]/45 group-hover:text-black",
+            large ? "h-11 w-11" : "h-10 w-10",
           ].join(" ")}
         >
           <DownloadIcon />
@@ -256,36 +277,42 @@ export default async function Page() {
   const extraCards = buildExtraCards(normalizedPriceLists);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <header className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="mt-1 text-[21px] font-semibold tracking-[-0.02em] text-black">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a5823a]">
+            Dealer documents
+          </p>
+          <h1 className="mt-2 text-[26px] font-semibold tracking-[-0.035em] text-black">
             Прайс-листы
           </h1>
         </div>
       </header>
 
       {cards.length > 0 ? (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((it) => (
             <PriceCard key={it.id} item={it} />
           ))}
         </section>
       ) : (
-        <div className="rounded-[20px] border border-black/10 bg-white px-5 py-6 text-sm text-black/55">
+        <div className="rounded-[22px] border border-black/10 bg-white px-5 py-6 text-sm text-black/55">
           Для вашего региона прайс-листы пока не добавлены.
         </div>
       )}
 
       {extraCards.length > 0 ? (
-        <section className="space-y-4">
+        <section className="space-y-5">
           <div>
-            <h2 className="mt-1 text-[21px] font-semibold tracking-[-0.02em] text-black">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a5823a]">
+              Files
+            </p>
+            <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.035em] text-black">
               Документы
             </h2>
           </div>
 
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {extraCards.map((it) => (
               <PriceCard key={it.id} item={it} />
             ))}
@@ -293,9 +320,12 @@ export default async function Page() {
         </section>
       ) : null}
 
-      <section className="space-y-4">
+      <section className="space-y-5">
         <div>
-          <h2 className="mt-1 text-[21px] font-semibold tracking-[-0.02em] text-black">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a5823a]">
+            Full price
+          </p>
+          <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.035em] text-black">
             Единый прайс по коллекциям
           </h2>
         </div>
