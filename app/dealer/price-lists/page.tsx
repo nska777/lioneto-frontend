@@ -152,8 +152,9 @@ function buildCollectionCards(
     result.push({
       id: slug,
       title: COLLECTION_LABELS[slug],
-      fileHref: item.fileUrl,
-      subtitle: "Скачать Excel (.xlsx)",
+      fileHref: "",
+      subtitle: "В разработке",
+      disabled: true,
     });
   }
 
