@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import gsap from "gsap";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type Slide = {
@@ -82,7 +74,7 @@ const DEFAULT_SLIDES: Slide[] = [
   },
   {
     id: "s9",
-    title: "МОЛОДЁЖНАЯ SKANDY",
+    title: "МОЛОДЁЖНАЯ SCANDY",
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=youth&collections=scandi&hero=1",
     image: "/hero/09.jpg",
@@ -96,18 +88,6 @@ const DEFAULT_SLIDES: Slide[] = [
   },
 ];
 
-function isIOSDevice() {
-  if (typeof window === "undefined") return false;
-
-  const ua = window.navigator.userAgent || "";
-  const platform = window.navigator.platform || "";
-
-  return (
-    /iPad|iPhone|iPod/.test(ua) ||
-    (platform === "MacIntel" && window.navigator.maxTouchPoints > 1)
-  );
-}
-
 export default function GSAPHeroSlider({
   slides = DEFAULT_SLIDES,
   autoMs = 5200,
@@ -115,17 +95,11 @@ export default function GSAPHeroSlider({
   slides?: Slide[];
   autoMs?: number;
 }) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const tlRef = useRef<gsap.core.Timeline | null>(null);
-  const autoRef = useRef<number | null>(null);
-  const busyRef = useRef(false);
-  const activeRef = useRef(0);
-  const preloadedRef = useRef<Set<string>>(new Set());
+  const timerRef = useRef<number | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
 
   const [active, setActive] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
 
   const safeSlides = useMemo(() => {
     const arr =
@@ -134,35 +108,49 @@ export default function GSAPHeroSlider({
     return arr.filter((s) => s && s.id && s.title && s.image);
   }, [slides]);
 
-  const preloadImage = useCallback((src?: string) => {
-    if (!src || typeof window === "undefined") return;
-    if (preloadedRef.current.has(src)) return;
+  const slidesCount = safeSlides.length;
 
-    preloadedRef.current.add(src);
-
-    const img = new window.Image();
-    img.decoding = "async";
-    img.src = src;
-  }, []);
-
-  const preloadAround = useCallback(
+  const goTo = useCallback(
     (idx: number) => {
-      if (!safeSlides.length) return;
+      if (slidesCount <= 1) return;
 
-      const current = (idx + safeSlides.length) % safeSlides.length;
-      const prevIdx = (current - 1 + safeSlides.length) % safeSlides.length;
-      const nextIdx = (current + 1) % safeSlides.length;
-
-      preloadImage(safeSlides[current]?.image);
-      preloadImage(safeSlides[prevIdx]?.image);
-      preloadImage(safeSlides[nextIdx]?.image);
+      setActive(() => {
+        return (idx + slidesCount) % slidesCount;
+      });
     },
-    [preloadImage, safeSlides],
+    [slidesCount],
   );
 
-  useEffect(() => {
-    setIsIOS(isIOSDevice());
+  const next = useCallback(() => {
+    setActive((current) => {
+      if (slidesCount <= 1) return current;
+      return (current + 1) % slidesCount;
+    });
+  }, [slidesCount]);
+
+  const prev = useCallback(() => {
+    setActive((current) => {
+      if (slidesCount <= 1) return current;
+      return (current - 1 + slidesCount) % slidesCount;
+    });
+  }, [slidesCount]);
+
+  const stopAuto = useCallback(() => {
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
+
+  const startAuto = useCallback(() => {
+    stopAuto();
+
+    if (slidesCount <= 1) return;
+
+    timerRef.current = window.setInterval(() => {
+      next();
+    }, autoMs);
+  }, [autoMs, next, slidesCount, stopAuto]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -172,6 +160,7 @@ export default function GSAPHeroSlider({
     };
 
     update();
+
     mq.addEventListener?.("change", update);
 
     return () => {
@@ -180,426 +169,31 @@ export default function GSAPHeroSlider({
   }, []);
 
   useEffect(() => {
-    const media = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-
-    const update = () => {
-      setReducedMotion(Boolean(media?.matches));
-    };
-
-    update();
-    media?.addEventListener?.("change", update);
-
-    return () => {
-      media?.removeEventListener?.("change", update);
-    };
-  }, []);
-
-  useEffect(() => {
-    preloadAround(active);
-  }, [active, preloadAround]);
-
-  const stopAuto = useCallback(() => {
-    if (autoRef.current) {
-      window.clearInterval(autoRef.current);
-    }
-
-    autoRef.current = null;
-  }, []);
-
-  const goLight = useCallback(
-    (nextIdx: number) => {
-      if (safeSlides.length <= 1) return;
-
-      const clamped = (nextIdx + safeSlides.length) % safeSlides.length;
-
-      activeRef.current = clamped;
-      preloadAround(clamped);
-      setActive(clamped);
-    },
-    [preloadAround, safeSlides.length],
-  );
-
-  const go = useCallback(
-    (nextIdx: number) => {
-      if (isIOS) {
-        goLight(nextIdx);
-        return;
-      }
-
-      if (!rootRef.current) return;
-      if (safeSlides.length <= 1) return;
-
-      const root = rootRef.current;
-      const prevIdx = activeRef.current;
-      const clamped = (nextIdx + safeSlides.length) % safeSlides.length;
-
-      if (clamped === prevIdx) return;
-
-      preloadAround(clamped);
-
-      if (busyRef.current) {
-        tlRef.current?.kill();
-        busyRef.current = false;
-      }
-
-      const prev = root.querySelector(
-        `[data-slide="${prevIdx}"]`,
-      ) as HTMLElement | null;
-
-      const next = root.querySelector(
-        `[data-slide="${clamped}"]`,
-      ) as HTMLElement | null;
-
-      if (!prev || !next) {
-        activeRef.current = clamped;
-        setActive(clamped);
-        busyRef.current = false;
-        return;
-      }
-
-      const prevImg = prev.querySelector("[data-img]") as HTMLElement | null;
-      const nextImg = next.querySelector("[data-img]") as HTMLElement | null;
-
-      const prevOverlay = prev.querySelector(
-        "[data-overlay]",
-      ) as HTMLElement | null;
-
-      const nextOverlay = next.querySelector(
-        "[data-overlay]",
-      ) as HTMLElement | null;
-
-      const nextTitle = next.querySelector(
-        "[data-title]",
-      ) as HTMLElement | null;
-
-      const nextBtnWrap = next.querySelector(
-        "[data-btn-wrap]",
-      ) as HTMLElement | null;
-
-      tlRef.current?.kill();
-      busyRef.current = true;
-
-      activeRef.current = clamped;
-      setActive(clamped);
-
-      gsap.set(next, {
-        zIndex: 3,
-        opacity: 1,
-        pointerEvents: "auto",
-      });
-
-      gsap.set(prev, {
-        zIndex: 2,
-        pointerEvents: "none",
-      });
-
-      if (isMobile || reducedMotion) {
-        gsap.set(nextImg, {
-          scale: 1,
-          clearProps: "filter",
-        });
-
-        gsap.set(nextOverlay, {
-          opacity: 0.22,
-        });
-
-        gsap.set(nextTitle, {
-          y: 8,
-          opacity: 0,
-        });
-
-        gsap.set(nextBtnWrap, {
-          y: 8,
-          opacity: 0,
-        });
-
-        const tl = gsap.timeline({
-          defaults: { ease: "power2.out", overwrite: "auto" },
-          onComplete: () => {
-            gsap.set(prev, {
-              opacity: 0,
-              zIndex: 1,
-              pointerEvents: "none",
-            });
-
-            gsap.set(next, {
-              zIndex: 2,
-              pointerEvents: "auto",
-            });
-
-            busyRef.current = false;
-          },
-        });
-
-        tl.to(prev, { opacity: 0, duration: 0.22 }, 0)
-          .to(next, { opacity: 1, duration: 0.22 }, 0)
-          .to(nextTitle, { y: 0, opacity: 1, duration: 0.24 }, 0.04)
-          .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.24 }, 0.08);
-
-        tlRef.current = tl;
-
-        return;
-      }
-
-      gsap.set(nextImg, {
-        scale: 1.018,
-        clearProps: "filter",
-      });
-
-      gsap.set(nextOverlay, {
-        opacity: 0.18,
-      });
-
-      gsap.set(nextTitle, {
-        y: 14,
-        opacity: 0,
-      });
-
-      gsap.set(nextBtnWrap, {
-        y: 14,
-        opacity: 0,
-      });
-
-      const tl = gsap.timeline({
-        defaults: { ease: "power3.out", overwrite: "auto" },
-        onComplete: () => {
-          gsap.set(prev, {
-            opacity: 0,
-            zIndex: 1,
-            pointerEvents: "none",
-          });
-
-          gsap.set(next, {
-            zIndex: 2,
-            pointerEvents: "auto",
-          });
-
-          busyRef.current = false;
-        },
-      });
-
-      tl.to(prevImg, { scale: 1.006, duration: 0.32 }, 0)
-        .to(prevOverlay, { opacity: 0.38, duration: 0.32 }, 0)
-        .to(prev, { opacity: 0, duration: 0.34 }, 0.04)
-        .to(
-          nextImg,
-          {
-            scale: 1,
-            duration: 0.56,
-            ease: "power3.out",
-          },
-          0,
-        )
-        .to(nextOverlay, { opacity: 0.28, duration: 0.4 }, 0.04)
-        .to(nextTitle, { y: 0, opacity: 1, duration: 0.34 }, 0.1)
-        .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.32 }, 0.14);
-
-      tlRef.current = tl;
-    },
-    [goLight, isIOS, isMobile, preloadAround, reducedMotion, safeSlides.length],
-  );
-
-  const startAuto = useCallback(() => {
-    stopAuto();
-
-    if (isIOS) return;
-    if (reducedMotion) return;
-    if (safeSlides.length <= 1) return;
-
-    autoRef.current = window.setInterval(() => {
-      if (!busyRef.current) {
-        go(activeRef.current + 1);
-      }
-    }, autoMs);
-  }, [autoMs, go, isIOS, reducedMotion, safeSlides.length, stopAuto]);
-
-  const next = useCallback(() => {
-    if (isIOS) {
-      goLight(activeRef.current + 1);
-      return;
-    }
-
-    go(activeRef.current + 1);
-  }, [go, goLight, isIOS]);
-
-  const prev = useCallback(() => {
-    if (isIOS) {
-      goLight(activeRef.current - 1);
-      return;
-    }
-
-    go(activeRef.current - 1);
-  }, [go, goLight, isIOS]);
-
-  useLayoutEffect(() => {
-    if (!rootRef.current) return;
-
-    const root = rootRef.current;
-
-    tlRef.current?.kill();
-    busyRef.current = false;
-
-    safeSlides.forEach((_, i) => {
-      const el = root.querySelector(
-        `[data-slide="${i}"]`,
-      ) as HTMLElement | null;
-
-      if (!el) return;
-
-      const isCurrent = i === activeRef.current;
-
-      if (isIOS) {
-        el.style.opacity = isCurrent ? "1" : "0";
-        el.style.zIndex = isCurrent ? "2" : "1";
-        el.style.pointerEvents = isCurrent ? "auto" : "none";
-
-        const img = el.querySelector("[data-img]") as HTMLElement | null;
-        const overlay = el.querySelector(
-          "[data-overlay]",
-        ) as HTMLElement | null;
-        const title = el.querySelector("[data-title]") as HTMLElement | null;
-        const btnWrap = el.querySelector(
-          "[data-btn-wrap]",
-        ) as HTMLElement | null;
-
-        if (img) {
-          img.style.transform = "none";
-          img.style.willChange = "auto";
-          img.style.backfaceVisibility = "visible";
-          img.style.webkitBackfaceVisibility = "visible";
-        }
-
-        if (overlay) {
-          overlay.style.opacity = "0.22";
-        }
-
-        if (title) {
-          title.style.transform = "none";
-          title.style.opacity = "1";
-        }
-
-        if (btnWrap) {
-          btnWrap.style.transform = "none";
-          btnWrap.style.opacity = "1";
-        }
-
-        return;
-      }
-
-      gsap.set(el, {
-        opacity: isCurrent ? 1 : 0,
-        zIndex: isCurrent ? 2 : 1,
-        pointerEvents: isCurrent ? "auto" : "none",
-      });
-    });
-
-    if (isIOS) {
-      stopAuto();
-
-      return () => {
-        stopAuto();
-        tlRef.current?.kill();
-        busyRef.current = false;
-      };
-    }
-
-    const first = root.querySelector(
-      `[data-slide="${activeRef.current}"]`,
-    ) as HTMLElement | null;
-
-    const img = first?.querySelector("[data-img]") as HTMLElement | null;
-
-    const overlay = first?.querySelector(
-      "[data-overlay]",
-    ) as HTMLElement | null;
-
-    const title = first?.querySelector("[data-title]") as HTMLElement | null;
-
-    const btnWrap = first?.querySelector(
-      "[data-btn-wrap]",
-    ) as HTMLElement | null;
-
-    if (isMobile || reducedMotion) {
-      gsap.set(img, {
-        scale: 1,
-        clearProps: "filter",
-      });
-
-      gsap.set(overlay, {
-        opacity: 0.22,
-      });
-
-      gsap.set(title, {
-        y: 0,
-        opacity: 1,
-      });
-
-      gsap.set(btnWrap, {
-        y: 0,
-        opacity: 1,
-      });
-
-      startAuto();
-
-      return () => {
-        stopAuto();
-        tlRef.current?.kill();
-        busyRef.current = false;
-      };
-    }
-
-    gsap.set(img, {
-      scale: 1.018,
-      clearProps: "filter",
-    });
-
-    gsap.set(overlay, {
-      opacity: 0.18,
-    });
-
-    gsap.set(title, {
-      y: 14,
-      opacity: 0,
-    });
-
-    gsap.set(btnWrap, {
-      y: 14,
-      opacity: 0,
-    });
-
-    const introTl = gsap.timeline({
-      defaults: { ease: "power3.out", overwrite: "auto" },
-      onComplete: () => {
-        busyRef.current = false;
-      },
-    });
-
-    busyRef.current = true;
-
-    introTl
-      .to(
-        img,
-        {
-          scale: 1,
-          duration: 0.6,
-          ease: "power3.out",
-        },
-        0,
-      )
-      .to(overlay, { opacity: 0.28, duration: 0.4 }, 0.04)
-      .to(title, { y: 0, opacity: 1, duration: 0.34 }, 0.1)
-      .to(btnWrap, { y: 0, opacity: 1, duration: 0.32 }, 0.14);
-
-    tlRef.current = introTl;
-
     startAuto();
 
     return () => {
       stopAuto();
-      tlRef.current?.kill();
-      busyRef.current = false;
     };
-  }, [isIOS, isMobile, reducedMotion, safeSlides, startAuto, stopAuto]);
+  }, [startAuto, stopAuto]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const preloadIndexes = [
+      active,
+      (active + 1) % slidesCount,
+      (active - 1 + slidesCount) % slidesCount,
+    ];
+
+    preloadIndexes.forEach((idx) => {
+      const src = safeSlides[idx]?.image;
+      if (!src) return;
+
+      const img = new window.Image();
+      img.decoding = "async";
+      img.src = src;
+    });
+  }, [active, safeSlides, slidesCount]);
 
   if (!safeSlides.length) return null;
 
@@ -607,9 +201,29 @@ export default function GSAPHeroSlider({
     <section className="w-full max-w-full overflow-hidden">
       <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
         <div
-          ref={rootRef}
-          onMouseEnter={isIOS ? undefined : stopAuto}
-          onMouseLeave={isIOS ? undefined : startAuto}
+          onMouseEnter={stopAuto}
+          onMouseLeave={startAuto}
+          onTouchStart={(e) => {
+            touchStartXRef.current = e.touches[0]?.clientX ?? null;
+          }}
+          onTouchEnd={(e) => {
+            const startX = touchStartXRef.current;
+            const endX = e.changedTouches[0]?.clientX ?? null;
+
+            touchStartXRef.current = null;
+
+            if (startX === null || endX === null) return;
+
+            const diff = startX - endX;
+
+            if (Math.abs(diff) < 35) return;
+
+            if (diff > 0) {
+              next();
+            } else {
+              prev();
+            }
+          }}
           className={cn(
             "relative isolate overflow-hidden rounded-none",
             "bg-neutral-200",
@@ -621,10 +235,6 @@ export default function GSAPHeroSlider({
             border: "none",
             outline: "none",
             boxShadow: "none",
-            transform: isIOS ? "none" : undefined,
-            willChange: isIOS ? "auto" : undefined,
-            WebkitBackfaceVisibility: isIOS ? "visible" : "hidden",
-            backfaceVisibility: isIOS ? "visible" : "hidden",
           }}
         >
           {safeSlides.map((s, i) => {
@@ -633,61 +243,52 @@ export default function GSAPHeroSlider({
             return (
               <div
                 key={s.id}
-                data-slide={i}
-                className="absolute inset-0 opacity-0"
+                className={cn(
+                  "absolute inset-0",
+                  "transition-opacity duration-500 ease-out",
+                  isActive
+                    ? "z-10 opacity-100 pointer-events-auto"
+                    : "z-0 opacity-0 pointer-events-none",
+                )}
                 aria-hidden={!isActive}
               >
                 <img
-                  data-img
                   src={s.image}
                   alt={s.title}
-                  loading={i === 0 ? "eager" : "lazy"}
+                  loading={i <= 2 ? "eager" : "lazy"}
                   decoding="async"
                   fetchPriority={i === 0 ? "high" : "auto"}
-                  className={cn(
-                    "absolute inset-0 h-full w-full object-cover",
-                    isIOS ? "" : "md:will-change-transform",
-                  )}
-                  style={{
-                    transform: isIOS ? "none" : "scale(1)",
-                    willChange: isIOS ? "auto" : undefined,
-                    WebkitBackfaceVisibility: isIOS ? "visible" : "hidden",
-                    backfaceVisibility: isIOS ? "visible" : "hidden",
-                  }}
+                  className="absolute inset-0 h-full w-full object-cover"
                 />
 
-                <div
-                  data-overlay
-                  className="absolute inset-0 bg-black/20 md:bg-black/30"
-                />
+                <div className="absolute inset-0 bg-black/10 md:bg-black/30" />
 
-                <div className="relative z-10 flex h-full items-center justify-center px-12 sm:px-16 md:px-20">
+                <div className="relative z-10 flex h-full items-center justify-center px-10 sm:px-16 md:px-20">
                   <div className="w-full text-center">
                     <h2
-                      data-title
                       className={cn(
-                        "mx-auto max-w-[92%] font-semibold uppercase text-white",
-                        "tracking-[0.04em] md:tracking-[0.08em]",
-                        "text-[17px] sm:text-[24px] md:text-[44px] leading-[1.08]",
-                        "drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]",
+                        "mx-auto max-w-[86%] font-semibold uppercase text-white",
+                        "text-center",
+                        "tracking-[0.035em] md:tracking-[0.08em]",
+                        "text-[16px] sm:text-[24px] md:text-[44px]",
+                        "leading-[1.15]",
+                        "break-words",
+                        "drop-shadow-[0_6px_16px_rgba(0,0,0,0.42)]",
                       )}
                       style={{
                         WebkitTextStroke: isMobile
-                          ? "0.45px rgba(0,0,0,0.55)"
+                          ? "0.2px rgba(0,0,0,0.35)"
                           : "0.6px rgba(0,0,0,0.55)",
-                        textShadow:
-                          "0 2px 10px rgba(0,0,0,0.38), 0 0 18px rgba(0,0,0,0.28)",
+                        textShadow: isMobile
+                          ? "0 2px 8px rgba(0,0,0,0.42)"
+                          : "0 2px 10px rgba(0,0,0,0.38), 0 0 18px rgba(0,0,0,0.28)",
                       }}
                     >
                       {s.title}
                     </h2>
 
-                    <div
-                      data-btn-wrap
-                      className="hidden items-center justify-center md:mt-5 md:flex"
-                    >
+                    <div className="hidden items-center justify-center md:mt-5 md:flex">
                       <Link
-                        data-btn
                         href={s.href}
                         className={cn(
                           "inline-flex items-center justify-center",
@@ -719,10 +320,12 @@ export default function GSAPHeroSlider({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              stopAuto();
               prev();
+              startAuto();
             }}
             className={cn(
-              "absolute left-3 top-1/2 z-20 -translate-y-1/2",
+              "absolute left-3 top-1/2 z-30 -translate-y-1/2",
               "inline-flex items-center justify-center",
               "h-10 w-10 md:h-14 md:w-14",
               "border-0 bg-transparent p-0 text-white",
@@ -744,10 +347,12 @@ export default function GSAPHeroSlider({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              stopAuto();
               next();
+              startAuto();
             }}
             className={cn(
-              "absolute right-3 top-1/2 z-20 -translate-y-1/2",
+              "absolute right-3 top-1/2 z-30 -translate-y-1/2",
               "inline-flex items-center justify-center",
               "h-10 w-10 md:h-14 md:w-14",
               "border-0 bg-transparent p-0 text-white",
@@ -765,17 +370,10 @@ export default function GSAPHeroSlider({
             />
           </button>
 
-          <div className="pointer-events-auto absolute bottom-4 left-0 right-0 z-[30] flex justify-center">
-            <div
-              className={cn(
-                "rounded-full bg-black/18 px-3 py-2 ring-1 ring-white/10",
-                isIOS
-                  ? ""
-                  : "shadow-[0_10px_30px_rgba(0,0,0,0.18)] md:backdrop-blur-[6px]",
-              )}
-            >
+          <div className="pointer-events-auto absolute bottom-4 left-0 right-0 z-30 flex justify-center">
+            <div className="rounded-full bg-black/18 px-3 py-2 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)] md:backdrop-blur-[6px]">
               <div className="flex items-center gap-2">
-                {Array.from({ length: safeSlides.length }).map((_, idx) => {
+                {safeSlides.map((_, idx) => {
                   const dotActive = idx === active;
 
                   return (
@@ -784,13 +382,9 @@ export default function GSAPHeroSlider({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-
-                        if (isIOS) {
-                          goLight(idx);
-                          return;
-                        }
-
-                        go(idx);
+                        stopAuto();
+                        goTo(idx);
+                        startAuto();
                       }}
                       className={cn(
                         "h-2.5 flex-none rounded-full transition cursor-pointer",
