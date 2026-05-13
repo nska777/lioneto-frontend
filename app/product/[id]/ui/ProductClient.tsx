@@ -679,6 +679,63 @@ function buildSetItemGroups(items: ProductSetItem[]) {
     });
 }
 
+function getSceneSetItemMergeKey(item: ProductSetItem) {
+  const title = normalizeKey(item.title);
+  const article = normalizeKey(item.article);
+  const groupKey = normalizeKey(item.groupKey || "scene");
+  const optionKey = normalizeKey(item.optionKey);
+
+  const priceUZS = getFiniteNumber(item.price_uzs);
+  const priceRUB = getFiniteNumber(item.price_rub);
+
+  return [groupKey, optionKey || title, article, priceUZS, priceRUB].join("__");
+}
+
+function mergeSceneSetItems(items: ProductSetItem[]) {
+  const map = new Map<string, ProductSetItem & { sourceIds?: string[] }>();
+
+  for (const item of items) {
+    const key = getSceneSetItemMergeKey(item);
+    const itemQty = Math.max(1, Number(item.quantity ?? 1));
+
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, {
+        ...item,
+        id: key,
+        quantity: itemQty,
+        sourceIds: [item.id],
+      });
+      continue;
+    }
+
+    existing.quantity = Math.max(1, Number(existing.quantity ?? 1)) + itemQty;
+
+    existing.sourceIds = [...(existing.sourceIds ?? []), item.id];
+
+    if (!existing.image && item.image) existing.image = item.image;
+    if (!existing.assembledImage && item.assembledImage) {
+      existing.assembledImage = item.assembledImage;
+    }
+
+    if (!existing.href && item.href) existing.href = item.href;
+    if (!existing.note && item.note) existing.note = item.note;
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    const ga = getFiniteNumber(a.groupOrder ?? 999);
+    const gb = getFiniteNumber(b.groupOrder ?? 999);
+    if (ga !== gb) return ga - gb;
+
+    const sa = getFiniteNumber(a.sort_order ?? 999);
+    const sb = getFiniteNumber(b.sort_order ?? 999);
+    if (sa !== sb) return sa - sb;
+
+    return String(a.title).localeCompare(String(b.title), "ru");
+  });
+}
+
 export default function ProductClient({
   product,
 }: {
@@ -837,13 +894,6 @@ export default function ProductClient({
     });
   }, [regionSetItems, selectedColorKey]);
 
-  const setItemGroups = useMemo(
-    () => buildSetItemGroups(visibleSetItems),
-    [visibleSetItems],
-  );
-
-  const hasSetItems = visibleSetItems.length > 0;
-
   const isSceneProduct = useMemo(() => {
     const id = normalizeKey(product.id);
     const sku = normalizeKey(product.sku);
@@ -864,6 +914,21 @@ export default function ProductClient({
     product.extra?.module,
     product.isCollection,
   ]);
+
+  const sceneDisplaySetItems = useMemo(() => {
+    if (!isSceneProduct) return visibleSetItems;
+    return mergeSceneSetItems(visibleSetItems);
+  }, [isSceneProduct, visibleSetItems]);
+
+  const setItemGroups = useMemo(
+    () =>
+      buildSetItemGroups(
+        isSceneProduct ? sceneDisplaySetItems : visibleSetItems,
+      ),
+    [isSceneProduct, sceneDisplaySetItems, visibleSetItems],
+  );
+
+  const hasSetItems = visibleSetItems.length > 0;
 
   useEffect(() => {
     setCollapsedSetItemIds([]);
@@ -942,26 +1007,45 @@ export default function ProductClient({
 
   const activeSceneSetItems = useMemo(() => {
     if (!isSceneProduct) return [];
-    return visibleSetItems.filter((item) => !collapsedSet.has(item.id));
-  }, [isSceneProduct, visibleSetItems, collapsedSet]);
+    return sceneDisplaySetItems.filter((item) => !collapsedSet.has(item.id));
+  }, [isSceneProduct, sceneDisplaySetItems, collapsedSet]);
 
   const excludedSceneSetItems = useMemo(() => {
     if (!isSceneProduct) return [];
-    return visibleSetItems.filter((item) => collapsedSet.has(item.id));
-  }, [isSceneProduct, visibleSetItems, collapsedSet]);
+    return sceneDisplaySetItems.filter((item) => collapsedSet.has(item.id));
+  }, [isSceneProduct, sceneDisplaySetItems, collapsedSet]);
 
-  const sceneTotalCount = visibleSetItems.length;
-  const sceneActiveCount = activeSceneSetItems.length;
-  const sceneExcludedCount = excludedSceneSetItems.length;
+  const sceneTotalCount = useMemo(() => {
+    if (!isSceneProduct) return 0;
+
+    return sceneDisplaySetItems.reduce((sum, item) => {
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + itemQty;
+    }, 0);
+  }, [isSceneProduct, sceneDisplaySetItems]);
+
+  const sceneActiveCount = useMemo(() => {
+    if (!isSceneProduct) return 0;
+
+    return activeSceneSetItems.reduce((sum, item) => {
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + itemQty;
+    }, 0);
+  }, [isSceneProduct, activeSceneSetItems]);
+
+  const sceneExcludedCount = useMemo(() => {
+    if (!isSceneProduct) return 0;
+
+    return excludedSceneSetItems.reduce((sum, item) => {
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + itemQty;
+    }, 0);
+  }, [isSceneProduct, excludedSceneSetItems]);
 
   const selectedSetItemLabel = useMemo(() => {
     if (isSceneProduct) {
-      const total = visibleSetItems.length;
-      const excluded = collapsedSetItemIds.length;
-      const active = Math.max(0, total - excluded);
-
-      if (!total) return null;
-      return `В комплекте: ${active} из ${total}`;
+      if (!sceneTotalCount) return null;
+      return `В комплекте: ${sceneActiveCount} из ${sceneTotalCount}`;
     }
 
     if (!selectedSetItems.length) return null;
@@ -970,16 +1054,13 @@ export default function ProductClient({
       .map((item) => getSetItemOptionLabel(item))
       .filter(Boolean)
       .join(", ");
-  }, [
-    isSceneProduct,
-    visibleSetItems.length,
-    collapsedSetItemIds.length,
-    selectedSetItems,
-  ]);
+  }, [isSceneProduct, sceneTotalCount, sceneActiveCount, selectedSetItems]);
 
   const setItemKey = useMemo(() => {
     const itemsForKey = isSceneProduct
-      ? visibleSetItems.filter((item) => !collapsedSetItemIds.includes(item.id))
+      ? sceneDisplaySetItems.filter(
+          (item) => !collapsedSetItemIds.includes(item.id),
+        )
       : selectedSetItems;
 
     if (!itemsForKey.length) return "no-set";
@@ -991,7 +1072,12 @@ export default function ProductClient({
         return `set:${group}-${option}`;
       })
       .join("|");
-  }, [isSceneProduct, visibleSetItems, collapsedSetItemIds, selectedSetItems]);
+  }, [
+    isSceneProduct,
+    sceneDisplaySetItems,
+    collapsedSetItemIds,
+    selectedSetItems,
+  ]);
 
   const colorKeyForCart = selectedColorKey || "base-color";
 
@@ -1219,10 +1305,36 @@ export default function ProductClient({
     return imageFromSetItem || imageFromVariant || product.image || null;
   }, [selectedSetItems, variantGallery, product.image]);
 
+  const oldRubRaw = getPositiveNumber(product.old_price_rub);
+  const oldUzsRaw = getPositiveNumber(product.old_price_uzs);
+
+  const priceRubRaw = getPositiveNumber(product.price_rub);
+  const priceUzsRaw = getPositiveNumber(product.price_uzs);
+
+  const oldRubFallback = useMemo(() => {
+    if (oldRubRaw > priceRubRaw && priceRubRaw > 0) return oldRubRaw;
+
+    if (priceRubRaw > 0 && priceUzsRaw > 0 && oldUzsRaw > priceUzsRaw) {
+      const multiplier = oldUzsRaw / priceUzsRaw;
+      return Math.round(priceRubRaw * multiplier);
+    }
+
+    return 0;
+  }, [oldRubRaw, oldUzsRaw, priceRubRaw, priceUzsRaw]);
+
+  const oldUzsFallback = useMemo(() => {
+    if (oldUzsRaw > priceUzsRaw && priceUzsRaw > 0) return oldUzsRaw;
+
+    if (priceUzsRaw > 0 && priceRubRaw > 0 && oldRubRaw > priceRubRaw) {
+      const multiplier = oldRubRaw / priceRubRaw;
+      return Math.round(priceUzsRaw * multiplier);
+    }
+
+    return 0;
+  }, [oldRubRaw, oldUzsRaw, priceRubRaw, priceUzsRaw]);
+
   const oldCorpusUnitPrice =
-    currency === "RUB"
-      ? getPositiveNumber(product.old_price_rub)
-      : getPositiveNumber(product.old_price_uzs);
+    currency === "RUB" ? oldRubFallback : oldUzsFallback;
 
   const hasProductDiscount =
     oldCorpusUnitPrice > 0 && oldCorpusUnitPrice > corpusUnitPrice;
@@ -1246,10 +1358,10 @@ export default function ProductClient({
         )
       : 0;
 
-  const hoveredSetItem = useMemo(
-    () => visibleSetItems.find((item) => item.id === hoveredSetItemId) ?? null,
-    [visibleSetItems, hoveredSetItemId],
-  );
+  const hoveredSetItem = useMemo(() => {
+    const sourceItems = isSceneProduct ? sceneDisplaySetItems : visibleSetItems;
+    return sourceItems.find((item) => item.id === hoveredSetItemId) ?? null;
+  }, [isSceneProduct, sceneDisplaySetItems, visibleSetItems, hoveredSetItemId]);
 
   const toggleSetItemCollapsed = (itemId: string) => {
     setCollapsedSetItemIds((prev) =>
@@ -1265,7 +1377,10 @@ export default function ProductClient({
       : selectedSetItems;
 
     const selectedSetItemsTitle = cartSetItems
-      .map((item) => item.title)
+      .map((item) => {
+        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        return itemQty > 1 ? `${item.title} × ${itemQty}` : item.title;
+      })
       .filter(Boolean)
       .join(", ");
 
@@ -1745,7 +1860,7 @@ export default function ProductClient({
                 ) : null}
 
                 <div className="space-y-2">
-                  {visibleSetItems.map((item) => {
+                  {sceneDisplaySetItems.map((item) => {
                     const itemPrice = getSetItemPrice(item, currency);
                     const itemQty = Math.max(1, Number(item.quantity ?? 1));
                     const collapsed = collapsedSet.has(item.id);
@@ -2025,6 +2140,7 @@ export default function ProductClient({
                                     <div className="min-w-0 flex-1">
                                       <div className="truncate text-[13px] font-semibold text-black">
                                         {item.title}
+                                        {itemQty > 1 ? ` × ${itemQty}` : ""}
                                       </div>
 
                                       <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-black/45">

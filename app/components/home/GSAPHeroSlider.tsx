@@ -141,6 +141,7 @@ export default function GSAPHeroSlider({
     preloadedRef.current.add(src);
 
     const img = new window.Image();
+    img.decoding = "async";
     img.src = src;
   }, []);
 
@@ -171,7 +172,6 @@ export default function GSAPHeroSlider({
     };
 
     update();
-
     mq.addEventListener?.("change", update);
 
     return () => {
@@ -187,7 +187,6 @@ export default function GSAPHeroSlider({
     };
 
     update();
-
     media?.addEventListener?.("change", update);
 
     return () => {
@@ -198,19 +197,6 @@ export default function GSAPHeroSlider({
   useEffect(() => {
     preloadAround(active);
   }, [active, preloadAround]);
-
-  const shouldLoadImage = useCallback(
-    (idx: number) => {
-      if (!isMobile) return true;
-      if (!safeSlides.length) return false;
-
-      const prevIdx = (active - 1 + safeSlides.length) % safeSlides.length;
-      const nextIdx = (active + 1) % safeSlides.length;
-
-      return idx === active || idx === prevIdx || idx === nextIdx;
-    },
-    [active, isMobile, safeSlides.length],
-  );
 
   const stopAuto = useCallback(() => {
     if (autoRef.current) {
@@ -290,10 +276,6 @@ export default function GSAPHeroSlider({
         "[data-btn-wrap]",
       ) as HTMLElement | null;
 
-      if (nextImg && safeSlides[clamped]?.image) {
-        nextImg.style.backgroundImage = `url(${safeSlides[clamped].image})`;
-      }
-
       tlRef.current?.kill();
       busyRef.current = true;
 
@@ -318,7 +300,7 @@ export default function GSAPHeroSlider({
         });
 
         gsap.set(nextOverlay, {
-          opacity: 0.34,
+          opacity: 0.22,
         });
 
         gsap.set(nextTitle, {
@@ -365,7 +347,7 @@ export default function GSAPHeroSlider({
       });
 
       gsap.set(nextOverlay, {
-        opacity: 0.24,
+        opacity: 0.18,
       });
 
       gsap.set(nextTitle, {
@@ -397,7 +379,7 @@ export default function GSAPHeroSlider({
       });
 
       tl.to(prevImg, { scale: 1.006, duration: 0.32 }, 0)
-        .to(prevOverlay, { opacity: 0.48, duration: 0.32 }, 0)
+        .to(prevOverlay, { opacity: 0.38, duration: 0.32 }, 0)
         .to(prev, { opacity: 0, duration: 0.34 }, 0.04)
         .to(
           nextImg,
@@ -408,13 +390,13 @@ export default function GSAPHeroSlider({
           },
           0,
         )
-        .to(nextOverlay, { opacity: 0.38, duration: 0.4 }, 0.04)
+        .to(nextOverlay, { opacity: 0.28, duration: 0.4 }, 0.04)
         .to(nextTitle, { y: 0, opacity: 1, duration: 0.34 }, 0.1)
         .to(nextBtnWrap, { y: 0, opacity: 1, duration: 0.32 }, 0.14);
 
       tlRef.current = tl;
     },
-    [goLight, isIOS, isMobile, preloadAround, reducedMotion, safeSlides],
+    [goLight, isIOS, isMobile, preloadAround, reducedMotion, safeSlides.length],
   );
 
   const startAuto = useCallback(() => {
@@ -457,7 +439,7 @@ export default function GSAPHeroSlider({
     tlRef.current?.kill();
     busyRef.current = false;
 
-    safeSlides.forEach((s, i) => {
+    safeSlides.forEach((_, i) => {
       const el = root.querySelector(
         `[data-slide="${i}"]`,
       ) as HTMLElement | null;
@@ -481,7 +463,6 @@ export default function GSAPHeroSlider({
         ) as HTMLElement | null;
 
         if (img) {
-          img.style.backgroundImage = s.image ? `url(${s.image})` : "";
           img.style.transform = "none";
           img.style.willChange = "auto";
           img.style.backfaceVisibility = "visible";
@@ -489,7 +470,7 @@ export default function GSAPHeroSlider({
         }
 
         if (overlay) {
-          overlay.style.opacity = "0.34";
+          overlay.style.opacity = "0.22";
         }
 
         if (title) {
@@ -545,7 +526,7 @@ export default function GSAPHeroSlider({
       });
 
       gsap.set(overlay, {
-        opacity: 0.34,
+        opacity: 0.22,
       });
 
       gsap.set(title, {
@@ -573,7 +554,7 @@ export default function GSAPHeroSlider({
     });
 
     gsap.set(overlay, {
-      opacity: 0.24,
+      opacity: 0.18,
     });
 
     gsap.set(title, {
@@ -605,7 +586,7 @@ export default function GSAPHeroSlider({
         },
         0,
       )
-      .to(overlay, { opacity: 0.38, duration: 0.4 }, 0.04)
+      .to(overlay, { opacity: 0.28, duration: 0.4 }, 0.04)
       .to(title, { y: 0, opacity: 1, duration: 0.34 }, 0.1)
       .to(btnWrap, { y: 0, opacity: 1, duration: 0.32 }, 0.14);
 
@@ -631,9 +612,9 @@ export default function GSAPHeroSlider({
           onMouseLeave={isIOS ? undefined : startAuto}
           className={cn(
             "relative isolate overflow-hidden rounded-none",
-            "bg-transparent",
+            "bg-neutral-200",
             "border-0 ring-0 outline-none",
-            "h-[335px] sm:h-[420px] md:h-[520px]",
+            "h-[260px] sm:h-[420px] md:h-[520px]",
             "select-none",
           )}
           style={{
@@ -648,7 +629,6 @@ export default function GSAPHeroSlider({
         >
           {safeSlides.map((s, i) => {
             const isActive = i === active;
-            const imageUrl = shouldLoadImage(i) ? s.image : "";
 
             return (
               <div
@@ -657,17 +637,18 @@ export default function GSAPHeroSlider({
                 className="absolute inset-0 opacity-0"
                 aria-hidden={!isActive}
               >
-                <div
+                <img
                   data-img
+                  src={s.image}
+                  alt={s.title}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchPriority={i === 0 ? "high" : "auto"}
                   className={cn(
-                    "absolute inset-0",
+                    "absolute inset-0 h-full w-full object-cover",
                     isIOS ? "" : "md:will-change-transform",
                   )}
                   style={{
-                    backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
-                    backgroundSize: "cover",
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "center center",
                     transform: isIOS ? "none" : "scale(1)",
                     willChange: isIOS ? "auto" : undefined,
                     WebkitBackfaceVisibility: isIOS ? "visible" : "hidden",
@@ -677,84 +658,56 @@ export default function GSAPHeroSlider({
 
                 <div
                   data-overlay
-                  className="absolute inset-0 bg-black/30 md:bg-black/35"
+                  className="absolute inset-0 bg-black/20 md:bg-black/30"
                 />
 
-                <div className="relative z-10 flex h-full items-center justify-center px-4 md:px-10">
+                <div className="relative z-10 flex h-full items-center justify-center px-12 sm:px-16 md:px-20">
                   <div className="w-full text-center">
                     <h2
                       data-title
                       className={cn(
                         "mx-auto max-w-[92%] font-semibold uppercase text-white",
-                        "tracking-[0.03em] md:tracking-[0.08em]",
-                        "text-[18px] sm:text-[24px] md:text-[44px] leading-[1.08]",
-                        "drop-shadow-[0_10px_26px_rgba(0,0,0,0.35)]",
+                        "tracking-[0.04em] md:tracking-[0.08em]",
+                        "text-[17px] sm:text-[24px] md:text-[44px] leading-[1.08]",
+                        "drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]",
                       )}
+                      style={{
+                        WebkitTextStroke: isMobile
+                          ? "0.45px rgba(0,0,0,0.55)"
+                          : "0.6px rgba(0,0,0,0.55)",
+                        textShadow:
+                          "0 2px 10px rgba(0,0,0,0.38), 0 0 18px rgba(0,0,0,0.28)",
+                      }}
                     >
                       {s.title}
                     </h2>
 
                     <div
                       data-btn-wrap
-                      className="mt-4 flex items-center justify-center gap-4 md:mt-5"
+                      className="hidden items-center justify-center md:mt-5 md:flex"
                     >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          prev();
-                        }}
-                        className={cn(
-                          "inline-flex items-center justify-center md:hidden",
-                          "h-9 w-9 shrink-0",
-                          "bg-transparent text-white",
-                          "border-0 shadow-none outline-none ring-0",
-                          "transition-opacity hover:opacity-80",
-                          "cursor-pointer",
-                        )}
-                        aria-label="Предыдущий слайд"
-                      >
-                        <ChevronLeft className="h-7 w-7" strokeWidth={2.25} />
-                      </button>
-
                       <Link
                         data-btn
                         href={s.href}
                         className={cn(
                           "inline-flex items-center justify-center",
-                          "min-w-[160px] sm:min-w-[180px] md:min-w-[190px]",
-                          "px-7 py-3 sm:px-8 md:px-10",
+                          "md:h-12 md:min-w-[170px] md:px-8",
                           "bg-transparent text-white",
-                          "text-[11px] md:text-[13px] tracking-[0.18em] md:tracking-[0.22em] uppercase",
-                          "border border-white/75",
+                          "md:text-[13px]",
+                          "font-semibold",
+                          "tracking-[0.22em] uppercase",
+                          "border-0 outline-none ring-0 shadow-none",
                           "transition-all duration-300",
-                          isIOS
-                            ? ""
-                            : "hover:shadow-[inset_0_0_0_2px_rgba(255,255,255,0.9)]",
+                          "hover:opacity-80",
                           "cursor-pointer",
                         )}
+                        style={{
+                          textShadow:
+                            "0 2px 10px rgba(0,0,0,0.45), 0 0 16px rgba(0,0,0,0.3)",
+                        }}
                       >
                         {s.ctaLabel}
                       </Link>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          next();
-                        }}
-                        className={cn(
-                          "inline-flex items-center justify-center md:hidden",
-                          "h-9 w-9 shrink-0",
-                          "bg-transparent text-white",
-                          "border-0 shadow-none outline-none ring-0",
-                          "transition-opacity hover:opacity-80",
-                          "cursor-pointer",
-                        )}
-                        aria-label="Следующий слайд"
-                      >
-                        <ChevronRight className="h-7 w-7" strokeWidth={2.25} />
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -769,15 +722,22 @@ export default function GSAPHeroSlider({
               prev();
             }}
             className={cn(
-              "absolute left-6 top-1/2 z-20 hidden -translate-y-1/2 md:block",
-              "bg-transparent p-2",
-              "rounded-none border-0 shadow-none outline-none ring-0",
-              "text-white/90 hover:text-white hover:opacity-80",
+              "absolute left-3 top-1/2 z-20 -translate-y-1/2",
+              "inline-flex items-center justify-center",
+              "h-10 w-10 md:h-14 md:w-14",
+              "border-0 bg-transparent p-0 text-white",
+              "outline-none ring-0 shadow-none",
+              "drop-shadow-[0_4px_10px_rgba(0,0,0,0.55)]",
+              "hover:opacity-75",
               "cursor-pointer transition-opacity",
+              "md:left-6",
             )}
             aria-label="Предыдущий слайд"
           >
-            <ChevronLeft className="h-8 w-8" strokeWidth={2.1} />
+            <ChevronLeft
+              className="h-7 w-7 md:h-10 md:w-10"
+              strokeWidth={2.25}
+            />
           </button>
 
           <button
@@ -787,15 +747,22 @@ export default function GSAPHeroSlider({
               next();
             }}
             className={cn(
-              "absolute right-6 top-1/2 z-20 hidden -translate-y-1/2 md:block",
-              "bg-transparent p-2",
-              "rounded-none border-0 shadow-none outline-none ring-0",
-              "text-white/90 hover:text-white hover:opacity-80",
+              "absolute right-3 top-1/2 z-20 -translate-y-1/2",
+              "inline-flex items-center justify-center",
+              "h-10 w-10 md:h-14 md:w-14",
+              "border-0 bg-transparent p-0 text-white",
+              "outline-none ring-0 shadow-none",
+              "drop-shadow-[0_4px_10px_rgba(0,0,0,0.55)]",
+              "hover:opacity-75",
               "cursor-pointer transition-opacity",
+              "md:right-6",
             )}
             aria-label="Следующий слайд"
           >
-            <ChevronRight className="h-8 w-8" strokeWidth={2.1} />
+            <ChevronRight
+              className="h-7 w-7 md:h-10 md:w-10"
+              strokeWidth={2.25}
+            />
           </button>
 
           <div className="pointer-events-auto absolute bottom-4 left-0 right-0 z-[30] flex justify-center">
