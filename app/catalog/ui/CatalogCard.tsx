@@ -160,6 +160,27 @@ function num(v: unknown): number {
   return Number.isFinite(x) ? x : 0;
 }
 
+function buildOldPriceFallback({
+  current,
+  old,
+  otherCurrent,
+  otherOld,
+}: {
+  current: number;
+  old: number;
+  otherCurrent: number;
+  otherOld: number;
+}) {
+  if (old > current && current > 0) return old;
+
+  if (current > 0 && otherCurrent > 0 && otherOld > otherCurrent) {
+    const discountMultiplier = otherOld / otherCurrent;
+    return Math.round(current * discountMultiplier);
+  }
+
+  return 0;
+}
+
 export default function CatalogCard({
   p,
   idx,
@@ -201,12 +222,27 @@ export default function CatalogCard({
   const curRub = num(getVal(p, "priceRUB") ?? getVal(p, "price_rub") ?? 0);
   const curUzs = num(getVal(p, "priceUZS") ?? getVal(p, "price_uzs") ?? 0);
 
-  const oldRub = num(
+  const oldRubRaw = num(
     getVal(p, "oldPriceRUB") ?? getVal(p, "old_price_rub") ?? 0,
   );
-  const oldUzs = num(
+
+  const oldUzsRaw = num(
     getVal(p, "oldPriceUZS") ?? getVal(p, "old_price_uzs") ?? 0,
   );
+
+  const oldRub = buildOldPriceFallback({
+    current: curRub,
+    old: oldRubRaw,
+    otherCurrent: curUzs,
+    otherOld: oldUzsRaw,
+  });
+
+  const oldUzs = buildOldPriceFallback({
+    current: curUzs,
+    old: oldUzsRaw,
+    otherCurrent: curRub,
+    otherOld: oldRubRaw,
+  });
 
   const cur = currency === "RUB" ? curRub : curUzs;
   const old = currency === "RUB" ? oldRub : oldUzs;
