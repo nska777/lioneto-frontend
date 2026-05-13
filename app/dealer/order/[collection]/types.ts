@@ -2,6 +2,7 @@ export type ProductDraft = {
   quantity: number;
   markupPercent: number;
   isMarkupDirty: boolean;
+
   selectedVariantKey?: string;
   selectedColor?: string;
 };
@@ -10,6 +11,7 @@ export type AddonDraft = {
   quantity: number;
   markupPercent: number;
   isInCart: boolean;
+
   selectedVariantKey?: string;
   selectedColor?: string;
 };
@@ -26,13 +28,22 @@ export type CartEntry =
       id: string;
       productId: string;
       collectionSlug: string;
+
       title: string;
       article: string;
       articleShort?: string;
+
+      selectedVariantKey?: string;
+      selectedColor?: string;
+
       color?: string;
       size?: string;
+      material?: string;
+      image?: string;
+
       quantity: number;
       markupPercent: number;
+
       unitBasePrice: number;
       unitFinalPrice: number;
       totalBasePrice: number;
@@ -41,19 +52,30 @@ export type CartEntry =
   | ({
       kind: "addon";
       id: string;
+
       parentProductId: string;
       addonId: string;
       addonKind?: "required" | "recommended";
       addonSelectionType?: "toggle" | "quantity";
       parentProductTitle?: string;
+
       collectionSlug: string;
+
       title: string;
       article: string;
       articleShort?: string;
+
+      selectedVariantKey?: string;
+      selectedColor?: string;
+
       color?: string;
       size?: string;
+      material?: string;
+      image?: string;
+
       quantity: number;
       markupPercent: number;
+
       unitBasePrice: number;
       unitFinalPrice: number;
       totalBasePrice: number;
@@ -63,18 +85,29 @@ export type CartEntry =
 export type DealerOrderVisibleItem = {
   id: string;
   kind: "product" | "addon";
+
   addonKind?: "required" | "recommended";
   parentProductId?: string;
   parentProductTitle?: string;
+
   collectionSlug: string;
+
   title: string;
   article: string;
   articleShort?: string;
+
+  selectedVariantKey?: string;
+  selectedColor?: string;
+
   color?: string;
   size?: string;
+  material?: string;
+  image?: string;
+
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+
   isReserved?: boolean;
   reservedUntil?: string;
 };
@@ -82,21 +115,33 @@ export type DealerOrderVisibleItem = {
 export type DealerOrderInternalItem = {
   id: string;
   kind: "product" | "addon";
+
   addonKind?: "required" | "recommended";
   parentProductId?: string;
   parentProductTitle?: string;
+
   collectionSlug: string;
+
   title: string;
   article: string;
   articleShort?: string;
+
+  selectedVariantKey?: string;
+  selectedColor?: string;
+
   color?: string;
   size?: string;
+  material?: string;
+  image?: string;
+
   quantity: number;
   markupPercent: number;
+
   unitBasePrice: number;
   unitFinalPrice: number;
   totalBasePrice: number;
   totalFinalPrice: number;
+
   isReserved?: boolean;
   reservedUntil?: string;
 };

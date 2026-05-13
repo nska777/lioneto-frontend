@@ -451,6 +451,9 @@ function mapDealerPrices(raw: {
   price_rub?: unknown;
   price_uzs?: unknown;
 
+  priceDeltaRUB?: unknown;
+  priceDeltaUZS?: unknown;
+
   dealerPriceRUB?: unknown;
   dealerPriceUZS?: unknown;
   dealerPriceKZ?: unknown;
@@ -459,8 +462,12 @@ function mapDealerPrices(raw: {
   dealer_price_rub?: unknown;
   dealer_price_uzs?: unknown;
 }): DealerProductPriceMap {
-  const retailRU = toNumber(raw.priceRU ?? raw.priceRUB ?? raw.price_rub);
-  const retailUZ = toNumber(raw.priceUZ ?? raw.priceUZS ?? raw.price_uzs);
+  const retailRU = toNumber(
+    raw.priceRU ?? raw.priceRUB ?? raw.price_rub ?? raw.priceDeltaRUB,
+  );
+  const retailUZ = toNumber(
+    raw.priceUZ ?? raw.priceUZS ?? raw.price_uzs ?? raw.priceDeltaUZS,
+  );
   const retailKZ = toNumber(raw.priceKZ ?? raw.priceKZT);
   const retailTJ = toNumber(raw.priceTJ ?? raw.priceTJS);
 

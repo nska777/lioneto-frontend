@@ -9,7 +9,7 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type {
   DealerAddon,
@@ -70,7 +70,8 @@ function getVariantPrice(
   variant: DealerProductVariant | null | undefined,
   country: DealerCountryCode,
 ): number {
-  return variant?.price?.[country] ?? 0;
+  const price = variant?.price?.[country];
+  return typeof price === "number" && Number.isFinite(price) ? price : 0;
 }
 
 function getInstructionLabel(product: DealerProduct | null): string {
@@ -109,7 +110,10 @@ function getAddonUnitPrice(
       (variant) => variant.key === addonState?.selectedVariantKey,
     ) ?? null;
 
-  return selectedVariant?.price?.[country] ?? addon.price[country] ?? 0;
+  const variantPrice = getVariantPrice(selectedVariant, country);
+  const addonPrice = addon.price[country] ?? 0;
+
+  return variantPrice > 0 ? variantPrice : addonPrice;
 }
 
 function getAddonQty(
@@ -523,12 +527,72 @@ export default function ProductDetailsModal({
     [safeProduct],
   );
 
+  useEffect(() => {
+    if (!safeProduct) {
+      setSelectedVariantKey("");
+      return;
+    }
+
+    const variants = safeProduct.variants ?? [];
+
+    if (!variants.length) {
+      setSelectedVariantKey("");
+      return;
+    }
+
+    const draftVariantKey = String(safeDraft?.selectedVariantKey ?? "").trim();
+    const draftVariantExists = variants.some(
+      (variant) => variant.key === draftVariantKey,
+    );
+
+    if (draftVariantKey && draftVariantExists) {
+      setSelectedVariantKey(draftVariantKey);
+      return;
+    }
+
+    const draftColor = String(safeDraft?.selectedColor ?? "")
+      .trim()
+      .toLowerCase();
+
+    const byDraftColor = draftColor
+      ? variants.find((variant) => {
+          const color = String(variant.color || variant.label || "")
+            .trim()
+            .toLowerCase();
+
+          return color === draftColor;
+        })
+      : null;
+
+    const fallbackVariant = byDraftColor || variants[0] || null;
+
+    if (!fallbackVariant) {
+      setSelectedVariantKey("");
+      return;
+    }
+
+    setSelectedVariantKey(fallbackVariant.key);
+
+    if (!draftVariantKey) {
+      onSelectVariant(
+        safeProduct.id,
+        fallbackVariant.key,
+        fallbackVariant.color || fallbackVariant.label,
+      );
+    }
+  }, [onSelectVariant, safeDraft, safeProduct]);
+
   const selectedVariant = useMemo(() => {
     if (!colorVariants.length) return null;
-    if (!selectedVariantKey) return null;
+
+    if (!selectedVariantKey) {
+      return colorVariants[0] ?? null;
+    }
 
     return (
-      colorVariants.find((item) => item.key === selectedVariantKey) ?? null
+      colorVariants.find((item) => item.key === selectedVariantKey) ??
+      colorVariants[0] ??
+      null
     );
   }, [colorVariants, selectedVariantKey]);
 
@@ -537,7 +601,12 @@ export default function ProductDetailsModal({
       ? selectedVariant.image
       : safeProduct?.image || "";
 
-  const selectedColorLabel = selectedVariant?.label || safeProduct?.color || "";
+  const selectedColorLabel =
+    selectedVariant?.color ||
+    selectedVariant?.label ||
+    safeDraft?.selectedColor ||
+    safeProduct?.color ||
+    "";
 
   const displayArticle = getDisplayArticle(
     safeProduct?.article,
@@ -650,12 +719,15 @@ export default function ProductDetailsModal({
     return selectedProductVariantImage;
   }, [manualWardrobeImage, selectedFillingAddon, selectedProductVariantImage]);
 
-  const basePrice = safeProduct ? (safeProduct.price[country] ?? 0) : 0;
+  const basePrice = safeProduct
+    ? Math.max(0, safeProduct.price[country] ?? 0)
+    : 0;
   const variantPrice = selectedVariant
-    ? getVariantPrice(selectedVariant, country)
+    ? Math.max(0, getVariantPrice(selectedVariant, country))
     : 0;
 
-  const effectiveBasePrice = selectedVariant ? variantPrice : basePrice;
+  // Если в варианте цена пустая/0, не обнуляем товар — берем базовую дилерскую цену.
+  const effectiveBasePrice = variantPrice > 0 ? variantPrice : basePrice;
   const productQty = Math.max(1, safeDraft?.quantity ?? 1);
 
   const selectedRequiredAndExtrasUnitTotal = useMemo(() => {
@@ -966,7 +1038,7 @@ export default function ProductDetailsModal({
                                   onSelectVariant(
                                     safeProduct.id,
                                     variant.key,
-                                    variant.label,
+                                    variant.color || variant.label,
                                   );
                                 }}
                               />

@@ -1084,10 +1084,20 @@ export default function DealerCollectionClient({
               selectedVariant,
               product.articleShort || "",
             ) || product.articleShort,
+          selectedVariantKey:
+            draft.selectedVariantKey || selectedVariant?.key || "",
+          selectedColor:
+            draft.selectedColor ||
+            getVariantColor(selectedVariant, getProductColor(product)),
           color:
             draft.selectedColor ||
             getVariantColor(selectedVariant, getProductColor(product)),
           size: getVariantSize(selectedVariant, product.size),
+          material:
+            String(
+              selectedVariant?.material || product.material || "",
+            ).trim() || undefined,
+          image: selectedVariant?.image || product.image,
           quantity,
           markupPercent,
           unitBasePrice,
@@ -1141,6 +1151,14 @@ export default function DealerCollectionClient({
           articleShort:
             getVariantArticleShort(selectedVariant, addon.articleShort || "") ||
             addon.articleShort,
+          selectedVariantKey:
+            draft.selectedVariantKey || selectedVariant?.key || "",
+          selectedColor:
+            draft.selectedColor ||
+            getVariantColor(
+              selectedVariant,
+              addon.color || parentProduct.color,
+            ),
           color:
             draft.selectedColor ||
             getVariantColor(
@@ -1148,6 +1166,10 @@ export default function DealerCollectionClient({
               addon.color || parentProduct.color,
             ),
           size: getVariantSize(selectedVariant, addon.size),
+          material:
+            String(selectedVariant?.material || addon.material || "").trim() ||
+            undefined,
+          image: selectedVariant?.image || addon.image,
           quantity,
           markupPercent,
           unitBasePrice,
