@@ -304,19 +304,22 @@ export default function GSAPHeroSlider({
               startAuto();
             }}
             className={cn(
-              "absolute left-3 top-1/2 z-30 hidden -translate-y-1/2",
-              "items-center justify-center",
-              "h-14 w-14",
+              "absolute left-3 top-1/2 z-30 -translate-y-1/2",
+              "inline-flex items-center justify-center",
+              "h-10 w-10 md:h-14 md:w-14",
               "border-0 bg-transparent p-0 text-white",
               "outline-none ring-0 shadow-none",
               "drop-shadow-[0_4px_10px_rgba(0,0,0,0.55)]",
               "hover:opacity-75",
               "cursor-pointer transition-opacity",
-              "md:inline-flex md:left-6",
+              "md:left-6",
             )}
             aria-label="Предыдущий слайд"
           >
-            <ChevronLeft className="h-10 w-10" strokeWidth={2.25} />
+            <ChevronLeft
+              className="h-7 w-7 md:h-10 md:w-10"
+              strokeWidth={2.25}
+            />
           </button>
 
           <button
@@ -328,19 +331,22 @@ export default function GSAPHeroSlider({
               startAuto();
             }}
             className={cn(
-              "absolute right-3 top-1/2 z-30 hidden -translate-y-1/2",
-              "items-center justify-center",
-              "h-14 w-14",
+              "absolute right-3 top-1/2 z-30 -translate-y-1/2",
+              "inline-flex items-center justify-center",
+              "h-10 w-10 md:h-14 md:w-14",
               "border-0 bg-transparent p-0 text-white",
               "outline-none ring-0 shadow-none",
               "drop-shadow-[0_4px_10px_rgba(0,0,0,0.55)]",
               "hover:opacity-75",
               "cursor-pointer transition-opacity",
-              "md:inline-flex md:right-6",
+              "md:right-6",
             )}
             aria-label="Следующий слайд"
           >
-            <ChevronRight className="h-10 w-10" strokeWidth={2.25} />
+            <ChevronRight
+              className="h-7 w-7 md:h-10 md:w-10"
+              strokeWidth={2.25}
+            />
           </button>
 
           {/* Mobile: точки отдельно + название отдельно */}
