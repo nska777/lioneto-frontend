@@ -349,36 +349,10 @@ export default function GSAPHeroSlider({
             />
           </button>
 
-          {/* Mobile: точки отдельно + название отдельно */}
-          <div className="pointer-events-auto absolute bottom-3 left-3 right-3 z-30 flex items-center justify-start md:hidden">
-            <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-black/34 px-2.5 py-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.22)] ring-1 ring-white/12 backdrop-blur-[4px]">
-              {safeSlides.map((_, idx) => {
-                const dotActive = idx === active;
-
-                return (
-                  <button
-                    key={`mobile-dot-${idx}`}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      stopAuto();
-                      goTo(idx);
-                      startAuto();
-                    }}
-                    className={cn(
-                      "block rounded-full transition-all duration-200",
-                      dotActive
-                        ? "h-1.5 w-4 bg-white"
-                        : "h-1.5 w-1.5 bg-white/62",
-                    )}
-                    aria-label={`Слайд ${idx + 1}`}
-                  />
-                );
-              })}
-            </div>
-
-            <div className="ml-5 min-w-0 max-w-[170px] rounded-full bg-black/42 px-3 py-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.22)] ring-1 ring-white/12 backdrop-blur-[4px]">
-              <p className="truncate text-[10px] font-extrabold uppercase leading-none tracking-[0.045em] text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
+          {/* Mobile: только название коллекции снизу по центру, без точек */}
+          <div className="pointer-events-none absolute bottom-3 left-0 right-0 z-30 flex justify-center px-3 md:hidden">
+            <div className="max-w-[82%] rounded-full bg-black/42 px-4 py-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.22)] ring-1 ring-white/12 backdrop-blur-[4px]">
+              <p className="truncate text-center text-[10px] font-extrabold uppercase leading-none tracking-[0.045em] text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
                 {activeSlide?.title}
               </p>
             </div>
