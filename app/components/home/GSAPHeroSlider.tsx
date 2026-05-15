@@ -99,7 +99,6 @@ export default function GSAPHeroSlider({
   const touchStartXRef = useRef<number | null>(null);
 
   const [active, setActive] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
 
   const safeSlides = useMemo(() => {
     const arr =
@@ -109,14 +108,12 @@ export default function GSAPHeroSlider({
   }, [slides]);
 
   const slidesCount = safeSlides.length;
+  const activeSlide = safeSlides[active];
 
   const goTo = useCallback(
     (idx: number) => {
       if (slidesCount <= 1) return;
-
-      setActive(() => {
-        return (idx + slidesCount) % slidesCount;
-      });
+      setActive(() => (idx + slidesCount) % slidesCount);
     },
     [slidesCount],
   );
@@ -153,22 +150,6 @@ export default function GSAPHeroSlider({
   }, [autoMs, next, slidesCount, stopAuto]);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-
-    const update = () => {
-      setIsMobile(mq.matches);
-    };
-
-    update();
-
-    mq.addEventListener?.("change", update);
-
-    return () => {
-      mq.removeEventListener?.("change", update);
-    };
-  }, []);
-
-  useEffect(() => {
     startAuto();
 
     return () => {
@@ -178,6 +159,7 @@ export default function GSAPHeroSlider({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!slidesCount) return;
 
     const preloadIndexes = [
       active,
@@ -261,40 +243,37 @@ export default function GSAPHeroSlider({
                   className="absolute inset-0 h-full w-full object-cover"
                 />
 
-                <div className="absolute inset-0 bg-black/10 md:bg-black/30" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/0 to-black/5 md:bg-black/30 md:bg-none" />
 
-                <div className="relative z-10 flex h-full items-center justify-center px-10 sm:px-16 md:px-20">
+                <div className="relative z-10 hidden h-full items-center justify-center px-20 md:flex">
                   <div className="w-full text-center">
                     <h2
                       className={cn(
-                        "mx-auto max-w-[86%] font-semibold uppercase text-white",
-                        "text-center",
-                        "tracking-[0.035em] md:tracking-[0.08em]",
-                        "text-[16px] sm:text-[24px] md:text-[44px]",
+                        "mx-auto max-w-[86%]",
+                        "font-semibold uppercase text-white",
+                        "text-center text-[44px]",
+                        "tracking-[0.08em]",
                         "leading-[1.15]",
                         "break-words",
                         "drop-shadow-[0_6px_16px_rgba(0,0,0,0.42)]",
                       )}
                       style={{
-                        WebkitTextStroke: isMobile
-                          ? "0.2px rgba(0,0,0,0.35)"
-                          : "0.6px rgba(0,0,0,0.55)",
-                        textShadow: isMobile
-                          ? "0 2px 8px rgba(0,0,0,0.42)"
-                          : "0 2px 10px rgba(0,0,0,0.38), 0 0 18px rgba(0,0,0,0.28)",
+                        WebkitTextStroke: "0.6px rgba(0,0,0,0.55)",
+                        textShadow:
+                          "0 2px 10px rgba(0,0,0,0.38), 0 0 18px rgba(0,0,0,0.28)",
                       }}
                     >
                       {s.title}
                     </h2>
 
-                    <div className="hidden items-center justify-center md:mt-5 md:flex">
+                    <div className="mt-5 flex items-center justify-center">
                       <Link
                         href={s.href}
                         className={cn(
                           "inline-flex items-center justify-center",
-                          "md:h-12 md:min-w-[170px] md:px-8",
+                          "h-12 min-w-[170px] px-8",
                           "bg-transparent text-white",
-                          "md:text-[13px]",
+                          "text-[13px]",
                           "font-semibold",
                           "tracking-[0.22em] uppercase",
                           "border-0 outline-none ring-0 shadow-none",
@@ -325,22 +304,19 @@ export default function GSAPHeroSlider({
               startAuto();
             }}
             className={cn(
-              "absolute left-3 top-1/2 z-30 -translate-y-1/2",
-              "inline-flex items-center justify-center",
-              "h-10 w-10 md:h-14 md:w-14",
+              "absolute left-3 top-1/2 z-30 hidden -translate-y-1/2",
+              "items-center justify-center",
+              "h-14 w-14",
               "border-0 bg-transparent p-0 text-white",
               "outline-none ring-0 shadow-none",
               "drop-shadow-[0_4px_10px_rgba(0,0,0,0.55)]",
               "hover:opacity-75",
               "cursor-pointer transition-opacity",
-              "md:left-6",
+              "md:inline-flex md:left-6",
             )}
             aria-label="Предыдущий слайд"
           >
-            <ChevronLeft
-              className="h-7 w-7 md:h-10 md:w-10"
-              strokeWidth={2.25}
-            />
+            <ChevronLeft className="h-10 w-10" strokeWidth={2.25} />
           </button>
 
           <button
@@ -352,33 +328,66 @@ export default function GSAPHeroSlider({
               startAuto();
             }}
             className={cn(
-              "absolute right-3 top-1/2 z-30 -translate-y-1/2",
-              "inline-flex items-center justify-center",
-              "h-10 w-10 md:h-14 md:w-14",
+              "absolute right-3 top-1/2 z-30 hidden -translate-y-1/2",
+              "items-center justify-center",
+              "h-14 w-14",
               "border-0 bg-transparent p-0 text-white",
               "outline-none ring-0 shadow-none",
               "drop-shadow-[0_4px_10px_rgba(0,0,0,0.55)]",
               "hover:opacity-75",
               "cursor-pointer transition-opacity",
-              "md:right-6",
+              "md:inline-flex md:right-6",
             )}
             aria-label="Следующий слайд"
           >
-            <ChevronRight
-              className="h-7 w-7 md:h-10 md:w-10"
-              strokeWidth={2.25}
-            />
+            <ChevronRight className="h-10 w-10" strokeWidth={2.25} />
           </button>
 
-          <div className="pointer-events-auto absolute bottom-4 left-0 right-0 z-30 flex justify-center">
-            <div className="rounded-full bg-black/18 px-3 py-2 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)] md:backdrop-blur-[6px]">
+          {/* Mobile: точки отдельно + название отдельно */}
+          <div className="pointer-events-auto absolute bottom-3 left-3 right-3 z-30 flex items-center justify-start md:hidden">
+            <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-black/34 px-2.5 py-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.22)] ring-1 ring-white/12 backdrop-blur-[4px]">
+              {safeSlides.map((_, idx) => {
+                const dotActive = idx === active;
+
+                return (
+                  <button
+                    key={`mobile-dot-${idx}`}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stopAuto();
+                      goTo(idx);
+                      startAuto();
+                    }}
+                    className={cn(
+                      "block rounded-full transition-all duration-200",
+                      dotActive
+                        ? "h-1.5 w-4 bg-white"
+                        : "h-1.5 w-1.5 bg-white/62",
+                    )}
+                    aria-label={`Слайд ${idx + 1}`}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="ml-5 min-w-0 max-w-[170px] rounded-full bg-black/42 px-3 py-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.22)] ring-1 ring-white/12 backdrop-blur-[4px]">
+              <p className="truncate text-[10px] font-extrabold uppercase leading-none tracking-[0.045em] text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
+                {activeSlide?.title}
+              </p>
+            </div>
+          </div>
+
+          {/* Desktop: точки по центру */}
+          <div className="pointer-events-auto absolute bottom-4 left-0 right-0 z-30 hidden justify-center md:flex">
+            <div className="rounded-full bg-black/18 px-3 py-2 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-[6px]">
               <div className="flex items-center gap-2">
                 {safeSlides.map((_, idx) => {
                   const dotActive = idx === active;
 
                   return (
                     <button
-                      key={`dot-${idx}`}
+                      key={`desktop-dot-${idx}`}
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
