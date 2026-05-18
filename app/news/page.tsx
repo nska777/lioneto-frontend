@@ -4,6 +4,8 @@ import Link from "next/link";
 import NewsPageClient from "./NewsPageClient";
 import { fetchNews } from "../lib/strapi/news";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Новости Lioneto — коллекции, события и обновления",
   description:
@@ -45,32 +47,31 @@ export default async function NewsPage() {
   const items = await fetchNews();
 
   return (
-    <main className="bg-[#f3f3f3] text-black">
-      <div className="mx-auto w-full max-w-[1200px] px-4">
-        <nav className="pt-6 text-[12px] tracking-[0.18em] text-black/50">
-          <Link className="hover:text-black/80" href="/">
-            ГЛАВНАЯ
+    <main className="min-h-screen bg-[#f3f3f3] text-black">
+      <section className="mx-auto w-full max-w-[1200px] px-4 pb-20 pt-6 md:px-6 md:pb-28 md:pt-10">
+        <nav className="text-[12px] font-semibold uppercase tracking-[0.18em] text-black/45">
+          <Link className="transition hover:text-black/80" href="/">
+            Главная
           </Link>
           <span className="px-2">/</span>
-          <span className="text-black/80">НОВОСТИ</span>
+          <span className="text-black/80">Новости</span>
         </nav>
 
-        <header className="mt-6 md:mt-10">
-          <h1 className="text-balance text-[28px] font-semibold leading-[1.06] tracking-[-0.02em] md:text-[44px]">
+        <header className="mt-8 md:mt-12">
+          <h1 className="text-balance text-[36px] font-semibold leading-[1.02] tracking-[-0.03em] md:text-[64px]">
             Новости
           </h1>
-          <p className="mt-4 max-w-3xl text-[14px] leading-7 text-black/70 md:text-[16px]">
+
+          <p className="mt-5 max-w-3xl text-[15px] font-medium leading-7 text-black/65 md:text-[17px]">
             Поступления, обновления коллекций, события и аккуратные анонсы — без
             шума, только важное.
           </p>
         </header>
 
-        <div className="mt-8 md:mt-10">
+        <div className="mt-10 md:mt-12">
           <NewsPageClient items={items} />
         </div>
-
-        <div className="h-14 md:h-20" />
-      </div>
+      </section>
     </main>
   );
 }

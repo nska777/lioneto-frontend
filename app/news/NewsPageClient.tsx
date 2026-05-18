@@ -1,18 +1,9 @@
 "use client";
 
-import React, {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-gsap.registerPlugin(ScrollTrigger);
+import { ArrowRight } from "lucide-react";
 
 type NewsTag = "Поступление" | "Обновление" | "Акция" | "Событие";
 
@@ -21,12 +12,17 @@ export type NewsItemInput = {
   title: string;
   excerpt?: string;
   subtitle?: string;
+  description?: string;
+  content?: string;
   dateLabel?: string;
   tag?: string;
   type?: string;
   slug: string;
+  publishedAt?: string;
+  createdAt?: string;
   cover?: { url: string; alternativeText?: string | null } | null;
-  image?: { url: string } | null;
+  image?: { url: string; alternativeText?: string | null } | null;
+  coverImage?: string;
 };
 
 type NewsItem = {
@@ -36,19 +32,61 @@ type NewsItem = {
   dateLabel: string;
   tag: NewsTag;
   slug: string;
-  image?: { url: string } | null;
+  imageUrl: string;
+  imageAlt: string;
 };
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
+function stripHtml(html?: string) {
+  return String(html || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatDate(value?: string) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 function toPageTag(raw?: string): NewsTag {
   const s = String(raw ?? "").toLowerCase();
 
-  if (s.includes("arrival")) return "Поступление";
-  if (s.includes("update")) return "Обновление";
-  if (s.includes("sale")) return "Акция";
-  if (s.includes("event")) return "Событие";
+  if (
+    s.includes("arrival") ||
+    s.includes("postuplenie") ||
+    s.includes("поступ")
+  ) {
+    return "Поступление";
+  }
+
+  if (s.includes("update") || s.includes("obnovlenie") || s.includes("обнов")) {
+    return "Обновление";
+  }
+
+  if (
+    s.includes("sale") ||
+    s.includes("promo") ||
+    s.includes("action") ||
+    s.includes("akciya") ||
+    s.includes("акц")
+  ) {
+    return "Акция";
+  }
+
+  if (s.includes("event") || s.includes("sobytie") || s.includes("событ")) {
+    return "Событие";
+  }
 
   return "Обновление";
 }
@@ -59,22 +97,38 @@ function normalizeItems(input: NewsItemInput[]): NewsItem[] {
       const id = String(it.id ?? "").trim();
       const title = String(it.title ?? "").trim();
       const slug = String(it.slug ?? "").trim();
+
       if (!id || !title || !slug) return null;
 
-      const excerpt = String(it.excerpt ?? it.subtitle ?? "").trim();
-      const dateLabel = String(it.dateLabel ?? "").trim();
-      const tag = toPageTag(it.tag ?? it.type);
+      const excerpt =
+        String(
+          it.excerpt ||
+            it.subtitle ||
+            it.description ||
+            stripHtml(it.content) ||
+            "",
+        ).trim() || "Краткое описание новости пока не заполнено.";
 
-      const imageUrl = it.cover?.url || it.image?.url || "";
+      const dateLabel =
+        String(it.dateLabel || "").trim() ||
+        formatDate(it.publishedAt || it.createdAt);
+
+      const tag = toPageTag(it.tag || it.type);
+
+      const imageUrl = it.coverImage || it.cover?.url || it.image?.url || "";
+
+      const imageAlt =
+        it.cover?.alternativeText || it.image?.alternativeText || title;
 
       return {
         id,
         title,
-        excerpt: excerpt || "—",
+        excerpt,
         dateLabel,
         tag,
         slug,
-        image: imageUrl ? { url: imageUrl } : null,
+        imageUrl,
+        imageAlt,
       };
     })
     .filter(Boolean) as NewsItem[];
@@ -101,10 +155,10 @@ function TagPill({
     <button
       onClick={onClick}
       className={cn(
-        "cursor-pointer rounded-full border px-4 py-2 text-[12px] tracking-[0.12em] transition",
+        "cursor-pointer rounded-full border px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] transition",
         active
-          ? "border-black/20 bg-black text-white"
-          : "border-black/10 bg-white text-black/70 hover:border-black/20",
+          ? "border-black bg-black text-white"
+          : "border-black/10 bg-white text-black/65 hover:border-black/30 hover:text-black",
       )}
       type="button"
     >
@@ -113,179 +167,117 @@ function TagPill({
   );
 }
 
-function NewsCard({
-  item,
-  isOpen,
-  onToggle,
-}: {
-  item: NewsItem;
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  const img = item.image?.url;
+function NewsCard({ item, index }: { item: NewsItem; index: number }) {
   const href = `/news/${item.slug}`;
 
   return (
-    <article
-      data-reveal
+    <Link
+      href={href}
       className={cn(
-        "group overflow-hidden rounded-3xl border bg-white transition",
-        "border-black/10 hover:border-black/20",
+        "group block overflow-hidden rounded-[30px] border border-black/10 bg-white shadow-sm transition duration-300",
+        "hover:-translate-y-1 hover:border-black/20 hover:shadow-xl",
       )}
     >
-      <Link href={href} className="block">
-        <div className="relative aspect-[16/10] w-full overflow-hidden">
-          {img ? (
+      <article>
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-black/[0.04]">
+          {item.imageUrl ? (
             <Image
-              src={img}
-              alt={item.title}
+              src={item.imageUrl}
+              alt={item.imageAlt}
               fill
               unoptimized
-              className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+              className="object-cover transition-transform duration-700 group-hover:scale-[1.04]"
             />
           ) : (
-            <div className="absolute inset-0 bg-black/[0.04]" />
+            <div className="absolute inset-0 flex items-center justify-center bg-neutral-200 text-[11px] font-semibold uppercase tracking-[0.3em] text-black/35">
+              Lioneto News
+            </div>
           )}
 
-          <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
-            style={{
-              background:
-                "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 100%)",
-            }}
-          />
+          <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+            <span className="rounded-full bg-white px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black shadow-sm">
+              {item.tag}
+            </span>
 
-          <div className="absolute bottom-4 left-4 right-4 text-white">
-            <div className="text-[12px] tracking-[0.16em] opacity-85">
-              {item.tag.toUpperCase()}
-              {item.dateLabel ? (
-                <span className="opacity-75"> • {item.dateLabel}</span>
-              ) : null}
-            </div>
-            <div className="mt-1 text-[18px] font-semibold leading-snug">
-              {item.title}
-            </div>
+            {item.dateLabel ? (
+              <span className="rounded-full bg-white/90 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/60 shadow-sm">
+                {item.dateLabel}
+              </span>
+            ) : null}
           </div>
         </div>
-      </Link>
 
-      <div className="p-6">
-        <div
-          className="overflow-hidden"
-          style={{
-            maxHeight: isOpen ? 900 : 220,
-            transition: "max-height 650ms cubic-bezier(0.22, 1, 0.36, 1)",
-          }}
-        >
-          <p
-            className={cn(
-              "text-[14px] leading-7 text-black/70",
-              !isOpen && "line-clamp-6",
-            )}
-          >
+        <div className="p-5 md:p-6">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-black/35">
+            Новость {String(index + 1).padStart(2, "0")}
+          </div>
+
+          <h2 className="mt-4 text-[20px] font-semibold leading-snug tracking-[-0.02em] text-black md:text-[22px]">
+            {item.title}
+          </h2>
+
+          <p className="mt-3 line-clamp-3 text-[14px] font-medium leading-7 text-black/60">
             {item.excerpt}
           </p>
-        </div>
 
-        <div className="mt-5 flex items-center justify-between gap-4">
-          <button
-            type="button"
-            onClick={onToggle}
-            className={cn(
-              "cursor-pointer text-[12px] tracking-[0.18em] transition",
-              "text-black/45 hover:text-black/75",
-            )}
-            aria-expanded={isOpen}
-          >
-            {isOpen ? "СВЕРНУТЬ" : "РАЗВЕРНУТЬ"}
-          </button>
+          <div className="mt-6 flex items-center justify-between gap-4">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/40">
+              Открыть
+            </span>
 
-          <Link
-            href={href}
-            className={cn(
-              "cursor-pointer text-[12px] tracking-[0.18em] transition",
-              "text-black/60 hover:text-black",
-            )}
-          >
-            Читать статью →
-          </Link>
+            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-black transition group-hover:translate-x-1">
+              Читать
+              <ArrowRight size={15} />
+            </span>
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
+    </Link>
   );
 }
 
 export default function NewsPageClient({ items }: { items: NewsItemInput[] }) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
   const [tag, setTag] = useState<(typeof TAGS)[number]>("Все");
-  const [q] = useState("");
-
-  const [openId, setOpenId] = useState<string | null>(null);
 
   const normalized = useMemo(() => normalizeItems(items), [items]);
 
   const filtered = useMemo(() => {
-    const qq = q.toLowerCase();
     return normalized.filter((it) => {
-      const okTag = tag === "Все" || it.tag === tag;
-      const okQ =
-        !qq ||
-        it.title.toLowerCase().includes(qq) ||
-        it.excerpt.toLowerCase().includes(qq);
-      return okTag && okQ;
+      return tag === "Все" || it.tag === tag;
     });
-  }, [normalized, tag, q]);
+  }, [normalized, tag]);
 
   useEffect(() => {
-    setOpenId(null);
-  }, [tag, q]);
-
-  useLayoutEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((el) => {
-        gsap.fromTo(
-          el,
-          { autoAlpha: 0, y: 18 },
-          {
-            autoAlpha: 1,
-            y: 0,
-            duration: 0.8,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: el,
-              start: "top 88%",
-              once: true,
-            },
-          },
-        );
-      });
-    }, rootRef);
-
-    return () => ctx.revert();
-  }, [filtered.length]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [tag]);
 
   return (
-    <div ref={rootRef}>
-      <div className="mb-6 flex flex-wrap gap-2">
+    <div>
+      <div className="flex flex-wrap gap-2 md:gap-3">
         {TAGS.map((t) => (
           <TagPill key={t} active={t === tag} onClick={() => setTag(t)}>
-            {t === "Все" ? "ВСЕ" : t.toUpperCase()}
+            {t === "Все" ? "Все" : t}
           </TagPill>
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {filtered.map((it) => (
-          <NewsCard
-            key={it.id}
-            item={it}
-            isOpen={openId === it.id}
-            onToggle={() => {
-              setOpenId((prev) => (prev === it.id ? null : it.id));
-            }}
-          />
-        ))}
+      <div className="mt-10 md:mt-12">
+        {filtered.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((item, index) => (
+              <NewsCard key={item.id} item={item} index={index} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[30px] border border-dashed border-black/15 bg-white px-6 py-16 text-center">
+            <p className="text-[20px] font-semibold text-black">
+              Новости пока не добавлены
+            </p>
+            <p className="mt-3 text-[14px] leading-7 text-black/55">
+              Проверь, что записи опубликованы в Strapi и заполнено поле slug.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
