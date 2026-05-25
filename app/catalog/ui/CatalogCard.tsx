@@ -12,7 +12,7 @@ import { useRegionLang } from "@/app/context/region-lang";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-type Currency = "RUB" | "UZS";
+type Currency = "RUB" | "UZS" | "KZT";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -51,6 +51,21 @@ function getPath(obj: unknown, path: string[]): unknown {
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
+}
+
+function num(v: unknown): number {
+  const x = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function formatKztPrice(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "Цена по запросу";
+
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "KZT",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function DiscountBadge({ percent }: { percent: number }) {
@@ -155,11 +170,6 @@ function RatingStars({
   );
 }
 
-function num(v: unknown): number {
-  const x = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(x) ? x : 0;
-}
-
 function buildOldPriceFallback({
   current,
   old,
@@ -196,8 +206,11 @@ export default function CatalogCard({
   const rlRegion = isRecord(rl) ? getVal(rl, "region") : undefined;
 
   const currency: Currency =
-    (rlCurrency === "RUB" || rlCurrency === "UZS" ? rlCurrency : undefined) ??
-    (rlRegion === "ru" ? "RUB" : "UZS");
+    rlRegion === "kz"
+      ? "KZT"
+      : ((rlCurrency === "RUB" || rlCurrency === "UZS"
+          ? rlCurrency
+          : undefined) ?? (rlRegion === "ru" ? "RUB" : "UZS"));
 
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -222,12 +235,30 @@ export default function CatalogCard({
   const curRub = num(getVal(p, "priceRUB") ?? getVal(p, "price_rub") ?? 0);
   const curUzs = num(getVal(p, "priceUZS") ?? getVal(p, "price_uzs") ?? 0);
 
+  // Подготовлено под будущие цены Казахстана.
+  // Когда в Strapi/Excel появится priceKZT / oldPriceKZT, карточка сама начнет показывать тенге.
+  const curKzt = num(
+    getVal(p, "priceKZT") ??
+      getVal(p, "price_kzt") ??
+      getVal(p, "priceKZ") ??
+      getVal(p, "price_kz") ??
+      0,
+  );
+
   const oldRubRaw = num(
     getVal(p, "oldPriceRUB") ?? getVal(p, "old_price_rub") ?? 0,
   );
 
   const oldUzsRaw = num(
     getVal(p, "oldPriceUZS") ?? getVal(p, "old_price_uzs") ?? 0,
+  );
+
+  const oldKztRaw = num(
+    getVal(p, "oldPriceKZT") ??
+      getVal(p, "old_price_kzt") ??
+      getVal(p, "oldPriceKZ") ??
+      getVal(p, "old_price_kz") ??
+      0,
   );
 
   const oldRub = buildOldPriceFallback({
@@ -244,11 +275,26 @@ export default function CatalogCard({
     otherOld: oldRubRaw,
   });
 
-  const cur = currency === "RUB" ? curRub : curUzs;
-  const old = currency === "RUB" ? oldRub : oldUzs;
+  const oldKzt =
+    oldKztRaw > curKzt && curKzt > 0
+      ? oldKztRaw
+      : buildOldPriceFallback({
+          current: curKzt,
+          old: oldKztRaw,
+          otherCurrent: curUzs,
+          otherOld: oldUzsRaw,
+        });
 
-  const hasAnyPrice = cur > 0;
-  const hasDiscount = old > 0 && cur > 0 && old > cur;
+  const cur =
+    currency === "RUB" ? curRub : currency === "KZT" ? curKzt : curUzs;
+
+  const old =
+    currency === "RUB" ? oldRub : currency === "KZT" ? oldKzt : oldUzs;
+
+  const isKzWithoutPrice = currency === "KZT" && curKzt <= 0;
+
+  const hasAnyPrice = !isKzWithoutPrice && cur > 0;
+  const hasDiscount = !isKzWithoutPrice && old > 0 && cur > 0 && old > cur;
 
   const computedPct = hasDiscount
     ? Math.max(1, Math.min(99, Math.round((1 - cur / old) * 100)))
@@ -277,6 +323,12 @@ export default function CatalogCard({
   const reviewsCount = Math.max(0, Math.round(num(reviewsCountRaw)));
   const showRating = true;
 
+  const displayPrice =
+    currency === "KZT" ? formatKztPrice(curKzt) : fmtPrice(curRub, curUzs);
+
+  const displayOldPrice =
+    currency === "KZT" ? formatKztPrice(oldKzt) : fmtPrice(oldRub, oldUzs);
+
   const snapshot = {
     title,
     href,
@@ -284,6 +336,7 @@ export default function CatalogCard({
     sku: (getStr(p, "sku") || "").trim() ? getStr(p, "sku") : null,
     price_uzs: curUzs,
     price_rub: curRub,
+    price_kzt: curKzt,
   };
 
   const STRAPI = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
@@ -416,17 +469,17 @@ export default function CatalogCard({
             {hasAnyPrice ? (
               <>
                 <div className="text-[16px] font-bold tracking-[-0.01em] text-black">
-                  {fmtPrice(curRub, curUzs)}
+                  {displayPrice}
                 </div>
 
                 {hasDiscount ? (
                   <div className="text-[15px] font-semibold text-black/55 line-through decoration-black/45 decoration-[1.5px] sm:text-[16px]">
-                    {fmtPrice(oldRub, oldUzs)}
+                    {displayOldPrice}
                   </div>
                 ) : null}
               </>
             ) : (
-              <div className="text-[13px] font-medium text-black/55">
+              <div className="text-[13px] font-semibold tracking-[0.04em] text-black/60">
                 Цена по запросу
               </div>
             )}

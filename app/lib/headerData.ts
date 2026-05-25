@@ -1,4 +1,5 @@
 // app/lib/headerData.ts
+
 export type MegaSlidesKey = `${string}:${string}`; // "bedrooms:amber"
 
 export const MEGA_SLIDES: Record<MegaSlidesKey, string[]> = {
@@ -77,12 +78,6 @@ export const topLinks: readonly TopLink[] = [
   { labelKey: "header.top.sale", fallback: "Акции", href: "/sale" },
 ] as const;
 
-/**
- * ✅ Новый единый формат href для "витрины":
- * /catalog?menu=<menu>&collections=<brand>&hero=1
- *
- * Важно: обычный вход в /catalog (без hero) остаётся как есть (см. topLinks).
- */
 const MENU_BY_CATEGORY: Record<string, string> = {
   bedrooms: "bedrooms",
   living: "living",
@@ -94,6 +89,7 @@ const MENU_BY_CATEGORY: Record<string, string> = {
 
 export const makeCollectionHref = (brand: string, category: string) => {
   const menu = MENU_BY_CATEGORY[category] ?? category;
+
   return `/catalog?menu=${encodeURIComponent(menu)}&collections=${encodeURIComponent(
     brand,
   )}&hero=1`;
@@ -102,10 +98,6 @@ export const makeCollectionHref = (brand: string, category: string) => {
 export const makeCollectionId = (brand: string, category: string) =>
   `col-${brand}-${category}`;
 
-/**
- * ✅ Парсинг "витринного" href:
- * /catalog?menu=bedrooms&collections=amber&hero=1
- */
 export function parseCollectionHref(href: string) {
   try {
     if (!href?.startsWith("/catalog")) return null;
@@ -127,15 +119,10 @@ export function parseCollectionHref(href: string) {
   }
 }
 
-/**
- * ✅ Backward compat (если где-то остались старые slugs)
- * ожидаем slug: collection-amber-bedrooms
- */
 export function parseCollectionSlug(slug: string) {
   const m = slug?.match(/^collection-([a-z0-9-]+)-([a-z0-9-]+)$/i);
   if (!m) return null;
 
-  // category из slug -> menu
   const category = MENU_BY_CATEGORY[m[2]] ?? m[2];
 
   return { brand: m[1], category };
@@ -208,8 +195,6 @@ export const megaCategories: MegaCategory[] = [
       },
     ],
   },
-
-  // ✅ FIX: Молодёжные должны быть key: "youth" (а не wardrobes)
   {
     key: "youth",
     labelKey: "header.mega.youth",
@@ -228,7 +213,6 @@ export const megaCategories: MegaCategory[] = [
       },
     ],
   },
-
   {
     key: "hallway",
     labelKey: "header.mega.hallway",
@@ -242,9 +226,6 @@ export const megaCategories: MegaCategory[] = [
       },
     ],
   },
-
-  // ✅ NEW: Кухни (чтобы снова появилась в верхнем меню)
-
   {
     key: "tables",
     labelKey: "header.mega.tables",
@@ -259,11 +240,6 @@ export const megaCategories: MegaCategory[] = [
     ],
   },
 ];
-
-/* =========================
-   MEGA MENU PREVIEWS (1 big + 2 small)
-   Картинки лежат в /public/mega/...
-========================= */
 
 type MegaPreview = {
   titleKey: string;
@@ -361,36 +337,35 @@ export const MEGA_PREVIEWS: Record<string, MegaPreview> = {
   },
 };
 
-/**
- * ✅ Маппинг: href коллекции -> id "товара-витрины"
- */
 export const COLLECTION_ID_BY_HREF: Record<string, string> = Object.keys(
   MEGA_PREVIEWS,
 ).reduce((acc, href) => {
   const meta = parseCollectionHref(href);
   if (!meta) return acc;
+
   acc[href] = makeCollectionId(meta.brand, meta.category);
   return acc;
 }, {} as Record<string, string>);
 
-/**
- * ✅ href -> {brand, category}
- */
 export const COLLECTION_META_BY_HREF: Record<
   string,
   { brand: string; category: string }
 > = Object.keys(MEGA_PREVIEWS).reduce((acc, href) => {
   const meta = parseCollectionHref(href);
   if (!meta) return acc;
+
   acc[href] = meta;
   return acc;
 }, {} as Record<string, { brand: string; category: string }>);
+
+export type RegionKey = "uz" | "ru" | "kz";
 
 export const REGION_DATA = {
   uz: {
     labelKey: "region.uz",
     fallback: "Узбекистан",
     phone: "+998 90 000-00-00",
+    phones: ["+998 90 000-00-00"],
     addresses: ["Rich House Мирзо-Улугбека, 18"],
     phonePrefix: "+998",
   },
@@ -398,11 +373,26 @@ export const REGION_DATA = {
     labelKey: "region.ru",
     fallback: "Россия",
     phone: "+7 495 077-85-59",
+    phones: ["+7 495 077-85-59"],
     addresses: [
       "Москва, ул. Тверская, 12",
-      "Москва, Ленинградский просп., 45",
-      "Санкт-Петербург, Невский пр., 28",
+      "Москва, Ленинградский проспект, 45",
+      "Санкт-Петербург, Невский проспект, 28",
     ],
+    phonePrefix: "+7",
+  },
+  kz: {
+    labelKey: "region.kz",
+    fallback: "Казахстан",
+
+    phone: "+7 708 955 84 17",
+    phones: ["+7 708 955 84 17", "+7 707 570 93 28"],
+
+    addresses: [
+      "Астана, ТЦ «Тулпар» — Республика Казахстан, город Астана, улица Шокана Валиханова, 24, торговый центр «Тулпар», 2 этаж, бутик 218. Телефон: +7 708 955 84 17. Время работы: 10:00 — 18:00.",
+      "Караганда, ТЦ «КазМарт» — Республика Казахстан, город Караганда, торговый центр «КазМарт», проспект Республики, 9. Телефон: +7 707 570 93 28. Время работы: 10:00 — 18:00.",
+    ],
+
     phonePrefix: "+7",
   },
 } as const;

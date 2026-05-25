@@ -19,11 +19,25 @@ import { fetchProductsMap, type LiteProduct } from "@/app/lib/strapi/products";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-type Region = "uz" | "ru";
+type Region = "uz" | "ru" | "kz";
 type OfferConsent = "accepted" | "declined" | null;
 
 function formatMoney(n: number, region: Region) {
   const v = Number.isFinite(Number(n)) ? Number(n) : 0;
+
+  if (region === "kz") {
+    if (v <= 0) return "Цена по запросу";
+
+    try {
+      return new Intl.NumberFormat("ru-RU", {
+        style: "currency",
+        currency: "KZT",
+        maximumFractionDigits: 0,
+      }).format(v);
+    } catch {
+      return `${Math.round(v).toLocaleString("ru-RU")} ₸`;
+    }
+  }
 
   if (region === "uz") return new Intl.NumberFormat("ru-RU").format(v) + " сум";
   return new Intl.NumberFormat("ru-RU").format(v) + " ₽";
@@ -69,6 +83,8 @@ type VariantLite = {
   group?: string;
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
+  priceDeltaKZT?: number;
+  priceDeltaKZ?: number;
   image?: string | null;
   gallery?: string[];
 };
@@ -83,6 +99,10 @@ type CartLineMeta = {
   sku?: string;
   price_uzs?: number;
   price_rub?: number;
+  price_kzt?: number;
+  priceKZT?: number;
+  price_kz?: number;
+  priceKZ?: number;
 
   selectedColor?: string | null;
   selectedVariantKey?: string | null;
@@ -260,7 +280,13 @@ function readCartLineMeta(
 function readMetaPrice(meta: CartLineMeta | null, region: Region): number {
   if (!meta) return 0;
 
-  const raw = region === "uz" ? meta.price_uzs : meta.price_rub;
+  const raw =
+    region === "kz"
+      ? (meta.price_kzt ?? meta.priceKZT ?? meta.price_kz ?? meta.priceKZ)
+      : region === "uz"
+        ? meta.price_uzs
+        : meta.price_rub;
+
   const n = Number(raw);
 
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -468,6 +494,7 @@ function parseCompositeVariantForCheckout(
       image: null as string | null,
       finalPriceUZS: 0,
       finalPriceRUB: 0,
+      finalPriceKZT: 0,
     };
   }
 
@@ -509,11 +536,17 @@ function parseCompositeVariantForCheckout(
     picked.map((v) => toNumSafe(v.priceDeltaRUB)).find((price) => price > 0) ||
     0;
 
+  const finalPriceKZT =
+    picked
+      .map((v) => toNumSafe(v.priceDeltaKZT ?? v.priceDeltaKZ))
+      .find((price) => price > 0) || 0;
+
   return {
     title: title || null,
     image,
     finalPriceUZS,
     finalPriceRUB,
+    finalPriceKZT,
   };
 }
 
@@ -601,7 +634,13 @@ function readPriceAny(obj: unknown, region: Region): number {
     getProp(obj, "price_rub") ??
     getProp(obj, "priceRub");
 
-  const raw = region === "uz" ? uz : ru;
+  const kz =
+    getProp(obj, "priceKZT") ??
+    getProp(obj, "price_kzt") ??
+    getProp(obj, "priceKZ") ??
+    getProp(obj, "price_kz");
+
+  const raw = region === "kz" ? kz : region === "uz" ? uz : ru;
   const n = toNumSafe(raw);
 
   return n > 0 ? n : 0;
@@ -956,7 +995,9 @@ export default function CheckoutClient() {
       const selectedVariantFinalPrice =
         region === "uz"
           ? parsedVariant.finalPriceUZS
-          : parsedVariant.finalPriceRUB;
+          : region === "kz"
+            ? parsedVariant.finalPriceKZT
+            : parsedVariant.finalPriceRUB;
 
       const metaUnit = readMetaPrice(meta, region);
 

@@ -18,7 +18,7 @@ import { fetchProductsMap, type LiteProduct } from "@/app/lib/strapi/products";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-type Region = "uz" | "ru";
+type Region = "uz" | "ru" | "kz";
 type CatalogProduct = (typeof CATALOG_MOCK)[number];
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -41,7 +41,24 @@ function getStr(p: unknown, key: string): string {
 function formatMoney(n: number, region: Region) {
   const v = Number.isFinite(Number(n)) ? Number(n) : 0;
 
-  if (region === "uz") return new Intl.NumberFormat("ru-RU").format(v) + " сум";
+  if (region === "kz") {
+    if (v <= 0) return "Цена по запросу";
+
+    try {
+      return new Intl.NumberFormat("ru-RU", {
+        style: "currency",
+        currency: "KZT",
+        maximumFractionDigits: 0,
+      }).format(v);
+    } catch {
+      return `${Math.round(v).toLocaleString("ru-RU")} ₸`;
+    }
+  }
+
+  if (region === "uz") {
+    return new Intl.NumberFormat("ru-RU").format(v) + " сум";
+  }
+
   return new Intl.NumberFormat("ru-RU").format(v) + " ₽";
 }
 
@@ -87,6 +104,8 @@ type VariantAny = {
   group?: string;
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
+  priceDeltaKZT?: number;
+  priceDeltaKZ?: number;
   image?: string | null;
   gallery?: string[];
 };
@@ -101,6 +120,8 @@ type CartLineMeta = {
   sku?: string;
   price_uzs?: number;
   price_rub?: number;
+  price_kzt?: number;
+  price_kz?: number;
 
   selectedColor?: string | null;
   selectedVariantKey?: string | null;
@@ -333,7 +354,13 @@ function readCartLineMeta(
 function readMetaPrice(meta: CartLineMeta | null, region: Region): number {
   if (!meta) return 0;
 
-  const raw = region === "uz" ? meta.price_uzs : meta.price_rub;
+  const raw =
+    region === "kz"
+      ? (meta.price_kzt ?? meta.price_kz ?? null)
+      : region === "uz"
+        ? meta.price_uzs
+        : meta.price_rub;
+
   const n = Number(raw);
 
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -375,6 +402,8 @@ function flattenVariantsForCart(product: unknown): VariantAny[] {
           group: localGroup,
           priceDeltaRUB: toNum(it.priceDeltaRUB),
           priceDeltaUZS: toNum(it.priceDeltaUZS),
+          priceDeltaKZT: toNum(it.priceDeltaKZT ?? it.priceDeltaKZ),
+          priceDeltaKZ: toNum(it.priceDeltaKZ ?? it.priceDeltaKZT),
           image: isString(it.image) ? it.image : null,
           gallery: Array.isArray(it.gallery)
             ? (it.gallery.filter(
@@ -400,6 +429,8 @@ function flattenVariantsForCart(product: unknown): VariantAny[] {
 
       const priceDeltaRUB = toNum(v.priceDeltaRUB);
       const priceDeltaUZS = toNum(v.priceDeltaUZS);
+      const priceDeltaKZT = toNum(v.priceDeltaKZT ?? v.priceDeltaKZ);
+      const priceDeltaKZ = toNum(v.priceDeltaKZ ?? v.priceDeltaKZT);
 
       const image = isString(v.image) ? v.image : null;
 
@@ -413,6 +444,8 @@ function flattenVariantsForCart(product: unknown): VariantAny[] {
         group,
         priceDeltaRUB,
         priceDeltaUZS,
+        priceDeltaKZT,
+        priceDeltaKZ,
         image,
         gallery,
       };
@@ -537,6 +570,7 @@ function parseCompositeVariantForCart(
       image: null as string | null,
       finalPriceUZS: 0,
       finalPriceRUB: 0,
+      finalPriceKZT: 0,
     };
   }
 
@@ -571,11 +605,17 @@ function parseCompositeVariantForCart(
   const finalPriceRUB =
     picked.map((v) => toNum(v.priceDeltaRUB)).find((price) => price > 0) || 0;
 
+  const finalPriceKZT =
+    picked
+      .map((v) => toNum(v.priceDeltaKZT ?? v.priceDeltaKZ))
+      .find((price) => price > 0) || 0;
+
   return {
     title: title || null,
     image,
     finalPriceUZS,
     finalPriceRUB,
+    finalPriceKZT,
   };
 }
 
@@ -590,8 +630,10 @@ function readPriceFromObj(obj: unknown, region: Region) {
 
   const uz = obj.priceUZS ?? obj.price_uzs ?? obj.priceUzs ?? null;
   const ru = obj.priceRUB ?? obj.price_rub ?? obj.priceRub ?? null;
+  const kz =
+    obj.priceKZT ?? obj.price_kzt ?? obj.priceKZ ?? obj.price_kz ?? null;
 
-  const raw = region === "uz" ? uz : ru;
+  const raw = region === "kz" ? kz : region === "uz" ? uz : ru;
   const n = typeof raw === "number" ? raw : Number(raw);
 
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -712,9 +754,11 @@ export default function CartClient() {
         const baseUnit = baseFromStrapi || baseFromMocks || 0;
 
         const selectedVariantFinalPrice =
-          region === "uz"
-            ? parsedVariant.finalPriceUZS
-            : parsedVariant.finalPriceRUB;
+          region === "kz"
+            ? parsedVariant.finalPriceKZT
+            : region === "uz"
+              ? parsedVariant.finalPriceUZS
+              : parsedVariant.finalPriceRUB;
 
         const metaUnit = readMetaPrice(meta, region);
 

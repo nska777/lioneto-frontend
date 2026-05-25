@@ -17,7 +17,7 @@ import {
   topLinks as TOPLINKS_FALLBACK,
 } from "../lib/headerData";
 
-type RegionKey = "uz" | "ru";
+type RegionKey = "uz" | "ru" | "kz";
 type LangKey = "ru" | "uz";
 
 type GlobalFromStrapi = {
@@ -55,7 +55,10 @@ function normalizeRegionKey(x: unknown): RegionKey {
     .toLowerCase()
     .trim();
 
-  return v === "ru" ? "ru" : "uz";
+  if (v === "ru") return "ru";
+  if (v === "kz") return "kz";
+
+  return "uz";
 }
 
 function safeTF(dict: unknown, key: unknown, fallback: string) {
@@ -81,6 +84,7 @@ export default function Header({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const regionKey = normalizeRegionKey(region);
+
   const regionMeta =
     (REGION_DATA as Record<string, unknown>)[regionKey] ??
     (REGION_DATA as Record<string, unknown>).uz;
@@ -91,7 +95,9 @@ export default function Header({
   const regionLabel =
     regionKey === "uz"
       ? safeTF(dict, "region.uz", "Узбекистан")
-      : safeTF(dict, "region.ru", "Россия");
+      : regionKey === "ru"
+        ? safeTF(dict, "region.ru", "Россия")
+        : safeTF(dict, "region.kz", "Казахстан");
 
   const topLinks = useMemo(() => {
     const normalize = (s: string) =>
@@ -148,15 +154,29 @@ export default function Header({
     }));
   }, [global?.topLinks]);
 
-  const phone = useMemo(() => {
-    const p = (global?.phones ?? []).find(
-      (x) => String(x?.region) === regionKey,
-    )?.phone;
+  const phones = useMemo(() => {
+    const fromCms = (global?.phones ?? [])
+      .filter((x) => String(x?.region) === regionKey)
+      .map((x) => String(x?.phone ?? "").trim())
+      .filter(Boolean);
 
-    return p && String(p).trim()
-      ? String(p).trim()
-      : String((regionMeta as { phone?: string })?.phone ?? "");
+    if (fromCms.length) return fromCms;
+
+    const fallbackPhones = (regionMeta as { phones?: readonly string[] })
+      ?.phones;
+
+    if (Array.isArray(fallbackPhones) && fallbackPhones.length) {
+      return fallbackPhones.map((x) => String(x).trim()).filter(Boolean);
+    }
+
+    const onePhone = String(
+      (regionMeta as { phone?: string })?.phone ?? "",
+    ).trim();
+
+    return onePhone ? [onePhone] : [];
   }, [global?.phones, regionKey, regionMeta]);
+
+  const phone = phones[0] ?? "";
 
   const addresses = useMemo(() => {
     const isUzLang = String(lang) === "uz";
@@ -199,6 +219,8 @@ export default function Header({
           dict={dict}
           topLinks={topLinks}
           phone={phone}
+          phones={phones}
+          regionTitle={regionLabel}
           regionTitleKey={String(
             (regionMeta as { labelKey?: string })?.labelKey ?? "region.uz",
           )}

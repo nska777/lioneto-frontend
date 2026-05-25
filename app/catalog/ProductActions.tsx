@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -74,7 +74,7 @@ function snapshotToRecord(s: WishlistSnapshot): Record<string, unknown> {
   };
 }
 
-type Region = "uz" | "ru";
+type Region = "uz" | "ru" | "kz";
 
 function LeadBeforeCartModal({
   open,
@@ -158,14 +158,14 @@ function LeadBeforeCartModal({
                 LIONETO
               </div>
               <h3 className="mt-1 text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-black sm:text-[24px]">
-                Добавить в корзину
+                Р”РѕР±Р°РІРёС‚СЊ РІ РєРѕСЂР·РёРЅСѓ
               </h3>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              aria-label="Закрыть"
+              aria-label="Р—Р°РєСЂС‹С‚СЊ"
               className={cn(
                 "cursor-pointer inline-flex h-9 w-9 items-center justify-center rounded-full",
                 "border border-black/10 bg-white text-black/55 transition",
@@ -180,7 +180,7 @@ function LeadBeforeCartModal({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ваше имя"
+              placeholder="Р’Р°С€Рµ РёРјСЏ"
               className={cn(
                 "h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none transition",
                 "focus:border-black/20",
@@ -199,7 +199,7 @@ function LeadBeforeCartModal({
                     setPhoneDigits(only);
                   }}
                   inputMode="numeric"
-                  placeholder="Телефон"
+                  placeholder="РўРµР»РµС„РѕРЅ"
                   className="h-full w-full px-4 text-sm outline-none"
                 />
               </div>
@@ -208,7 +208,7 @@ function LeadBeforeCartModal({
                 value={phoneDigits}
                 onChange={(e) => setPhoneDigits(e.target.value)}
                 inputMode="tel"
-                placeholder="Телефон"
+                placeholder="РўРµР»РµС„РѕРЅ"
                 className={cn(
                   "h-12 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm text-black outline-none transition",
                   "focus:border-black/20",
@@ -226,7 +226,7 @@ function LeadBeforeCartModal({
                 "text-sm font-medium text-black/70 transition hover:border-black/20 hover:text-black",
               )}
             >
-              Отмена
+              РћС‚РјРµРЅР°
             </button>
 
             <button
@@ -243,7 +243,7 @@ function LeadBeforeCartModal({
                   : "cursor-not-allowed bg-black/10 text-black/35",
               )}
             >
-              Продолжить
+              РџСЂРѕРґРѕР»Р¶РёС‚СЊ
             </button>
           </div>
         </div>
@@ -308,7 +308,7 @@ export default function ProductActions({
       productId: id,
       variantId: vid,
       variantTitle: vTitle,
-      title: snapshot?.title ?? "Товар",
+      title: snapshot?.title ?? "РўРѕРІР°СЂ",
       href: snapshot?.href ?? null,
       imageUrl: snapshot?.imageUrl ?? null,
       sku: snapshot?.sku ?? null,
@@ -359,7 +359,7 @@ export default function ProductActions({
     <>
       <div className="flex flex-col items-end gap-2">
         <IconBtn
-          title="В избранное"
+          title="Р’ РёР·Р±СЂР°РЅРЅРѕРµ"
           active={fav}
           tone="danger"
           onClick={handleFavClick}
@@ -367,12 +367,12 @@ export default function ProductActions({
           <Heart className={cn("h-4 w-4", fav && "fill-current")} />
         </IconBtn>
 
-        <IconBtn title="Характеристики" onClick={handleSpecsClick}>
+        <IconBtn title="РҐР°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё" onClick={handleSpecsClick}>
           <ListChecks className="h-4 w-4" />
         </IconBtn>
 
         <IconBtn
-          title={inCart ? "Убрать из корзины" : "Добавить в корзину"}
+          title={inCart ? "РЈР±СЂР°С‚СЊ РёР· РєРѕСЂР·РёРЅС‹" : "Р”РѕР±Р°РІРёС‚СЊ РІ РєРѕСЂР·РёРЅСѓ"}
           active={inCart}
           onClick={handleCartClick}
         >
@@ -388,3 +388,4 @@ export default function ProductActions({
     </>
   );
 }
+

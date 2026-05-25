@@ -87,6 +87,10 @@ function ItemHref(it: unknown) {
   return getFirstString(it, ["href", "url", "to", "link", "path", "valueHref"]);
 }
 
+function toTelHref(phone: string) {
+  return `tel:${phone.replace(/[^\d+]/g, "")}`;
+}
+
 function TopLink({
   href,
   children,
@@ -332,10 +336,150 @@ function CatalogDropdown({
   );
 }
 
+function PhonesDropdown({
+  phone,
+  phones,
+}: {
+  phone: string;
+  phones?: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const phoneList = useMemo(() => {
+    const list = (phones?.length ? phones : phone ? [phone] : [])
+      .map((x) => String(x ?? "").trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(list));
+  }, [phone, phones]);
+
+  const mainPhone = phoneList[0] ?? "";
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const openMenu = () => {
+    clearCloseTimer();
+    setOpen(true);
+  };
+
+  const closeMenuSoon = () => {
+    clearCloseTimer();
+
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false);
+    }, 180);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onDocMouseDown = (e: MouseEvent) => {
+      const target = e.target;
+
+      if (!(target instanceof Node)) return;
+      if (wrapRef.current?.contains(target)) return;
+
+      setOpen(false);
+    };
+
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("keydown", onDocKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", onDocMouseDown);
+      document.removeEventListener("keydown", onDocKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      clearCloseTimer();
+    };
+  }, []);
+
+  if (!mainPhone) return null;
+
+  return (
+    <div
+      ref={wrapRef}
+      className="relative hidden xl:inline-flex"
+      onMouseEnter={openMenu}
+      onMouseLeave={closeMenuSoon}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onFocus={openMenu}
+        className={cn(
+          "group inline-flex h-9 items-center gap-1.5 rounded-full px-2.5",
+          "text-[13px] tracking-[0.02em] text-black/80 transition",
+          "hover:bg-black/[0.04] hover:text-black cursor-pointer whitespace-nowrap",
+        )}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <Phone className="h-4 w-4 opacity-60" />
+        <span>{mainPhone}</span>
+
+        {phoneList.length > 1 && (
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 opacity-60 transition-transform duration-200",
+              open ? "rotate-180" : "rotate-0",
+            )}
+          />
+        )}
+      </button>
+
+      {phoneList.length > 1 && (
+        <div
+          className={cn(
+            "absolute right-0 top-full z-[10000] mt-2 w-[210px] overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.12)]",
+            open
+              ? "pointer-events-auto visible translate-y-0 opacity-100"
+              : "pointer-events-none invisible -translate-y-1 opacity-0",
+            "transition-all duration-150",
+          )}
+        >
+          <div className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/40">
+            Телефоны
+          </div>
+
+          <div className="pb-2">
+            {phoneList.map((p) => (
+              <a
+                key={p}
+                href={toTelHref(p)}
+                className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-black/75 transition hover:bg-black/[0.04] hover:text-black"
+                onClick={() => setOpen(false)}
+              >
+                <Phone className="h-3.5 w-3.5 opacity-50" />
+                <span>{p}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TopBar({
   dict,
   topLinks,
   phone,
+  phones,
   regionTitle,
   regionTitleKey,
   regionTitleFallback,
@@ -354,6 +498,7 @@ export default function TopBar({
     isExternal?: boolean;
   }[];
   phone: string;
+  phones?: string[];
   regionTitle?: string;
   regionTitleKey?: string;
   regionTitleFallback?: string;
@@ -435,7 +580,7 @@ export default function TopBar({
             </button>
           </div>
 
-          <div className="flex min-w-0 items-center gap-3 md:gap-4 lg:gap-5">
+          <div className="flex min-w-0 items-center gap-2 md:gap-3 lg:gap-4">
             <StoresDropdown
               label={storesLabel}
               regionTitle={resolvedRegionTitle}
@@ -443,29 +588,7 @@ export default function TopBar({
               onPickAddress={onPickAddress}
             />
 
-            <div className="hidden items-center gap-2 xl:inline-flex whitespace-nowrap">
-              <Phone className="h-4 w-4 opacity-60" />
-
-              <a
-                href={`tel:${phone.replace(/\s|\(|\)|-/g, "")}`}
-                className={cn(
-                  "group relative cursor-pointer",
-                  "text-[13px] tracking-[0.02em]",
-                  "text-black/80 hover:text-black transition-colors",
-                )}
-              >
-                {phone}
-
-                <span
-                  className={cn(
-                    "pointer-events-none absolute left-0 -bottom-[0.75px]",
-                    "h-[0.75px] w-full bg-black/60 origin-left",
-                    "scale-x-0 transition-transform duration-300 ease-out",
-                    "group-hover:scale-x-100",
-                  )}
-                />
-              </a>
-            </div>
+            <PhonesDropdown phone={phone} phones={phones} />
 
             <CallButton label={callCtaLabel} onClick={onOpenCall} />
           </div>

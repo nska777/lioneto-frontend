@@ -16,8 +16,12 @@ gsap.registerPlugin(ScrollTrigger);
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-function formatPrice(value: number, currency: "RUB" | "UZS") {
+type Currency = "RUB" | "UZS" | "KZT";
+
+function formatPrice(value: number, currency: Currency) {
   const v = Number(value ?? 0);
+
+  if (!Number.isFinite(v) || v <= 0) return "Цена по запросу";
 
   try {
     if (currency === "UZS") {
@@ -26,12 +30,24 @@ function formatPrice(value: number, currency: "RUB" | "UZS") {
       }).format(v)} сум`;
     }
 
+    if (currency === "KZT") {
+      return new Intl.NumberFormat("ru-RU", {
+        style: "currency",
+        currency: "KZT",
+        maximumFractionDigits: 0,
+      }).format(v);
+    }
+
     return new Intl.NumberFormat("ru-RU", {
       style: "currency",
       currency: "RUB",
       maximumFractionDigits: 0,
     }).format(v);
   } catch {
+    if (currency === "KZT") {
+      return `${Math.round(v).toLocaleString("ru-RU")} ₸`;
+    }
+
     return currency === "RUB"
       ? `${Math.round(v).toLocaleString("ru-RU")} ₽`
       : `${Math.round(v).toLocaleString("en-US")} сум`;
@@ -48,8 +64,16 @@ export type FeaturedProduct = {
   priceUZS: number;
   priceRUB: number;
 
+  // Под будущие цены Казахстана
+  priceKZT?: number;
+  priceKZ?: number;
+
   oldPriceUZS?: number;
   oldPriceRUB?: number;
+
+  // Под будущие старые цены Казахстана
+  oldPriceKZT?: number;
+  oldPriceKZ?: number;
 
   collectionBadge?: string;
   isActive?: boolean;
@@ -65,8 +89,16 @@ type PriceEntry = {
   priceUZS: number;
   priceRUB: number;
 
+  // Под будущие цены Казахстана
+  priceKZT?: number;
+  priceKZ?: number;
+
   oldPriceUZS?: number;
   oldPriceRUB?: number;
+
+  // Под будущие старые цены Казахстана
+  oldPriceKZT?: number;
+  oldPriceKZ?: number;
 
   hasDiscount?: boolean;
   collectionBadge?: string;
@@ -81,9 +113,11 @@ type BestPriceUIItem = {
 
   price_rub: number;
   price_uzs: number;
+  price_kzt: number;
 
   old_price_rub?: number | null;
   old_price_uzs?: number | null;
+  old_price_kzt?: number | null;
 
   discountPercent?: number | null;
 
@@ -148,6 +182,18 @@ function calcDiscountPercent(price: number, old?: number | null) {
   return Math.max(1, Math.min(99, Math.round((1 - price / old) * 100)));
 }
 
+function getPriceByCurrency(item: BestPriceUIItem, currency: Currency) {
+  if (currency === "RUB") return item.price_rub;
+  if (currency === "KZT") return item.price_kzt;
+  return item.price_uzs;
+}
+
+function getOldPriceByCurrency(item: BestPriceUIItem, currency: Currency) {
+  if (currency === "RUB") return item.old_price_rub ?? null;
+  if (currency === "KZT") return item.old_price_kzt ?? null;
+  return item.old_price_uzs ?? null;
+}
+
 function SmartCover({
   src,
   alt,
@@ -192,7 +238,9 @@ export default function BestPrice({
   priceEntries?: PriceEntry[];
 }) {
   const { region } = useRegionLang();
-  const currency: "RUB" | "UZS" = region === "ru" ? "RUB" : "UZS";
+  const currency: Currency =
+    region === "ru" ? "RUB" : region === "kz" ? "KZT" : "UZS";
+  const isKzRegion = region === "kz";
 
   const rootRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -214,16 +262,37 @@ export default function BestPrice({
         .map((p) => {
           const price_rub = Number(p.priceRUB ?? 0);
           const price_uzs = Number(p.priceUZS ?? 0);
+          const price_kzt = Number(p.priceKZT ?? p.priceKZ ?? 0);
 
           const old_price_rub =
             p.oldPriceRUB != null ? Number(p.oldPriceRUB) : null;
           const old_price_uzs =
             p.oldPriceUZS != null ? Number(p.oldPriceUZS) : null;
+          const old_price_kzt =
+            p.oldPriceKZT != null
+              ? Number(p.oldPriceKZT)
+              : p.oldPriceKZ != null
+                ? Number(p.oldPriceKZ)
+                : null;
 
-          const price = currency === "RUB" ? price_rub : price_uzs;
-          const old = currency === "RUB" ? old_price_rub : old_price_uzs;
+          const price =
+            currency === "RUB"
+              ? price_rub
+              : currency === "KZT"
+                ? price_kzt
+                : price_uzs;
 
-          const discountPercent = calcDiscountPercent(price, old);
+          const old =
+            currency === "RUB"
+              ? old_price_rub
+              : currency === "KZT"
+                ? old_price_kzt
+                : old_price_uzs;
+
+          const discountPercent =
+            isKzRegion && price_kzt <= 0
+              ? null
+              : calcDiscountPercent(price, old);
 
           const line =
             toCapsLabel(p.collection ?? null) || toCapsLabel(p.brand ?? null);
@@ -235,8 +304,10 @@ export default function BestPrice({
             image: String(p.image ?? ""),
             price_rub,
             price_uzs,
+            price_kzt,
             old_price_rub,
             old_price_uzs,
+            old_price_kzt,
             discountPercent,
             badge: p.collectionBadge || "Лучшая цена",
             skuLabel: p.slug ? String(p.slug) : null,
@@ -250,7 +321,10 @@ export default function BestPrice({
     if (!priceEntries.length) return [];
 
     const best = priceEntries.filter(
-      (e) => e.isActive && e.collectionBadge === "Лучшая цена",
+      (e) =>
+        e.isActive &&
+        (e.collectionBadge === "Лучшая цена" ||
+          e.collectionBadge === "Хит продаж"),
     );
 
     if (!best.length) return [];
@@ -262,16 +336,35 @@ export default function BestPrice({
 
         const price_rub = Number(entry.priceRUB ?? 0);
         const price_uzs = Number(entry.priceUZS ?? 0);
+        const price_kzt = Number(entry.priceKZT ?? entry.priceKZ ?? 0);
 
         const old_price_rub =
           entry.oldPriceRUB != null ? Number(entry.oldPriceRUB) : null;
         const old_price_uzs =
           entry.oldPriceUZS != null ? Number(entry.oldPriceUZS) : null;
+        const old_price_kzt =
+          entry.oldPriceKZT != null
+            ? Number(entry.oldPriceKZT)
+            : entry.oldPriceKZ != null
+              ? Number(entry.oldPriceKZ)
+              : null;
 
-        const price = currency === "RUB" ? price_rub : price_uzs;
-        const old = currency === "RUB" ? old_price_rub : old_price_uzs;
+        const price =
+          currency === "RUB"
+            ? price_rub
+            : currency === "KZT"
+              ? price_kzt
+              : price_uzs;
 
-        const discountPercent = calcDiscountPercent(price, old);
+        const old =
+          currency === "RUB"
+            ? old_price_rub
+            : currency === "KZT"
+              ? old_price_kzt
+              : old_price_uzs;
+
+        const discountPercent =
+          isKzRegion && price_kzt <= 0 ? null : calcDiscountPercent(price, old);
 
         const line =
           toCapsLabel(product.collection ?? null) ||
@@ -289,8 +382,10 @@ export default function BestPrice({
           image: String(product.image ?? ""),
           price_rub,
           price_uzs,
+          price_kzt,
           old_price_rub,
           old_price_uzs,
+          old_price_kzt,
           discountPercent,
           badge: entry.collectionBadge || "Лучшая цена",
           skuLabel: product.sku ? String(product.sku) : `ID: ${product.id}`,
@@ -300,7 +395,7 @@ export default function BestPrice({
       .filter(Boolean) as BestPriceUIItem[];
 
     return items.slice(0, Math.min(10, items.length));
-  }, [products, priceEntries, currency]);
+  }, [products, priceEntries, currency, isKzRegion]);
 
   useLayoutEffect(() => {
     const calc = () => {
@@ -616,9 +711,13 @@ export default function BestPrice({
             style={{ transform: "translateZ(0)" }}
           >
             {list.map((p, idx) => {
-              const price = currency === "RUB" ? p.price_rub : p.price_uzs;
-              const old =
-                currency === "RUB" ? p.old_price_rub : p.old_price_uzs;
+              const price = getPriceByCurrency(p, currency);
+              const old = getOldPriceByCurrency(p, currency);
+
+              const hasKztPrice = currency !== "KZT" || price > 0;
+              const displayPrice = hasKztPrice
+                ? formatPrice(price, currency)
+                : "Цена по запросу";
 
               const snapshot = {
                 title: p.title,
@@ -627,6 +726,7 @@ export default function BestPrice({
                 sku: p.skuLabel ?? null,
                 price_uzs: p.price_uzs,
                 price_rub: p.price_rub,
+                price_kzt: p.price_kzt,
               };
 
               return (
@@ -691,13 +791,18 @@ export default function BestPrice({
 
                       <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-baseline sm:gap-3">
                         <div
-                          className="text-[21px] font-bold tracking-[-0.015em] text-black md:text-[23px]"
+                          className={cn(
+                            hasKztPrice
+                              ? "text-[21px] md:text-[23px]"
+                              : "text-[17px] md:text-[18px]",
+                            "font-bold tracking-[-0.015em] text-black",
+                          )}
                           suppressHydrationWarning
                         >
-                          {formatPrice(price, currency)}
+                          {displayPrice}
                         </div>
 
-                        {old && old > price ? (
+                        {hasKztPrice && old && old > price ? (
                           <div
                             className="text-[15px] font-semibold text-black/55 line-through decoration-black/45 decoration-[1.5px] sm:text-[16px]"
                             suppressHydrationWarning

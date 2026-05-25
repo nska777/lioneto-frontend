@@ -11,7 +11,7 @@ import { fetchStrapiProductsMapBySlugs } from "@/app/lib/strapi/products";
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
 
-type Region = "uz" | "ru";
+type Region = "uz" | "ru" | "kz";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;

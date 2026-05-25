@@ -8,8 +8,8 @@ import React, {
   useState,
 } from "react";
 
-type Region = "uz" | "ru";
-type Lang = "ru" | "uz";
+export type Region = "uz" | "ru" | "kz";
+export type Lang = "ru" | "uz";
 
 type Ctx = {
   region: Region;
@@ -22,19 +22,24 @@ const RegionLangContext = createContext<Ctx | null>(null);
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
+
   const m = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
   return m ? decodeURIComponent(m[2]) : null;
 }
 
 function setCookie(name: string, value: string, days = 365) {
   if (typeof document === "undefined") return;
+
   const d = new Date();
   d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${d.toUTCString()}; path=/`;
+
+  document.cookie = `${name}=${encodeURIComponent(
+    value,
+  )}; expires=${d.toUTCString()}; path=/`;
 }
 
 function isRegion(v: string | null): v is Region {
-  return v === "ru" || v === "uz";
+  return v === "ru" || v === "uz" || v === "kz";
 }
 
 function isLang(v: string | null): v is Lang {
@@ -50,7 +55,12 @@ async function detectRegion(): Promise<Region | null> {
     if (!data || typeof data !== "object") return null;
 
     const region = (data as Record<string, unknown>).region;
-    return region === "ru" || region === "uz" ? region : null;
+
+    if (region === "ru" || region === "uz" || region === "kz") {
+      return region;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -80,6 +90,7 @@ export function RegionLangProvider({
 
     (async () => {
       const detected = await detectRegion();
+
       if (cancelled) return;
 
       const next: Region =
@@ -119,8 +130,10 @@ export function RegionLangProvider({
 
 export function useRegionLang() {
   const ctx = useContext(RegionLangContext);
+
   if (!ctx) {
     throw new Error("useRegionLang must be used within RegionLangProvider");
   }
+
   return ctx;
 }

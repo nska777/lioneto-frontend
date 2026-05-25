@@ -9,6 +9,9 @@ import Link from "next/link";
 import { supabase } from "@/app/lib/supabase/client";
 import { getDict, tF } from "@/i18n";
 
+type RegionKey = "uz" | "ru" | "kz";
+type LangKey = "ru" | "uz";
+
 function IconBtn({
   label,
   href,
@@ -37,8 +40,6 @@ function IconBtn({
     </button>
   );
 }
-
-type LangKey = "ru" | "uz";
 
 type LangUiConfig = {
   showLanguageToggle?: boolean;
@@ -83,8 +84,8 @@ export default function BrandRow({
   setLang,
   langUi,
 }: {
-  region: "uz" | "ru";
-  setRegion: (v: "uz" | "ru") => void;
+  region: RegionKey;
+  setRegion: (v: RegionKey) => void;
   lang: LangKey;
   setLang: (v: LangKey) => void;
   langUi?: LangUiConfig;
@@ -130,51 +131,55 @@ export default function BrandRow({
 
   const canShowLang = langUiResolved.show && langUiResolved.enabled.length > 0;
 
+  const regionItems: Array<{
+    key: RegionKey;
+    label: string;
+    title: string;
+  }> = [
+    {
+      key: "uz",
+      label: "UZ",
+      title: tt("header.regionUz", "Узбекистан"),
+    },
+    {
+      key: "ru",
+      label: "RU",
+      title: tt("header.regionRu", "Россия"),
+    },
+    {
+      key: "kz",
+      label: "KZ",
+      title: tt("header.regionKz", "Казахстан"),
+    },
+  ];
+
   return (
     <div className="w-full max-w-full overflow-x-clip py-1.5 md:py-2.5">
       <div className="mx-auto w-full max-w-[1200px] overflow-hidden px-4">
         <div className="flex min-w-0 max-w-full flex-col gap-4 overflow-hidden md:flex-row md:items-center md:justify-between md:gap-0 md:overflow-visible">
           {/* LEFT */}
-          <div className="flex min-w-0 max-w-full items-center justify-between gap-3 md:w-[360px] md:justify-start md:gap-4">
-            <div className="min-w-0 truncate text-[11px] tracking-[0.20em] text-black/45 md:text-[12px]">
+          <div className="flex min-w-0 max-w-full items-center justify-between gap-3 md:w-[360px] md:justify-start md:gap-3">
+            <div className="min-w-0 truncate text-[10px] tracking-[0.18em] text-black/45 md:text-[11px]">
               {tt("header.pickRegion", "Выберите регион")}
             </div>
 
-            <div
-              className="
-                inline-flex
-                shrink-0
-                rounded-full
-                bg-[#f3f3f3]
-                p-1
-                shadow-[0_4px_12px_rgba(0,0,0,0.08)]
-              "
-            >
-              <button
-                type="button"
-                onClick={() => setRegion("uz")}
-                className={[
-                  "h-8 px-4 rounded-full text-[12px] tracking-[0.12em] transition cursor-pointer whitespace-nowrap",
-                  region === "uz"
-                    ? "bg-black text-white"
-                    : "text-black/70 hover:text-black hover:bg-black/5",
-                ].join(" ")}
-              >
-                {tt("header.regionUz", "Узбекистан")}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRegion("ru")}
-                className={[
-                  "h-8 px-4 rounded-full text-[12px] tracking-[0.12em] transition cursor-pointer whitespace-nowrap",
-                  region === "ru"
-                    ? "bg-black text-white"
-                    : "text-black/70 hover:text-black hover:bg-black/5",
-                ].join(" ")}
-              >
-                {tt("header.regionRu", "Россия")}
-              </button>
+            <div className="inline-flex shrink-0 items-center rounded-full bg-[#f3f3f3] p-0.5 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+              {regionItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  title={item.title}
+                  onClick={() => setRegion(item.key)}
+                  className={[
+                    "h-7 min-w-9 rounded-full px-2.5 text-[11px] font-semibold tracking-[0.08em] transition cursor-pointer whitespace-nowrap",
+                    region === item.key
+                      ? "bg-black text-white"
+                      : "text-black/65 hover:text-black hover:bg-black/5",
+                  ].join(" ")}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
           </div>
 

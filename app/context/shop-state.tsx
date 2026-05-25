@@ -163,9 +163,11 @@ function AbandonedCartTracker({ cart }: { cart: CartMap }) {
 
     if (!hasLead || !hasItems) return;
 
+    const abandonedRegion: "ru" | "uz" = region === "ru" ? "ru" : "uz";
+
     const payload = buildAbandonedPayload({
       cart,
-      region,
+      region: abandonedRegion,
       pathname: typeof window !== "undefined" ? window.location.pathname : "",
     });
 
