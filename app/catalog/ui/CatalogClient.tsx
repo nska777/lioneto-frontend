@@ -75,6 +75,20 @@ const getNumberOr = (v: unknown, key: string, fallback: number): number => {
   return fallback;
 };
 
+const getPriceNumberOr = (
+  v: unknown,
+  key: string,
+  fallback: number,
+): number => {
+  const n = getNumberOr(v, key, fallback);
+
+  // В старых Excel-файлах 28/29/32 часто использовались как мусорные заглушки.
+  // Для цен Казахстана такие значения нельзя показывать как 32 ₸.
+  if (n === 28 || n === 29 || n === 32) return fallback;
+
+  return n;
+};
+
 function joinUrl(base: string, path: string) {
   const b = String(base || "").replace(/\/+$/, "");
   const p = String(path || "").trim();
@@ -110,8 +124,12 @@ type CatalogStrapiItem = ProductAnyLocal & {
 
   priceUZS: number;
   priceRUB: number;
+  priceKZ: number;
+  priceKZT: number;
   oldPriceUZS?: number;
   oldPriceRUB?: number;
+  oldPriceKZ?: number;
+  oldPriceKZT?: number;
 
   image: string;
   gallery: string[];
@@ -179,7 +197,13 @@ function getRegionPriceFromCatalogItem(
   const regionKey = String(region || "uz")
     .trim()
     .toLowerCase();
-  const raw = regionKey === "ru" ? p.priceRUB : p.priceUZS;
+  const raw =
+    regionKey === "ru"
+      ? p.priceRUB
+      : regionKey === "kz"
+        ? (p.priceKZ ?? p.priceKZT ?? p.price_kz ?? p.price_kzt)
+        : p.priceUZS;
+
   const n = typeof raw === "number" ? raw : Number(raw);
 
   return Number.isFinite(n) ? n : 0;
@@ -210,6 +234,14 @@ function isVisibleFromStrapi(p: Record<string, unknown>, region = "uz") {
   if (regionKey === "ru") {
     if (p.isActiveRU !== true) return false;
     if (!scene && getRegionPriceFromCatalogItem(p, "ru") <= 0) return false;
+    return true;
+  }
+
+  /**
+   * KZ — показываем товар даже если цены в тенге пока нет.
+   * В карточке будет "Цена по запросу".
+   */
+  if (regionKey === "kz") {
     return true;
   }
 
@@ -302,9 +334,22 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
 
   const priceUZS = getNumberOr(src, "priceUZS", 0);
   const priceRUB = getNumberOr(src, "priceRUB", 0);
+  const priceKZ =
+    getPriceNumberOr(src, "priceKZ", 0) ||
+    getPriceNumberOr(src, "priceKZT", 0) ||
+    getPriceNumberOr(src, "price_kz", 0) ||
+    getPriceNumberOr(src, "price_kzt", 0);
+  const priceKZT = priceKZ;
 
   const oldPriceUZS = getNumberOr(src, "oldPriceUZS", 0) || undefined;
   const oldPriceRUB = getNumberOr(src, "oldPriceRUB", 0) || undefined;
+  const oldPriceKZ =
+    getPriceNumberOr(src, "oldPriceKZ", 0) ||
+    getPriceNumberOr(src, "oldPriceKZT", 0) ||
+    getPriceNumberOr(src, "old_price_kz", 0) ||
+    getPriceNumberOr(src, "old_price_kzt", 0) ||
+    undefined;
+  const oldPriceKZT = oldPriceKZ;
 
   const openKey = String(slug ?? productId ?? id ?? "")
     .trim()
@@ -363,8 +408,12 @@ function pickStrapiItem(item: unknown): CatalogStrapiItem {
 
     priceUZS,
     priceRUB,
+    priceKZ,
+    priceKZT,
     oldPriceUZS,
     oldPriceRUB,
+    oldPriceKZ,
+    oldPriceKZT,
 
     image: mediaUrl,
     gallery,
@@ -592,11 +641,15 @@ export default function CatalogClient({
               `fields[10]=sortOrder&` +
               `fields[11]=priceUZS&` +
               `fields[12]=priceRUB&` +
-              `fields[13]=oldPriceUZS&` +
-              `fields[14]=oldPriceRUB&` +
-              `fields[15]=collectionBadge&` +
-              `fields[16]=sku&` +
-              `fields[17]=articleShort&` +
+              `fields[13]=priceKZ&` +
+              `fields[14]=priceKZT&` +
+              `fields[15]=oldPriceUZS&` +
+              `fields[16]=oldPriceRUB&` +
+              `fields[17]=oldPriceKZ&` +
+              `fields[18]=oldPriceKZT&` +
+              `fields[19]=collectionBadge&` +
+              `fields[20]=sku&` +
+              `fields[21]=articleShort&` +
               `populate[media][fields][0]=url&` +
               `pagination[page]=${page}&pagination[pageSize]=${pageSize}&` +
               `sort=sortOrder:asc,updatedAt:desc`,

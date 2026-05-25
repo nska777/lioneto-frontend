@@ -17,8 +17,12 @@ export type StrapiVariant = {
 
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
+  priceDeltaKZ?: number;
+  priceDeltaKZT?: number;
   dealerPriceRUB?: number;
   dealerPriceUZS?: number;
+  dealerPriceKZ?: number;
+  dealerPriceKZT?: number;
   image?: string;
   gallery?: string[];
   isActive?: boolean;
@@ -47,8 +51,16 @@ export type StrapiProductLite = {
 
   priceUZS?: number | null;
   priceRUB?: number | null;
+  priceKZ?: number | null;
+  priceKZT?: number | null;
+  oldPriceUZS?: number | null;
+  oldPriceRUB?: number | null;
+  oldPriceKZ?: number | null;
+  oldPriceKZT?: number | null;
   dealerPriceUZS?: number | null;
   dealerPriceRUB?: number | null;
+  dealerPriceKZ?: number | null;
+  dealerPriceKZT?: number | null;
 
   image?: string;
   gallery?: string[];
@@ -64,6 +76,17 @@ function unwrapItem(item: AnyObj): AnyObj {
 function toNum(v: any): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function toPriceNum(v: any): number | null {
+  const n = toNum(v);
+  if (n === null) return null;
+
+  // В старых Excel-файлах 28/29/32 часто использовались как мусорные заглушки.
+  // Для цен Казахстана такие значения нельзя показывать как 32 ₸.
+  if (n === 28 || n === 29 || n === 32) return null;
+
+  return n;
 }
 
 function toBool(v: any): boolean | null {
@@ -193,9 +216,21 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
 
         priceDeltaRUB: toNum(v?.priceDeltaRUB) ?? undefined,
         priceDeltaUZS: toNum(v?.priceDeltaUZS) ?? undefined,
+        priceDeltaKZ:
+          toNum(v?.priceDeltaKZ ?? v?.priceDeltaKZT ?? v?.price_delta_kz) ??
+          undefined,
+        priceDeltaKZT:
+          toNum(v?.priceDeltaKZT ?? v?.priceDeltaKZ ?? v?.price_delta_kzt) ??
+          undefined,
 
         dealerPriceRUB: toNum(v?.dealerPriceRUB) ?? undefined,
         dealerPriceUZS: toNum(v?.dealerPriceUZS) ?? undefined,
+        dealerPriceKZ:
+          toNum(v?.dealerPriceKZ ?? v?.dealerPriceKZT ?? v?.dealer_price_kz) ??
+          undefined,
+        dealerPriceKZT:
+          toNum(v?.dealerPriceKZT ?? v?.dealerPriceKZ ?? v?.dealer_price_kzt) ??
+          undefined,
 
         image: img,
         gallery: img ? [img] : undefined,
@@ -228,12 +263,29 @@ function mapStrapiItemToLite(item: any): StrapiProductLite | null {
 
     priceUZS: toNum(src?.priceUZS ?? src?.priceUzs ?? src?.price_uzs),
     priceRUB: toNum(src?.priceRUB ?? src?.priceRub ?? src?.price_rub),
+    priceKZ: toPriceNum(src?.priceKZ ?? src?.priceKZT ?? src?.price_kz ?? src?.price_kzt),
+    priceKZT: toPriceNum(src?.priceKZT ?? src?.priceKZ ?? src?.price_kzt ?? src?.price_kz),
+
+    oldPriceUZS: toNum(src?.oldPriceUZS ?? src?.oldPriceUzs ?? src?.old_price_uzs),
+    oldPriceRUB: toNum(src?.oldPriceRUB ?? src?.oldPriceRub ?? src?.old_price_rub),
+    oldPriceKZ: toPriceNum(
+      src?.oldPriceKZ ?? src?.oldPriceKZT ?? src?.old_price_kz ?? src?.old_price_kzt,
+    ),
+    oldPriceKZT: toPriceNum(
+      src?.oldPriceKZT ?? src?.oldPriceKZ ?? src?.old_price_kzt ?? src?.old_price_kz,
+    ),
 
     dealerPriceUZS: toNum(
       src?.dealerPriceUZS ?? src?.dealerPriceUzs ?? src?.dealer_price_uzs,
     ),
     dealerPriceRUB: toNum(
       src?.dealerPriceRUB ?? src?.dealerPriceRub ?? src?.dealer_price_rub,
+    ),
+    dealerPriceKZ: toNum(
+      src?.dealerPriceKZ ?? src?.dealerPriceKZT ?? src?.dealer_price_kz ?? src?.dealer_price_kzt,
+    ),
+    dealerPriceKZT: toNum(
+      src?.dealerPriceKZT ?? src?.dealerPriceKZ ?? src?.dealer_price_kzt ?? src?.dealer_price_kz,
     ),
 
     image: image || undefined,
