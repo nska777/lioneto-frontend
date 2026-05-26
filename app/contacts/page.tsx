@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     "салон мебели Ташкент",
     "Rich House Ташкент",
     "Arca Mebel Ташкент",
-    "Arca Premium Ташкент",
+    "Ecobazar Atlas Mebel Ташкент",
     "мебель в Ташкенте адрес",
   ],
   openGraph: {
@@ -79,7 +79,7 @@ const contactsPageJsonLd = {
       },
       {
         "@type": "ContactPoint",
-        telephone: "+998900021230",
+        telephone: "+998900426817",
         contactType: "sales",
         areaServed: "UZ",
         availableLanguage: ["ru"],
@@ -127,14 +127,14 @@ const storesJsonLd = {
     },
     {
       "@type": "FurnitureStore",
-      name: "Lioneto — Arca Premium",
+      name: "Lioneto — Ecobazar Atlas Mebel",
       url: PAGE_URL,
-      telephone: "+998900021230",
+      telephone: "+998900426817",
       address: {
         "@type": "PostalAddress",
-        streetAddress: "улица Махтумкули, 75/4",
+        streetAddress: "улица Тимура Малика, 3А",
         addressLocality: "Ташкент",
-        addressRegion: "Яшнабадский район",
+        addressRegion: "Мирзо-Улугбекский район",
         addressCountry: "UZ",
       },
       openingHours: "Mo-Su 09:00-18:00",
@@ -159,7 +159,7 @@ const faqJsonLd = {
       name: "Какие магазины Lioneto есть в Ташкенте?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "На странице контактов представлены точки Rich House, Arca Mebel и Arca Premium в Ташкенте.",
+        text: "На странице контактов представлены точки Rich House, Arca Mebel и Ecobazar Atlas Mebel в Ташкенте.",
       },
     },
     {
@@ -220,23 +220,22 @@ export default function ContactsPage() {
 
         <section className="mt-12 max-w-5xl">
           <h2 className="text-[26px] font-semibold tracking-[-0.02em] md:text-[36px]">
-            Магазины мебели Lioneto в Ташкенте и России
+            Магазины мебели Lioneto в Ташкенте, России и Казахстане
           </h2>
 
           <div className="mt-5 space-y-5 text-[15px] leading-7 text-black/75 md:text-[17px] md:leading-8">
             <p>
-              На этой странице собраны актуальные контакты Lioneto в Ташкенте:
-              адреса магазинов, телефоны, режим работы и карта салонов. Если вы
-              ищете мебель в Ташкенте и хотите посмотреть коллекции вживую,
-              страница контактов помогает быстро выбрать ближайшую точку и
-              построить маршрут.
+              На этой странице собраны актуальные контакты Lioneto: адреса
+              магазинов, телефоны, режим работы и карта салонов. Если вы ищете
+              мебель и хотите посмотреть коллекции вживую, страница контактов
+              помогает быстро выбрать ближайшую точку и построить маршрут.
             </p>
             <p>
-              В салонах Lioneto в Ташкенте можно ознакомиться с мебелью для
-              спальни, интерьерными коллекциями и актуальными решениями для
-              современного дома. Контакты и карта вынесены в удобный формат,
-              чтобы пользователь мог сразу увидеть нужный магазин и перейти к
-              нему на карте.
+              В салонах Lioneto можно ознакомиться с мебелью для спальни,
+              интерьерными коллекциями и актуальными решениями для современного
+              дома. Контакты и карта вынесены в удобный формат, чтобы
+              пользователь мог сразу увидеть нужный магазин и перейти к нему на
+              карте.
             </p>
             <p>
               Для выбора моделей и коллекций вы также можете перейти в{" "}
@@ -308,11 +307,11 @@ export default function ContactsPage() {
           <div className="mt-6 space-y-4">
             <div className="rounded-3xl border border-black/10 p-5">
               <h3 className="text-[18px] font-semibold">
-                Где находятся магазины Lioneto в Ташкенте?
+                Где находятся магазины Lioneto?
               </h3>
               <p className="mt-2 text-[15px] leading-7 text-black/70">
-                На странице контактов показаны салоны Lioneto в Ташкенте, их
-                адреса, телефоны и карта.
+                На странице контактов показаны салоны Lioneto, их адреса,
+                телефоны и карта.
               </p>
             </div>
 

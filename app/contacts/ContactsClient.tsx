@@ -32,6 +32,21 @@ const REGION_LABELS: Record<RegionKey, string> = {
   kz: "КАЗАХСТАН",
 };
 
+function isArcaPremium(store: Store) {
+  const text =
+    `${store.id} ${store.title} ${store.address} ${store.phone}`.toLowerCase();
+
+  return (
+    text.includes("arca premium") ||
+    text.includes("арка premium") ||
+    text.includes("арка премиум") ||
+    text.includes("75/4") ||
+    text.includes("75 / 4") ||
+    text.includes("002 12 30") ||
+    text.includes("0021230")
+  );
+}
+
 function RegionSelect({
   value,
   onChange,
@@ -147,7 +162,6 @@ function getPhoneLabel(store: Store) {
   if (title.includes("ТЦ КазМарт")) return "ТЦ КазМарт";
   if (title.includes("Rich House")) return "Rich House";
   if (title.includes("Arca Mebel")) return "Arca Mebel";
-  if (title.includes("Arca Premium")) return "Arca Premium";
   if (title.includes("Ecobazar")) return "Ecobazar Atlas";
 
   return title;
@@ -358,12 +372,13 @@ export default function ContactsClient() {
   const [region, setRegion] = useState<RegionKey>("uz");
 
   const stores = useMemo(() => {
-    if (region === "ru") return RU_STORES;
-    if (region === "kz") return KZ_STORES;
-    return UZ_STORES;
+    const sourceStores =
+      region === "ru" ? RU_STORES : region === "kz" ? KZ_STORES : UZ_STORES;
+
+    return sourceStores.filter((store) => !isArcaPremium(store));
   }, [region]);
 
-  const [activeId, setActiveId] = useState<string>(stores[0]?.id ?? "");
+  const [activeId, setActiveId] = useState<string>("");
 
   const activeStore = useMemo(
     () => stores.find((s) => s.id === activeId) ?? stores[0],
@@ -476,14 +491,16 @@ export default function ContactsClient() {
             </div>
 
             <div className="relative h-[520px] w-full">
-              <iframe
-                key={`${region}-${activeStore?.id}`}
-                title="Yandex Map"
-                src={yandexEmbedUrl(mapQuery)}
-                className="absolute inset-0 h-full w-full"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
+              {mapQuery ? (
+                <iframe
+                  key={`${region}-${activeStore?.id}`}
+                  title="Yandex Map"
+                  src={yandexEmbedUrl(mapQuery)}
+                  className="absolute inset-0 h-full w-full"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : null}
             </div>
           </div>
         </div>

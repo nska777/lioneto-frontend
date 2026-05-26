@@ -20,6 +20,7 @@ import {
 import {
   UZ_STORES,
   RU_STORES,
+  KZ_STORES,
   type Store,
   type RegionKey,
 } from "@/app/lib/stores/stores-data";
@@ -101,6 +102,18 @@ function normKey(s: string) {
     .replace(/\s+/g, " ")
     .replace(/[«»"']/g, "")
     .trim();
+}
+
+function getStoresByRegion(region: RegionKey): Store[] {
+  if (region === "ru") return RU_STORES;
+  if (region === "kz") return KZ_STORES;
+  return UZ_STORES;
+}
+
+function getRegionLabel(region: RegionKey) {
+  if (region === "ru") return "РОССИЯ";
+  if (region === "kz") return "КАЗАХСТАН";
+  return "УЗБЕКИСТАН";
 }
 
 function Divider() {
@@ -238,6 +251,19 @@ function RegionToggleMini({
         )}
       >
         RU
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onChange("kz")}
+        className={cn(
+          "h-8 rounded-full px-3 text-[12px] tracking-[0.14em] transition",
+          value === "kz"
+            ? "bg-black text-white"
+            : "text-black/70 hover:bg-black/5 hover:text-black",
+        )}
+      >
+        KZ
       </button>
     </div>
   );
@@ -410,14 +436,11 @@ function yandexEmbedUrl(query: string) {
 function ContactsMiniBlock() {
   const [region, setRegion] = useState<RegionKey>("uz");
 
-  const stores = useMemo(
-    () => (region === "ru" ? RU_STORES : UZ_STORES),
-    [region],
-  );
+  const stores = useMemo(() => getStoresByRegion(region), [region]);
 
-  const [activeId, setActiveId] = useState<string>(
-    () => UZ_STORES[0]?.id ?? "",
-  );
+  const [activeId, setActiveId] = useState<string>(() => {
+    return getStoresByRegion("uz")[0]?.id ?? "";
+  });
 
   const activeStore = useMemo(
     () => stores.find((s) => s.id === activeId) ?? stores[0],
@@ -425,9 +448,10 @@ function ContactsMiniBlock() {
   );
 
   const onRegionChange = (v: RegionKey) => {
+    const nextStores = getStoresByRegion(v);
+
     setRegion(v);
-    const first = (v === "ru" ? RU_STORES : UZ_STORES)[0]?.id ?? "";
-    setActiveId(first);
+    setActiveId(nextStores[0]?.id ?? "");
   };
 
   const isRu = region === "ru";
@@ -446,9 +470,7 @@ function ContactsMiniBlock() {
 
           <div className="whitespace-nowrap text-[11px] tracking-[0.18em] text-black/45">
             ВЫБРАНО:{" "}
-            <span className="text-black/80">
-              {isRu ? "РОССИЯ" : "УЗБЕКИСТАН"}
-            </span>
+            <span className="text-black/80">{getRegionLabel(region)}</span>
           </div>
         </div>
       </div>
@@ -500,27 +522,31 @@ function ContactsMiniBlock() {
               </div>
             </div>
 
-            <a
-              href={`https://yandex.ru/maps/?text=${encodeURIComponent(
-                mapQuery,
-              )}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex shrink-0 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-medium tracking-[0.14em] text-black/70 transition hover:border-black/20 hover:text-black"
-            >
-              ОТКРЫТЬ
-            </a>
+            {mapQuery ? (
+              <a
+                href={`https://yandex.ru/maps/?text=${encodeURIComponent(
+                  mapQuery,
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex shrink-0 items-center justify-center rounded-full border border-black/10 bg-white px-3 py-2 text-[10px] font-medium tracking-[0.14em] text-black/70 transition hover:border-black/20 hover:text-black"
+              >
+                ОТКРЫТЬ
+              </a>
+            ) : null}
           </div>
 
           <div className="relative h-[240px] w-full">
-            <iframe
-              key={`${region}-${activeStore?.id}`}
-              title="Yandex Map Mini"
-              src={yandexEmbedUrl(mapQuery)}
-              className="absolute inset-0 h-full w-full"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
+            {mapQuery ? (
+              <iframe
+                key={`${region}-${activeStore?.id}`}
+                title="Yandex Map Mini"
+                src={yandexEmbedUrl(mapQuery)}
+                className="absolute inset-0 h-full w-full"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : null}
           </div>
         </div>
       </div>

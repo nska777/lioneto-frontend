@@ -13,7 +13,7 @@ export type FiltersValue = {
   collections: string[];
   types: string[];
   priceMin: number;
-  priceMax: number; //
+  priceMax: number;
 };
 
 export type FiltersMeta = {
@@ -27,7 +27,7 @@ export type FiltersMeta = {
 function Section({
   title,
   children,
-  defaultOpen = true,
+  defaultOpen = false,
 }: {
   title: string;
   children: ReactNode;
@@ -38,6 +38,7 @@ function Section({
   return (
     <div className="border-b border-black/10 pb-4">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full cursor-pointer items-center justify-between py-3"
       >
@@ -90,11 +91,9 @@ function PriceSection({
 }) {
   const shownMax = value.priceMax === 0 ? meta.priceAbsMax : value.priceMax;
 
-  // ✅ UI fields (inputs)
   const [minLocal, setMinLocal] = useState<number>(value.priceMin);
   const [maxLocal, setMaxLocal] = useState<number>(shownMax);
 
-  // ✅ drag values (range)
   const [minDrag, setMinDrag] = useState<number>(value.priceMin);
   const [maxDrag, setMaxDrag] = useState<number>(shownMax);
 
@@ -108,11 +107,13 @@ function PriceSection({
     const mx = clamp(maxN, meta.priceAbsMin, meta.priceAbsMax);
     const fixedMin = Math.min(mn, mx);
     const fixedMax = Math.max(mn, mx);
+
     return { fixedMin, fixedMax };
   };
 
   const toCatalogMax = (fixedMax: number) => {
     const eps = 0.000001;
+
     return fixedMax >= meta.priceAbsMax - eps ? 0 : fixedMax;
   };
 
@@ -123,6 +124,7 @@ function PriceSection({
     setMaxLocal(fixedMax);
 
     if (tRef.current) window.clearTimeout(tRef.current);
+
     tRef.current = window.setTimeout(() => {
       onChange({
         ...value,
@@ -134,6 +136,7 @@ function PriceSection({
 
   const applyPriceNow = (minN: number, maxN: number) => {
     const { fixedMin, fixedMax } = normalizePair(minN, maxN);
+
     if (tRef.current) window.clearTimeout(tRef.current);
     tRef.current = null;
 
@@ -152,17 +155,20 @@ function PriceSection({
 
   const minPct = useMemo(() => {
     const span = meta.priceAbsMax - meta.priceAbsMin || 1;
+
     return ((minDrag - meta.priceAbsMin) / span) * 100;
   }, [minDrag, meta.priceAbsMin, meta.priceAbsMax]);
 
   const maxPct = useMemo(() => {
     const span = meta.priceAbsMax - meta.priceAbsMin || 1;
+
     return ((maxDrag - meta.priceAbsMin) / span) * 100;
   }, [maxDrag, meta.priceAbsMin, meta.priceAbsMax]);
 
   const handleMinRange = (raw: string) => {
     const v = Number(raw);
     const { fixedMin, fixedMax } = normalizePair(v, maxDrag);
+
     setMinDrag(fixedMin);
     setMaxDrag(fixedMax);
     applyPriceDebounced(fixedMin, fixedMax);
@@ -171,16 +177,17 @@ function PriceSection({
   const handleMaxRange = (raw: string) => {
     const v = Number(raw);
     const { fixedMin, fixedMax } = normalizePair(minDrag, v);
+
     setMinDrag(fixedMin);
     setMaxDrag(fixedMax);
     applyPriceDebounced(fixedMin, fixedMax);
   };
 
   return (
-    <Section title="Цена" defaultOpen>
+    <Section title="Цена">
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
-          <div className="text-[10px] tracking-[0.16em] uppercase text-black/45">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-black/45">
             Мин
           </div>
           <input
@@ -193,7 +200,7 @@ function PriceSection({
         </div>
 
         <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
-          <div className="text-[10px] tracking-[0.16em] uppercase text-black/45">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-black/45">
             Макс
           </div>
           <input
@@ -314,14 +321,17 @@ export default function FiltersSidebar({
 
   const toggleInArray = (arr: string[], v: string) => {
     const clean = uniq(arr);
+
     return clean.includes(v) ? clean.filter((x) => x !== v) : [...clean, v];
   };
 
   const menuSet = useMemo(() => new Set(uniq(value.menu)), [value.menu]);
+
   const collectionsSet = useMemo(
     () => new Set(uniq(value.collections)),
     [value.collections],
   );
+
   const typesSet = useMemo(() => new Set(uniq(value.types)), [value.types]);
 
   const priceKey = `${value.priceMin}|${value.priceMax}|${meta.priceAbsMax}|${meta.priceAbsMin}`;
@@ -329,19 +339,20 @@ export default function FiltersSidebar({
   return (
     <aside className="h-fit rounded-2xl border border-white/70 bg-[#f3f3f3] p-4 shadow-[0_18px_40px_-30px_rgba(0,0,0,0.35)]">
       <div className="mb-3 flex items-center justify-between">
-        <div className="text-[12px] tracking-[0.18em] uppercase text-black/45">
+        <div className="text-[12px] uppercase tracking-[0.18em] text-black/45">
           Фильтры
         </div>
 
         <button
+          type="button"
           onClick={() => onReset()}
-          className="cursor-pointer rounded-full border border-black/10 bg-white px-3 py-1.5 text-[11px] tracking-[0.14em] uppercase text-black/65 hover:border-black/20 hover:text-black"
+          className="cursor-pointer rounded-full border border-black/10 bg-white px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-black/65 hover:border-black/20 hover:text-black"
         >
           Сбросить
         </button>
       </div>
 
-      <Section title="Разделы" defaultOpen>
+      <Section title="Разделы">
         {meta.menuItems.map((it) => (
           <CheckRow
             key={it.value}
@@ -366,7 +377,7 @@ export default function FiltersSidebar({
         />
       </div>
 
-      <Section title="Коллекции" defaultOpen>
+      <Section title="Коллекции">
         {meta.collectionItems.map((it) => (
           <CheckRow
             key={it.value}
@@ -382,9 +393,10 @@ export default function FiltersSidebar({
         ))}
       </Section>
 
-      <Section title="Модули" defaultOpen>
+      <Section title="Модули">
         {meta.typeItems.map((it) => {
           const token = normalizeModuleToken(it.value);
+
           return (
             <CheckRow
               key={it.value}
