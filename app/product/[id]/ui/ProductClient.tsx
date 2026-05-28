@@ -56,9 +56,13 @@ export type ProductVariant = {
 
   priceDeltaRUB?: number;
   priceDeltaUZS?: number;
+  priceDeltaKZ?: number;
+  priceDeltaTJ?: number;
 
   dealerPriceRUB?: number;
   dealerPriceUZS?: number;
+  dealerPriceKZ?: number;
+  dealerPriceTJ?: number;
 
   image?: string;
   gallery?: string[];
@@ -77,9 +81,13 @@ type ProductSetItem = {
 
   price_rub?: number;
   price_uzs?: number;
+  price_kz?: number;
+  price_tj?: number;
 
   dealer_price_rub?: number;
   dealer_price_uzs?: number;
+  dealer_price_kz?: number;
+  dealer_price_tj?: number;
 
   href?: string;
   quantity?: number;
@@ -119,12 +127,18 @@ export type ProductPageModel = {
 
   price_rub: number;
   price_uzs: number;
+  price_kz: number;
+  price_tj: number;
 
   old_price_rub?: number;
   old_price_uzs?: number;
+  old_price_kz?: number;
+  old_price_tj?: number;
 
   dealer_price_rub?: number;
   dealer_price_uzs?: number;
+  dealer_price_kz?: number;
+  dealer_price_tj?: number;
 
   isActive?: boolean | null;
   isActiveUZ?: boolean | null;
@@ -152,6 +166,8 @@ export type ProductPageModel = {
     image: string;
     price_rub: number;
     price_uzs: number;
+    price_kz?: number;
+    price_tj?: number;
     href: string;
     badge?: string;
     isActiveUZ?: boolean | null;
@@ -173,7 +189,63 @@ export type ProductPageModel = {
 };
 
 type Accent = "white" | "cappuccino" | "default";
-type Region = "uz" | "ru";
+type Region = "uz" | "ru" | "kz" | "tj";
+type Currency = "RUB" | "UZS" | "KZT" | "TJS";
+type LegacyCurrency = "RUB" | "UZS";
+
+function getCurrencyByRegion(region: Region): Currency {
+  if (region === "ru") return "RUB";
+  if (region === "kz") return "KZT";
+  if (region === "tj") return "TJS";
+  return "UZS";
+}
+
+function getLegacyCurrency(currency: Currency): LegacyCurrency {
+  return currency === "RUB" ? "RUB" : "UZS";
+}
+
+function formatRegionalPrice(value: number, currency: Currency) {
+  const n = Number(value);
+
+  if (!Number.isFinite(n) || n <= 0) return "Цена по запросу";
+
+  if (currency === "RUB" || currency === "UZS") {
+    return formatPrice(n, currency);
+  }
+
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency,
+    currencyDisplay: "code",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function getProductPrice(product: ProductPageModel, currency: Currency) {
+  if (currency === "RUB") return getFiniteNumber(product.price_rub);
+  if (currency === "KZT") return getFiniteNumber(product.price_kz);
+  if (currency === "TJS") return getFiniteNumber(product.price_tj);
+  return getFiniteNumber(product.price_uzs);
+}
+
+function getVariantFinalPrice(
+  variant: ProductVariant | null,
+  currency: Currency,
+) {
+  if (!variant) return null;
+
+  const raw =
+    currency === "RUB"
+      ? variant.priceDeltaRUB
+      : currency === "KZT"
+        ? variant.priceDeltaKZ
+        : currency === "TJS"
+          ? variant.priceDeltaTJ
+          : variant.priceDeltaUZS;
+
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -297,17 +369,22 @@ function getSetItemOptionLabel(item?: ProductSetItem | null) {
   return option || null;
 }
 
-function getSetItemPrice(item: ProductSetItem, currency: "RUB" | "UZS") {
-  const raw = currency === "RUB" ? item.price_rub : item.price_uzs;
+function getSetItemPrice(item: ProductSetItem, currency: Currency) {
+  const raw =
+    currency === "RUB"
+      ? item.price_rub
+      : currency === "KZT"
+        ? item.price_kz
+        : currency === "TJS"
+          ? item.price_tj
+          : item.price_uzs;
+
   const n = Number(raw);
 
   return Number.isFinite(n) ? n : 0;
 }
 
-function isSetItemAvailableForRegion(
-  item: ProductSetItem,
-  currency: "RUB" | "UZS",
-) {
+function isSetItemAvailableForRegion(item: ProductSetItem, currency: Currency) {
   if (item.isActive === false) return false;
 
   if (currency === "RUB") {
@@ -315,7 +392,10 @@ function isSetItemAvailableForRegion(
     return true;
   }
 
-  if (item.isActiveUZ === false) return false;
+  if (currency === "UZS") {
+    if (item.isActiveUZ === false) return false;
+    return true;
+  }
 
   return true;
 }
@@ -751,8 +831,9 @@ export default function ProductClient({
     [initialVariantFromUrl],
   );
 
-  const { region } = useRegionLang();
-  const currency: "RUB" | "UZS" = region === "ru" ? "RUB" : "UZS";
+  const { region } = useRegionLang() as { region: Region };
+  const currency = getCurrencyByRegion(region);
+  const optionCurrency = getLegacyCurrency(currency);
 
   const shop = useShopState();
   const { isFav, toggleFav, isInCart, addToCart, removeFromCart } = shop;
@@ -774,7 +855,7 @@ export default function ProductClient({
   }, [allSetItems, currency]);
 
   const { selectedByGroup, setSelectedByGroup, selectedVariants, groupsForUI } =
-    useProductVariants(product, currency);
+    useProductVariants(product, optionCurrency);
 
   useEffect(() => {
     if (!initialVariantSelection.colorKey) return;
@@ -1185,20 +1266,10 @@ export default function ProductClient({
   const fav = isFav(product.id, vk);
   const inCart = isInCart(product.id, vk);
 
-  const baseUnitPrice =
-    currency === "RUB" ? product.price_rub : product.price_uzs;
+  const baseUnitPrice = getProductPrice(product, currency);
 
   const selectedVariantFinalPrice = useMemo(() => {
-    if (!selectedColorVariant) return null;
-
-    const raw =
-      currency === "RUB"
-        ? selectedColorVariant.priceDeltaRUB
-        : selectedColorVariant.priceDeltaUZS;
-
-    const n = Number(raw);
-
-    return Number.isFinite(n) && n > 0 ? n : null;
+    return getVariantFinalPrice(selectedColorVariant, currency);
   }, [selectedColorVariant, currency]);
 
   const selectedSetItemsSum = useMemo(() => {
@@ -1286,6 +1357,64 @@ export default function ProductClient({
     excludedSceneSetItems,
   ]);
 
+  const finalKZ = useMemo(() => {
+    const variantKZ = getPositiveNumber(selectedColorVariant?.priceDeltaKZ);
+    const corpus = variantKZ > 0 ? variantKZ : product.price_kz;
+
+    if (isSceneProduct) {
+      const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
+        const price = getSetItemPrice(item, "KZT");
+        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        return sum + price * itemQty;
+      }, 0);
+
+      return Math.max(0, corpus - excludedSum);
+    }
+
+    const setSum = selectedSetItems.reduce((sum, item) => {
+      const price = getSetItemPrice(item, "KZT");
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + price * itemQty;
+    }, 0);
+
+    return corpus + setSum;
+  }, [
+    selectedColorVariant,
+    selectedSetItems,
+    product.price_kz,
+    isSceneProduct,
+    excludedSceneSetItems,
+  ]);
+
+  const finalTJ = useMemo(() => {
+    const variantTJ = getPositiveNumber(selectedColorVariant?.priceDeltaTJ);
+    const corpus = variantTJ > 0 ? variantTJ : product.price_tj;
+
+    if (isSceneProduct) {
+      const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
+        const price = getSetItemPrice(item, "TJS");
+        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        return sum + price * itemQty;
+      }, 0);
+
+      return Math.max(0, corpus - excludedSum);
+    }
+
+    const setSum = selectedSetItems.reduce((sum, item) => {
+      const price = getSetItemPrice(item, "TJS");
+      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      return sum + price * itemQty;
+    }, 0);
+
+    return corpus + setSum;
+  }, [
+    selectedColorVariant,
+    selectedSetItems,
+    product.price_tj,
+    isSceneProduct,
+    excludedSceneSetItems,
+  ]);
+
   const finalImage = useMemo(() => {
     const imageFromSetItem =
       [...selectedSetItems]
@@ -1307,9 +1436,13 @@ export default function ProductClient({
 
   const oldRubRaw = getPositiveNumber(product.old_price_rub);
   const oldUzsRaw = getPositiveNumber(product.old_price_uzs);
+  const oldKzRaw = getPositiveNumber(product.old_price_kz);
+  const oldTjRaw = getPositiveNumber(product.old_price_tj);
 
   const priceRubRaw = getPositiveNumber(product.price_rub);
   const priceUzsRaw = getPositiveNumber(product.price_uzs);
+  const priceKzRaw = getPositiveNumber(product.price_kz);
+  const priceTjRaw = getPositiveNumber(product.price_tj);
 
   const oldRubFallback = useMemo(() => {
     if (oldRubRaw > priceRubRaw && priceRubRaw > 0) return oldRubRaw;
@@ -1333,8 +1466,17 @@ export default function ProductClient({
     return 0;
   }, [oldRubRaw, oldUzsRaw, priceRubRaw, priceUzsRaw]);
 
+  const oldKzFallback = oldKzRaw > priceKzRaw && priceKzRaw > 0 ? oldKzRaw : 0;
+  const oldTjFallback = oldTjRaw > priceTjRaw && priceTjRaw > 0 ? oldTjRaw : 0;
+
   const oldCorpusUnitPrice =
-    currency === "RUB" ? oldRubFallback : oldUzsFallback;
+    currency === "RUB"
+      ? oldRubFallback
+      : currency === "KZT"
+        ? oldKzFallback
+        : currency === "TJS"
+          ? oldTjFallback
+          : oldUzsFallback;
 
   const hasProductDiscount =
     oldCorpusUnitPrice > 0 && oldCorpusUnitPrice > corpusUnitPrice;
@@ -1410,6 +1552,8 @@ export default function ProductClient({
       sku: displayArticle,
       price_uzs: finalUZS,
       price_rub: finalRUB,
+      price_kz: finalKZ,
+      price_tj: finalTJ,
 
       selectedColor: displayColor,
       selectedVariantKey: selectedColorVariant?.id ?? null,
@@ -1454,6 +1598,8 @@ export default function ProductClient({
         quantity: item.quantity ?? 1,
         price_uzs: item.price_uzs ?? null,
         price_rub: item.price_rub ?? null,
+        price_kz: item.price_kz ?? null,
+        price_tj: item.price_tj ?? null,
         image: item.image ?? null,
         assembledImage: item.assembledImage ?? null,
         addsToArticle: item.addsToArticle ?? true,
@@ -1678,7 +1824,7 @@ export default function ProductClient({
                 groups={groupsForUIDisplay}
                 selectedByGroup={selectedByGroup}
                 setSelectedByGroup={setSelectedByGroup}
-                currency={currency}
+                currency={optionCurrency}
               />
             </div>
 
@@ -1725,7 +1871,7 @@ export default function ProductClient({
               <div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                   <div className="text-[28px] font-semibold text-black">
-                    {formatPrice(displayTotalPrice, currency)}
+                    {formatRegionalPrice(displayTotalPrice, currency)}
                   </div>
 
                   {discountPercent > 0 ? (
@@ -1734,7 +1880,7 @@ export default function ProductClient({
 
                   {displayOldTotalPrice > displayTotalPrice ? (
                     <div className="text-[18px] font-medium text-black/30 line-through">
-                      {formatPrice(displayOldTotalPrice, currency)}
+                      {formatRegionalPrice(displayOldTotalPrice, currency)}
                     </div>
                   ) : null}
                 </div>
@@ -1745,7 +1891,7 @@ export default function ProductClient({
                       ? sceneExcludedCount > 0
                         ? `Цена пересчитана: исключено ${sceneExcludedCount} поз.`
                         : "Цена указана за полный комплект"
-                      : `Корпус: ${formatPrice(corpusUnitPrice, currency)} + выбранная комплектация`}
+                      : `Корпус: ${formatRegionalPrice(corpusUnitPrice, currency)} + выбранная комплектация`}
                   </div>
                 ) : null}
               </div>
@@ -1975,7 +2121,10 @@ export default function ProductClient({
                           >
                             <div className="whitespace-nowrap rounded-full bg-black px-3 py-1.5 text-[13px] font-semibold text-white">
                               {itemPrice !== 0
-                                ? formatPrice(itemPrice * itemQty, currency)
+                                ? formatRegionalPrice(
+                                    itemPrice * itemQty,
+                                    currency,
+                                  )
                                 : "Без доплаты"}
                             </div>
                           </div>
@@ -2150,7 +2299,7 @@ export default function ProductClient({
                                         <span>Кол-во: {itemQty}</span>
                                         <span className="font-semibold text-black/70">
                                           {itemPrice !== 0
-                                            ? `+ ${formatPrice(
+                                            ? `+ ${formatRegionalPrice(
                                                 itemPrice * itemQty,
                                                 currency,
                                               )}`
@@ -2213,7 +2362,7 @@ export default function ProductClient({
               : "С этим товаром покупают"
           }
           items={(product.related ?? []).slice(0, 4)}
-          currency={currency}
+          currency={optionCurrency}
         />
 
         <ProductLightbox

@@ -24,8 +24,12 @@ type SetItemJson = {
   image?: string;
   price_uzs?: number | string | null;
   price_rub?: number | string | null;
+  price_kz?: number | string | null;
+  price_tj?: number | string | null;
   dealer_price_uzs?: number | string | null;
   dealer_price_rub?: number | string | null;
+  dealer_price_kz?: number | string | null;
+  dealer_price_tj?: number | string | null;
   quantity?: number | string | null;
   sort_order?: number | string | null;
 
@@ -76,6 +80,8 @@ type StrapiProduct = {
 
   oldPriceUZS?: number | null;
   oldPriceRUB?: number | null;
+  oldPriceKZ?: number | null;
+  oldPriceTJ?: number | null;
 
   dealerPriceUZS?: number | null;
   dealerPriceRUB?: number | null;
@@ -108,8 +114,12 @@ type SetItemWithResolvedImage = {
 
   price_rub?: number;
   price_uzs?: number;
+  price_kz?: number;
+  price_tj?: number;
   dealer_price_rub?: number;
   dealer_price_uzs?: number;
+  dealer_price_kz?: number;
+  dealer_price_tj?: number;
 
   href?: string;
   quantity: number;
@@ -191,13 +201,23 @@ function hasAnyDiscount(sp: StrapiProduct) {
   const priceRUB = Number(sp.priceRUB ?? 0);
   const oldPriceRUB = Number(sp.oldPriceRUB ?? 0);
 
+  const priceKZ = Number(sp.priceKZ ?? 0);
+  const oldPriceKZ = Number(sp.oldPriceKZ ?? 0);
+
+  const priceTJ = Number(sp.priceTJ ?? 0);
+  const oldPriceTJ = Number(sp.oldPriceTJ ?? 0);
+
   const hasUzsDiscount =
     oldPriceUZS > 0 && priceUZS > 0 && oldPriceUZS > priceUZS;
 
   const hasRubDiscount =
     oldPriceRUB > 0 && priceRUB > 0 && oldPriceRUB > priceRUB;
 
-  return hasUzsDiscount || hasRubDiscount;
+  const hasKzDiscount = oldPriceKZ > 0 && priceKZ > 0 && oldPriceKZ > priceKZ;
+
+  const hasTjDiscount = oldPriceTJ > 0 && priceTJ > 0 && oldPriceTJ > priceTJ;
+
+  return hasUzsDiscount || hasRubDiscount || hasKzDiscount || hasTjDiscount;
 }
 
 function pickStrapiMediaUrl(m: unknown): string | undefined {
@@ -396,9 +416,13 @@ function parseSetItemsJson(value: unknown): SetItemWithResolvedImage[] {
 
       price_rub: toFiniteNumber(raw.price_rub),
       price_uzs: toFiniteNumber(raw.price_uzs),
+      price_kz: toFiniteNumber(raw.price_kz),
+      price_tj: toFiniteNumber(raw.price_tj),
 
       dealer_price_rub: toFiniteNumber(raw.dealer_price_rub),
       dealer_price_uzs: toFiniteNumber(raw.dealer_price_uzs),
+      dealer_price_kz: toFiniteNumber(raw.dealer_price_kz),
+      dealer_price_tj: toFiniteNumber(raw.dealer_price_tj),
 
       href: slug ? `/product/${slug}` : undefined,
       quantity: toFiniteNumber(raw.quantity) ?? 1,
@@ -530,6 +554,8 @@ async function fetchStrapiProductBySlug(
 
       oldPriceUZS: typeof src.oldPriceUZS === "number" ? src.oldPriceUZS : null,
       oldPriceRUB: typeof src.oldPriceRUB === "number" ? src.oldPriceRUB : null,
+      oldPriceKZ: typeof src.oldPriceKZ === "number" ? src.oldPriceKZ : null,
+      oldPriceTJ: typeof src.oldPriceTJ === "number" ? src.oldPriceTJ : null,
 
       dealerPriceUZS:
         typeof src.dealerPriceUZS === "number" ? src.dealerPriceUZS : null,
@@ -621,6 +647,8 @@ async function fetchRelatedStrapiProducts(seed: {
             src && typeof src.priceUZS === "number" ? src.priceUZS : null,
           priceRUB:
             src && typeof src.priceRUB === "number" ? src.priceRUB : null,
+          priceKZ: src && typeof src.priceKZ === "number" ? src.priceKZ : null,
+          priceTJ: src && typeof src.priceTJ === "number" ? src.priceTJ : null,
         };
       })
       .filter((p) => p.slug && p.slug !== seed.currentSlug);
@@ -880,16 +908,24 @@ export default async function ProductPage({
 
     price_rub: Number(sp.priceRUB ?? 0),
     price_uzs: Number(sp.priceUZS ?? 0),
+    price_kz: Number(sp.priceKZ ?? 0),
+    price_tj: Number(sp.priceTJ ?? 0),
 
     old_price_rub:
       typeof sp.oldPriceRUB === "number" ? sp.oldPriceRUB : undefined,
     old_price_uzs:
       typeof sp.oldPriceUZS === "number" ? sp.oldPriceUZS : undefined,
+    old_price_kz: typeof sp.oldPriceKZ === "number" ? sp.oldPriceKZ : undefined,
+    old_price_tj: typeof sp.oldPriceTJ === "number" ? sp.oldPriceTJ : undefined,
 
     dealer_price_rub:
       typeof sp.dealerPriceRUB === "number" ? sp.dealerPriceRUB : undefined,
     dealer_price_uzs:
       typeof sp.dealerPriceUZS === "number" ? sp.dealerPriceUZS : undefined,
+    dealer_price_kz:
+      typeof sp.dealerPriceKZ === "number" ? sp.dealerPriceKZ : undefined,
+    dealer_price_tj:
+      typeof sp.dealerPriceTJ === "number" ? sp.dealerPriceTJ : undefined,
 
     variants: Array.isArray(sp.variants)
       ? sp.variants
@@ -985,6 +1021,8 @@ export default async function ProductPage({
         gallery: [rImage],
         price_rub: Number(rp.priceRUB ?? 0),
         price_uzs: Number(rp.priceUZS ?? 0),
+        price_kz: Number(rp.priceKZ ?? 0),
+        price_tj: Number(rp.priceTJ ?? 0),
         isActiveUZ: rp.isActiveUZ,
         isActiveRU: rp.isActiveRU,
         variants: [],
