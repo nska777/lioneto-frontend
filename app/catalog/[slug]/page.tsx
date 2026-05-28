@@ -64,6 +64,8 @@ type CatalogModule = {
   image?: string | null;
   price_rub?: number | null;
   price_uzs?: number | null;
+  price_kz?: number | null;
+  price_tj?: number | null;
   badge?: string | null;
   collectionKey?: string | null;
   slug?: string | null;
@@ -78,6 +80,8 @@ function isCatalogModule(v: unknown): v is CatalogModule {
 type ShowcaseShape = {
   price_uzs?: number | null;
   price_rub?: number | null;
+  price_kz?: number | null;
+  price_tj?: number | null;
 };
 
 type PreviewShape = {
@@ -148,14 +152,20 @@ function buildCatalogCollectionState(slug: string) {
 
   const showcaseUzs = toFiniteNum(showcase?.price_uzs);
   const showcaseRub = toFiniteNum(showcase?.price_rub);
+  const showcaseKz = toFiniteNum(showcase?.price_kz);
+  const showcaseTj = toFiniteNum(showcase?.price_tj);
 
   const minUzs = minFinite(modulesAll.map((x) => toFiniteNum(x.price_uzs)));
   const minRub = minFinite(modulesAll.map((x) => toFiniteNum(x.price_rub)));
+  const minKz = minFinite(modulesAll.map((x) => toFiniteNum(x.price_kz)));
+  const minTj = minFinite(modulesAll.map((x) => toFiniteNum(x.price_tj)));
 
   const price_uzs =
     showcaseUzs && showcaseUzs > 0 ? showcaseUzs : (minUzs ?? 0);
   const price_rub =
     showcaseRub && showcaseRub > 0 ? showcaseRub : (minRub ?? 0);
+  const price_kz = showcaseKz && showcaseKz > 0 ? showcaseKz : (minKz ?? 0);
+  const price_tj = showcaseTj && showcaseTj > 0 ? showcaseTj : (minTj ?? 0);
 
   const previewMain = asString(preview?.main);
   const previewA = asString(preview?.a);
@@ -179,6 +189,8 @@ function buildCatalogCollectionState(slug: string) {
     modulesAll,
     price_uzs,
     price_rub,
+    price_kz,
+    price_tj,
     previewMain,
     previewA,
     previewB,
@@ -285,6 +297,8 @@ type SceneSetItem = {
   article?: string;
   price_rub?: number;
   price_uzs?: number;
+  price_kz?: number;
+  price_tj?: number;
   href?: string;
   quantity?: number;
 };
@@ -315,6 +329,8 @@ function parseSetItemsJson(value: unknown): SceneSetItem[] {
     const article = asString(item.article);
     const priceRub = toFiniteNum(item.price_rub);
     const priceUzs = toFiniteNum(item.price_uzs);
+    const priceKz = toFiniteNum(item.price_kz);
+    const priceTj = toFiniteNum(item.price_tj);
     const quantity = toFiniteNum(item.quantity);
 
     const setItem: SceneSetItem = {
@@ -333,6 +349,14 @@ function parseSetItemsJson(value: unknown): SceneSetItem[] {
 
     if (typeof priceUzs === "number") {
       setItem.price_uzs = priceUzs;
+    }
+
+    if (typeof priceKz === "number") {
+      setItem.price_kz = priceKz;
+    }
+
+    if (typeof priceTj === "number") {
+      setItem.price_tj = priceTj;
     }
 
     if (slug) {
@@ -474,6 +498,8 @@ export default async function CatalogSlugPage({
     modulesAll,
     price_uzs,
     price_rub,
+    price_kz,
+    price_tj,
     previewMain,
     firstImage,
     gallery,
@@ -516,6 +542,30 @@ export default async function CatalogSlugPage({
     getNum(sceneProduct, "price_uzs") ??
     price_uzs;
 
+  const scenePriceKz =
+    getNum(sceneProduct, "priceKZ") ??
+    getNum(sceneProduct, "price_kz") ??
+    price_kz;
+
+  const scenePriceTj =
+    getNum(sceneProduct, "priceTJ") ??
+    getNum(sceneProduct, "price_tj") ??
+    price_tj;
+
+  const sceneOldPriceRub =
+    getNum(sceneProduct, "oldPriceRUB") ??
+    getNum(sceneProduct, "old_price_rub");
+
+  const sceneOldPriceUzs =
+    getNum(sceneProduct, "oldPriceUZS") ??
+    getNum(sceneProduct, "old_price_uzs");
+
+  const sceneOldPriceKz =
+    getNum(sceneProduct, "oldPriceKZ") ?? getNum(sceneProduct, "old_price_kz");
+
+  const sceneOldPriceTj =
+    getNum(sceneProduct, "oldPriceTJ") ?? getNum(sceneProduct, "old_price_tj");
+
   const assemblyInstructionTitle =
     getText(sceneProduct, "assemblyInstructionTitle") ?? undefined;
 
@@ -540,6 +590,13 @@ export default async function CatalogSlugPage({
 
     price_rub: scenePriceRub,
     price_uzs: scenePriceUzs,
+    price_kz: scenePriceKz,
+    price_tj: scenePriceTj,
+
+    old_price_rub: sceneOldPriceRub,
+    old_price_uzs: sceneOldPriceUzs,
+    old_price_kz: sceneOldPriceKz,
+    old_price_tj: sceneOldPriceTj,
 
     description: sceneDescription,
 
@@ -568,6 +625,8 @@ export default async function CatalogSlugPage({
         image: asString(x.image) ?? "",
         price_rub: toFiniteNum(x.price_rub) ?? 0,
         price_uzs: toFiniteNum(x.price_uzs) ?? 0,
+        price_kz: toFiniteNum(x.price_kz) ?? 0,
+        price_tj: toFiniteNum(x.price_tj) ?? 0,
         href: `/product/${productSlug}`,
         badge: x.badge ?? "",
       };
