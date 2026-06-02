@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import ProductActions from "../ProductActions";
@@ -11,6 +11,8 @@ import { useRegionLang } from "@/app/context/region-lang";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
+
+const PRODUCT_PLACEHOLDER = "/images/product-placeholder.webp";
 
 type Currency = "RUB" | "UZS" | "KZT";
 
@@ -56,6 +58,53 @@ function clamp(n: number, min: number, max: number) {
 function num(v: unknown): number {
   const x = typeof v === "number" ? v : Number(v);
   return Number.isFinite(x) ? x : 0;
+}
+
+function isRemoteSrc(src: string) {
+  return /^https?:\/\//i.test(src);
+}
+
+function ProductCardImage({
+  src,
+  alt,
+  eager,
+}: {
+  src?: string | null;
+  alt: string;
+  eager: boolean;
+}) {
+  const cleanSrc = String(src ?? "").trim() || PRODUCT_PLACEHOLDER;
+  const [imgSrc, setImgSrc] = useState(cleanSrc);
+
+  useEffect(() => {
+    setImgSrc(cleanSrc || PRODUCT_PLACEHOLDER);
+  }, [cleanSrc]);
+
+  const isRemote = isRemoteSrc(imgSrc);
+
+  return (
+    <Image
+      key={imgSrc}
+      src={imgSrc}
+      alt={alt}
+      fill
+      sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+      className={cn(
+        "object-cover object-center",
+        "transition-transform duration-500",
+        "group-hover:scale-[1.02]",
+      )}
+      priority={eager}
+      quality={75}
+      placeholder="empty"
+      unoptimized={isRemote}
+      onError={() => {
+        if (imgSrc !== PRODUCT_PLACEHOLDER) {
+          setImgSrc(PRODUCT_PLACEHOLDER);
+        }
+      }}
+    />
+  );
 }
 
 function formatKztPrice(value: number) {
@@ -235,8 +284,6 @@ export default function CatalogCard({
   const curRub = num(getVal(p, "priceRUB") ?? getVal(p, "price_rub") ?? 0);
   const curUzs = num(getVal(p, "priceUZS") ?? getVal(p, "price_uzs") ?? 0);
 
-  // Подготовлено под будущие цены Казахстана.
-  // Когда в Strapi/Excel появится priceKZT / oldPriceKZT, карточка сама начнет показывать тенге.
   const curKzt = num(
     getVal(p, "priceKZT") ??
       getVal(p, "price_kzt") ??
@@ -329,16 +376,6 @@ export default function CatalogCard({
   const displayOldPrice =
     currency === "KZT" ? formatKztPrice(oldKzt) : fmtPrice(oldRub, oldUzs);
 
-  const snapshot = {
-    title,
-    href,
-    imageUrl: getStr(p, "image"),
-    sku: (getStr(p, "sku") || "").trim() ? getStr(p, "sku") : null,
-    price_uzs: curUzs,
-    price_rub: curRub,
-    price_kzt: curKzt,
-  };
-
   const STRAPI = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
 
   const strapiImgCandidate =
@@ -367,7 +404,7 @@ export default function CatalogCard({
   let imgSrcFallback =
     String(firstGallery ?? "").trim() ||
     String(getStr(p, "image") || getStr(p, "cover") || "").trim() ||
-    "/placeholder.png";
+    PRODUCT_PLACEHOLDER;
 
   const source = getStr(p, "__source");
 
@@ -379,9 +416,18 @@ export default function CatalogCard({
     if (looksLikeStrapi) imgSrcFallback = `${STRAPI}${imgSrcFallback}`;
   }
 
-  const src = (strapiSrc || imgSrcFallback || "/placeholder.png").trim();
-  const isRemote = /^https?:\/\//i.test(src);
+  const src = (strapiSrc || imgSrcFallback || PRODUCT_PLACEHOLDER).trim();
   const eager = idx < 8;
+
+  const snapshot = {
+    title,
+    href,
+    imageUrl: src === PRODUCT_PLACEHOLDER ? "" : src,
+    sku: (getStr(p, "sku") || "").trim() ? getStr(p, "sku") : null,
+    price_uzs: curUzs,
+    price_rub: curRub,
+    price_kzt: curKzt,
+  };
 
   const titleClampStyle: React.CSSProperties & {
     WebkitBoxOrient: "vertical";
@@ -404,22 +450,7 @@ export default function CatalogCard({
     >
       <Link href={href} className="flex h-full flex-col">
         <div className="relative aspect-[13/11] overflow-hidden bg-white">
-          <Image
-            key={src}
-            src={src}
-            alt={title}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-            className={cn(
-              "object-cover object-center",
-              "transition-transform duration-500",
-              "group-hover:scale-[1.02]",
-            )}
-            priority={eager}
-            quality={75}
-            placeholder="empty"
-            unoptimized={isRemote}
-          />
+          <ProductCardImage src={src} alt={title} eager={eager} />
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent" />
 
