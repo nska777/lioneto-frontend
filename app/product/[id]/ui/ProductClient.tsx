@@ -384,6 +384,64 @@ function getSetItemPrice(item: ProductSetItem, currency: Currency) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function getSetItemQuantity(item: ProductSetItem) {
+  const n = Number(item.quantity);
+  return Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n)) : 1;
+}
+
+function isBedroomSceneProduct(product: ProductPageModel) {
+  const haystack = [
+    product.id,
+    product.sku,
+    product.title,
+    product.category,
+    product.categoryLabel,
+    product.extra?.module,
+  ]
+    .map((x) => normalizeKey(x))
+    .join(" ");
+
+  return (
+    haystack.includes("bedroom") ||
+    haystack.includes("spalnya") ||
+    haystack.includes("spalni")
+  );
+}
+
+function isBedsideTableSetItem(item: ProductSetItem) {
+  const title = normalizeKey(item.title);
+  const article = normalizeKey(item.article);
+  const groupTitle = normalizeKey(item.groupTitle);
+  const groupKey = normalizeKey(item.groupKey);
+
+  const haystack = [title, article, groupTitle, groupKey].join(" ");
+
+  return (
+    haystack.includes("tumba") ||
+    haystack.includes("tumbochka") ||
+    haystack.includes("prikrovat") ||
+    haystack.includes("bedside") ||
+    haystack.includes("nightstand")
+  );
+}
+
+function getSceneSetItemQuantity(
+  item: ProductSetItem,
+  product: ProductPageModel,
+) {
+  const qtyFromData = getSetItemQuantity(item);
+
+  if (qtyFromData > 1) return qtyFromData;
+
+  // В спальнях прикроватные тумбы почти всегда идут парой.
+  // Если в Excel/Strapi quantity не заполнен, показываем и считаем 2 шт.
+  if (isBedroomSceneProduct(product) && isBedsideTableSetItem(item)) {
+    return 2;
+  }
+
+  return qtyFromData;
+}
+
 function isSetItemAvailableForRegion(item: ProductSetItem, currency: Currency) {
   if (item.isActive === false) return false;
 
@@ -776,7 +834,7 @@ function mergeSceneSetItems(items: ProductSetItem[]) {
 
   for (const item of items) {
     const key = getSceneSetItemMergeKey(item);
-    const itemQty = Math.max(1, Number(item.quantity ?? 1));
+    const itemQty = getSetItemQuantity(item);
 
     const existing = map.get(key);
 
@@ -998,8 +1056,12 @@ export default function ProductClient({
 
   const sceneDisplaySetItems = useMemo(() => {
     if (!isSceneProduct) return visibleSetItems;
-    return mergeSceneSetItems(visibleSetItems);
-  }, [isSceneProduct, visibleSetItems]);
+
+    return mergeSceneSetItems(visibleSetItems).map((item) => ({
+      ...item,
+      quantity: getSceneSetItemQuantity(item, product),
+    }));
+  }, [isSceneProduct, product, visibleSetItems]);
 
   const setItemGroups = useMemo(
     () =>
@@ -1100,7 +1162,7 @@ export default function ProductClient({
     if (!isSceneProduct) return 0;
 
     return sceneDisplaySetItems.reduce((sum, item) => {
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + itemQty;
     }, 0);
   }, [isSceneProduct, sceneDisplaySetItems]);
@@ -1109,7 +1171,7 @@ export default function ProductClient({
     if (!isSceneProduct) return 0;
 
     return activeSceneSetItems.reduce((sum, item) => {
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + itemQty;
     }, 0);
   }, [isSceneProduct, activeSceneSetItems]);
@@ -1118,7 +1180,7 @@ export default function ProductClient({
     if (!isSceneProduct) return 0;
 
     return excludedSceneSetItems.reduce((sum, item) => {
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + itemQty;
     }, 0);
   }, [isSceneProduct, excludedSceneSetItems]);
@@ -1267,7 +1329,7 @@ export default function ProductClient({
   const selectedSetItemsSum = useMemo(() => {
     return selectedSetItems.reduce((sum, item) => {
       const itemPrice = getSetItemPrice(item, currency);
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + itemPrice * itemQty;
     }, 0);
   }, [selectedSetItems, currency]);
@@ -1279,7 +1341,7 @@ export default function ProductClient({
 
     return excludedSceneSetItems.reduce((sum, item) => {
       const itemPrice = getSetItemPrice(item, currency);
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + itemPrice * itemQty;
     }, 0);
   }, [excludedSceneSetItems, currency, isSceneProduct]);
@@ -1298,7 +1360,7 @@ export default function ProductClient({
     if (isSceneProduct) {
       const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
         const price = getSetItemPrice(item, "UZS");
-        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        const itemQty = getSetItemQuantity(item);
         return sum + price * itemQty;
       }, 0);
 
@@ -1307,7 +1369,7 @@ export default function ProductClient({
 
     const setSum = selectedSetItems.reduce((sum, item) => {
       const price = getSetItemPrice(item, "UZS");
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + price * itemQty;
     }, 0);
 
@@ -1327,7 +1389,7 @@ export default function ProductClient({
     if (isSceneProduct) {
       const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
         const price = getSetItemPrice(item, "RUB");
-        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        const itemQty = getSetItemQuantity(item);
         return sum + price * itemQty;
       }, 0);
 
@@ -1336,7 +1398,7 @@ export default function ProductClient({
 
     const setSum = selectedSetItems.reduce((sum, item) => {
       const price = getSetItemPrice(item, "RUB");
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + price * itemQty;
     }, 0);
 
@@ -1356,7 +1418,7 @@ export default function ProductClient({
     if (isSceneProduct) {
       const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
         const price = getSetItemPrice(item, "KZT");
-        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        const itemQty = getSetItemQuantity(item);
         return sum + price * itemQty;
       }, 0);
 
@@ -1365,7 +1427,7 @@ export default function ProductClient({
 
     const setSum = selectedSetItems.reduce((sum, item) => {
       const price = getSetItemPrice(item, "KZT");
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + price * itemQty;
     }, 0);
 
@@ -1385,7 +1447,7 @@ export default function ProductClient({
     if (isSceneProduct) {
       const excludedSum = excludedSceneSetItems.reduce((sum, item) => {
         const price = getSetItemPrice(item, "TJS");
-        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        const itemQty = getSetItemQuantity(item);
         return sum + price * itemQty;
       }, 0);
 
@@ -1394,7 +1456,7 @@ export default function ProductClient({
 
     const setSum = selectedSetItems.reduce((sum, item) => {
       const price = getSetItemPrice(item, "TJS");
-      const itemQty = Math.max(1, Number(item.quantity ?? 1));
+      const itemQty = getSetItemQuantity(item);
       return sum + price * itemQty;
     }, 0);
 
@@ -1502,7 +1564,7 @@ export default function ProductClient({
 
     const selectedSetItemsTitle = cartSetItems
       .map((item) => {
-        const itemQty = Math.max(1, Number(item.quantity ?? 1));
+        const itemQty = getSetItemQuantity(item);
         return itemQty > 1 ? `${item.title} × ${itemQty}` : item.title;
       })
       .filter(Boolean)
@@ -1990,7 +2052,7 @@ export default function ProductClient({
                 <div className="space-y-2">
                   {sceneDisplaySetItems.map((item) => {
                     const itemPrice = getSetItemPrice(item, currency);
-                    const itemQty = Math.max(1, Number(item.quantity ?? 1));
+                    const itemQty = getSetItemQuantity(item);
                     const collapsed = collapsedSet.has(item.id);
 
                     return (
