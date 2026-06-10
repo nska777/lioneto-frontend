@@ -18,10 +18,10 @@ const cn = (...s: Array<string | false | null | undefined>) =>
 const DEFAULT_SLIDES: Slide[] = [
   {
     id: "s1",
-    title: "ГОСТИНАЯ SALVADOR",
+    title: "СПАЛЬНЯ ELIZABETH",
     ctaLabel: "В КАТАЛОГ",
-    href: "/catalog?menu=living&collections=salvador&hero=1",
-    image: "/hero/01.jpg",
+    href: "/catalog?menu=bedrooms&collections=elizabeth&hero=1",
+    image: "/hero/06.jpg",
   },
   {
     id: "s2",
@@ -52,12 +52,13 @@ const DEFAULT_SLIDES: Slide[] = [
     image: "/hero/05.jpg",
   },
   {
-    id: "s6",
-    title: "СПАЛЬНЯ ELIZABETH",
+    id: "s1",
+    title: "ГОСТИНАЯ SALVADOR",
     ctaLabel: "В КАТАЛОГ",
-    href: "/catalog?menu=bedrooms&collections=elizabeth&hero=1",
-    image: "/hero/06.jpg",
+    href: "/catalog?menu=living&collections=salvador&hero=1",
+    image: "/hero/01.jpg",
   },
+
   {
     id: "s7",
     title: "ГОСТИНАЯ PITTI",
