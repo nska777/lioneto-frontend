@@ -1224,16 +1224,6 @@ export default function ProductClient({
     return null;
   }, [selectedVariants]);
 
-  const selectedSetItemGallery = useMemo(() => {
-    const withImage = [...selectedSetItems]
-      .reverse()
-      .find((item) => item.image);
-
-    if (withImage?.image) return [withImage.image];
-
-    return null;
-  }, [selectedSetItems]);
-
   const { gallery, activeIdx, setActiveIdx, onPrev, onNext } =
     useProductGallery(
       {
@@ -1242,8 +1232,10 @@ export default function ProductClient({
         gallery: product.gallery,
       },
       {
-        variantGallery: selectedSetItemGallery ?? variantGallery,
-        cacheKey: `${product.id}:${variantKey ?? "base"}:${setItemKey}`,
+        // Комплектация НЕ должна подменять главное фото.
+        // Галерея меняется только от вариантов цвета/исполнения.
+        variantGallery,
+        cacheKey: `${product.id}:${variantKey ?? "base"}`,
       },
     );
 
@@ -1416,23 +1408,13 @@ export default function ProductClient({
   ]);
 
   const finalImage = useMemo(() => {
-    const imageFromSetItem =
-      [...selectedSetItems]
-        .reverse()
-        .find((item) => item.affectsImage !== false && item.assembledImage)
-        ?.assembledImage ||
-      [...selectedSetItems]
-        .reverse()
-        .find((item) => item.affectsImage !== false && item.image)?.image ||
-      "";
-
     const imageFromVariant =
       Array.isArray(variantGallery) && variantGallery.length > 0
         ? variantGallery[0]
         : "";
 
-    return imageFromSetItem || imageFromVariant || product.image || null;
-  }, [selectedSetItems, variantGallery, product.image]);
+    return imageFromVariant || product.image || null;
+  }, [variantGallery, product.image]);
 
   const oldRubRaw = getPositiveNumber(product.old_price_rub);
   const oldUzsRaw = getPositiveNumber(product.old_price_uzs);
@@ -1779,7 +1761,7 @@ export default function ProductClient({
 
         <div className="grid gap-10 lg:grid-cols-[520px_1fr]">
           <ProductGallery
-            key={`${product.id}-${gallery.length}-${variantKey ?? "base"}-${setItemKey}`}
+            key={`${product.id}-${gallery.length}-${variantKey ?? "base"}`}
             title={product.title}
             gallery={gallery}
             activeIdx={activeIdx}
