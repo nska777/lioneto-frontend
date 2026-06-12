@@ -884,7 +884,8 @@ export default function CheckoutClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  const isSuccess = String(sp?.get("success") ?? "") === "1";
+  const [successNow, setSuccessNow] = useState(false);
+  const isSuccess = successNow || String(sp?.get("success") ?? "") === "1";
   const mode = String(sp?.get("mode") ?? "").toLowerCase();
 
   const { region } = useRegionLang();
@@ -1166,7 +1167,12 @@ export default function CheckoutClient() {
       setOfferConsent(null);
       setOfferOpen(false);
 
+      setSuccessNow(true);
       router.replace("/checkout?success=1");
+
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch {
       alert("Ошибка сети. Попробуйте ещё раз.");
     }
