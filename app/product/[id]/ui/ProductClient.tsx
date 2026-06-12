@@ -1845,7 +1845,7 @@ export default function ProductClient({
 
   return (
     <>
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-8">
+      <main className="mx-auto w-full max-w-[1200px] overflow-x-hidden px-4 py-5 sm:py-8">
         <div className="mb-4 text-[12px] text-black/40">
           <Link href="/" className="hover:text-black/70">
             Главная
@@ -1932,7 +1932,7 @@ export default function ProductClient({
           </div>
         </div>
 
-        <div className="grid gap-10 lg:grid-cols-[520px_1fr]">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[520px_minmax(0,1fr)] lg:gap-10">
           <ProductGallery
             key={`${product.id}-${gallery.length}-${variantKey ?? "base"}`}
             title={product.title}
@@ -1947,7 +1947,7 @@ export default function ProductClient({
           <aside
             style={accentVars}
             className={cn(
-              "relative",
+              "relative min-w-0",
               accent === "cappuccino"
                 ? "shadow-[0_0_0_1px_var(--accRing),0_30px_80px_-60px_var(--accSoft)] rounded-3xl p-5 -m-5"
                 : "rounded-3xl p-5 -m-5",
@@ -1963,7 +1963,7 @@ export default function ProductClient({
               {collectionBadge ? <FeatureBadge text={collectionBadge} /> : null}
             </div>
 
-            <h1 className="text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] text-black">
+            <h1 className="break-words text-[26px] font-semibold leading-[1.08] tracking-[-0.02em] text-black sm:text-[28px]">
               {product.title}
             </h1>
 
@@ -2022,10 +2022,10 @@ export default function ProductClient({
               </div>
             ) : null}
 
-            <div className="mt-3 flex items-start justify-between gap-6">
+            <div className="mt-3 flex min-w-0 flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
               <div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <div className="text-[28px] font-semibold text-black">
+                <div className="min-w-0">
+                  <div className="break-words text-[26px] font-semibold leading-tight text-black sm:text-[28px]">
                     {formatRegionalPrice(displayTotalPrice, currency)}
                   </div>
 
@@ -2034,7 +2034,7 @@ export default function ProductClient({
                   ) : null}
 
                   {displayOldTotalPrice > displayTotalPrice ? (
-                    <div className="text-[18px] font-medium text-black/30 line-through">
+                    <div className="break-words text-[16px] font-medium text-black/30 line-through sm:text-[18px]">
                       {formatRegionalPrice(displayOldTotalPrice, currency)}
                     </div>
                   ) : null}
@@ -2051,7 +2051,7 @@ export default function ProductClient({
                 ) : null}
               </div>
 
-              <div className="shrink-0">
+              <div className="shrink-0 self-start sm:self-auto">
                 <div className="inline-flex h-10 items-center overflow-hidden border border-black/20 bg-white">
                   <button
                     onClick={() => setQty((v) => Math.max(1, v - 1))}
@@ -2078,13 +2078,13 @@ export default function ProductClient({
               </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-4">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               <button
                 onClick={toggleMainCart}
                 style={accentVars}
                 className={cn(
                   "inline-flex cursor-pointer items-center justify-center gap-2",
-                  "h-12 flex-1 rounded-none",
+                  "h-12 w-full rounded-none",
                   "text-[13px] font-semibold transition active:scale-[0.99]",
                   inCart
                     ? "bg-emerald-600 text-white hover:bg-emerald-700"
@@ -2187,12 +2187,12 @@ export default function ProductClient({
                           "px-3 py-3 sm:px-4",
                         )}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
                           <button
                             type="button"
                             onClick={() => toggleSetItemCollapsed(item.id)}
                             className={cn(
-                              "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition",
+                              "inline-flex h-9 w-fit shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition",
                               collapsed
                                 ? "border-black/15 bg-white text-black/70 hover:border-black/30 hover:bg-black/[0.03] hover:text-black"
                                 : "border-black/15 bg-black/[0.04] text-black/80 hover:border-black/30 hover:bg-black/[0.07] hover:text-black",
@@ -2230,13 +2230,13 @@ export default function ProductClient({
                                   href={item.href}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="truncate text-[15px] font-semibold text-black underline-offset-4 hover:underline"
+                                  className="break-words text-[15px] font-semibold text-black underline-offset-4 hover:underline"
                                 >
                                   {item.title}
                                   {itemQty > 1 ? ` × ${itemQty}` : ""}
                                 </Link>
                               ) : (
-                                <div className="truncate text-[15px] font-semibold text-black">
+                                <div className="break-words text-[15px] font-semibold text-black">
                                   {item.title}
                                   {itemQty > 1 ? ` × ${itemQty}` : ""}
                                 </div>
@@ -2308,13 +2308,13 @@ export default function ProductClient({
 
                           <div
                             className={cn(
-                              "shrink-0 overflow-hidden transition-all duration-300 ease-out",
+                              "w-full overflow-hidden transition-all duration-300 ease-out sm:w-auto sm:shrink-0",
                               collapsed
-                                ? "max-w-0 translate-x-6 opacity-0"
-                                : "max-w-[220px] translate-x-0 opacity-100",
+                                ? "max-h-0 translate-y-2 opacity-0 sm:max-h-none sm:max-w-0 sm:translate-x-6 sm:translate-y-0"
+                                : "max-h-20 translate-y-0 opacity-100 sm:max-h-none sm:max-w-[220px] sm:translate-x-0",
                             )}
                           >
-                            <div className="whitespace-nowrap rounded-full bg-black px-3 py-1.5 text-[13px] font-semibold text-white">
+                            <div className="inline-flex max-w-full rounded-full bg-black px-3 py-1.5 text-[13px] font-semibold text-white sm:whitespace-nowrap">
                               {itemPrice !== 0
                                 ? formatRegionalPrice(
                                     itemPrice * itemQty,
@@ -2389,18 +2389,18 @@ export default function ProductClient({
               <Row label="Материал" value={product.extra?.material || "—"} />
 
               {hasSetItems ? (
-                <div className="flex items-start gap-3">
-                  <div className="w-[120px] shrink-0 text-black/45">
+                <div className="grid grid-cols-1 gap-1 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-3">
+                  <div className="text-black/45 sm:w-[120px]">
                     Состав изделия
                   </div>
 
-                  <div className="flex-1 border-b border-dotted border-black/20 pb-2">
+                  <div className="min-w-0 border-b border-dotted border-black/20 pb-2">
                     <button
                       type="button"
                       onClick={() => setSetItemsOpen((v) => !v)}
-                      className="inline-flex cursor-pointer items-center gap-2 text-black hover:text-black/70"
+                      className="inline-flex max-w-full cursor-pointer items-center gap-2 text-left text-black hover:text-black/70"
                     >
-                      <span>
+                      <span className="min-w-0 break-words">
                         {selectedSetItemLabel || "Выберите комплектацию"}
                       </span>
 
@@ -2583,9 +2583,9 @@ export default function ProductClient({
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3">
-      <div className="w-[120px] shrink-0 text-black/45">{label}</div>
-      <div className="flex-1 border-b border-dotted border-black/20 pb-1">
+    <div className="grid grid-cols-1 gap-1 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-3">
+      <div className="text-black/45 sm:w-[120px]">{label}</div>
+      <div className="min-w-0 break-words border-b border-dotted border-black/20 pb-1">
         {value}
       </div>
     </div>
