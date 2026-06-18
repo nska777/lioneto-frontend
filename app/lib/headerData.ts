@@ -193,6 +193,11 @@ export const megaCategories: MegaCategory[] = [
         fallback: "BUONGIORNO",
         href: makeCollectionHref("buongiorno", "living"),
       },
+      {
+        labelKey: "brand.amber",
+        fallback: "AMBER",
+        href: makeCollectionHref("amber", "living"),
+      },
     ],
   },
   {
@@ -295,6 +300,11 @@ export const MEGA_PREVIEWS: Record<string, MegaPreview> = {
   },
 
   // ГОСТИНЫЕ
+  [makeCollectionHref("amber", "living")]: {
+    titleKey: "mega.preview.living.amber",
+    fallback: "Гостиная «АМБЕР»",
+    main: "/mega/living/amber/01.jpg",
+  },
   [makeCollectionHref("scandi", "living")]: {
     titleKey: "mega.preview.living.scandi",
     fallback: "Гостиная «СКАНДИ»",

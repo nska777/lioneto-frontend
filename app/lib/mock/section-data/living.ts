@@ -8,6 +8,19 @@ const makeGallery = (basePath: string, count: number) =>
   });
 
 export const LIVING_SCENES: CollectionScene[] = [
+  // AMBER
+  {
+    id: "scene-living-amber",
+    section: "living",
+    collection: "amber",
+    title: "AMBER гостиная",
+    badge: "AMBER",
+    gallery: makeGallery("/slidermenu/living/amber", 2),
+    cover: "/slidermenu/living/amber/01.jpg",
+    priceRUB: 0,
+    priceUZS: 0,
+  },
+
   // BUONGIORNO (white + cappuccino)
   {
     id: "scene-living-buongiorno-white",

@@ -2,9 +2,25 @@
 import { makeGallery, makeProduct, type CatalogProduct } from "../catalog-base";
 
 // маленький хелпер для единичных картинок (01/02)
-const one = (basePath: string, file: "01" | "02" = "01") => [`${basePath}/${file}.jpg`];
+const one = (basePath: string, file: "01" | "02" = "01") => [
+  `${basePath}/${file}.jpg`,
+];
 
 export const AMBER_PRODUCTS: CatalogProduct[] = [
+  // -------------------------
+  // LIVING / ГОСТИНАЯ AMBER
+  // -------------------------
+  makeProduct({
+    id: "amber-living-gostinaya",
+    title: "AMBER гостиная",
+    brand: "amber",
+    cat: "living",
+    basePath: "/slidermenu/living/amber",
+    gallery: makeGallery("/slidermenu/living/amber", 2),
+    priceUZS: 34_118_000,
+    priceRUB: 0,
+  }),
+
   // -------------------------
   // KOMODY
   // -------------------------

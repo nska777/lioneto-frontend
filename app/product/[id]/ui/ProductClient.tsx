@@ -447,6 +447,17 @@ function isSceneSetItemQuantityEditable(
   item: ProductSetItem,
   product: ProductPageModel,
 ) {
+  const selectionType = normalizeKey(item.selectionType);
+
+  // Для сцен-комплектов любая позиция с selectionType: "multiple"
+  // должна иметь счётчик количества. Так можно менять не только тумбы,
+  // но и полки, подвесные блоки и любые другие модули комплекта.
+  if (selectionType === "multiple") {
+    return true;
+  }
+
+  // Старое поведение: если спальня и тумбочка пришла без selectionType,
+  // стартуем с 2 шт. и даём менять количество.
   return isBedroomSceneProduct(product) && isBedsideTableSetItem(item);
 }
 
@@ -484,6 +495,19 @@ function getScenePriceAdjustment(args: {
         );
 
     return sum + itemPrice * (activeQty - defaultQty);
+  }, 0);
+}
+
+function getSceneBaseSetItemsPrice(args: {
+  items: ProductSetItem[];
+  product: ProductPageModel;
+  currency: Currency;
+}) {
+  return args.items.reduce((sum, item) => {
+    const itemPrice = getSetItemPrice(item, args.currency);
+    const itemQty = getSceneSetItemQuantity(item, args.product);
+
+    return sum + itemPrice * itemQty;
   }, 0);
 }
 
@@ -1401,7 +1425,22 @@ export default function ProductClient({
     }, 0);
   }, [selectedSetItems, currency]);
 
-  const corpusUnitPrice = selectedVariantFinalPrice ?? baseUnitPrice;
+  const rawCorpusUnitPrice = selectedVariantFinalPrice ?? baseUnitPrice;
+
+  const sceneBaseSetItemsPrice = useMemo(() => {
+    if (!isSceneProduct) return 0;
+
+    return getSceneBaseSetItemsPrice({
+      items: sceneDisplaySetItems,
+      product,
+      currency,
+    });
+  }, [isSceneProduct, sceneDisplaySetItems, product, currency]);
+
+  const corpusUnitPrice =
+    isSceneProduct && rawCorpusUnitPrice <= 0
+      ? sceneBaseSetItemsPrice
+      : rawCorpusUnitPrice;
 
   const sceneUnitPriceAdjustment = useMemo(() => {
     if (!isSceneProduct) return 0;
@@ -1431,9 +1470,19 @@ export default function ProductClient({
 
   const finalUZS = useMemo(() => {
     const variantUZS = getPositiveNumber(selectedColorVariant?.priceDeltaUZS);
-    const corpus = variantUZS > 0 ? variantUZS : product.price_uzs;
+    const rawCorpus =
+      variantUZS > 0 ? variantUZS : getFiniteNumber(product.price_uzs);
 
     if (isSceneProduct) {
+      const corpus =
+        rawCorpus > 0
+          ? rawCorpus
+          : getSceneBaseSetItemsPrice({
+              items: sceneDisplaySetItems,
+              product,
+              currency: "UZS",
+            });
+
       const adjustment = getScenePriceAdjustment({
         items: sceneDisplaySetItems,
         product,
@@ -1451,7 +1500,7 @@ export default function ProductClient({
       return sum + price * itemQty;
     }, 0);
 
-    return corpus + setSum;
+    return rawCorpus + setSum;
   }, [
     selectedColorVariant,
     selectedSetItems,
@@ -1465,9 +1514,19 @@ export default function ProductClient({
 
   const finalRUB = useMemo(() => {
     const variantRUB = getPositiveNumber(selectedColorVariant?.priceDeltaRUB);
-    const corpus = variantRUB > 0 ? variantRUB : product.price_rub;
+    const rawCorpus =
+      variantRUB > 0 ? variantRUB : getFiniteNumber(product.price_rub);
 
     if (isSceneProduct) {
+      const corpus =
+        rawCorpus > 0
+          ? rawCorpus
+          : getSceneBaseSetItemsPrice({
+              items: sceneDisplaySetItems,
+              product,
+              currency: "RUB",
+            });
+
       const adjustment = getScenePriceAdjustment({
         items: sceneDisplaySetItems,
         product,
@@ -1485,7 +1544,7 @@ export default function ProductClient({
       return sum + price * itemQty;
     }, 0);
 
-    return corpus + setSum;
+    return rawCorpus + setSum;
   }, [
     selectedColorVariant,
     selectedSetItems,
@@ -1499,9 +1558,19 @@ export default function ProductClient({
 
   const finalKZ = useMemo(() => {
     const variantKZ = getPositiveNumber(selectedColorVariant?.priceDeltaKZ);
-    const corpus = variantKZ > 0 ? variantKZ : product.price_kz;
+    const rawCorpus =
+      variantKZ > 0 ? variantKZ : getFiniteNumber(product.price_kz);
 
     if (isSceneProduct) {
+      const corpus =
+        rawCorpus > 0
+          ? rawCorpus
+          : getSceneBaseSetItemsPrice({
+              items: sceneDisplaySetItems,
+              product,
+              currency: "KZT",
+            });
+
       const adjustment = getScenePriceAdjustment({
         items: sceneDisplaySetItems,
         product,
@@ -1519,7 +1588,7 @@ export default function ProductClient({
       return sum + price * itemQty;
     }, 0);
 
-    return corpus + setSum;
+    return rawCorpus + setSum;
   }, [
     selectedColorVariant,
     selectedSetItems,
@@ -1533,9 +1602,19 @@ export default function ProductClient({
 
   const finalTJ = useMemo(() => {
     const variantTJ = getPositiveNumber(selectedColorVariant?.priceDeltaTJ);
-    const corpus = variantTJ > 0 ? variantTJ : product.price_tj;
+    const rawCorpus =
+      variantTJ > 0 ? variantTJ : getFiniteNumber(product.price_tj);
 
     if (isSceneProduct) {
+      const corpus =
+        rawCorpus > 0
+          ? rawCorpus
+          : getSceneBaseSetItemsPrice({
+              items: sceneDisplaySetItems,
+              product,
+              currency: "TJS",
+            });
+
       const adjustment = getScenePriceAdjustment({
         items: sceneDisplaySetItems,
         product,
@@ -1553,7 +1632,7 @@ export default function ProductClient({
       return sum + price * itemQty;
     }, 0);
 
-    return corpus + setSum;
+    return rawCorpus + setSum;
   }, [
     selectedColorVariant,
     selectedSetItems,
@@ -2173,12 +2252,6 @@ export default function ProductClient({
                     return (
                       <div
                         key={item.id}
-                        onMouseEnter={() => setHoveredSetItemId(item.id)}
-                        onMouseLeave={() =>
-                          setHoveredSetItemId((current) =>
-                            current === item.id ? null : current,
-                          )
-                        }
                         className={cn(
                           "overflow-hidden rounded-[20px] border bg-white transition-all duration-300 ease-out",
                           collapsed
@@ -2230,13 +2303,31 @@ export default function ProductClient({
                                   href={item.href}
                                   target="_blank"
                                   rel="noopener noreferrer"
+                                  onMouseEnter={() =>
+                                    setHoveredSetItemId(item.id)
+                                  }
+                                  onMouseLeave={() =>
+                                    setHoveredSetItemId((current) =>
+                                      current === item.id ? null : current,
+                                    )
+                                  }
                                   className="break-words text-[15px] font-semibold text-black underline-offset-4 hover:underline"
                                 >
                                   {item.title}
                                   {itemQty > 1 ? ` × ${itemQty}` : ""}
                                 </Link>
                               ) : (
-                                <div className="break-words text-[15px] font-semibold text-black">
+                                <div
+                                  onMouseEnter={() =>
+                                    setHoveredSetItemId(item.id)
+                                  }
+                                  onMouseLeave={() =>
+                                    setHoveredSetItemId((current) =>
+                                      current === item.id ? null : current,
+                                    )
+                                  }
+                                  className="w-fit max-w-full break-words text-[15px] font-semibold text-black"
+                                >
                                   {item.title}
                                   {itemQty > 1 ? ` × ${itemQty}` : ""}
                                 </div>
