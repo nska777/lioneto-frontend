@@ -8,6 +8,8 @@ import {
   Image as ImageIcon,
   X,
   ChevronDown,
+  Camera,
+  ArrowUpRight,
 } from "lucide-react";
 
 const cn = (...s: Array<string | false | null | undefined>) =>
@@ -26,6 +28,7 @@ type ProductFileAsset = {
 
 type Props = {
   title: string;
+  productId?: string;
   model3dFile?: ProductFileAsset | null;
   model3dOriginalFile?: ProductFileAsset | null;
   texturesArchiveFile?: ProductFileAsset | null;
@@ -34,10 +37,12 @@ type Props = {
 
 function fileName(asset?: ProductFileAsset | null, fallback = "Файл") {
   if (asset?.name?.trim()) return asset.name.trim();
+
   const fromUrl = String(asset?.url ?? "")
     .split("/")
     .pop()
     ?.trim();
+
   return fromUrl || fallback;
 }
 
@@ -64,10 +69,12 @@ function CompactAction({
       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-black text-white">
         {icon}
       </span>
+
       <span className="min-w-0 leading-none">
         <span className="block truncate text-[12px] font-semibold uppercase tracking-[0.08em] text-black">
           {label}
         </span>
+
         {caption ? (
           <span className="mt-1 block max-w-[150px] truncate text-[11px] text-black/45">
             {caption}
@@ -96,8 +103,24 @@ function CompactAction({
   );
 }
 
+function buildRoomPhotoUrl(productId?: string) {
+  const botBaseUrl =
+    process.env.NEXT_PUBLIC_RICHHOUSE_BOT_URL ||
+    "https://t.me/RichHouseGameBot";
+
+  const safeProductId = String(productId || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 48);
+
+  const source = safeProductId ? `room_photo_${safeProductId}` : "room_photo";
+
+  return `${botBaseUrl}?start=${encodeURIComponent(source)}`;
+}
+
 export default function Product3DAssets({
   title,
+  productId,
   model3dFile,
   model3dOriginalFile,
   texturesArchiveFile,
@@ -127,7 +150,45 @@ export default function Product3DAssets({
   const hasArchive = !!texturesArchiveFile?.url;
   const hasTextures = textureFiles.length > 0;
 
-  if (!hasModel && !hasOriginal && !hasArchive && !hasTextures) return null;
+  const roomPhotoUrl = buildRoomPhotoUrl(productId);
+
+  if (!hasModel && !hasOriginal && !hasArchive && !hasTextures) {
+    return (
+      <section className="mt-4 rounded-2xl border border-black/10 bg-white px-3 py-3 shadow-[0_16px_46px_-42px_rgba(0,0,0,0.4)]">
+        <div className="text-[9px] tracking-[0.18em] uppercase text-black/35">
+          Визуализация
+        </div>
+
+        <h2 className="mt-0.5 text-[14px] font-semibold leading-tight text-black">
+          Примерка в интерьере
+        </h2>
+
+        <a
+          href={roomPhotoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-black bg-black px-3 py-3 text-left text-white transition hover:bg-black/90"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-black">
+              <Camera className="h-4 w-4" />
+            </span>
+
+            <span className="min-w-0">
+              <span className="block text-[13px] font-semibold">
+                Примерить по фото комнаты
+              </span>
+              <span className="mt-0.5 block text-[12px] text-white/60">
+                Отправьте фото — менеджер подготовит подбор
+              </span>
+            </span>
+          </span>
+
+          <ArrowUpRight className="h-4 w-4 shrink-0 text-white/60" />
+        </a>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-4 rounded-2xl border border-black/10 bg-white px-3 py-3 shadow-[0_16px_46px_-42px_rgba(0,0,0,0.4)]">
@@ -136,6 +197,7 @@ export default function Product3DAssets({
           <div className="text-[9px] tracking-[0.18em] uppercase text-black/35">
             3D материалы
           </div>
+
           <h2 className="mt-0.5 text-[14px] font-semibold leading-tight text-black">
             Модель и текстуры
           </h2>
@@ -180,6 +242,7 @@ export default function Product3DAssets({
                 Текстуры{hasTextures ? `: ${textureFiles.length} файл.` : ""}
               </span>
             </span>
+
             <ChevronDown className="h-4 w-4 shrink-0 text-black/45 transition group-open:rotate-180" />
           </summary>
 
@@ -211,15 +274,41 @@ export default function Product3DAssets({
                     />
                   ) : null}
                 </span>
+
                 <span className="max-w-[160px] truncate">
                   {texture.title || `Текстура ${index + 1}`}
                 </span>
+
                 <Download className="h-3.5 w-3.5 shrink-0 text-black/40" />
               </a>
             ))}
           </div>
         </details>
       ) : null}
+
+      <a
+        href={roomPhotoUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-black/10 bg-black px-3 py-3 text-left text-white transition hover:bg-black/90"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-black">
+            <Camera className="h-4 w-4" />
+          </span>
+
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold">
+              Примерить по фото комнаты
+            </span>
+            <span className="mt-0.5 block text-[12px] text-white/60">
+              Отправьте фото — менеджер подготовит подбор
+            </span>
+          </span>
+        </span>
+
+        <ArrowUpRight className="h-4 w-4 shrink-0 text-white/60" />
+      </a>
 
       {open && hasModel ? (
         <div
@@ -235,6 +324,7 @@ export default function Product3DAssets({
                 <div className="text-[10px] tracking-[0.18em] uppercase text-black/40">
                   3D просмотр
                 </div>
+
                 <div className="mt-1 truncate text-[18px] font-semibold text-black">
                   {title}
                 </div>
@@ -274,7 +364,7 @@ export default function Product3DAssets({
                   },
                 })
               ) : (
-                <div className="grid h-full min-h-[420px] place-items-center text-[13px] text-black/45">
+                <div className="grid h-full min-h-[420px] place-items-center text-[13px] text-white/45">
                   Загрузка 3D-просмотра…
                 </div>
               )}

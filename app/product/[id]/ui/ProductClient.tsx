@@ -2220,6 +2220,7 @@ export default function ProductClient({
 
             <Product3DAssets
               title={product.title}
+              productId={product.id}
               model3dFile={product.model3dFile}
               model3dOriginalFile={product.model3dOriginalFile}
               texturesArchiveFile={product.texturesArchiveFile}
