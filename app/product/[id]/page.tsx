@@ -103,6 +103,11 @@ type StrapiProduct = {
   assemblyInstructionTitle?: string | null;
   assemblyInstructionFile?: unknown;
 
+  model3dUrl?: string | null;
+  model3dOriginalUrl?: string | null;
+  texturesArchiveFile?: unknown;
+  textureFiles?: unknown;
+
   set_items_json?: unknown;
 };
 
@@ -479,6 +484,8 @@ async function fetchStrapiProductBySlug(
     `&populate[media]=true` +
     `&populate[gallery]=true` +
     `&populate[assemblyInstructionFile]=true` +
+    `&populate[texturesArchiveFile]=true` +
+    `&populate[textureFiles]=true` +
     `&populate[variants][populate][image][fields][0]=url` +
     `&populate[variants][populate][image][fields][1]=name` +
     `&populate[variants][populate][image][fields][2]=formats`;
@@ -585,6 +592,14 @@ async function fetchStrapiProductBySlug(
           ? src.assemblyInstructionTitle
           : null,
       assemblyInstructionFile: src.assemblyInstructionFile ?? null,
+
+      model3dUrl: typeof src.model3dUrl === "string" ? src.model3dUrl : null,
+      model3dOriginalUrl:
+        typeof src.model3dOriginalUrl === "string"
+          ? src.model3dOriginalUrl
+          : null,
+      texturesArchiveFile: src.texturesArchiveFile ?? null,
+      textureFiles: src.textureFiles ?? null,
 
       set_items_json: src.set_items_json ?? null,
     };
@@ -863,6 +878,33 @@ export default async function ProductPage({
     sp.assemblyInstructionFile,
   );
 
+  const model3dUrl =
+    typeof sp.model3dUrl === "string" ? sp.model3dUrl.trim() : "";
+
+  const model3dOriginalUrl =
+    typeof sp.model3dOriginalUrl === "string"
+      ? sp.model3dOriginalUrl.trim()
+      : "";
+
+  const model3dName = model3dUrl
+    ? model3dUrl.split("/").pop() || "model.glb"
+    : "";
+
+  const model3dOriginalName = model3dOriginalUrl
+    ? model3dOriginalUrl.split("/").pop() || "model.wrl"
+    : "";
+
+  const texturesArchiveUrl = pickStrapiMediaUrl(sp.texturesArchiveFile);
+  const texturesArchiveName = pickStrapiMediaName(sp.texturesArchiveFile);
+
+  const textureFiles = pickStrapiGalleryUrls(sp.textureFiles).map(
+    (url, index) => ({
+      title: `Текстура ${index + 1}`,
+      url,
+      preview: url,
+    }),
+  );
+
   const setItemsRaw = parseSetItemsJson(sp.set_items_json);
   const setItems = await resolveSetItemsImages(setItemsRaw);
 
@@ -900,6 +942,29 @@ export default async function ProductPage({
           name: assemblyInstructionName || "instruction.pdf",
         }
       : null,
+
+    model3dFile: model3dUrl
+      ? {
+          url: model3dUrl,
+          name: model3dName || "model.glb",
+        }
+      : null,
+
+    model3dOriginalFile: model3dOriginalUrl
+      ? {
+          url: model3dOriginalUrl,
+          name: model3dOriginalName || "model.wrl",
+        }
+      : null,
+
+    texturesArchiveFile: texturesArchiveUrl
+      ? {
+          url: texturesArchiveUrl,
+          name: texturesArchiveName || "textures.zip",
+        }
+      : null,
+
+    textureFiles,
 
     image: image || "",
     gallery: (galleryFinal.length ? galleryFinal : ["/placeholder.png"]).filter(

@@ -30,6 +30,7 @@ import ProductGallery from "./ProductGallery";
 import ProductVariants from "./ProductVariants";
 import ProductLightbox from "./ProductLightbox";
 import ProductRelated from "./ProductRelated";
+import Product3DAssets from "./Product3DAssets";
 
 import { useProductVariants } from "./hooks/useProductVariants";
 import { useProductGallery } from "./hooks/useProductGallery";
@@ -159,6 +160,27 @@ export type ProductPageModel = {
     url: string;
     name?: string;
   } | null;
+
+  model3dFile?: {
+    url: string;
+    name?: string;
+  } | null;
+
+  model3dOriginalFile?: {
+    url: string;
+    name?: string;
+  } | null;
+
+  texturesArchiveFile?: {
+    url: string;
+    name?: string;
+  } | null;
+
+  textureFiles?: Array<{
+    title: string;
+    url: string;
+    preview?: string;
+  }>;
 
   related?: Array<{
     id: string;
@@ -476,7 +498,7 @@ function getSceneSetItemQuantityWithOverrides(
   return getSceneSetItemQuantity(item, product);
 }
 
-function getScenePriceAdjustment(args: {
+function getSceneActiveSetItemsPrice(args: {
   items: ProductSetItem[];
   product: ProductPageModel;
   collapsedSet: Set<string>;
@@ -484,31 +506,38 @@ function getScenePriceAdjustment(args: {
   currency: Currency;
 }) {
   return args.items.reduce((sum, item) => {
-    const itemPrice = getSetItemPrice(item, args.currency);
-    const defaultQty = getSceneSetItemQuantity(item, args.product);
-    const activeQty = args.collapsedSet.has(item.id)
-      ? 0
-      : getSceneSetItemQuantityWithOverrides(
-          item,
-          args.product,
-          args.quantityOverrides,
-        );
+    if (args.collapsedSet.has(item.id)) return sum;
 
-    return sum + itemPrice * (activeQty - defaultQty);
-  }, 0);
-}
-
-function getSceneBaseSetItemsPrice(args: {
-  items: ProductSetItem[];
-  product: ProductPageModel;
-  currency: Currency;
-}) {
-  return args.items.reduce((sum, item) => {
     const itemPrice = getSetItemPrice(item, args.currency);
-    const itemQty = getSceneSetItemQuantity(item, args.product);
+    const itemQty = getSceneSetItemQuantityWithOverrides(
+      item,
+      args.product,
+      args.quantityOverrides,
+    );
 
     return sum + itemPrice * itemQty;
   }, 0);
+}
+
+function getProductOldPrice(product: ProductPageModel, currency: Currency) {
+  if (currency === "RUB") return getPositiveNumber(product.old_price_rub);
+  if (currency === "KZT") return getPositiveNumber(product.old_price_kz);
+  if (currency === "TJS") return getPositiveNumber(product.old_price_tj);
+  return getPositiveNumber(product.old_price_uzs);
+}
+
+function getSceneDiscountMultiplier(args: {
+  oldPrice: number;
+  newPrice: number;
+}) {
+  const oldPrice = getPositiveNumber(args.oldPrice);
+  const newPrice = getPositiveNumber(args.newPrice);
+
+  if (oldPrice > 0 && newPrice > 0 && oldPrice > newPrice) {
+    return newPrice / oldPrice;
+  }
+
+  return 1;
 }
 
 function isSetItemAvailableForRegion(item: ProductSetItem, currency: Currency) {
@@ -1427,25 +1456,12 @@ export default function ProductClient({
 
   const rawCorpusUnitPrice = selectedVariantFinalPrice ?? baseUnitPrice;
 
-  const sceneBaseSetItemsPrice = useMemo(() => {
+  const corpusUnitPrice = rawCorpusUnitPrice;
+
+  const sceneActiveSetItemsOldPrice = useMemo(() => {
     if (!isSceneProduct) return 0;
 
-    return getSceneBaseSetItemsPrice({
-      items: sceneDisplaySetItems,
-      product,
-      currency,
-    });
-  }, [isSceneProduct, sceneDisplaySetItems, product, currency]);
-
-  const corpusUnitPrice =
-    isSceneProduct && rawCorpusUnitPrice <= 0
-      ? sceneBaseSetItemsPrice
-      : rawCorpusUnitPrice;
-
-  const sceneUnitPriceAdjustment = useMemo(() => {
-    if (!isSceneProduct) return 0;
-
-    return getScenePriceAdjustment({
+    return getSceneActiveSetItemsPrice({
       items: sceneDisplaySetItems,
       product,
       collapsedSet,
@@ -1461,8 +1477,23 @@ export default function ProductClient({
     currency,
   ]);
 
+  const isSceneFullSetSelected =
+    isSceneProduct && sceneActiveCount > 0 && sceneExcludedCount === 0;
+
+  const sceneFullSetPrice = isSceneFullSetSelected
+    ? getProductPrice(product, currency)
+    : 0;
+
+  const sceneFullSetOldPrice = isSceneFullSetSelected
+    ? getProductOldPrice(product, currency)
+    : 0;
+
   const unitPrice = isSceneProduct
-    ? Math.max(0, corpusUnitPrice + sceneUnitPriceAdjustment)
+    ? isSceneFullSetSelected
+      ? sceneFullSetPrice > 0
+        ? sceneFullSetPrice
+        : sceneActiveSetItemsOldPrice
+      : sceneActiveSetItemsOldPrice
     : corpusUnitPrice + selectedSetItemsSum;
 
   const displayUnitPrice = unitPrice;
@@ -1474,24 +1505,18 @@ export default function ProductClient({
       variantUZS > 0 ? variantUZS : getFiniteNumber(product.price_uzs);
 
     if (isSceneProduct) {
-      const corpus =
-        rawCorpus > 0
-          ? rawCorpus
-          : getSceneBaseSetItemsPrice({
-              items: sceneDisplaySetItems,
-              product,
-              currency: "UZS",
-            });
+      if (isSceneFullSetSelected) {
+        const fullSetPrice = getPositiveNumber(product.price_uzs);
+        if (fullSetPrice > 0) return fullSetPrice;
+      }
 
-      const adjustment = getScenePriceAdjustment({
+      return getSceneActiveSetItemsPrice({
         items: sceneDisplaySetItems,
         product,
         collapsedSet,
         quantityOverrides: sceneSetItemQtyById,
         currency: "UZS",
       });
-
-      return Math.max(0, corpus + adjustment);
     }
 
     const setSum = selectedSetItems.reduce((sum, item) => {
@@ -1510,6 +1535,7 @@ export default function ProductClient({
     sceneDisplaySetItems,
     collapsedSet,
     sceneSetItemQtyById,
+    isSceneFullSetSelected,
   ]);
 
   const finalRUB = useMemo(() => {
@@ -1518,24 +1544,18 @@ export default function ProductClient({
       variantRUB > 0 ? variantRUB : getFiniteNumber(product.price_rub);
 
     if (isSceneProduct) {
-      const corpus =
-        rawCorpus > 0
-          ? rawCorpus
-          : getSceneBaseSetItemsPrice({
-              items: sceneDisplaySetItems,
-              product,
-              currency: "RUB",
-            });
+      if (isSceneFullSetSelected) {
+        const fullSetPrice = getPositiveNumber(product.price_rub);
+        if (fullSetPrice > 0) return fullSetPrice;
+      }
 
-      const adjustment = getScenePriceAdjustment({
+      return getSceneActiveSetItemsPrice({
         items: sceneDisplaySetItems,
         product,
         collapsedSet,
         quantityOverrides: sceneSetItemQtyById,
         currency: "RUB",
       });
-
-      return Math.max(0, corpus + adjustment);
     }
 
     const setSum = selectedSetItems.reduce((sum, item) => {
@@ -1554,6 +1574,7 @@ export default function ProductClient({
     sceneDisplaySetItems,
     collapsedSet,
     sceneSetItemQtyById,
+    isSceneFullSetSelected,
   ]);
 
   const finalKZ = useMemo(() => {
@@ -1562,24 +1583,18 @@ export default function ProductClient({
       variantKZ > 0 ? variantKZ : getFiniteNumber(product.price_kz);
 
     if (isSceneProduct) {
-      const corpus =
-        rawCorpus > 0
-          ? rawCorpus
-          : getSceneBaseSetItemsPrice({
-              items: sceneDisplaySetItems,
-              product,
-              currency: "KZT",
-            });
+      if (isSceneFullSetSelected) {
+        const fullSetPrice = getPositiveNumber(product.price_kz);
+        if (fullSetPrice > 0) return fullSetPrice;
+      }
 
-      const adjustment = getScenePriceAdjustment({
+      return getSceneActiveSetItemsPrice({
         items: sceneDisplaySetItems,
         product,
         collapsedSet,
         quantityOverrides: sceneSetItemQtyById,
         currency: "KZT",
       });
-
-      return Math.max(0, corpus + adjustment);
     }
 
     const setSum = selectedSetItems.reduce((sum, item) => {
@@ -1598,6 +1613,7 @@ export default function ProductClient({
     sceneDisplaySetItems,
     collapsedSet,
     sceneSetItemQtyById,
+    isSceneFullSetSelected,
   ]);
 
   const finalTJ = useMemo(() => {
@@ -1606,24 +1622,18 @@ export default function ProductClient({
       variantTJ > 0 ? variantTJ : getFiniteNumber(product.price_tj);
 
     if (isSceneProduct) {
-      const corpus =
-        rawCorpus > 0
-          ? rawCorpus
-          : getSceneBaseSetItemsPrice({
-              items: sceneDisplaySetItems,
-              product,
-              currency: "TJS",
-            });
+      if (isSceneFullSetSelected) {
+        const fullSetPrice = getPositiveNumber(product.price_tj);
+        if (fullSetPrice > 0) return fullSetPrice;
+      }
 
-      const adjustment = getScenePriceAdjustment({
+      return getSceneActiveSetItemsPrice({
         items: sceneDisplaySetItems,
         product,
         collapsedSet,
         quantityOverrides: sceneSetItemQtyById,
         currency: "TJS",
       });
-
-      return Math.max(0, corpus + adjustment);
     }
 
     const setSum = selectedSetItems.reduce((sum, item) => {
@@ -1642,6 +1652,7 @@ export default function ProductClient({
     sceneDisplaySetItems,
     collapsedSet,
     sceneSetItemQtyById,
+    isSceneFullSetSelected,
   ]);
 
   const finalImage = useMemo(() => {
@@ -1697,24 +1708,27 @@ export default function ProductClient({
           ? oldTjFallback
           : oldUzsFallback;
 
-  const hasProductDiscount =
-    oldCorpusUnitPrice > 0 && oldCorpusUnitPrice > corpusUnitPrice;
+  const hasProductDiscount = isSceneProduct
+    ? isSceneFullSetSelected &&
+      sceneFullSetOldPrice > displayUnitPrice &&
+      displayUnitPrice > 0
+    : oldCorpusUnitPrice > 0 && oldCorpusUnitPrice > corpusUnitPrice;
 
   const displayOldUnitPrice = hasProductDiscount
     ? isSceneProduct
-      ? Math.max(0, oldCorpusUnitPrice + sceneUnitPriceAdjustment)
+      ? sceneFullSetOldPrice
       : Math.max(0, oldCorpusUnitPrice + selectedSetItemsSum)
     : 0;
 
   const displayOldTotalPrice = displayOldUnitPrice * qty;
 
   const discountPercent =
-    hasProductDiscount && oldCorpusUnitPrice > corpusUnitPrice
+    hasProductDiscount && displayOldUnitPrice > displayUnitPrice
       ? Math.max(
           1,
           Math.min(
             99,
-            Math.round((1 - corpusUnitPrice / oldCorpusUnitPrice) * 100),
+            Math.round((1 - displayUnitPrice / displayOldUnitPrice) * 100),
           ),
         )
       : 0;
@@ -2105,14 +2119,18 @@ export default function ProductClient({
               <div>
                 <div className="min-w-0">
                   <div className="break-words text-[26px] font-semibold leading-tight text-black sm:text-[28px]">
-                    {formatRegionalPrice(displayTotalPrice, currency)}
+                    {isSceneProduct && sceneActiveCount <= 0
+                      ? "Комплект не выбран"
+                      : formatRegionalPrice(displayTotalPrice, currency)}
                   </div>
 
-                  {discountPercent > 0 ? (
+                  {discountPercent > 0 &&
+                  !(isSceneProduct && sceneActiveCount <= 0) ? (
                     <DiscountBadge percent={discountPercent} />
                   ) : null}
 
-                  {displayOldTotalPrice > displayTotalPrice ? (
+                  {displayOldTotalPrice > displayTotalPrice &&
+                  !(isSceneProduct && sceneActiveCount <= 0) ? (
                     <div className="break-words text-[16px] font-medium text-black/30 line-through sm:text-[18px]">
                       {formatRegionalPrice(displayOldTotalPrice, currency)}
                     </div>
@@ -2199,6 +2217,14 @@ export default function ProductClient({
                 Купить в 1 клик
               </button>
             </div>
+
+            <Product3DAssets
+              title={product.title}
+              model3dFile={product.model3dFile}
+              model3dOriginalFile={product.model3dOriginalFile}
+              texturesArchiveFile={product.texturesArchiveFile}
+              textureFiles={product.textureFiles}
+            />
 
             {isSceneProduct && hasSetItems ? (
               <section className="relative mt-6">
