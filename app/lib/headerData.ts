@@ -14,8 +14,8 @@ export const MEGA_SLIDES: Record<MegaSlidesKey, string[]> = {
     "/mega/bedrooms/buongiorno/02.jpg",
   ],
   "bedrooms:elizabeth": [
-  "/mega/bedrooms/elizabeth/1.jpg",
-  "/mega/bedrooms/elizabeth/2.jpg",
+  "/mega/bedrooms/elizabeth/elizabeth-new-1.jpg",
+  "/mega/bedrooms/elizabeth/elizabeth-new-2.jpg",
 ],
   "bedrooms:pitti": ["/mega/bedrooms/pitti/01.jpg"],
   "bedrooms:salvador": ["/mega/bedrooms/salvador/01.jpg"],
@@ -276,8 +276,8 @@ export const MEGA_PREVIEWS: Record<string, MegaPreview> = {
   [makeCollectionHref("elizabeth", "bedrooms")]: {
   titleKey: "mega.preview.bedrooms.elizabeth",
   fallback: "Спальня «ЭЛИЗАБЕТ»",
-  main: "/mega/bedrooms/elizabeth/1.jpg",
-  a: "/mega/bedrooms/elizabeth/2.jpg",
+  main: "/mega/bedrooms/elizabeth/elizabeth-new-1.jpg",
+  a: "/mega/bedrooms/elizabeth/elizabeth-new-2.jpg",
 },
   [makeCollectionHref("salvador", "bedrooms")]: {
     titleKey: "mega.preview.bedrooms.salvador",
