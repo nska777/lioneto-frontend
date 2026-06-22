@@ -13,7 +13,10 @@ export const MEGA_SLIDES: Record<MegaSlidesKey, string[]> = {
     "/mega/bedrooms/buongiorno/01.jpg",
     "/mega/bedrooms/buongiorno/02.jpg",
   ],
-  "bedrooms:elizabeth": ["/mega/bedrooms/elizabeth/01.jpg"],
+  "bedrooms:elizabeth": [
+  "/mega/bedrooms/elizabeth/1.jpg",
+  "/mega/bedrooms/elizabeth/2.jpg",
+],
   "bedrooms:pitti": ["/mega/bedrooms/pitti/01.jpg"],
   "bedrooms:salvador": ["/mega/bedrooms/salvador/01.jpg"],
   "bedrooms:scandy": ["/mega/bedrooms/scandy/01.jpg"],
