@@ -274,12 +274,11 @@ export const MEGA_PREVIEWS: Record<string, MegaPreview> = {
     b: "/mega/bedrooms/scandi/2.jpg",
   },
   [makeCollectionHref("elizabeth", "bedrooms")]: {
-    titleKey: "mega.preview.bedrooms.elizabeth",
-    fallback: "Спальня «ЭЛИЗАБЕТ»",
-    main: "/mega/bedrooms/elizabeth/main.jpg",
-    a: "/mega/bedrooms/elizabeth/1.jpg",
-    b: "/mega/bedrooms/elizabeth/2.jpg",
-  },
+  titleKey: "mega.preview.bedrooms.elizabeth",
+  fallback: "Спальня «ЭЛИЗАБЕТ»",
+  main: "/mega/bedrooms/elizabeth/1.jpg",
+  a: "/mega/bedrooms/elizabeth/2.jpg",
+},
   [makeCollectionHref("salvador", "bedrooms")]: {
     titleKey: "mega.preview.bedrooms.salvador",
     fallback: "Спальня «САЛЬВАДОР»",
