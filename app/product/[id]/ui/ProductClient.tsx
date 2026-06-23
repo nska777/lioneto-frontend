@@ -996,7 +996,6 @@ export default function ProductClient({
 
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [collapsedSetItemIds, setCollapsedSetItemIds] = useState<string[]>([]);
-  const [hoveredSetItemId, setHoveredSetItemId] = useState<string | null>(null);
   const [setItemsOpen, setSetItemsOpen] = useState(false);
   const [selectedSetItemByGroup, setSelectedSetItemByGroup] = useState<
     Record<string, string>
@@ -1176,7 +1175,6 @@ export default function ProductClient({
 
   useEffect(() => {
     setCollapsedSetItemIds([]);
-    setHoveredSetItemId(null);
     setSetItemsOpen(false);
     setSelectedSetItemByGroup({});
     setSceneSetItemQtyById({});
@@ -1733,11 +1731,6 @@ export default function ProductClient({
         )
       : 0;
 
-  const hoveredSetItem = useMemo(() => {
-    const sourceItems = isSceneProduct ? sceneDisplaySetItems : visibleSetItems;
-    return sourceItems.find((item) => item.id === hoveredSetItemId) ?? null;
-  }, [isSceneProduct, sceneDisplaySetItems, visibleSetItems, hoveredSetItemId]);
-
   const toggleSetItemCollapsed = (itemId: string) => {
     setCollapsedSetItemIds((prev) =>
       prev.includes(itemId)
@@ -2246,26 +2239,6 @@ export default function ProductClient({
                   ) : null}
                 </div>
 
-                {hoveredSetItem?.image ? (
-                  <div className="pointer-events-none absolute right-[170px] top-10 z-30 hidden w-[240px] overflow-hidden rounded-[20px] border border-black/10 bg-white shadow-[0_24px_60px_-32px_rgba(0,0,0,0.35)] xl:block">
-                    <div className="aspect-[4/3] bg-black/5">
-                      <img
-                        src={hoveredSetItem.image}
-                        alt={hoveredSetItem.title}
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                    <div className="px-3 py-3">
-                      <div className="text-[13px] font-semibold text-black">
-                        {hoveredSetItem.title}
-                      </div>
-                      <div className="mt-1 text-[12px] text-black/50">
-                        {hoveredSetItem.article || "Без артикула"}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
                 <div className="space-y-2">
                   {sceneDisplaySetItems.map((item) => {
                     const itemPrice = getSetItemPrice(item, currency);
@@ -2322,7 +2295,7 @@ export default function ProductClient({
                           </button>
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3">
                               <div className="h-2 w-2 shrink-0 rounded-full bg-black" />
 
                               {item.href ? (
@@ -2330,35 +2303,37 @@ export default function ProductClient({
                                   href={item.href}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  onMouseEnter={() =>
-                                    setHoveredSetItemId(item.id)
-                                  }
-                                  onMouseLeave={() =>
-                                    setHoveredSetItemId((current) =>
-                                      current === item.id ? null : current,
-                                    )
-                                  }
-                                  className="break-words text-[15px] font-semibold text-black underline-offset-4 hover:underline"
+                                  aria-label={`Открыть страницу товара ${item.title}`}
+                                  className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-black/10 bg-white transition hover:border-black/25 hover:shadow-[0_10px_24px_-18px_rgba(0,0,0,0.45)]"
                                 >
-                                  {item.title}
-                                  {itemQty > 1 ? ` × ${itemQty}` : ""}
+                                  {item.image ? (
+                                    <img
+                                      src={item.image}
+                                      alt={item.title}
+                                      className="h-full w-full object-contain p-1"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <span className="text-[8px] font-semibold tracking-[0.14em] text-black/30">
+                                      NO IMG
+                                    </span>
+                                  )}
                                 </Link>
-                              ) : (
-                                <div
-                                  onMouseEnter={() =>
-                                    setHoveredSetItemId(item.id)
-                                  }
-                                  onMouseLeave={() =>
-                                    setHoveredSetItemId((current) =>
-                                      current === item.id ? null : current,
-                                    )
-                                  }
-                                  className="w-fit max-w-full break-words text-[15px] font-semibold text-black"
-                                >
-                                  {item.title}
-                                  {itemQty > 1 ? ` × ${itemQty}` : ""}
+                              ) : item.image ? (
+                                <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-black/10 bg-white">
+                                  <img
+                                    src={item.image}
+                                    alt={item.title}
+                                    className="h-full w-full object-contain p-1"
+                                    loading="lazy"
+                                  />
                                 </div>
-                              )}
+                              ) : null}
+
+                              <div className="min-w-0 break-words text-[15px] font-semibold text-black">
+                                {item.title}
+                                {itemQty > 1 ? ` × ${itemQty}` : ""}
+                              </div>
                             </div>
 
                             <div
