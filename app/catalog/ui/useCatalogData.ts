@@ -392,10 +392,12 @@ export function useCatalogData({
       };
 
       /**
-       * Если выбрана комната — сначала пытаемся найти scene именно этой комнаты.
-       * Если scene этой комнаты нет, показываем любые scene выбранной коллекции.
-       * Это убирает ситуацию, когда RU через fallback показывает scene,
-       * а UZ показывает только обычные товары.
+       * Если выбрана коллекция и/или комната — сначала показываем scene.
+       *
+       * ВАЖНО:
+       * если выбран menu=bedrooms/living/youth, scene должна быть строго
+       * из этого раздела. Иначе коллекции с одинаковым названием,
+       * например BUONGIORNO, начинают смешивать спальни и гостиные.
        */
       const priorityRoom = hasRoom ? activeRoom : "bedrooms";
 
@@ -404,9 +406,14 @@ export function useCatalogData({
         if (!isSceneProduct(p)) return false;
 
         const sceneCollection = getCollectionSlugSafe(p);
+        const sceneRoom = getRoomSlugSafe(p);
 
         if (activeCollection && sceneCollection !== activeCollection) {
           return false;
+        }
+
+        if (hasRoom) {
+          if (!sceneRoom || !menu.includes(sceneRoom)) return false;
         }
 
         return passesTextAndPrice(p);
@@ -416,19 +423,16 @@ export function useCatalogData({
         const sceneRoom = getRoomSlugSafe(p);
 
         if (!priorityRoom) return true;
-        if (!sceneRoom) return true;
 
         return sceneRoom === priorityRoom;
       });
 
-      const scenesTop = [...(exactRoomScenes.length ? exactRoomScenes : allScenesForCollection)].sort(
-        sortCatalogItems,
-      );
+      const scenesTop = [...exactRoomScenes].sort(sortCatalogItems);
 
       const sceneKeys = new Set(scenesTop.map(itemKey));
 
       /**
-       * 2. Потом обычные товары/модули.
+       * Потом обычные товары/модули.
        */
       const rest = DATA.filter((p) => {
         if (!isActiveProduct(p, region)) return false;
@@ -446,15 +450,18 @@ export function useCatalogData({
         const mod = getModuleSlugSafe(p);
 
         /**
-         * Если выбрана коллекция, НЕ режем обычные товары по bedrooms/living/youth,
-         * потому что у товаров cat=krovati/shkafy/tumby и т.д.
+         * Если выбран раздел через menu=bedrooms/living/youth,
+         * товар обязан принадлежать именно этому разделу.
+         *
+         * Иначе коллекции с одинаковым названием, например BUONGIORNO,
+         * начинают смешивать спальни и гостиные.
          */
-        if (!hasCollection && hasRoom) {
-          if (room && !menu.includes(room)) return false;
+        if (hasRoom) {
+          if (!room || !menu.includes(room)) return false;
         }
 
         if (hasCollection) {
-          if (!collections.includes(col)) return false;
+          if (!col || !collections.includes(col)) return false;
         }
 
         if (hasModule) {
