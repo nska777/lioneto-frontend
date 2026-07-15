@@ -392,12 +392,17 @@ export function useCatalogData({
       };
 
       /**
-       * Если выбрана коллекция и/или комната — сначала показываем scene.
+       * Если выбрана комната — сначала пытаемся найти scene именно этой комнаты.
        *
        * ВАЖНО:
-       * если выбран menu=bedrooms/living/youth, scene должна быть строго
-       * из этого раздела. Иначе коллекции с одинаковым названием,
-       * например BUONGIORNO, начинают смешивать спальни и гостиные.
+       * Строго делим по разделам ТОЛЬКО scene-карточки:
+       * bedrooms -> только спальни
+       * living -> только гостиные
+       * youth -> только молодёжные
+       *
+       * Обычные товары/модули ниже не режем строго по bedrooms/living,
+       * если выбрана коллекция, потому что у них cat может быть krovati,
+       * shkafy, tumby, komody и т.д.
        */
       const priorityRoom = hasRoom ? activeRoom : "bedrooms";
 
@@ -412,6 +417,10 @@ export function useCatalogData({
           return false;
         }
 
+        /**
+         * Только SCENE-карточки строго делим по разделу.
+         * Так гостиная BUONGIORNO больше не попадёт в спальни BUONGIORNO.
+         */
         if (hasRoom) {
           if (!sceneRoom || !menu.includes(sceneRoom)) return false;
         }
@@ -432,7 +441,7 @@ export function useCatalogData({
       const sceneKeys = new Set(scenesTop.map(itemKey));
 
       /**
-       * Потом обычные товары/модули.
+       * 2. Потом обычные товары/модули.
        */
       const rest = DATA.filter((p) => {
         if (!isActiveProduct(p, region)) return false;
@@ -450,18 +459,19 @@ export function useCatalogData({
         const mod = getModuleSlugSafe(p);
 
         /**
-         * Если выбран раздел через menu=bedrooms/living/youth,
-         * товар обязан принадлежать именно этому разделу.
+         * ВАЖНО:
+         * Обычные товары/модули внутри коллекции НЕ режем строго по
+         * bedrooms/living/youth, потому что у них cat может быть:
+         * krovati/shkafy/tumby/komody и т.д.
          *
-         * Иначе коллекции с одинаковым названием, например BUONGIORNO,
-         * начинают смешивать спальни и гостиные.
+         * Если коллекция НЕ выбрана, тогда фильтр раздела работает как раньше.
          */
-        if (hasRoom) {
-          if (!room || !menu.includes(room)) return false;
+        if (!hasCollection && hasRoom) {
+          if (room && !menu.includes(room)) return false;
         }
 
         if (hasCollection) {
-          if (!col || !collections.includes(col)) return false;
+          if (!collections.includes(col)) return false;
         }
 
         if (hasModule) {
