@@ -25,17 +25,17 @@ const DEFAULT_SLIDES: Slide[] = [
   },
   {
     id: "s2",
-    title: "СПАЛЬНЯ AMBER",
-    ctaLabel: "В КАТАЛОГ",
-    href: "/catalog?menu=bedrooms&collections=amber&hero=1",
-    image: "/hero/02.jpg",
-  },
-  {
-    id: "s3",
     title: "СПАЛЬНЯ BUONGIORNO",
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=bedrooms&collections=buongiorno&hero=1",
     image: "/hero/03.jpg",
+  },
+  {
+    id: "s3",
+    title: "СПАЛЬНЯ AMBER",
+    ctaLabel: "В КАТАЛОГ",
+    href: "/catalog?menu=bedrooms&collections=amber&hero=1",
+    image: "/hero/02.jpg",
   },
   {
     id: "s4",
