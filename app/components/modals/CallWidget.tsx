@@ -74,7 +74,7 @@ export default function CallWidget() {
         }
       `}</style>
 
-      <div className="fixed bottom-5 right-5 z-[70] sm:bottom-6 sm:right-6">
+      <div className="fixed bottom-28 right-5 z-[70] sm:bottom-32 sm:right-6">
         <div className="relative flex flex-col items-end gap-2">
           <button
             type="button"
