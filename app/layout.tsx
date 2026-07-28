@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 import { RegionLangProvider } from "./context/region-lang";
@@ -97,7 +98,15 @@ export const metadata: Metadata = {
   },
 
   icons: {
-    icon: [{ url: "/favicon.ico" }, { url: "/icon.png", type: "image/png" }],
+    icon: [
+      {
+        url: "/favicon.ico",
+      },
+      {
+        url: "/icon.png",
+        type: "image/png",
+      },
+    ],
     shortcut: "/favicon.ico",
     apple: "/icon.png",
   },
@@ -247,10 +256,15 @@ export default async function RootLayout({
           </ShopStateProvider>
         </RegionLangProvider>
 
-        {/* <BackToTop /> */}
-
-        {/* Jivo */}
+        {/* Jivo пока отключён */}
         {/* {jivoId ? <JivoProvider widgetId={jivoId} /> : null} */}
+
+        {/* AI-консультант Timeweb */}
+        <Script
+          id="timeweb-ai-agent"
+          src="https://timeweb.cloud/api/v1/cloud-ai/agents/710ba349-84e5-437e-9fdf-74ce5fd1d1e8/embed.js?collapsed=true"
+          strategy="afterInteractive"
+        />
 
         <UtmTracker />
         <YandexMetrika />
