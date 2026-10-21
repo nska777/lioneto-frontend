@@ -52,7 +52,7 @@ const DEFAULT_SLIDES: Slide[] = [
     image: "/hero/05.jpg",
   },
   {
-    id: "s1",
+    id: "s6",
     title: "ГОСТИНАЯ SALVADOR",
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=living&collections=salvador&hero=1",
