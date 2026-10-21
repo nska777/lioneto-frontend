@@ -10,10 +10,31 @@ type Slide = {
   ctaLabel: string;
   href: string;
   image: string;
+  room?: string;
+  collectionKey?: string;
+};
+
+type StrapiSlide = {
+  id?: number | string;
+  documentId?: string;
+  title?: string;
+  placement?: string;
+  room?: string;
+  collectionKey?: string;
+  ctaLabel?: string;
+  href?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+  image?: {
+    url?: string;
+  } | null;
 };
 
 const cn = (...s: Array<string | false | null | undefined>) =>
   s.filter(Boolean).join(" ");
+
+const STRAPI_BASE =
+  process.env.NEXT_PUBLIC_STRAPI_URL || "https://lioneto-cms.ru";
 
 const DEFAULT_SLIDES: Slide[] = [
   {
@@ -22,6 +43,8 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=bedrooms&collections=elizabeth&hero=1",
     image: "/hero/06.jpg",
+    room: "bedrooms",
+    collectionKey: "elizabeth",
   },
   {
     id: "s2",
@@ -29,6 +52,8 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=bedrooms&collections=buongiorno&hero=1",
     image: "/hero/03.jpg",
+    room: "bedrooms",
+    collectionKey: "buongiorno",
   },
   {
     id: "s3",
@@ -36,6 +61,8 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=bedrooms&collections=amber&hero=1",
     image: "/hero/02.jpg",
+    room: "bedrooms",
+    collectionKey: "amber",
   },
   {
     id: "s4",
@@ -43,6 +70,8 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=living&collections=buongiorno&hero=1",
     image: "/hero/04.jpg",
+    room: "living",
+    collectionKey: "buongiorno",
   },
   {
     id: "s5",
@@ -50,6 +79,8 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=youth&collections=elizabeth&hero=1",
     image: "/hero/05.jpg",
+    room: "youth",
+    collectionKey: "elizabeth",
   },
   {
     id: "s6",
@@ -57,14 +88,17 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=living&collections=salvador&hero=1",
     image: "/hero/01.jpg",
+    room: "living",
+    collectionKey: "salvador",
   },
-
   {
     id: "s7",
     title: "ГОСТИНАЯ PITTI",
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=living&collections=pitti&hero=1",
     image: "/hero/07.jpg",
+    room: "living",
+    collectionKey: "pitti",
   },
   {
     id: "s8",
@@ -72,6 +106,8 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=living&collections=scandy&hero=1",
     image: "/hero/08.jpg",
+    room: "living",
+    collectionKey: "scandy",
   },
   {
     id: "s9",
@@ -79,6 +115,8 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=youth&collections=scandi&hero=1",
     image: "/hero/09.jpg",
+    room: "youth",
+    collectionKey: "scandi",
   },
   {
     id: "s10",
@@ -86,8 +124,20 @@ const DEFAULT_SLIDES: Slide[] = [
     ctaLabel: "В КАТАЛОГ",
     href: "/catalog?menu=bedrooms&collections=salvador&hero=1",
     image: "/hero/010.jpg",
+    room: "bedrooms",
+    collectionKey: "salvador",
   },
 ];
+
+function norm(v?: string) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function absStrapiUrl(url?: string) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${STRAPI_BASE.replace(/\/$/, "")}${url}`;
+}
 
 export default function GSAPHeroSlider({
   slides = DEFAULT_SLIDES,
@@ -100,13 +150,62 @@ export default function GSAPHeroSlider({
   const touchStartXRef = useRef<number | null>(null);
 
   const [active, setActive] = useState(0);
+  const [remoteSlides, setRemoteSlides] = useState<StrapiSlide[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRemoteSlides() {
+      try {
+        const res = await fetch("/api/site-slides?placement=home", {
+          cache: "no-store",
+        });
+
+        if (!res.ok) return;
+
+        const json = await res.json();
+        const data = Array.isArray(json?.data) ? json.data : [];
+
+        if (!cancelled) {
+          setRemoteSlides(data);
+        }
+      } catch (error) {
+        console.error("[GSAPHeroSlider] Strapi slides fetch failed", error);
+      }
+    }
+
+    void loadRemoteSlides();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const safeSlides = useMemo(() => {
     const arr =
       Array.isArray(slides) && slides.length ? slides : DEFAULT_SLIDES;
 
-    return arr.filter((s) => s && s.id && s.title && s.image);
-  }, [slides]);
+    const merged = arr.map((localSlide) => {
+      const remote = remoteSlides.find(
+        (item) =>
+          norm(item.room) === norm(localSlide.room) &&
+          norm(item.collectionKey) === norm(localSlide.collectionKey),
+      );
+
+      if (!remote) return localSlide;
+
+      return {
+        ...localSlide,
+        id: remote.documentId || String(remote.id || localSlide.id),
+        title: String(remote.title || localSlide.title),
+        ctaLabel: String(remote.ctaLabel || localSlide.ctaLabel),
+        href: String(remote.href || localSlide.href),
+        image: absStrapiUrl(remote.image?.url) || localSlide.image,
+      };
+    });
+
+    return merged.filter((s) => s && s.id && s.title && s.image);
+  }, [slides, remoteSlides]);
 
   const slidesCount = safeSlides.length;
   const activeSlide = safeSlides[active];
@@ -350,7 +449,6 @@ export default function GSAPHeroSlider({
             />
           </button>
 
-          {/* Mobile: только название коллекции снизу по центру, без точек */}
           <div className="pointer-events-none absolute bottom-3 left-0 right-0 z-30 flex justify-center px-3 md:hidden">
             <div className="max-w-[82%] rounded-full bg-black/42 px-4 py-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.22)] ring-1 ring-white/12 backdrop-blur-[4px]">
               <p className="truncate text-center text-[10px] font-extrabold uppercase leading-none tracking-[0.045em] text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]">
@@ -359,7 +457,6 @@ export default function GSAPHeroSlider({
             </div>
           </div>
 
-          {/* Desktop: точки по центру */}
           <div className="pointer-events-auto absolute bottom-4 left-0 right-0 z-30 hidden justify-center md:flex">
             <div className="rounded-full bg-black/18 px-3 py-2 ring-1 ring-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-[6px]">
               <div className="flex items-center gap-2">
